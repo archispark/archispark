@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="322" height="188" viewBox="0 0 322 188">
+<title>Default View</title>
+  <defs>
+    <marker id="arrow-open" markerWidth="9" markerHeight="8" refX="8" refY="3.5" orient="auto">
+      <path d="M0,0 L8,3.5 L0,7" fill="none" stroke="#000" stroke-width="1.2"/>
+    </marker>
+    <marker id="arrow-filled" markerWidth="9" markerHeight="8" refX="8" refY="3.5" orient="auto">
+      <path d="M0,0 L8,3.5 L0,7 Z" fill="#000" stroke="none"/>
+    </marker>
+    <marker id="arrow-hollow" markerWidth="11" markerHeight="9" refX="10" refY="4" orient="auto">
+      <path d="M0,0 L9,4 L0,8 Z" fill="white" stroke="#000" stroke-width="1.2"/>
+    </marker>
+    <marker id="diamond-filled" markerWidth="12" markerHeight="8" refX="0" refY="4" orient="auto-start-reverse">
+      <path d="M0,4 L5,0 L10,4 L5,8 Z" fill="#000" stroke="#000" stroke-width="0.5"/>
+    </marker>
+    <marker id="diamond-open" markerWidth="12" markerHeight="8" refX="0" refY="4" orient="auto-start-reverse">
+      <path d="M0,4 L5,0 L10,4 L5,8 Z" fill="white" stroke="#000" stroke-width="1"/>
+    </marker>
+    <marker id="circle-solid" markerWidth="7" markerHeight="7" refX="0" refY="3.5" orient="auto-start-reverse">
+      <circle cx="3.5" cy="3.5" r="3" fill="#000" stroke="#000"/>
+    </marker>
+  </defs>
+<rect width="322" height="188" fill="white"/>
+<rect x="10" y="123" width="120" height="55" rx="2" fill="rgb(204,204,255)" stroke="rgb(92,92,92)" stroke-width="1"/>
+<image href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAALHRFWHRDcmVhdGlvbiBUaW1lAE1vbiAyNSBKYW4gMjAxMCAxMjoxNDo1NSAtMDAwMGi4s34AAAAHdElNRQfcARwQOSc5LyzCAAAACXBIWXMAAArwAAAK8AFCrDSYAAAABGdBTUEAALGPC/xhBQAAAIFJREFUeNqlU1sOwCAIG57J+5/AO7Es0a2Dli2RLyX0YVU7dDmsTQ2ZAo7x4Hs3OR8bjsBYk8gUgQtV5iZZSuCv/cI2ZjMe49qjI6yG6kIpkcwZpw4iWCmjA1rLSXUrNESWQeyXIbLAFCk6eLlgAYa+fJpbL/EmEap0vrqjX79xu06a+VOqNYOegAAAAABJRU5ErkJggg==" x="110.0" y="127.0" width="16" height="16"/>
+<text x="70.0" y="147.5" font-family="Segoe UI" font-size="9" text-anchor="middle" fill="rgb(0,0,0)">Reduction of</text>
+<text x="70.0" y="159.5" font-family="Segoe UI" font-size="9" text-anchor="middle" fill="rgb(0,0,0)">maintenance costs</text>
+<rect x="192" y="10" width="120" height="55" rx="2" fill="rgb(204,204,255)" stroke="rgb(92,92,92)" stroke-width="1"/>
+<image href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAALHRFWHRDcmVhdGlvbiBUaW1lAE1vbiAyNSBKYW4gMjAxMCAxMjoxNDo1NSAtMDAwMGi4s34AAAAHdElNRQfcARwQOSc5LyzCAAAACXBIWXMAAArwAAAK8AFCrDSYAAAABGdBTUEAALGPC/xhBQAAAIFJREFUeNqlU1sOwCAIG57J+5/AO7Es0a2Dli2RLyX0YVU7dDmsTQ2ZAo7x4Hs3OR8bjsBYk8gUgQtV5iZZSuCv/cI2ZjMe49qjI6yG6kIpkcwZpw4iWCmjA1rLSXUrNESWQeyXIbLAFCk6eLlgAYa+fJpbL/EmEap0vrqjX79xu06a+VOqNYOegAAAAABJRU5ErkJggg==" x="292.0" y="14.0" width="16" height="16"/>
+<text x="252.0" y="34.5" font-family="Segoe UI" font-size="9" text-anchor="middle" fill="rgb(0,0,0)">Redunction of</text>
+<text x="252.0" y="46.5" font-family="Segoe UI" font-size="9" text-anchor="middle" fill="rgb(0,0,0)">costs</text>
+<polyline points="207.7,65.0 114.3,123.0" fill="none" stroke="rgb(0,0,0)" stroke-width="1" marker-start="url(#diamond-open)"/>
+</svg>

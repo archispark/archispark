@@ -1,0 +1,12 @@
+{
+  "temperature": 0.1,
+  "ignore_files": [
+    "**/node_modules/**",
+    "**/dist/**",
+    "**/build/**",
+    "**/*.log",
+    ".git/**",
+    ".env",
+    "coverage/**"
+  ]
+}

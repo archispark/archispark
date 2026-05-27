@@ -1,0 +1,51 @@
+{
+  "name": "mcp-archimate",
+  "version": "0.4.2",
+  "description": "REST and MCP services to explore an ArchiMate model",
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/main.ts",
+    "dev": "tsx watch src/main.ts",
+    "build": "tsc",
+    "start:dist": "node dist/main.js",
+    "test": "vitest run",
+    "test:watch": "vitest watch",
+    "test:coverage": "vitest run --coverage.enabled --coverage.reporter=lcov",
+    "test:ci": "vitest run --reporter=junit --outputFile=test-report.junit.xml",
+    "lint": "eslint . --ext .ts"
+  },
+  "keywords": [
+    "archimate",
+    "mcp",
+    "model-context-protocol",
+    "enterprise-architecture",
+    "coarchi"
+  ],
+  "author": "Lacrif",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lacrif/mcp-archimate"
+  },
+  "dependencies": {
+    "@codecov/vite-plugin": "^2.0.1",
+    "@eslint/js": "^10.0.1",
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "express": "^4.21.0",
+    "fast-xml-parser": "^4.4.0",
+    "sharp": "^0.34.5",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.0.0",
+    "@types/supertest": "^6.0.0",
+    "@vitest/coverage-v8": "^4.1.7",
+    "eslint": "^10.4.0",
+    "supertest": "^7.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0",
+    "typescript-eslint": "^8.60.0",
+    "vitest": "^4.1.7"
+  }
+}

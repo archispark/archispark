@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="420" height="270" viewBox="0 0 420 270">
+<title>MCP Node Test View</title>
+  <defs>
+    <marker id="arrow-open" markerWidth="9" markerHeight="8" refX="8" refY="3.5" orient="auto">
+      <path d="M0,0 L8,3.5 L0,7" fill="none" stroke="#000" stroke-width="1.2"/>
+    </marker>
+    <marker id="arrow-filled" markerWidth="9" markerHeight="8" refX="8" refY="3.5" orient="auto">
+      <path d="M0,0 L8,3.5 L0,7 Z" fill="#000" stroke="none"/>
+    </marker>
+    <marker id="arrow-hollow" markerWidth="11" markerHeight="9" refX="10" refY="4" orient="auto">
+      <path d="M0,0 L9,4 L0,8 Z" fill="white" stroke="#000" stroke-width="1.2"/>
+    </marker>
+    <marker id="diamond-filled" markerWidth="12" markerHeight="8" refX="0" refY="4" orient="auto-start-reverse">
+      <path d="M0,4 L5,0 L10,4 L5,8 Z" fill="#000" stroke="#000" stroke-width="0.5"/>
+    </marker>
+    <marker id="diamond-open" markerWidth="12" markerHeight="8" refX="0" refY="4" orient="auto-start-reverse">
+      <path d="M0,4 L5,0 L10,4 L5,8 Z" fill="white" stroke="#000" stroke-width="1"/>
+    </marker>
+    <marker id="circle-solid" markerWidth="7" markerHeight="7" refX="0" refY="3.5" orient="auto-start-reverse">
+      <circle cx="3.5" cy="3.5" r="3" fill="#000" stroke="#000"/>
+    </marker>
+  </defs>
+<rect width="420" height="270" fill="white"/>
+</svg>
