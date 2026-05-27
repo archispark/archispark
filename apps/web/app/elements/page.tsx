@@ -33,7 +33,9 @@ import {
   DialogTrigger,
 } from "@workspace/ui/components/dialog";
 import { DataTable } from "@/components/data-table";
+import { PropertiesEditor } from "@/components/properties-editor";
 import { Plus, Pencil, Trash2 } from "lucide-react";
+import type { Property } from "@/lib/api";
 
 const LAYER_COLORS: Record<string, string> = {
   Business: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300",
@@ -103,6 +105,7 @@ function ElementsPageInner() {
   const [newName, setNewName] = useState("");
   const [newType, setNewType] = useState("");
   const [newDoc, setNewDoc] = useState("");
+  const [newProps, setNewProps] = useState<Property[]>([]);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
@@ -112,6 +115,7 @@ function ElementsPageInner() {
   const [editName, setEditName] = useState("");
   const [editType, setEditType] = useState("");
   const [editDoc, setEditDoc] = useState("");
+  const [editProps, setEditProps] = useState<Property[]>([]);
   const [saving, setSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
 
@@ -164,6 +168,7 @@ function ElementsPageInner() {
     setEditName(el.name);
     setEditType(el.type);
     setEditDoc(el.documentation ?? "");
+    setEditProps(el.properties ?? []);
     setEditError(null);
     setEditOpen(true);
   }
@@ -179,9 +184,9 @@ function ElementsPageInner() {
     setCreating(true);
     setCreateError(null);
     try {
-      await createElement({ name: newName.trim(), type: newType, documentation: newDoc.trim() || null });
+      await createElement({ name: newName.trim(), type: newType, documentation: newDoc.trim() || null, properties: newProps });
       setCreateOpen(false);
-      setNewName(""); setNewType(""); setNewDoc("");
+      setNewName(""); setNewType(""); setNewDoc(""); setNewProps([]);
       reload();
     } catch (err) {
       setCreateError((err as Error).message);
@@ -199,6 +204,7 @@ function ElementsPageInner() {
         name: editName.trim(),
         type: editType,
         documentation: editDoc.trim() || null,
+        properties: editProps,
       });
       setEditOpen(false);
       reload();
@@ -334,6 +340,10 @@ function ElementsPageInner() {
                 <Label htmlFor="el-doc">Documentation</Label>
                 <textarea id="el-doc" value={newDoc} onChange={(e) => setNewDoc(e.target.value)} placeholder="Description optionnelle" className="bg-background border border-input rounded-md text-foreground text-sm px-3 py-2 outline-none focus:border-ring resize-vertical min-h-[72px]" />
               </div>
+              <div className="flex flex-col gap-1.5">
+                <Label>Propriétés</Label>
+                <PropertiesEditor value={newProps} onChange={setNewProps} />
+              </div>
             </div>
             {createError && <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">{createError}</div>}
             <DialogFooter>
@@ -384,6 +394,10 @@ function ElementsPageInner() {
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="edit-doc">Documentation</Label>
               <textarea id="edit-doc" value={editDoc} onChange={(e) => setEditDoc(e.target.value)} className="bg-background border border-input rounded-md text-foreground text-sm px-3 py-2 outline-none focus:border-ring resize-vertical min-h-[72px]" />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label>Propriétés</Label>
+              <PropertiesEditor value={editProps} onChange={setEditProps} />
             </div>
           </div>
           {editError && <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">{editError}</div>}

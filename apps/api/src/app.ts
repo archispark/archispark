@@ -15,6 +15,8 @@
  *   GET /views[/:id]
  *   POST /views
  *   POST /views/:view_id/nodes
+ *   GET /property-definitions[/:id]
+ *   POST|PUT|DELETE /property-definitions[/:id]
  *   POST|GET|DELETE /mcp/
  */
 
@@ -33,15 +35,17 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 
-import type { ArchiElement, ArchiRelationship, ArchiNode, ArchiConnection, ArchiView } from "./model.js";
+import type { ArchiElement, ArchiRelationship, ArchiNode, ArchiConnection, ArchiView, ArchiPropertyDefinition } from "./model.js";
 import { version } from "../package.json";
 import { dataSource, DataSource, recomputeDataSourceTypes } from "./registry.js";
-import { saveModelToFile } from "./oxf-serializer.js";
+import { saveModelToFile, serializeToOpenExchange } from "./oxf-serializer.js";
+import { parseOpenExchange } from "./oxf-parser.js";
 import { openApiSpec } from "./openapi.js";
 import { renderViewToSvg, renderViewToPng } from "./renderer.js";
 import {
   ELEMENT_TYPES,
   RELATIONSHIP_TYPES,
+  PROPERTY_DEFINITION_TYPES,
   ConnectionOut,
   ElementCreateIn,
   ElementOut,
@@ -50,6 +54,9 @@ import {
   ModelInfo,
   NodeOut,
   PropertyOut,
+  PropertyDefinitionOut,
+  PropertyDefinitionCreateIn,
+  PropertyDefinitionUpdateIn,
   RGBColorOut,
   RelationshipCreateIn,
   RelationshipOut,
@@ -460,11 +467,56 @@ export function saveModel(ds: DataSource): SaveResult {
 }
 
 // ---------------------------------------------------------------------------
+// Business logic – propertyDefinitions
+// ---------------------------------------------------------------------------
+
+export function pdOut(pd: ArchiPropertyDefinition): PropertyDefinitionOut {
+  return { identifier: pd.uuid, name: pd.name, type: pd.type };
+}
+
+export function listPropertyDefinitions(ds: DataSource): PropertyDefinitionOut[] {
+  return ds.model.propertyDefinitions.map(pdOut);
+}
+
+export function getPropertyDefinitionById(ds: DataSource, id: string): PropertyDefinitionOut {
+  const match = ds.model.propertyDefinitions.find((pd) => pd.uuid === id);
+  if (!match) throw new Error(`Définition de propriété '${id}' introuvable.`);
+  return pdOut(match);
+}
+
+export function createPropertyDefinition(ds: DataSource, input: PropertyDefinitionCreateIn): PropertyDefinitionOut {
+  const pd: ArchiPropertyDefinition = {
+    uuid: newId(),
+    name: input.name,
+    type: input.type ?? "string",
+  };
+  ds.model.propertyDefinitions.push(pd);
+  return pdOut(pd);
+}
+
+export function updatePropertyDefinition(ds: DataSource, id: string, input: PropertyDefinitionUpdateIn): PropertyDefinitionOut {
+  const match = ds.model.propertyDefinitions.find((pd) => pd.uuid === id);
+  if (!match) throw new Error(`Définition de propriété '${id}' introuvable.`);
+  if (input.name !== undefined) match.name = input.name;
+  if (input.type !== undefined) match.type = input.type;
+  return pdOut(match);
+}
+
+export function deletePropertyDefinition(ds: DataSource, id: string): void {
+  const idx = ds.model.propertyDefinitions.findIndex((pd) => pd.uuid === id);
+  if (idx === -1) throw new Error(`Définition de propriété '${id}' introuvable.`);
+  ds.model.propertyDefinitions.splice(idx, 1);
+  for (const elem of ds.model.elements) delete elem.props[id];
+  for (const rel of ds.model.relationships) delete rel.props[id];
+}
+
+// ---------------------------------------------------------------------------
 // Input validation helper
 // ---------------------------------------------------------------------------
 
 const _ELEMENT_TYPES_STR = [...ELEMENT_TYPES].sort().join(", ");
 const _RELATIONSHIP_TYPES_STR = [...RELATIONSHIP_TYPES].sort().join(", ");
+const _PROPERTY_DEFINITION_TYPES_STR = [...PROPERTY_DEFINITION_TYPES].sort().join(", ");
 
 function validateType(
   value: string | null | undefined,
@@ -538,6 +590,44 @@ app.post("/save", (_req: Request, res: Response) => {
     res.json(saveModel(dataSource));
   } catch (err) {
     res.status(500).json({ detail: (err as Error).message });
+  }
+});
+
+// Export model as XML
+app.get("/export", (_req: Request, res: Response) => {
+  try {
+    const xml = serializeToOpenExchange(dataSource.model);
+    res.setHeader("Content-Type", "application/xml; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="${dataSource.model.name || "model"}.xml"`);
+    res.send(xml);
+  } catch (err) {
+    res.status(500).json({ detail: (err as Error).message });
+  }
+});
+
+// Import model from XML (replaces in-memory model, does not auto-save)
+app.post("/import", express.text({ type: ["text/xml", "application/xml", "text/plain"], limit: "50mb" }), (req: Request, res: Response) => {
+  try {
+    const xml = req.body as string;
+    if (!xml || typeof xml !== "string") {
+      res.status(422).json({ detail: "Le corps de la requête doit être un XML valide." });
+      return;
+    }
+    const newModel = parseOpenExchange(xml);
+    // Replace model in-place so all references to dataSource remain valid
+    dataSource.model.uuid = newModel.uuid;
+    dataSource.model.name = newModel.name;
+    dataSource.model.desc = newModel.desc;
+    dataSource.model.version = newModel.version;
+    dataSource.model.elements.splice(0, dataSource.model.elements.length, ...newModel.elements);
+    dataSource.model.relationships.splice(0, dataSource.model.relationships.length, ...newModel.relationships);
+    dataSource.model.propertyDefinitions.splice(0, dataSource.model.propertyDefinitions.length, ...newModel.propertyDefinitions);
+    dataSource.model.views.splice(0, dataSource.model.views.length, ...newModel.views);
+    (dataSource.model as { _raw?: unknown })._raw = newModel._raw;
+    recomputeDataSourceTypes(dataSource);
+    res.json(getModelInfo(dataSource));
+  } catch (err) {
+    res.status(422).json({ detail: `Erreur de parsing XML : ${(err as Error).message}` });
   }
 });
 
@@ -737,6 +827,54 @@ app.get("/views/:view_id/image", async (req: Request, res: Response) => {
     }
   } catch (err) {
     res.status(500).json({ detail: (err as Error).message });
+  }
+});
+
+// PropertyDefinitions
+app.get("/property-definitions", (_req: Request, res: Response) => {
+  res.json(listPropertyDefinitions(dataSource));
+});
+
+app.get("/property-definitions/:id", (req: Request, res: Response) => {
+  try {
+    res.json(getPropertyDefinitionById(dataSource, req.params["id"] as string));
+  } catch (err) {
+    res.status(404).json({ detail: (err as Error).message });
+  }
+});
+
+app.post("/property-definitions", (req: Request, res: Response) => {
+  const body = req.body as PropertyDefinitionCreateIn;
+  if (!body.name || typeof body.name !== "string") {
+    res.status(422).json({ detail: "Le champ 'name' est requis." });
+    return;
+  }
+  if (body.type !== undefined && !PROPERTY_DEFINITION_TYPES.has(body.type)) {
+    res.status(422).json({ detail: `Type invalide: '${body.type}'. Types valides: ${_PROPERTY_DEFINITION_TYPES_STR}` });
+    return;
+  }
+  res.status(201).json(createPropertyDefinition(dataSource, body));
+});
+
+app.put("/property-definitions/:id", (req: Request, res: Response) => {
+  const body = req.body as PropertyDefinitionUpdateIn;
+  if (body.type !== undefined && !PROPERTY_DEFINITION_TYPES.has(body.type)) {
+    res.status(422).json({ detail: `Type invalide: '${body.type}'. Types valides: ${_PROPERTY_DEFINITION_TYPES_STR}` });
+    return;
+  }
+  try {
+    res.json(updatePropertyDefinition(dataSource, req.params["id"] as string, body));
+  } catch (err) {
+    res.status(404).json({ detail: (err as Error).message });
+  }
+});
+
+app.delete("/property-definitions/:id", (req: Request, res: Response) => {
+  try {
+    deletePropertyDefinition(dataSource, req.params["id"] as string);
+    res.status(204).send();
+  } catch (err) {
+    res.status(404).json({ detail: (err as Error).message });
   }
 });
 
@@ -995,6 +1133,75 @@ mcpServer.registerTool(
   async ({ relationship_id }) => {
     deleteRelationship(dataSource, relationship_id);
     return toContent({ deleted: true, identifier: relationship_id });
+  }
+);
+
+// ---------------------------------------------------------------------------
+// MCP tools – propertyDefinitions
+// ---------------------------------------------------------------------------
+
+mcpServer.registerTool(
+  "list_property_definitions",
+  { description: "Liste toutes les définitions de propriétés du modèle ArchiMate.", inputSchema: {} },
+  async () => toContent(listPropertyDefinitions(dataSource))
+);
+
+mcpServer.registerTool(
+  "get_property_definition",
+  {
+    description: "Retourne le détail d'une définition de propriété par son identifiant.",
+    inputSchema: { id: z.string().describe("Identifiant de la définition de propriété") },
+  },
+  async ({ id }) => toContent(getPropertyDefinitionById(dataSource, id))
+);
+
+mcpServer.registerTool(
+  "create_property_definition",
+  {
+    description: `Crée une nouvelle définition de propriété dans le modèle. Types valides: ${_PROPERTY_DEFINITION_TYPES_STR}.`,
+    inputSchema: {
+      name: z.string().describe("Nom de la définition de propriété"),
+      type: z.string().optional().describe("Type de données (string par défaut): string, boolean, date, number, enumeration"),
+    },
+  },
+  async ({ name, type }) => {
+    if (type && !PROPERTY_DEFINITION_TYPES.has(type)) {
+      throw new Error(`Type invalide: '${type}'. Types valides: ${_PROPERTY_DEFINITION_TYPES_STR}`);
+    }
+    return toContent(createPropertyDefinition(dataSource, { name, type }));
+  }
+);
+
+mcpServer.registerTool(
+  "update_property_definition",
+  {
+    description: "Met à jour une définition de propriété existante. Seuls les champs fournis sont modifiés.",
+    inputSchema: {
+      id: z.string().describe("Identifiant de la définition à modifier"),
+      name: z.string().optional().describe("Nouveau nom"),
+      type: z.string().optional().describe("Nouveau type de données"),
+    },
+  },
+  async ({ id, name, type }) => {
+    if (type && !PROPERTY_DEFINITION_TYPES.has(type)) {
+      throw new Error(`Type invalide: '${type}'. Types valides: ${_PROPERTY_DEFINITION_TYPES_STR}`);
+    }
+    const input: PropertyDefinitionUpdateIn = {};
+    if (name !== undefined) input.name = name;
+    if (type !== undefined) input.type = type;
+    return toContent(updatePropertyDefinition(dataSource, id, input));
+  }
+);
+
+mcpServer.registerTool(
+  "delete_property_definition",
+  {
+    description: "Supprime une définition de propriété et retire toutes les propriétés associées des éléments et relations.",
+    inputSchema: { id: z.string().describe("Identifiant de la définition à supprimer") },
+  },
+  async ({ id }) => {
+    deletePropertyDefinition(dataSource, id);
+    return toContent({ deleted: true, identifier: id });
   }
 );
 

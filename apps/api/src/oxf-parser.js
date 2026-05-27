@@ -171,6 +171,20 @@ export function parseOpenExchange(xmlContent) {
             influence_strength: raw["@_modifier"] != null ? String(raw["@_modifier"]) : null,
         });
     }
+    // ---- PropertyDefinitions ----
+    const pdContainer = modelRaw["propertyDefinitions"];
+    const pdRaws = ensureArray(pdContainer?.["propertyDefinition"]);
+    const propertyDefinitions = [];
+    for (const raw of pdRaws) {
+        const id = raw["@_identifier"] != null ? String(raw["@_identifier"]) : null;
+        if (!id)
+            continue;
+        propertyDefinitions.push({
+            uuid: id,
+            name: langStringText(raw["name"]) ?? "",
+            type: raw["@_type"] != null ? String(raw["@_type"]) : "string",
+        });
+    }
     // ---- Views ----
     const viewsContainer = modelRaw["views"];
     const diagramsContainer = viewsContainer?.["diagrams"];
@@ -198,6 +212,7 @@ export function parseOpenExchange(xmlContent) {
         version: modelRaw["@_version"] != null ? String(modelRaw["@_version"]) : null,
         elements: elementArray,
         relationships: relationshipArray,
+        propertyDefinitions,
         views: viewArray,
         _raw: modelRaw,
     };

@@ -37,6 +37,9 @@ export const RELATIONSHIP_TYPES = new Set([
 export const ACCESS_TYPES = new Set([
     "Access", "Read", "Write", "ReadWrite",
 ]);
+export const PROPERTY_DEFINITION_TYPES = new Set([
+    "string", "boolean", "date", "number", "enumeration",
+]);
 export const VIEWPOINTS = new Set([
     "Organization", "Application Platform", "Application Structure",
     "Information Structure", "Technology", "Layered", "Physical",

@@ -84,6 +84,12 @@ export interface ArchiView {
   conns: ArchiConnection[];
 }
 
+export interface ArchiPropertyDefinition {
+  uuid: string;
+  name: string;
+  type: string;
+}
+
 export interface ArchiModel {
   uuid: string;
   name: string;
@@ -91,6 +97,7 @@ export interface ArchiModel {
   version: string | null;
   elements: ArchiElement[];
   relationships: ArchiRelationship[];
+  propertyDefinitions: ArchiPropertyDefinition[];
   views: ArchiView[];
   /** Raw parsed Open Exchange Format model node — preserved for lossless round-trip. */
   _raw?: unknown;

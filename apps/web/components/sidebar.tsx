@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
-import { LayoutDashboard, ArrowRightLeft, LayoutGrid } from "lucide-react";
-import { fetchModel, fetchElements, type ModelInfo, type ElementOut } from "@/lib/api";
+import { LayoutDashboard, ArrowRightLeft, LayoutGrid, Tag, Download } from "lucide-react";
+import { fetchModel, fetchElements, importModel, exportModelUrl, type ModelInfo, type ElementOut } from "@/lib/api";
 
 interface LayerGroup {
   key: string;
@@ -56,6 +56,8 @@ function SidebarInner({ open, onClose }: { open: boolean; onClose: () => void })
   const searchParams = useSearchParams();
   const [model, setModel] = useState<ModelInfo | null>(null);
   const [layerCounts, setLayerCounts] = useState<Record<string, number>>({});
+  const [importing, setImporting] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
 
   useEffect(() => {
     Promise.all([fetchModel(), fetchElements()]).then(([m, elements]) => {
@@ -68,6 +70,32 @@ function SidebarInner({ open, onClose }: { open: boolean; onClose: () => void })
       setLayerCounts(counts);
     }).catch(() => {});
   }, []);
+
+  async function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setImporting(true);
+    setImportError(null);
+    try {
+      const xml = await file.text();
+      const info = await importModel(xml);
+      setModel(info);
+      // Recompute layer counts
+      const { fetchElements: fe } = await import("@/lib/api");
+      const elements = await fe();
+      const counts: Record<string, number> = {};
+      for (const el of elements) {
+        const layer = getLayer(el.type);
+        counts[layer] = (counts[layer] || 0) + 1;
+      }
+      setLayerCounts(counts);
+    } catch (err) {
+      setImportError((err as Error).message);
+    } finally {
+      setImporting(false);
+    }
+  }
 
   const currentLayer = pathname === "/elements" ? searchParams.get("layer") : null;
 
@@ -254,25 +282,54 @@ function SidebarInner({ open, onClose }: { open: boolean; onClose: () => void })
               <span className="text-[11px] text-muted-foreground">{model.view_count}</span>
             )}
           </Link>
+
+          {/* Separator */}
+          <div className="mx-4 mt-2 mb-1 border-t border-border" />
+
+          {/* Model metadata */}
+          <div className="px-2 pt-2 pb-1">
+            <div className="text-[10px] font-bold tracking-[0.8px] uppercase text-muted-foreground px-2 mb-1">
+              Modèle
+            </div>
+            <Link
+              href="/properties"
+              onClick={onClose}
+              className={`flex items-center gap-2 px-2 py-1.5 rounded-md text-sm no-underline transition-colors ${
+                pathname === "/properties"
+                  ? "bg-card text-foreground font-medium shadow-sm"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              }`}
+            >
+              <Tag className="size-4 shrink-0" />
+              Propriétés
+            </Link>
+          </div>
         </div>
 
-        {/* Import zone */}
-        <div className="px-3 py-3 border-t border-border">
-          <label className="border-2 border-dashed border-border rounded-lg p-3.5 text-center text-muted-foreground cursor-pointer transition-colors hover:border-primary hover:text-foreground block">
-            <div className="text-2xl mb-1.5">↑</div>
-            <p className="text-xs">Importer un modèle</p>
+        {/* Import / Export zone */}
+        <div className="px-3 py-3 border-t border-border space-y-2">
+          {importError && (
+            <div className="text-[11px] text-destructive bg-destructive/10 border border-destructive/30 rounded px-2 py-1.5 break-words">
+              {importError}
+            </div>
+          )}
+          <label className={`border-2 border-dashed rounded-lg p-3 text-center cursor-pointer transition-colors block ${importing ? "border-primary/50 opacity-60 pointer-events-none" : "border-border text-muted-foreground hover:border-primary hover:text-foreground"}`}>
+            <div className="text-xl mb-1">{importing ? "⏳" : "↑"}</div>
+            <p className="text-xs">{importing ? "Importation…" : "Importer un modèle"}</p>
             <div className="text-[11px] mt-0.5 opacity-70">.xml (AOEF)</div>
-            <input type="file" accept=".xml" className="hidden" onChange={handleImport} />
+            <input type="file" accept=".xml" className="hidden" disabled={importing} onChange={handleImport} />
           </label>
+          <a
+            href={exportModelUrl}
+            download
+            className="flex items-center justify-center gap-2 w-full px-3 py-2 rounded-lg border border-border text-muted-foreground text-xs hover:border-primary hover:text-foreground transition-colors"
+          >
+            <Download className="size-3.5" />
+            Exporter le modèle
+          </a>
         </div>
       </aside>
     </>
   );
 }
 
-function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
-  const file = e.target.files?.[0];
-  if (!file) return;
-  e.target.value = "";
-  console.log("Import file:", file.name);
-}

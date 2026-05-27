@@ -122,6 +122,7 @@ export interface ElementCreateIn {
   name: string;
   type: string;
   documentation?: string | null;
+  properties?: Property[];
 }
 
 export interface RelationshipCreateIn {
@@ -130,6 +131,7 @@ export interface RelationshipCreateIn {
   source: string;
   target: string;
   documentation?: string | null;
+  properties?: Property[];
 }
 
 export interface ViewCreateIn {
@@ -163,6 +165,7 @@ export interface ElementUpdateIn {
   name?: string;
   type?: string;
   documentation?: string | null;
+  properties?: Property[];
 }
 
 export interface RelationshipUpdateIn {
@@ -171,6 +174,7 @@ export interface RelationshipUpdateIn {
   source?: string;
   target?: string;
   documentation?: string | null;
+  properties?: Property[];
 }
 
 export interface ViewUpdateIn {
@@ -192,3 +196,39 @@ export const updateView = (id: string, body: ViewUpdateIn) => put<ViewOut>(`/vie
 export const deleteView = (id: string) => del(`/views/${encodeURIComponent(id)}`);
 
 export const saveModel = () => post<{ saved: boolean; path: string }>("/save", {});
+
+export const exportModelUrl = `${BASE}/export`;
+
+export async function importModel(xml: string): Promise<ModelInfo> {
+  const res = await fetch(`${BASE}/import`, {
+    method: "POST",
+    headers: { "Content-Type": "text/xml" },
+    body: xml,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: `HTTP ${res.status}` }));
+    throw new Error(err.detail || `API error: ${res.status}`);
+  }
+  return res.json();
+}
+
+export interface PropertyDefinitionOut {
+  identifier: string;
+  name: string;
+  type: string;
+}
+
+export interface PropertyDefinitionCreateIn {
+  name: string;
+  type?: string;
+}
+
+export interface PropertyDefinitionUpdateIn {
+  name?: string;
+  type?: string;
+}
+
+export const fetchPropertyDefinitions = () => get<PropertyDefinitionOut[]>("/property-definitions");
+export const createPropertyDefinition = (body: PropertyDefinitionCreateIn) => post<PropertyDefinitionOut>("/property-definitions", body);
+export const updatePropertyDefinition = (id: string, body: PropertyDefinitionUpdateIn) => put<PropertyDefinitionOut>(`/property-definitions/${encodeURIComponent(id)}`, body);
+export const deletePropertyDefinition = (id: string) => del(`/property-definitions/${encodeURIComponent(id)}`);

@@ -34,7 +34,9 @@ import {
   DialogClose,
 } from "@workspace/ui/components/dialog";
 import { DataTable } from "@/components/data-table";
+import { PropertiesEditor } from "@/components/properties-editor";
 import { Plus, Pencil, Trash2 } from "lucide-react";
+import type { Property } from "@/lib/api";
 
 export default function RelationshipsPage() {
   const [types, setTypes] = useState<string[]>([]);
@@ -54,6 +56,7 @@ export default function RelationshipsPage() {
   const [newSource, setNewSource] = useState("");
   const [newTarget, setNewTarget] = useState("");
   const [newDoc, setNewDoc] = useState("");
+  const [newProps, setNewProps] = useState<Property[]>([]);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
@@ -65,6 +68,7 @@ export default function RelationshipsPage() {
   const [editSource, setEditSource] = useState("");
   const [editTargetEl, setEditTargetEl] = useState("");
   const [editDoc, setEditDoc] = useState("");
+  const [editProps, setEditProps] = useState<Property[]>([]);
   const [saving, setSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
 
@@ -116,6 +120,7 @@ export default function RelationshipsPage() {
     setEditSource(rel.source);
     setEditTargetEl(rel.target);
     setEditDoc(rel.documentation ?? "");
+    setEditProps(rel.properties ?? []);
     setEditError(null);
     setEditOpen(true);
   }
@@ -131,9 +136,9 @@ export default function RelationshipsPage() {
     setCreating(true);
     setCreateError(null);
     try {
-      await createRelationship({ name: newName.trim() || null, type: newType, source: newSource, target: newTarget, documentation: newDoc.trim() || null });
+      await createRelationship({ name: newName.trim() || null, type: newType, source: newSource, target: newTarget, documentation: newDoc.trim() || null, properties: newProps });
       setCreateOpen(false);
-      setNewName(""); setNewType(""); setNewSource(""); setNewTarget(""); setNewDoc("");
+      setNewName(""); setNewType(""); setNewSource(""); setNewTarget(""); setNewDoc(""); setNewProps([]);
       reload();
     } catch (err) {
       setCreateError((err as Error).message);
@@ -153,6 +158,7 @@ export default function RelationshipsPage() {
         source: editSource,
         target: editTargetEl,
         documentation: editDoc.trim() || null,
+        properties: editProps,
       });
       setEditOpen(false);
       reload();
@@ -285,6 +291,10 @@ export default function RelationshipsPage() {
                 <Label htmlFor="rel-doc">Documentation</Label>
                 <textarea id="rel-doc" value={newDoc} onChange={(e) => setNewDoc(e.target.value)} placeholder="Description optionnelle" className="bg-background border border-input rounded-md text-foreground text-sm px-3 py-2 outline-none focus:border-ring resize-vertical min-h-[72px]" />
               </div>
+              <div className="flex flex-col gap-1.5">
+                <Label>Propriétés</Label>
+                <PropertiesEditor value={newProps} onChange={setNewProps} />
+              </div>
             </div>
             {createError && <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">{createError}</div>}
             <DialogFooter>
@@ -335,6 +345,10 @@ export default function RelationshipsPage() {
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="edit-rel-doc">Documentation</Label>
               <textarea id="edit-rel-doc" value={editDoc} onChange={(e) => setEditDoc(e.target.value)} className="bg-background border border-input rounded-md text-foreground text-sm px-3 py-2 outline-none focus:border-ring resize-vertical min-h-[72px]" />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label>Propriétés</Label>
+              <PropertiesEditor value={editProps} onChange={setEditProps} />
             </div>
           </div>
           {editError && <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">{editError}</div>}

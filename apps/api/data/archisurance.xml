@@ -12074,6 +12074,96 @@ Capability Realization .........................................................
       <view identifier="id-a85585a4-d104-4b02-a810-b52b9277e30a" xsi:type="Diagram">
         <name xml:lang="fr">MCP Node Test View</name>
       </view>
+      <view identifier="id-e70e6352-d70f-4538-91a0-a5876dc6823f" xsi:type="Diagram">
+        <name xml:lang="fr">Node Test View</name>
+      </view>
+      <view identifier="id-326f99fd-2d32-4bda-8848-9a3cb492d64f" viewpoint="Layered" xsi:type="Diagram">
+        <name xml:lang="fr">MCP View</name>
+        <documentation xml:lang="fr">mcp-created</documentation>
+      </view>
+      <view identifier="id-f0ba5157-4992-4dff-82c4-a7e387e6625a" xsi:type="Diagram">
+        <name xml:lang="fr">MCP Node Test View</name>
+      </view>
+      <view identifier="id-c0b0e97a-c5c1-4f8b-a1ef-933ef8faff5a" xsi:type="Diagram">
+        <name xml:lang="fr">Node Test View</name>
+      </view>
+      <view identifier="id-cfa97a69-b305-45fa-a58f-23532ccf94fd" viewpoint="Layered" xsi:type="Diagram">
+        <name xml:lang="fr">MCP View</name>
+        <documentation xml:lang="fr">mcp-created</documentation>
+      </view>
+      <view identifier="id-7bf57be8-06e3-43ba-bfec-2ed1a0fc2720" xsi:type="Diagram">
+        <name xml:lang="fr">MCP Node Test View</name>
+      </view>
+      <view identifier="id-5542d98a-a5e6-4ad3-bc57-47adc800d2f5" xsi:type="Diagram">
+        <name xml:lang="fr">Node Test View</name>
+      </view>
+      <view identifier="id-4a46f23a-2f51-48e9-ade8-827c84c4c059" viewpoint="Layered" xsi:type="Diagram">
+        <name xml:lang="fr">MCP View</name>
+        <documentation xml:lang="fr">mcp-created</documentation>
+      </view>
+      <view identifier="id-50782212-d103-4986-9c9b-496fd17b29af" xsi:type="Diagram">
+        <name xml:lang="fr">MCP Node Test View</name>
+      </view>
+      <view identifier="id-9058d9c3-fc0d-4e5d-ba46-e2439526b3b8" xsi:type="Diagram">
+        <name xml:lang="fr">Node Test View</name>
+      </view>
+      <view identifier="id-1f47bf6a-ca4e-46f1-9643-82fda157d999" viewpoint="Layered" xsi:type="Diagram">
+        <name xml:lang="fr">MCP View</name>
+        <documentation xml:lang="fr">mcp-created</documentation>
+      </view>
+      <view identifier="id-0a380f4b-e375-4341-928b-50b97196ba70" xsi:type="Diagram">
+        <name xml:lang="fr">MCP Node Test View</name>
+      </view>
+      <view identifier="id-958d41c5-cd83-484e-ae0a-02d6ebbae0e1" xsi:type="Diagram">
+        <name xml:lang="fr">Node Test View</name>
+      </view>
+      <view identifier="id-3fce8ca5-41c6-40c4-9f48-7d289025dc5c" viewpoint="Layered" xsi:type="Diagram">
+        <name xml:lang="fr">MCP View</name>
+        <documentation xml:lang="fr">mcp-created</documentation>
+      </view>
+      <view identifier="id-d4c64c66-cf1d-4279-8a67-d73c102820ea" xsi:type="Diagram">
+        <name xml:lang="fr">MCP Node Test View</name>
+      </view>
+      <view identifier="id-3edc720b-e7ac-463b-9bc1-1acd6106af62" xsi:type="Diagram">
+        <name xml:lang="fr">Node Test View</name>
+      </view>
+      <view identifier="id-fecef451-9fe9-42e9-86f7-d0f7f5d0a10b" viewpoint="Layered" xsi:type="Diagram">
+        <name xml:lang="fr">MCP View</name>
+        <documentation xml:lang="fr">mcp-created</documentation>
+      </view>
+      <view identifier="id-878d3caa-0d00-4aab-a31a-63826ba3a3d1" xsi:type="Diagram">
+        <name xml:lang="fr">MCP Node Test View</name>
+      </view>
+      <view identifier="id-c7fdd9c3-95e4-4805-8fbd-2139f73423aa" xsi:type="Diagram">
+        <name xml:lang="fr">Node Test View</name>
+      </view>
+      <view identifier="id-51513630-a907-4557-98c3-c78743baf712" viewpoint="Layered" xsi:type="Diagram">
+        <name xml:lang="fr">MCP View</name>
+        <documentation xml:lang="fr">mcp-created</documentation>
+      </view>
+      <view identifier="id-527ea053-01b2-48ed-861d-f7312bd11aed" xsi:type="Diagram">
+        <name xml:lang="fr">MCP Node Test View</name>
+      </view>
+      <view identifier="id-9ad5f882-b05f-422f-a162-9c12af613c43" xsi:type="Diagram">
+        <name xml:lang="fr">Node Test View</name>
+      </view>
+      <view identifier="id-520cde32-56d1-45c8-a857-571d9f45c70f" viewpoint="Layered" xsi:type="Diagram">
+        <name xml:lang="fr">MCP View</name>
+        <documentation xml:lang="fr">mcp-created</documentation>
+      </view>
+      <view identifier="id-a2732d81-89f2-4163-ae98-13f8d47a4aea" xsi:type="Diagram">
+        <name xml:lang="fr">MCP Node Test View</name>
+      </view>
+      <view identifier="id-12518a6d-2a57-4bba-afc7-83c76748c059" xsi:type="Diagram">
+        <name xml:lang="fr">Node Test View</name>
+      </view>
+      <view identifier="id-273a9c92-0889-4203-8639-9de30e797511" viewpoint="Layered" xsi:type="Diagram">
+        <name xml:lang="fr">MCP View</name>
+        <documentation xml:lang="fr">mcp-created</documentation>
+      </view>
+      <view identifier="id-b77ebbc4-3ff3-43ae-8487-911cc1bf5190" xsi:type="Diagram">
+        <name xml:lang="fr">MCP Node Test View</name>
+      </view>
     </diagrams>
   </views>
 </model>

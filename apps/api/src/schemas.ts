@@ -42,6 +42,10 @@ export const ACCESS_TYPES: ReadonlySet<string> = new Set([
   "Access", "Read", "Write", "ReadWrite",
 ]);
 
+export const PROPERTY_DEFINITION_TYPES: ReadonlySet<string> = new Set([
+  "string", "boolean", "date", "number", "enumeration",
+]);
+
 export const VIEWPOINTS: ReadonlySet<string> = new Set([
   "Organization", "Application Platform", "Application Structure",
   "Information Structure", "Technology", "Layered", "Physical",
@@ -86,6 +90,26 @@ export interface StyleOut {
 export interface PropertyOut {
   property_definition_ref: string;
   value: string;
+}
+
+// ---------------------------------------------------------------------------
+// PropertyDefinition types (archimate3_Model.xsd PropertyDefinitionType)
+// ---------------------------------------------------------------------------
+
+export interface PropertyDefinitionOut {
+  identifier: string;
+  name: string;
+  type: string;
+}
+
+export interface PropertyDefinitionCreateIn {
+  name: string;
+  type?: string;
+}
+
+export interface PropertyDefinitionUpdateIn {
+  name?: string;
+  type?: string;
 }
 
 // ---------------------------------------------------------------------------

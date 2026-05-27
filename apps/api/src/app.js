@@ -15,6 +15,8 @@
  *   GET /views[/:id]
  *   POST /views
  *   POST /views/:view_id/nodes
+ *   GET /property-definitions[/:id]
+ *   POST|PUT|DELETE /property-definitions[/:id]
  *   POST|GET|DELETE /mcp/
  */
 import express from "express";
@@ -35,7 +37,7 @@ import { dataSource, recomputeDataSourceTypes } from "./registry.js";
 import { saveModelToFile } from "./oxf-serializer.js";
 import { openApiSpec } from "./openapi.js";
 import { renderViewToSvg, renderViewToPng } from "./renderer.js";
-import { ELEMENT_TYPES, RELATIONSHIP_TYPES, } from "./schemas.js";
+import { ELEMENT_TYPES, RELATIONSHIP_TYPES, PROPERTY_DEFINITION_TYPES, } from "./schemas.js";
 // ---------------------------------------------------------------------------
 // Style helpers
 // ---------------------------------------------------------------------------
@@ -417,10 +419,55 @@ export function saveModel(ds) {
     return { saved: true, path: ds.path };
 }
 // ---------------------------------------------------------------------------
+// Business logic – propertyDefinitions
+// ---------------------------------------------------------------------------
+export function pdOut(pd) {
+    return { identifier: pd.uuid, name: pd.name, type: pd.type };
+}
+export function listPropertyDefinitions(ds) {
+    return ds.model.propertyDefinitions.map(pdOut);
+}
+export function getPropertyDefinitionById(ds, id) {
+    const match = ds.model.propertyDefinitions.find((pd) => pd.uuid === id);
+    if (!match)
+        throw new Error(`Définition de propriété '${id}' introuvable.`);
+    return pdOut(match);
+}
+export function createPropertyDefinition(ds, input) {
+    const pd = {
+        uuid: newId(),
+        name: input.name,
+        type: input.type ?? "string",
+    };
+    ds.model.propertyDefinitions.push(pd);
+    return pdOut(pd);
+}
+export function updatePropertyDefinition(ds, id, input) {
+    const match = ds.model.propertyDefinitions.find((pd) => pd.uuid === id);
+    if (!match)
+        throw new Error(`Définition de propriété '${id}' introuvable.`);
+    if (input.name !== undefined)
+        match.name = input.name;
+    if (input.type !== undefined)
+        match.type = input.type;
+    return pdOut(match);
+}
+export function deletePropertyDefinition(ds, id) {
+    const idx = ds.model.propertyDefinitions.findIndex((pd) => pd.uuid === id);
+    if (idx === -1)
+        throw new Error(`Définition de propriété '${id}' introuvable.`);
+    ds.model.propertyDefinitions.splice(idx, 1);
+    for (const elem of ds.model.elements)
+        delete elem.props[id];
+    for (const rel of ds.model.relationships)
+        delete rel.props[id];
+}
+// ---------------------------------------------------------------------------
 // Input validation helper
 // ---------------------------------------------------------------------------
 const _ELEMENT_TYPES_STR = [...ELEMENT_TYPES].sort().join(", ");
 const _RELATIONSHIP_TYPES_STR = [...RELATIONSHIP_TYPES].sort().join(", ");
+const _PROPERTY_DEFINITION_TYPES_STR = [...PROPERTY_DEFINITION_TYPES].sort().join(", ");
 function validateType(value, allowed, typesStr, label, res) {
     if (value && !allowed.has(value)) {
         res.status(422).json({ detail: `Type ${label} invalide: '${value}'. Types valides: ${typesStr}` });
@@ -685,6 +732,52 @@ app.get("/views/:view_id/image", async (req, res) => {
         res.status(500).json({ detail: err.message });
     }
 });
+// PropertyDefinitions
+app.get("/property-definitions", (_req, res) => {
+    res.json(listPropertyDefinitions(dataSource));
+});
+app.get("/property-definitions/:id", (req, res) => {
+    try {
+        res.json(getPropertyDefinitionById(dataSource, req.params["id"]));
+    }
+    catch (err) {
+        res.status(404).json({ detail: err.message });
+    }
+});
+app.post("/property-definitions", (req, res) => {
+    const body = req.body;
+    if (!body.name || typeof body.name !== "string") {
+        res.status(422).json({ detail: "Le champ 'name' est requis." });
+        return;
+    }
+    if (body.type !== undefined && !PROPERTY_DEFINITION_TYPES.has(body.type)) {
+        res.status(422).json({ detail: `Type invalide: '${body.type}'. Types valides: ${_PROPERTY_DEFINITION_TYPES_STR}` });
+        return;
+    }
+    res.status(201).json(createPropertyDefinition(dataSource, body));
+});
+app.put("/property-definitions/:id", (req, res) => {
+    const body = req.body;
+    if (body.type !== undefined && !PROPERTY_DEFINITION_TYPES.has(body.type)) {
+        res.status(422).json({ detail: `Type invalide: '${body.type}'. Types valides: ${_PROPERTY_DEFINITION_TYPES_STR}` });
+        return;
+    }
+    try {
+        res.json(updatePropertyDefinition(dataSource, req.params["id"], body));
+    }
+    catch (err) {
+        res.status(404).json({ detail: err.message });
+    }
+});
+app.delete("/property-definitions/:id", (req, res) => {
+    try {
+        deletePropertyDefinition(dataSource, req.params["id"]);
+        res.status(204).send();
+    }
+    catch (err) {
+        res.status(404).json({ detail: err.message });
+    }
+});
 // ---------------------------------------------------------------------------
 // MCP server
 // ---------------------------------------------------------------------------
@@ -863,6 +956,51 @@ mcpServer.registerTool("delete_relationship", {
 }, async ({ relationship_id }) => {
     deleteRelationship(dataSource, relationship_id);
     return toContent({ deleted: true, identifier: relationship_id });
+});
+// ---------------------------------------------------------------------------
+// MCP tools – propertyDefinitions
+// ---------------------------------------------------------------------------
+mcpServer.registerTool("list_property_definitions", { description: "Liste toutes les définitions de propriétés du modèle ArchiMate.", inputSchema: {} }, async () => toContent(listPropertyDefinitions(dataSource)));
+mcpServer.registerTool("get_property_definition", {
+    description: "Retourne le détail d'une définition de propriété par son identifiant.",
+    inputSchema: { id: z.string().describe("Identifiant de la définition de propriété") },
+}, async ({ id }) => toContent(getPropertyDefinitionById(dataSource, id)));
+mcpServer.registerTool("create_property_definition", {
+    description: `Crée une nouvelle définition de propriété dans le modèle. Types valides: ${_PROPERTY_DEFINITION_TYPES_STR}.`,
+    inputSchema: {
+        name: z.string().describe("Nom de la définition de propriété"),
+        type: z.string().optional().describe("Type de données (string par défaut): string, boolean, date, number, enumeration"),
+    },
+}, async ({ name, type }) => {
+    if (type && !PROPERTY_DEFINITION_TYPES.has(type)) {
+        throw new Error(`Type invalide: '${type}'. Types valides: ${_PROPERTY_DEFINITION_TYPES_STR}`);
+    }
+    return toContent(createPropertyDefinition(dataSource, { name, type }));
+});
+mcpServer.registerTool("update_property_definition", {
+    description: "Met à jour une définition de propriété existante. Seuls les champs fournis sont modifiés.",
+    inputSchema: {
+        id: z.string().describe("Identifiant de la définition à modifier"),
+        name: z.string().optional().describe("Nouveau nom"),
+        type: z.string().optional().describe("Nouveau type de données"),
+    },
+}, async ({ id, name, type }) => {
+    if (type && !PROPERTY_DEFINITION_TYPES.has(type)) {
+        throw new Error(`Type invalide: '${type}'. Types valides: ${_PROPERTY_DEFINITION_TYPES_STR}`);
+    }
+    const input = {};
+    if (name !== undefined)
+        input.name = name;
+    if (type !== undefined)
+        input.type = type;
+    return toContent(updatePropertyDefinition(dataSource, id, input));
+});
+mcpServer.registerTool("delete_property_definition", {
+    description: "Supprime une définition de propriété et retire toutes les propriétés associées des éléments et relations.",
+    inputSchema: { id: z.string().describe("Identifiant de la définition à supprimer") },
+}, async ({ id }) => {
+    deletePropertyDefinition(dataSource, id);
+    return toContent({ deleted: true, identifier: id });
 });
 // ---------------------------------------------------------------------------
 // MCP tools – persistence

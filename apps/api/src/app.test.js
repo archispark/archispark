@@ -12,9 +12,9 @@ import { join } from "path";
 import { serializeToOpenExchange } from "../src/oxf-serializer.js";
 import { renderViewToSvg } from "../src/renderer.js";
 import { parseOpenExchange } from "../src/oxf-parser.js";
-import { app, hexToRgb, elementOut, relOut, nodeOut, connectionOut, viewOut, createElement, updateElement, deleteElement, createRelationship, updateRelationship, deleteRelationship, createView, createNode, saveModel, } from "../src/app.js";
+import { app, hexToRgb, elementOut, relOut, nodeOut, connectionOut, viewOut, createElement, updateElement, deleteElement, createRelationship, updateRelationship, deleteRelationship, createView, createNode, saveModel, pdOut, listPropertyDefinitions, getPropertyDefinitionById, createPropertyDefinition, updatePropertyDefinition, deletePropertyDefinition, } from "../src/app.js";
 import { dataSource } from "../src/registry.js";
-import { ACCESS_TYPES, ELEMENT_TYPES, RELATIONSHIP_TYPES, VIEWPOINTS, } from "../src/schemas.js";
+import { ACCESS_TYPES, ELEMENT_TYPES, RELATIONSHIP_TYPES, VIEWPOINTS, PROPERTY_DEFINITION_TYPES, } from "../src/schemas.js";
 const UNKNOWN_ID = "id-does-not-exist";
 // ---------------------------------------------------------------------------
 // Test data factories
@@ -890,6 +890,7 @@ function makeDataSource(overrides = {}) {
         version: null,
         elements: [],
         relationships: [],
+        propertyDefinitions: [],
         views: [],
         ...overrides,
     };
@@ -1988,7 +1989,7 @@ describe("serializeToOpenExchange – misc branches", () => {
 describe("renderViewToSvg – empty view", () => {
     const emptyModel = {
         uuid: "m1", name: "Model", desc: null, version: null,
-        elements: [], relationships: [], views: [],
+        elements: [], relationships: [], propertyDefinitions: [], views: [],
     };
     it("returns a string starting with <svg", () => {
         const svg = renderViewToSvg(makeView(), emptyModel);
@@ -2017,7 +2018,7 @@ describe("renderViewToSvg – with nodes", () => {
     const elem = { uuid: "e1", name: "My App", type: "ApplicationComponent", desc: null, props: {} };
     const model = {
         uuid: "m1", name: "Model", desc: null, version: null,
-        elements: [elem], relationships: [], views: [],
+        elements: [elem], relationships: [], propertyDefinitions: [], views: [],
     };
     it("includes element name in rendered SVG", () => {
         const node = makeNode({ uuid: "n1", ref: elem, x: 10, y: 10, w: 120, h: 55 });
@@ -2071,7 +2072,7 @@ describe("renderViewToSvg – specialized shapes (archi_type=1)", () => {
     const baseModel = (type, uuid = "e1") => ({
         uuid: "m1", name: "Model", desc: null, version: null,
         elements: [{ uuid, name: type, type, desc: null, props: {} }],
-        relationships: [], views: [],
+        relationships: [], propertyDefinitions: [], views: [],
     });
     function makeIconNode(type, uuid = "e1") {
         const m = baseModel(type, uuid);
@@ -2146,7 +2147,7 @@ describe("renderViewToSvg – data-object shapes", () => {
         const m = {
             uuid: "m1", name: "M", desc: null, version: null,
             elements: [{ uuid: "e1", name: type, type, desc: null, props: {} }],
-            relationships: [], views: [],
+            relationships: [], propertyDefinitions: [], views: [],
         };
         const node = makeNode({ uuid: "n1", ref: m.elements[0], x: 10, y: 10, w: 100, h: 60 });
         return { node, model: m };
@@ -2171,7 +2172,7 @@ describe("renderViewToSvg – data-object shapes", () => {
 describe("renderViewToSvg – color and style helpers", () => {
     it("uses derivedLineColor (rgb branch) when line_color is null and fill is rgb", () => {
         const elem = { uuid: "e1", name: "Node", type: "ApplicationComponent", desc: null, props: {} };
-        const m = { uuid: "m1", name: "M", desc: null, version: null, elements: [elem], relationships: [], views: [] };
+        const m = { uuid: "m1", name: "M", desc: null, version: null, elements: [elem], relationships: [], propertyDefinitions: [], views: [] };
         // fill_color set → rgbStr returns "rgb(...)", line_color null → derivedLineColor("rgb(...)") used
         const node = makeNode({ uuid: "n1", ref: elem, fill_color: { r: 180, g: 200, b: 220, a: 255 }, line_color: null });
         const svg = renderViewToSvg(makeView({ nodes: [node] }), m);
@@ -2180,7 +2181,7 @@ describe("renderViewToSvg – color and style helpers", () => {
     });
     it("applies custom font_size and font_name from node", () => {
         const elem = { uuid: "e1", name: "Elem", type: "Node", desc: null, props: {} };
-        const m = { uuid: "m1", name: "M", desc: null, version: null, elements: [elem], relationships: [], views: [] };
+        const m = { uuid: "m1", name: "M", desc: null, version: null, elements: [elem], relationships: [], propertyDefinitions: [], views: [] };
         const node = makeNode({ uuid: "n1", ref: elem, font_size: 14, font_name: "Courier,monospace" });
         const svg = renderViewToSvg(makeView({ nodes: [node] }), m);
         expect(svg).toContain('font-size="14"');
@@ -2188,14 +2189,14 @@ describe("renderViewToSvg – color and style helpers", () => {
     });
     it("applies custom font_color from node", () => {
         const elem = { uuid: "e1", name: "Elem", type: "Node", desc: null, props: {} };
-        const m = { uuid: "m1", name: "M", desc: null, version: null, elements: [elem], relationships: [], views: [] };
+        const m = { uuid: "m1", name: "M", desc: null, version: null, elements: [elem], relationships: [], propertyDefinitions: [], views: [] };
         const node = makeNode({ uuid: "n1", ref: elem, font_color: { r: 255, g: 0, b: 0, a: 255 } });
         const svg = renderViewToSvg(makeView({ nodes: [node] }), m);
         expect(svg).toContain('fill="rgb(255,0,0)"');
     });
     it("OrJunction renders inner white ring", () => {
         const junction = { uuid: "j1", name: "", type: "OrJunction", desc: null, props: {} };
-        const m = { uuid: "m1", name: "M", desc: null, version: null, elements: [junction], relationships: [], views: [] };
+        const m = { uuid: "m1", name: "M", desc: null, version: null, elements: [junction], relationships: [], propertyDefinitions: [], views: [] };
         const node = makeNode({ uuid: "n1", ref: junction, x: 50, y: 50, w: 14, h: 14, fill_color: null, line_color: null });
         const svg = renderViewToSvg(makeView({ nodes: [node] }), m);
         expect((svg.match(/<circle /g) ?? []).length).toBeGreaterThanOrEqual(2);
@@ -2205,7 +2206,7 @@ describe("renderViewToSvg – color and style helpers", () => {
 describe("renderViewToSvg – node name edge cases", () => {
     it("uses node.name when set (overrides ref.name)", () => {
         const elem = { uuid: "e1", name: "Elem Name", type: "Node", desc: null, props: {} };
-        const m = { uuid: "m1", name: "M", desc: null, version: null, elements: [elem], relationships: [], views: [] };
+        const m = { uuid: "m1", name: "M", desc: null, version: null, elements: [elem], relationships: [], propertyDefinitions: [], views: [] };
         const node = makeNode({ uuid: "n1", name: "Override Name", ref: elem });
         const svg = renderViewToSvg(makeView({ nodes: [node] }), m);
         expect(svg).toContain("Override Name");
@@ -2213,13 +2214,13 @@ describe("renderViewToSvg – node name edge cases", () => {
     });
     it("uses ref.name when node.name is null", () => {
         const elem = { uuid: "e1", name: "From Ref", type: "Node", desc: null, props: {} };
-        const m = { uuid: "m1", name: "M", desc: null, version: null, elements: [elem], relationships: [], views: [] };
+        const m = { uuid: "m1", name: "M", desc: null, version: null, elements: [elem], relationships: [], propertyDefinitions: [], views: [] };
         const node = makeNode({ uuid: "n1", name: null, ref: elem });
         const svg = renderViewToSvg(makeView({ nodes: [node] }), m);
         expect(svg).toContain("From Ref");
     });
     it("treats string ref as unresolved (nodeType → Grouping, nodeName → empty)", () => {
-        const m = { uuid: "m1", name: "M", desc: null, version: null, elements: [], relationships: [], views: [] };
+        const m = { uuid: "m1", name: "M", desc: null, version: null, elements: [], relationships: [], propertyDefinitions: [], views: [] };
         // ref is a raw string UUID (unresolved) — nodeType returns "Grouping"
         const node = makeNode({ uuid: "n1", name: null, ref: "unresolved-uuid" });
         const svg = renderViewToSvg(makeView({ nodes: [node] }), m);
@@ -2228,7 +2229,7 @@ describe("renderViewToSvg – node name edge cases", () => {
     });
     it("wraps long names across multiple text lines", () => {
         const elem = { uuid: "e1", name: "Word1 Word2 Word3 Word4 Word5", type: "Node", desc: null, props: {} };
-        const m = { uuid: "m1", name: "M", desc: null, version: null, elements: [elem], relationships: [], views: [] };
+        const m = { uuid: "m1", name: "M", desc: null, version: null, elements: [elem], relationships: [], propertyDefinitions: [], views: [] };
         // Small width forces wrapping
         const node = makeNode({ uuid: "n1", ref: elem, w: 40, h: 80 });
         const svg = renderViewToSvg(makeView({ nodes: [node] }), m);
@@ -2238,7 +2239,7 @@ describe("renderViewToSvg – node name edge cases", () => {
     it("renders top-left label when node has children", () => {
         const elem = { uuid: "e1", name: "Parent", type: "Node", desc: null, props: {} };
         const child = { uuid: "e2", name: "Child", type: "Node", desc: null, props: {} };
-        const m = { uuid: "m1", name: "M", desc: null, version: null, elements: [elem, child], relationships: [], views: [] };
+        const m = { uuid: "m1", name: "M", desc: null, version: null, elements: [elem, child], relationships: [], propertyDefinitions: [], views: [] };
         const childNode = makeNode({ uuid: "n2", ref: child, x: 10, y: 10, w: 80, h: 40 });
         const parentNode = makeNode({ uuid: "n1", ref: elem, x: 0, y: 0, w: 200, h: 150, nodes: [childNode] });
         const svg = renderViewToSvg(makeView({ nodes: [parentNode] }), m);
@@ -2249,7 +2250,7 @@ describe("renderViewToSvg – node name edge cases", () => {
 describe("renderViewToSvg – connection features", () => {
     const e1 = { uuid: "e1", name: "A", type: "Node", desc: null, props: {} };
     const e2 = { uuid: "e2", name: "B", type: "Node", desc: null, props: {} };
-    const baseModel = { uuid: "m1", name: "M", desc: null, version: null, elements: [e1, e2], relationships: [], views: [] };
+    const baseModel = { uuid: "m1", name: "M", desc: null, version: null, elements: [e1, e2], relationships: [], propertyDefinitions: [], views: [] };
     it("renders connection label from conn.name", () => {
         const n1 = makeNode({ uuid: "n1", ref: e1, x: 10, y: 10, w: 100, h: 50 });
         const n2 = makeNode({ uuid: "n2", ref: e2, x: 200, y: 10, w: 100, h: 50 });
@@ -2381,5 +2382,247 @@ describe("GET /views/:view_id/image", () => {
         const res = await request(app).get(`/views/${knownView.identifier}/image?format=png`);
         expect(res.status).toBe(200);
         expect(res.headers["content-type"]).toMatch(/image\/png/);
+    });
+});
+// ===========================================================================
+// Unit tests – pdOut + propertyDefinitions business logic
+// ===========================================================================
+function makePropertyDefinition(overrides = {}) {
+    return { uuid: "propid-1", name: "Phase", type: "string", ...overrides };
+}
+describe("pdOut", () => {
+    it("maps ArchiPropertyDefinition to PropertyDefinitionOut", () => {
+        const result = pdOut(makePropertyDefinition());
+        expect(result.identifier).toBe("propid-1");
+        expect(result.name).toBe("Phase");
+        expect(result.type).toBe("string");
+    });
+});
+describe("listPropertyDefinitions", () => {
+    it("returns all property definitions", () => {
+        const pd = makePropertyDefinition();
+        const ds = makeDataSource({ propertyDefinitions: [pd] });
+        expect(listPropertyDefinitions(ds)).toHaveLength(1);
+        expect(listPropertyDefinitions(ds)[0].identifier).toBe("propid-1");
+    });
+    it("returns empty array when no definitions", () => {
+        const ds = makeDataSource();
+        expect(listPropertyDefinitions(ds)).toEqual([]);
+    });
+});
+describe("getPropertyDefinitionById", () => {
+    it("returns matching definition", () => {
+        const pd = makePropertyDefinition();
+        const ds = makeDataSource({ propertyDefinitions: [pd] });
+        expect(getPropertyDefinitionById(ds, "propid-1").name).toBe("Phase");
+    });
+    it("throws when not found", () => {
+        const ds = makeDataSource();
+        expect(() => getPropertyDefinitionById(ds, "no-such-id")).toThrow();
+    });
+});
+describe("createPropertyDefinition", () => {
+    it("adds definition to model and returns PropertyDefinitionOut", () => {
+        const ds = makeDataSource();
+        const result = createPropertyDefinition(ds, { name: "Status" });
+        expect(ds.model.propertyDefinitions).toHaveLength(1);
+        expect(result.name).toBe("Status");
+        expect(result.type).toBe("string");
+        expect(result.identifier).toBeTruthy();
+    });
+    it("defaults type to string", () => {
+        const ds = makeDataSource();
+        const result = createPropertyDefinition(ds, { name: "Flag" });
+        expect(result.type).toBe("string");
+    });
+    it("accepts explicit type", () => {
+        const ds = makeDataSource();
+        const result = createPropertyDefinition(ds, { name: "Active", type: "boolean" });
+        expect(result.type).toBe("boolean");
+    });
+    it("assigns unique identifiers", () => {
+        const ds = makeDataSource();
+        const a = createPropertyDefinition(ds, { name: "A" });
+        const b = createPropertyDefinition(ds, { name: "B" });
+        expect(a.identifier).not.toBe(b.identifier);
+    });
+});
+describe("updatePropertyDefinition", () => {
+    it("updates name only when type omitted", () => {
+        const pd = makePropertyDefinition({ uuid: "pd-x", name: "Old", type: "string" });
+        const ds = makeDataSource({ propertyDefinitions: [pd] });
+        const result = updatePropertyDefinition(ds, "pd-x", { name: "New" });
+        expect(result.name).toBe("New");
+        expect(result.type).toBe("string");
+    });
+    it("updates type only when name omitted", () => {
+        const pd = makePropertyDefinition({ uuid: "pd-x", name: "Phase", type: "string" });
+        const ds = makeDataSource({ propertyDefinitions: [pd] });
+        const result = updatePropertyDefinition(ds, "pd-x", { type: "number" });
+        expect(result.name).toBe("Phase");
+        expect(result.type).toBe("number");
+    });
+    it("throws when not found", () => {
+        const ds = makeDataSource();
+        expect(() => updatePropertyDefinition(ds, "no-such", { name: "x" })).toThrow();
+    });
+});
+describe("deletePropertyDefinition", () => {
+    it("removes the definition", () => {
+        const pd = makePropertyDefinition({ uuid: "pd-del" });
+        const ds = makeDataSource({ propertyDefinitions: [pd] });
+        deletePropertyDefinition(ds, "pd-del");
+        expect(ds.model.propertyDefinitions).toHaveLength(0);
+    });
+    it("cascades: removes props referencing definition from elements", () => {
+        const pd = makePropertyDefinition({ uuid: "pd-del" });
+        const elem = makeElement({ props: { "pd-del": "v1", "other": "v2" } });
+        const ds = makeDataSource({ propertyDefinitions: [pd], elements: [elem] });
+        deletePropertyDefinition(ds, "pd-del");
+        expect(ds.model.elements[0].props).not.toHaveProperty("pd-del");
+        expect(ds.model.elements[0].props["other"]).toBe("v2");
+    });
+    it("cascades: removes props referencing definition from relationships", () => {
+        const pd = makePropertyDefinition({ uuid: "pd-del" });
+        const e1 = makeElement({ uuid: "src-001" });
+        const e2 = makeElement({ uuid: "tgt-001" });
+        const rel = makeRelationship({ props: { "pd-del": "val" } });
+        const ds = makeDataSource({ propertyDefinitions: [pd], elements: [e1, e2], relationships: [rel] });
+        deletePropertyDefinition(ds, "pd-del");
+        expect(ds.model.relationships[0].props).not.toHaveProperty("pd-del");
+    });
+    it("throws when not found", () => {
+        const ds = makeDataSource();
+        expect(() => deletePropertyDefinition(ds, "no-such")).toThrow();
+    });
+});
+// ===========================================================================
+// Integration tests – GET /property-definitions
+// ===========================================================================
+describe("GET /property-definitions", () => {
+    it("returns 200", async () => {
+        expect((await request(app).get("/property-definitions")).status).toBe(200);
+    });
+    it("returns array", async () => {
+        const data = (await request(app).get("/property-definitions")).body;
+        expect(Array.isArray(data)).toBe(true);
+    });
+    it("items have required shape", async () => {
+        const data = (await request(app).get("/property-definitions")).body;
+        if (!data.length)
+            return;
+        expect(data[0]).toHaveProperty("identifier");
+        expect(data[0]).toHaveProperty("name");
+        expect(data[0]).toHaveProperty("type");
+    });
+    it("count matches model", async () => {
+        const data = (await request(app).get("/property-definitions")).body;
+        expect(data.length).toBe(ds.model.propertyDefinitions.length);
+    });
+});
+// ===========================================================================
+// Integration tests – CRUD /property-definitions
+// ===========================================================================
+describe("POST/GET/PUT/DELETE /property-definitions", () => {
+    it("full CRUD lifecycle", async () => {
+        // Create
+        const createRes = await request(app)
+            .post("/property-definitions")
+            .send({ name: "TestProp", type: "string" });
+        expect(createRes.status).toBe(201);
+        const created = createRes.body;
+        expect(created.name).toBe("TestProp");
+        expect(created.type).toBe("string");
+        const id = created.identifier;
+        // Read
+        const getRes = await request(app).get(`/property-definitions/${id}`);
+        expect(getRes.status).toBe(200);
+        expect(getRes.body.identifier).toBe(id);
+        // Update
+        const putRes = await request(app)
+            .put(`/property-definitions/${id}`)
+            .send({ name: "UpdatedProp" });
+        expect(putRes.status).toBe(200);
+        expect(putRes.body.name).toBe("UpdatedProp");
+        // Delete
+        const delRes = await request(app).delete(`/property-definitions/${id}`);
+        expect(delRes.status).toBe(204);
+        // Confirm gone
+        expect((await request(app).get(`/property-definitions/${id}`)).status).toBe(404);
+    });
+    it("POST 422 when name missing", async () => {
+        const res = await request(app).post("/property-definitions").send({ type: "string" });
+        expect(res.status).toBe(422);
+        expect(res.body).toHaveProperty("detail");
+    });
+    it("POST 422 when type is invalid", async () => {
+        const res = await request(app).post("/property-definitions").send({ name: "X", type: "invalid" });
+        expect(res.status).toBe(422);
+        expect(res.body.detail).toContain("invalid");
+    });
+    it("PUT 422 when type is invalid", async () => {
+        const createRes = await request(app).post("/property-definitions").send({ name: "TmpProp" });
+        const id = createRes.body.identifier;
+        const res = await request(app).put(`/property-definitions/${id}`).send({ type: "notatype" });
+        expect(res.status).toBe(422);
+        await request(app).delete(`/property-definitions/${id}`);
+    });
+    it("GET 404 for unknown id", async () => {
+        expect((await request(app).get(`/property-definitions/${UNKNOWN_ID}`)).status).toBe(404);
+    });
+    it("DELETE 404 for unknown id", async () => {
+        expect((await request(app).delete(`/property-definitions/${UNKNOWN_ID}`)).status).toBe(404);
+    });
+});
+// ===========================================================================
+// Unit tests – parseOpenExchange propertyDefinitions
+// ===========================================================================
+describe("parseOpenExchange – propertyDefinitions", () => {
+    it("parses propertyDefinitions from XML", () => {
+        const m = parseOpenExchange(OEF_FIXTURE);
+        expect(m.propertyDefinitions).toHaveLength(1);
+        expect(m.propertyDefinitions[0].uuid).toBe("propid-1");
+        expect(m.propertyDefinitions[0].name).toBe("P1");
+        expect(m.propertyDefinitions[0].type).toBe("string");
+    });
+    it("returns empty array when no propertyDefinitions in XML", () => {
+        const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<model xmlns="http://www.opengroup.org/xsd/archimate/3.0/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" identifier="m2">
+  <name xml:lang="fr">Min</name>
+</model>`;
+        const m = parseOpenExchange(xml);
+        expect(m.propertyDefinitions).toEqual([]);
+    });
+});
+// ===========================================================================
+// Unit tests – serializeToOpenExchange propertyDefinitions
+// ===========================================================================
+describe("serializeToOpenExchange – propertyDefinitions", () => {
+    it("serializes propertyDefinitions from model", () => {
+        const m = parseOpenExchange(OEF_FIXTURE);
+        const xml = serializeToOpenExchange(m);
+        expect(xml).toContain('<propertyDefinition identifier="propid-1" type="string">');
+        expect(xml).toContain("<name>P1</name>");
+    });
+    it("adds new propertyDefinition through round-trip", () => {
+        const m = parseOpenExchange(OEF_FIXTURE);
+        m.propertyDefinitions.push({ uuid: "propid-new", name: "MyNew", type: "number" });
+        const xml = serializeToOpenExchange(m);
+        const reparsed = parseOpenExchange(xml);
+        expect(reparsed.propertyDefinitions.find((p) => p.uuid === "propid-new")).toBeTruthy();
+        expect(reparsed.propertyDefinitions.find((p) => p.uuid === "propid-new")?.type).toBe("number");
+    });
+    it("removes deleted propertyDefinition through round-trip", () => {
+        const m = parseOpenExchange(OEF_FIXTURE);
+        m.propertyDefinitions = [];
+        const xml = serializeToOpenExchange(m);
+        expect(xml).not.toContain("<propertyDefinitions>");
+        const reparsed = parseOpenExchange(xml);
+        expect(reparsed.propertyDefinitions).toHaveLength(0);
+    });
+    it("PROPERTY_DEFINITION_TYPES contains expected types", () => {
+        for (const t of ["string", "boolean", "date", "number", "enumeration"]) {
+            expect(PROPERTY_DEFINITION_TYPES.has(t)).toBe(true);
+        }
     });
 });

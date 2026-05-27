@@ -5,6 +5,7 @@
 export declare const ELEMENT_TYPES: ReadonlySet<string>;
 export declare const RELATIONSHIP_TYPES: ReadonlySet<string>;
 export declare const ACCESS_TYPES: ReadonlySet<string>;
+export declare const PROPERTY_DEFINITION_TYPES: ReadonlySet<string>;
 export declare const VIEWPOINTS: ReadonlySet<string>;
 export interface RGBColorOut {
     r: number;
@@ -27,6 +28,19 @@ export interface StyleOut {
 export interface PropertyOut {
     property_definition_ref: string;
     value: string;
+}
+export interface PropertyDefinitionOut {
+    identifier: string;
+    name: string;
+    type: string;
+}
+export interface PropertyDefinitionCreateIn {
+    name: string;
+    type?: string;
+}
+export interface PropertyDefinitionUpdateIn {
+    name?: string;
+    type?: string;
 }
 export interface ModelInfo {
     identifier: string;

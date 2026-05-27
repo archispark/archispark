@@ -16,6 +16,7 @@ import type {
   ArchiConnection,
   ArchiView,
   ArchiModel,
+  ArchiPropertyDefinition,
   BendPoint,
 } from "./model.js";
 
@@ -195,6 +196,20 @@ export function parseOpenExchange(xmlContent: string): ArchiModel {
     });
   }
 
+  // ---- PropertyDefinitions ----
+  const pdContainer = modelRaw["propertyDefinitions"] as XmlNode | undefined;
+  const pdRaws = ensureArray<XmlNode>(pdContainer?.["propertyDefinition"]);
+  const propertyDefinitions: ArchiPropertyDefinition[] = [];
+  for (const raw of pdRaws) {
+    const id = raw["@_identifier"] != null ? String(raw["@_identifier"]) : null;
+    if (!id) continue;
+    propertyDefinitions.push({
+      uuid: id,
+      name: langStringText(raw["name"]) ?? "",
+      type: raw["@_type"] != null ? String(raw["@_type"]) : "string",
+    });
+  }
+
   // ---- Views ----
   const viewsContainer = modelRaw["views"] as XmlNode | undefined;
   const diagramsContainer = viewsContainer?.["diagrams"] as XmlNode | undefined;
@@ -224,6 +239,7 @@ export function parseOpenExchange(xmlContent: string): ArchiModel {
     version: modelRaw["@_version"] != null ? String(modelRaw["@_version"]) : null,
     elements: elementArray,
     relationships: relationshipArray,
+    propertyDefinitions,
     views: viewArray,
     _raw: modelRaw,
   };

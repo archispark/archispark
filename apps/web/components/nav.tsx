@@ -13,6 +13,7 @@ const BREADCRUMBS: Record<string, string> = {
   capabilities: "App par Capability",
   strategy: "Stratégie par Capability",
   composition: "Composition",
+  properties: "Propriétés",
 };
 
 export function Nav({ onToggleSidebar }: { onToggleSidebar: () => void }) {

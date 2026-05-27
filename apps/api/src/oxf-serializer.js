@@ -280,10 +280,16 @@ export function serializeToOpenExchange(model) {
     const orgs = renderPreservedSection(raw, "organizations", "  ");
     if (orgs)
         out.push(orgs);
-    // Preserved propertyDefinitions
-    const pdefs = renderPreservedSection(raw, "propertyDefinitions", "  ");
-    if (pdefs)
-        out.push(pdefs);
+    // PropertyDefinitions
+    if (model.propertyDefinitions.length > 0) {
+        out.push("  <propertyDefinitions>");
+        for (const pd of model.propertyDefinitions) {
+            out.push(`    <propertyDefinition identifier="${esc(pd.uuid)}" type="${esc(pd.type)}">`);
+            out.push(`      <name>${esc(pd.name)}</name>`);
+            out.push(`    </propertyDefinition>`);
+        }
+        out.push("  </propertyDefinitions>");
+    }
     // Views
     const viewpoints = renderPreservedSection(raw, "views", "  ");
     // viewpoints rendering above renders the whole <views> subtree; we replace it with our own.
