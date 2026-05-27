@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
-import { Menu, Moon, Sun } from "lucide-react";
+import { Menu, Moon, Sun, LogOut } from "lucide-react";
 import { Button } from "@workspace/ui/components/button";
 
 const BREADCRUMBS: Record<string, string> = {
@@ -14,11 +14,19 @@ const BREADCRUMBS: Record<string, string> = {
   strategy: "Stratégie par Capability",
   composition: "Composition",
   properties: "Propriétés",
+  users: "Utilisateurs",
+  login: "Connexion",
 };
 
 export function Nav({ onToggleSidebar }: { onToggleSidebar: () => void }) {
   const pathname = usePathname();
+  const router = useRouter();
   const { resolvedTheme, setTheme } = useTheme();
+
+  function logout() {
+    document.cookie = "auth_token=; path=/; max-age=0";
+    router.push("/login");
+  }
 
   const segments = pathname.split("/").filter(Boolean);
 
@@ -91,6 +99,9 @@ export function Nav({ onToggleSidebar }: { onToggleSidebar: () => void }) {
         aria-label="Toggle theme"
       >
         {resolvedTheme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
+      </Button>
+      <Button variant="ghost" size="icon-sm" onClick={logout} aria-label="Déconnexion">
+        <LogOut className="size-4" />
       </Button>
     </nav>
   );

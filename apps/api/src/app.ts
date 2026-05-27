@@ -20,7 +20,7 @@
  *   POST|GET|DELETE /mcp/
  */
 
-import express, { Request, Response } from "express";
+import express, { Request, Response, NextFunction } from "express";
 import { randomUUID } from "crypto";
 
 /** xs:ID / NCName requires the first char to be a letter or underscore.
@@ -42,6 +42,17 @@ import { saveModelToFile, serializeToOpenExchange } from "./oxf-serializer.js";
 import { parseOpenExchange } from "./oxf-parser.js";
 import { openApiSpec } from "./openapi.js";
 import { renderViewToSvg, renderViewToPng } from "./renderer.js";
+import {
+  users,
+  userOut,
+  loginUser,
+  createUser,
+  updateUser,
+  deleteUser,
+  requireAuth,
+  requireAdmin,
+  type AuthRequest,
+} from "./auth.js";
 import {
   ELEMENT_TYPES,
   RELATIONSHIP_TYPES,
@@ -541,12 +552,115 @@ export const app = express();
 app.use((_req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*");
   res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-  res.header("Access-Control-Allow-Headers", "Content-Type, mcp-session-id");
+  res.header("Access-Control-Allow-Headers", "Content-Type, mcp-session-id, Authorization");
   if (_req.method === "OPTIONS") { res.sendStatus(204); return; }
   next();
 });
 
 app.use(express.json());
+
+// Global auth — exempt only public paths
+const PUBLIC_PATHS = new Set(["/auth/login", "/openapi.json", "/docs", "/mcp/"]);
+app.use((req: AuthRequest, res, next) => {
+  if (
+    PUBLIC_PATHS.has(req.path) ||
+    req.path.startsWith("/docs") ||
+    req.path.startsWith("/mcp/")
+  ) return next();
+  requireAuth(req, res, next);
+});
+
+// Write operations (POST/PUT/DELETE) reserved for admin, except /auth/* and /users (already requireAdmin)
+app.use((req: AuthRequest, res, next) => {
+  if (
+    ["POST", "PUT", "DELETE"].includes(req.method) &&
+    !req.path.startsWith("/auth/") &&
+    !req.path.startsWith("/users")
+  ) {
+    if (req.user?.role !== "admin") {
+      res.status(403).json({ detail: "Modifications réservées aux administrateurs." });
+      return;
+    }
+  }
+  next();
+});
+
+// Auto-save model after every successful mutation on model routes
+const MODEL_WRITE_PATHS = ["/elements", "/relationships", "/views", "/property-definitions", "/import"];
+app.use((req: Request, res: Response, next: NextFunction) => {
+  if (!["POST", "PUT", "DELETE"].includes(req.method)) return next();
+  if (!MODEL_WRITE_PATHS.some((p) => req.path.startsWith(p))) return next();
+  res.on("finish", () => {
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      try { saveModel(dataSource); } catch { /* ignore */ }
+    }
+  });
+  next();
+});
+
+// ---------------------------------------------------------------------------
+// Auth routes
+// ---------------------------------------------------------------------------
+
+app.post("/auth/login", (req: Request, res: Response) => {
+  const { username, password } = req.body as { username?: string; password?: string };
+  if (!username || !password) {
+    res.status(422).json({ detail: "username et password requis." });
+    return;
+  }
+  const token = loginUser(username, password);
+  if (!token) {
+    res.status(401).json({ detail: "Identifiants incorrects." });
+    return;
+  }
+  res.json({ token });
+});
+
+app.get("/auth/me", (req: AuthRequest, res: Response) => {
+  res.json(req.user);
+});
+
+// ---------------------------------------------------------------------------
+// Users routes (admin only)
+// ---------------------------------------------------------------------------
+
+app.get("/users", requireAdmin as express.RequestHandler, (_req: Request, res: Response) => {
+  res.json(users.map(userOut));
+});
+
+app.post("/users", requireAdmin as express.RequestHandler, (req: Request, res: Response) => {
+  const { username, password, role } = req.body as { username?: string; password?: string; role?: string };
+  if (!username || !password) {
+    res.status(422).json({ detail: "username et password requis." });
+    return;
+  }
+  try {
+    res.status(201).json(createUser(username, password, (role === "admin" ? "admin" : "user")));
+  } catch (err) {
+    res.status(422).json({ detail: (err as Error).message });
+  }
+});
+
+app.put("/users/:id", requireAdmin as express.RequestHandler, (req: Request, res: Response) => {
+  const { password, role } = req.body as { password?: string; role?: string };
+  try {
+    res.json(updateUser(req.params["id"] as string, {
+      password: password || undefined,
+      role: role === "admin" ? "admin" : role === "user" ? "user" : undefined,
+    }));
+  } catch (err) {
+    res.status(404).json({ detail: (err as Error).message });
+  }
+});
+
+app.delete("/users/:id", requireAdmin as express.RequestHandler, (req: Request, res: Response) => {
+  try {
+    deleteUser(req.params["id"] as string);
+    res.status(204).send();
+  } catch (err) {
+    res.status(422).json({ detail: (err as Error).message });
+  }
+});
 
 // OpenAPI spec and Swagger UI
 app.get("/openapi.json", (_req: Request, res: Response) => {

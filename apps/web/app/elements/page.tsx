@@ -36,6 +36,7 @@ import { DataTable } from "@/components/data-table";
 import { PropertiesEditor } from "@/components/properties-editor";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import type { Property } from "@/lib/api";
+import { useIsAdmin } from "@/hooks/use-current-user";
 
 const LAYER_COLORS: Record<string, string> = {
   Business: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300",
@@ -88,6 +89,7 @@ export default function ElementsPage() {
 }
 
 function ElementsPageInner() {
+  const isAdmin = useIsAdmin();
   const searchParams = useSearchParams();
   const layerFilter = searchParams.get("layer");
 
@@ -264,11 +266,11 @@ function ElementsPageInner() {
         <span className="max-w-xs truncate block text-muted-foreground">{row.getValue("documentation") || "—"}</span>
       ),
     },
-    {
+    ...(isAdmin ? [{
       id: "actions",
       header: "",
       enableSorting: false,
-      cell: ({ row }) => (
+      cell: ({ row }: { row: { original: ElementOut } }) => (
         <div className="flex items-center gap-1 justify-end">
           <Button variant="ghost" size="icon-xs" onClick={() => openEdit(row.original)} aria-label="Modifier">
             <Pencil className="size-3.5" />
@@ -278,8 +280,8 @@ function ElementsPageInner() {
           </Button>
         </div>
       ),
-    },
-  ], []);
+    }] : []),
+  ], [isAdmin]);
 
   const filteredElements = useMemo(() => {
     if (!layerFilter) return elements;
@@ -311,7 +313,7 @@ function ElementsPageInner() {
           <h1 className="text-lg font-semibold">{pageTitle}</h1>
           <p className="text-muted-foreground text-[13px] mt-0.5">{pageDesc}</p>
         </div>
-        <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        {isAdmin && <Dialog open={createOpen} onOpenChange={setCreateOpen}>
           <DialogTrigger render={<Button size="sm" />}>
             <Plus className="size-4" /> Nouvel élément
           </DialogTrigger>
@@ -351,7 +353,7 @@ function ElementsPageInner() {
               <Button onClick={handleCreate} disabled={creating || !newName.trim() || !newType}>{creating ? "Création…" : "Créer"}</Button>
             </DialogFooter>
           </DialogContent>
-        </Dialog>
+        </Dialog>}
       </div>
 
       <div className="flex flex-wrap items-center gap-3">

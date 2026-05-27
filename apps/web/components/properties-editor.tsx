@@ -79,7 +79,10 @@ export function PropertiesEditor({ value, onChange }: Props) {
         <div className="flex items-center gap-2 pt-1">
           <Select value={addRef} onValueChange={(v) => setAddRef(v ?? "")}>
             <SelectTrigger className="h-7 text-[12px] flex-1">
-              <SelectValue placeholder="Propriété…" />
+              {addRef
+                ? <span className="flex flex-1 text-left truncate">{definitions.find((d) => d.identifier === addRef)?.name ?? addRef}</span>
+                : <SelectValue placeholder="Propriété…" />
+              }
             </SelectTrigger>
             <SelectContent>
               {available.map((d) => (

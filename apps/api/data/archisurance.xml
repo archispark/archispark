@@ -7,6 +7,11 @@
     </element>
     <element identifier="dcf13c9e-b9a3-4aae-81b7-ea7cc96bb6b4" xsi:type="Capability">
       <name xml:lang="fr">SAMPLE_Capability</name>
+      <properties>
+        <property propertyDefinitionRef="propid-2">
+          <value xml:lang="fr">0</value>
+        </property>
+      </properties>
     </element>
     <element identifier="id-8f7c5b20-4e2c-407b-8175-2b2b90512f7e" xsi:type="CourseOfAction">
       <name xml:lang="fr">SAMPLE_CourseOfAction</name>

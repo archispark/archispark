@@ -37,8 +37,10 @@ import { DataTable } from "@/components/data-table";
 import { PropertiesEditor } from "@/components/properties-editor";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import type { Property } from "@/lib/api";
+import { useIsAdmin } from "@/hooks/use-current-user";
 
 export default function RelationshipsPage() {
+  const isAdmin = useIsAdmin();
   const [types, setTypes] = useState<string[]>([]);
   const [relationships, setRelationships] = useState<RelationshipOut[]>([]);
   const [allElements, setAllElements] = useState<ElementOut[]>([]);
@@ -213,11 +215,11 @@ export default function RelationshipsPage() {
         </span>
       ),
     },
-    {
+    ...(isAdmin ? [{
       id: "actions",
       header: "",
       enableSorting: false,
-      cell: ({ row }) => (
+      cell: ({ row }: { row: { original: RelationshipOut } }) => (
         <div className="flex items-center gap-1 justify-end">
           <Button variant="ghost" size="icon-xs" onClick={() => openEdit(row.original)} aria-label="Modifier">
             <Pencil className="size-3.5" />
@@ -227,8 +229,8 @@ export default function RelationshipsPage() {
           </Button>
         </div>
       ),
-    },
-  ], [allElements]);
+    }] : []),
+  ], [allElements, isAdmin]);
 
   if (error) {
     return (
@@ -258,7 +260,7 @@ export default function RelationshipsPage() {
           <h1 className="text-lg font-semibold">Relations</h1>
           <p className="text-muted-foreground text-[13px] mt-0.5">Explorer les relations entre éléments ArchiMate</p>
         </div>
-        <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        {isAdmin && <Dialog open={createOpen} onOpenChange={setCreateOpen}>
           <DialogTrigger render={<Button size="sm" />}>
             <Plus className="size-4" /> Nouvelle relation
           </DialogTrigger>
@@ -302,7 +304,7 @@ export default function RelationshipsPage() {
               <Button onClick={handleCreate} disabled={creating || !newType || !newSource || !newTarget}>{creating ? "Création…" : "Créer"}</Button>
             </DialogFooter>
           </DialogContent>
-        </Dialog>
+        </Dialog>}
       </div>
 
       <div className="flex flex-wrap items-center gap-3">

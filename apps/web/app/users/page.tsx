@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useState, useMemo, useCallback, useRef } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import {
-  fetchPropertyDefinitions,
-  createPropertyDefinition,
-  updatePropertyDefinition,
-  deletePropertyDefinition,
-  type PropertyDefinitionOut,
+  fetchUsers,
+  createUser,
+  updateUserApi,
+  deleteUserApi,
+  type UserOut,
 } from "@/lib/api";
 import { Input } from "@workspace/ui/components/input";
 import { Badge } from "@workspace/ui/components/badge";
@@ -32,82 +32,66 @@ import {
 } from "@workspace/ui/components/dialog";
 import { DataTable } from "@/components/data-table";
 import { Plus, Pencil, Trash2 } from "lucide-react";
-import { useIsAdmin } from "@/hooks/use-current-user";
 
-const PROPERTY_TYPES = ["string", "boolean", "integer", "double", "date", "object"];
-
-export default function PropertiesPage() {
-  const isAdmin = useIsAdmin();
-  const [defs, setDefs] = useState<PropertyDefinitionOut[]>([]);
+export default function UsersPage() {
+  const [users, setUsers] = useState<UserOut[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-  const initialLoad = useRef(true);
 
-  // Create dialog
+  // Create
   const [createOpen, setCreateOpen] = useState(false);
-  const [newName, setNewName] = useState("");
-  const [newType, setNewType] = useState("string");
+  const [newUsername, setNewUsername] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [newRole, setNewRole] = useState("user");
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
-  // Edit dialog
+  // Edit
   const [editOpen, setEditOpen] = useState(false);
-  const [editTarget, setEditTarget] = useState<PropertyDefinitionOut | null>(null);
-  const [editName, setEditName] = useState("");
-  const [editType, setEditType] = useState("string");
+  const [editTarget, setEditTarget] = useState<UserOut | null>(null);
+  const [editPassword, setEditPassword] = useState("");
+  const [editRole, setEditRole] = useState("user");
   const [saving, setSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
 
-  // Delete dialog
+  // Delete
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<PropertyDefinitionOut | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<UserOut | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const timer = setTimeout(() => setDebouncedSearch(search), 300);
-    return () => clearTimeout(timer);
-  }, [search]);
-
   const reload = useCallback(() => {
     setLoading(true);
-    fetchPropertyDefinitions()
-      .then(setDefs)
+    fetchUsers()
+      .then(setUsers)
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
   }, []);
 
-  useEffect(() => {
-    fetchPropertyDefinitions()
-      .then((d) => { setDefs(d); initialLoad.current = false; })
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false));
-  }, []);
+  useEffect(() => { reload(); }, [reload]);
 
-  function openEdit(pd: PropertyDefinitionOut) {
-    setEditTarget(pd);
-    setEditName(pd.name);
-    setEditType(pd.type || "string");
+  function openEdit(u: UserOut) {
+    setEditTarget(u);
+    setEditPassword("");
+    setEditRole(u.role);
     setEditError(null);
     setEditOpen(true);
   }
 
-  function openDelete(pd: PropertyDefinitionOut) {
-    setDeleteTarget(pd);
+  function openDelete(u: UserOut) {
+    setDeleteTarget(u);
     setDeleteError(null);
     setDeleteOpen(true);
   }
 
   async function handleCreate() {
-    if (!newName.trim()) return;
+    if (!newUsername.trim() || !newPassword) return;
     setCreating(true);
     setCreateError(null);
     try {
-      await createPropertyDefinition({ name: newName.trim(), type: newType });
+      await createUser({ username: newUsername.trim(), password: newPassword, role: newRole });
       setCreateOpen(false);
-      setNewName(""); setNewType("string");
+      setNewUsername(""); setNewPassword(""); setNewRole("user");
       reload();
     } catch (err) {
       setCreateError((err as Error).message);
@@ -117,11 +101,14 @@ export default function PropertiesPage() {
   }
 
   async function handleEdit() {
-    if (!editTarget || !editName.trim()) return;
+    if (!editTarget) return;
     setSaving(true);
     setEditError(null);
     try {
-      await updatePropertyDefinition(editTarget.identifier, { name: editName.trim(), type: editType });
+      await updateUserApi(editTarget.id, {
+        password: editPassword || undefined,
+        role: editRole,
+      });
       setEditOpen(false);
       reload();
     } catch (err) {
@@ -136,7 +123,7 @@ export default function PropertiesPage() {
     setDeleting(true);
     setDeleteError(null);
     try {
-      await deletePropertyDefinition(deleteTarget.identifier);
+      await deleteUserApi(deleteTarget.id);
       setDeleteOpen(false);
       reload();
     } catch (err) {
@@ -146,40 +133,38 @@ export default function PropertiesPage() {
     }
   }
 
-  const filtered = useMemo(() => {
-    if (!debouncedSearch) return defs;
-    const q = debouncedSearch.toLowerCase();
-    return defs.filter((d) => d.name.toLowerCase().includes(q) || d.type?.toLowerCase().includes(q));
-  }, [defs, debouncedSearch]);
-
-  const columns: ColumnDef<PropertyDefinitionOut>[] = useMemo(() => [
+  const columns: ColumnDef<UserOut>[] = useMemo(() => [
     {
-      accessorKey: "name",
-      header: "Nom",
-      cell: ({ row }) => <span className="font-medium">{row.getValue("name") || "—"}</span>,
+      accessorKey: "username",
+      header: "Nom d'utilisateur",
+      cell: ({ row }) => <span className="font-medium">{row.getValue("username")}</span>,
     },
     {
-      accessorKey: "type",
-      header: "Type",
-      cell: ({ row }) => (
-        <Badge variant="secondary" className="font-mono text-xs">{row.getValue("type") || "string"}</Badge>
-      ),
+      accessorKey: "role",
+      header: "Rôle",
+      cell: ({ row }) => {
+        const role = row.getValue<string>("role");
+        return (
+          <Badge variant="secondary" className={role === "admin" ? "bg-primary/10 text-primary" : ""}>
+            {role}
+          </Badge>
+        );
+      },
     },
     {
-      accessorKey: "identifier",
-      header: "Identifiant",
-      enableSorting: false,
+      accessorKey: "created_at",
+      header: "Créé le",
       cell: ({ row }) => (
-        <span className="text-[11px] text-muted-foreground font-mono truncate max-w-xs block">
-          {row.getValue("identifier")}
+        <span className="text-[12px] text-muted-foreground">
+          {new Date(row.getValue("created_at")).toLocaleDateString("fr-FR")}
         </span>
       ),
     },
-    ...(isAdmin ? [{
+    {
       id: "actions",
       header: "",
       enableSorting: false,
-      cell: ({ row }: { row: { original: PropertyDefinitionOut } }) => (
+      cell: ({ row }) => (
         <div className="flex items-center gap-1 justify-end">
           <Button variant="ghost" size="icon-xs" onClick={() => openEdit(row.original)} aria-label="Modifier">
             <Pencil className="size-3.5" />
@@ -189,8 +174,8 @@ export default function PropertiesPage() {
           </Button>
         </div>
       ),
-    }] : []),
-  ], [isAdmin]);
+    },
+  ], []);
 
   if (error) {
     return (
@@ -206,104 +191,103 @@ export default function PropertiesPage() {
     <div className="p-7 space-y-5">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-lg font-semibold">Définitions de propriétés</h1>
+          <h1 className="text-lg font-semibold">Utilisateurs</h1>
           <p className="text-muted-foreground text-[13px] mt-0.5">
-            {filtered.length} définition{filtered.length !== 1 ? "s" : ""}
+            {users.length} utilisateur{users.length !== 1 ? "s" : ""}
           </p>
         </div>
 
-        {isAdmin && <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        <Dialog open={createOpen} onOpenChange={setCreateOpen}>
           <DialogTrigger render={<Button size="sm" />}>
-            <Plus className="size-4" /> Nouvelle définition
+            <Plus className="size-4" /> Nouvel utilisateur
           </DialogTrigger>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
-              <DialogTitle>Nouvelle définition de propriété</DialogTitle>
-              <DialogDescription>Définit une propriété réutilisable sur les éléments et relations.</DialogDescription>
+              <DialogTitle>Nouvel utilisateur</DialogTitle>
+              <DialogDescription>Créer un compte d&apos;accès à ArchiSpark.</DialogDescription>
             </DialogHeader>
             <div className="flex flex-col gap-4 py-2">
               <div className="flex flex-col gap-1.5">
-                <Label htmlFor="pd-name">Nom *</Label>
+                <Label htmlFor="new-username">Nom d&apos;utilisateur *</Label>
                 <Input
-                  id="pd-name"
-                  value={newName}
-                  onChange={(e) => setNewName(e.target.value)}
-                  placeholder="ex: criticité"
-                  onKeyDown={(e) => e.key === "Enter" && handleCreate()}
+                  id="new-username"
+                  value={newUsername}
+                  onChange={(e) => setNewUsername(e.target.value)}
+                  placeholder="ex: jean.dupont"
+                  autoComplete="off"
                 />
               </div>
               <div className="flex flex-col gap-1.5">
-                <Label>Type de valeur</Label>
-                <Select value={newType} onValueChange={(v) => setNewType(v ?? "string")}>
+                <Label htmlFor="new-password">Mot de passe * <span className="text-muted-foreground font-normal">(min. 6 caractères)</span></Label>
+                <Input
+                  id="new-password"
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  autoComplete="new-password"
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label>Rôle</Label>
+                <Select value={newRole} onValueChange={(v) => setNewRole(v ?? "user")}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {PROPERTY_TYPES.map((t) => (
-                      <SelectItem key={t} value={t}>{t}</SelectItem>
-                    ))}
+                    <SelectItem value="user">user</SelectItem>
+                    <SelectItem value="admin">admin</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
             {createError && (
-              <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">
-                {createError}
-              </div>
+              <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">{createError}</div>
             )}
             <DialogFooter>
               <DialogClose render={<Button variant="outline" />}>Annuler</DialogClose>
-              <Button onClick={handleCreate} disabled={creating || !newName.trim()}>
+              <Button onClick={handleCreate} disabled={creating || !newUsername.trim() || !newPassword}>
                 {creating ? "Création…" : "Créer"}
               </Button>
             </DialogFooter>
           </DialogContent>
-        </Dialog>}
+        </Dialog>
       </div>
 
-      <Input
-        placeholder="Rechercher par nom ou type..."
-        className="max-w-xs"
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-      />
-
-      <DataTable columns={columns} data={filtered} loading={loading} />
+      <DataTable columns={columns} data={users} loading={loading} />
 
       {/* Edit dialog */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Modifier la définition</DialogTitle>
+            <DialogTitle>Modifier — {editTarget?.username}</DialogTitle>
           </DialogHeader>
           <div className="flex flex-col gap-4 py-2">
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="edit-pd-name">Nom *</Label>
+              <Label htmlFor="edit-password">Nouveau mot de passe <span className="text-muted-foreground font-normal">(laisser vide pour ne pas changer)</span></Label>
               <Input
-                id="edit-pd-name"
-                value={editName}
-                onChange={(e) => setEditName(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleEdit()}
+                id="edit-password"
+                type="password"
+                value={editPassword}
+                onChange={(e) => setEditPassword(e.target.value)}
+                autoComplete="new-password"
+                placeholder="••••••••"
               />
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label>Type de valeur</Label>
-              <Select value={editType} onValueChange={(v) => setEditType(v ?? "string")}>
+              <Label>Rôle</Label>
+              <Select value={editRole} onValueChange={(v) => setEditRole(v ?? "user")}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {PROPERTY_TYPES.map((t) => (
-                    <SelectItem key={t} value={t}>{t}</SelectItem>
-                  ))}
+                  <SelectItem value="user">user</SelectItem>
+                  <SelectItem value="admin">admin</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
           {editError && (
-            <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">
-              {editError}
-            </div>
+            <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">{editError}</div>
           )}
           <DialogFooter>
             <DialogClose render={<Button variant="outline" />}>Annuler</DialogClose>
-            <Button onClick={handleEdit} disabled={saving || !editName.trim()}>
+            <Button onClick={handleEdit} disabled={saving}>
               {saving ? "Enregistrement…" : "Enregistrer"}
             </Button>
           </DialogFooter>
@@ -314,15 +298,13 @@ export default function PropertiesPage() {
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>Supprimer la définition</DialogTitle>
+            <DialogTitle>Supprimer l&apos;utilisateur</DialogTitle>
             <DialogDescription>
-              Supprimer <strong>{deleteTarget?.name || "cette définition"}</strong> ? Les propriétés existantes qui la référencent seront orphelines. Cette action est irréversible.
+              Supprimer <strong>{deleteTarget?.username}</strong> ? Cette action est irréversible.
             </DialogDescription>
           </DialogHeader>
           {deleteError && (
-            <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">
-              {deleteError}
-            </div>
+            <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">{deleteError}</div>
           )}
           <DialogFooter>
             <DialogClose render={<Button variant="outline" />}>Annuler</DialogClose>

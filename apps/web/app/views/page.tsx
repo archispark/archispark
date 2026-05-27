@@ -24,6 +24,7 @@ import {
   DialogClose,
 } from "@workspace/ui/components/dialog";
 import { Plus, Pencil, Trash2 } from "lucide-react";
+import { useIsAdmin } from "@/hooks/use-current-user";
 
 const VIEWPOINTS = [
   "Organization", "Application Platform", "Application Structure",
@@ -38,6 +39,7 @@ const VIEWPOINTS = [
 ];
 
 export default function ViewsPage() {
+  const isAdmin = useIsAdmin();
   const [views, setViews] = useState<ViewOut[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -168,7 +170,7 @@ export default function ViewsPage() {
           <h1 className="text-lg font-semibold">Vues</h1>
           <p className="text-muted-foreground text-[13px] mt-0.5">{views.length} diagramme{views.length !== 1 ? "s" : ""} dans le modèle</p>
         </div>
-        <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        {isAdmin && <Dialog open={createOpen} onOpenChange={setCreateOpen}>
           <DialogTrigger render={<Button size="sm" />}>
             <Plus className="size-4" /> Nouvelle vue
           </DialogTrigger>
@@ -203,7 +205,7 @@ export default function ViewsPage() {
               <Button onClick={handleCreate} disabled={creating || !newName.trim()}>{creating ? "Création…" : "Créer"}</Button>
             </DialogFooter>
           </DialogContent>
-        </Dialog>
+        </Dialog>}
       </div>
 
       {views.length === 0 ? (
@@ -219,14 +221,16 @@ export default function ViewsPage() {
               href={`/views/${encodeURIComponent(view.identifier)}`}
               className="group bg-card border border-border rounded-lg p-5 no-underline transition-all hover:border-primary hover:-translate-y-px flex flex-col gap-2 relative"
             >
-              <div className="absolute top-3 right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                <Button variant="ghost" size="icon-xs" onClick={(e) => openEdit(view, e)} aria-label="Modifier">
-                  <Pencil className="size-3.5" />
-                </Button>
-                <Button variant="ghost" size="icon-xs" onClick={(e) => openDelete(view, e)} aria-label="Supprimer">
-                  <Trash2 className="size-3.5 text-destructive" />
-                </Button>
-              </div>
+              {isAdmin && (
+                <div className="absolute top-3 right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <Button variant="ghost" size="icon-xs" onClick={(e) => openEdit(view, e)} aria-label="Modifier">
+                    <Pencil className="size-3.5" />
+                  </Button>
+                  <Button variant="ghost" size="icon-xs" onClick={(e) => openDelete(view, e)} aria-label="Supprimer">
+                    <Trash2 className="size-3.5 text-destructive" />
+                  </Button>
+                </div>
+              )}
               <h2 className="text-[14px] font-semibold text-foreground pr-16">{view.name || "Sans nom"}</h2>
               <div className="text-muted-foreground text-[13px] leading-relaxed flex-1">{view.documentation || "Pas de description"}</div>
             </Link>
