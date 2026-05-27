@@ -7,9 +7,12 @@ import { Menu, Moon, Sun } from "lucide-react";
 import { Button } from "@workspace/ui/components/button";
 
 const BREADCRUMBS: Record<string, string> = {
-  elements: "Elements",
+  elements: "Éléments",
   relationships: "Relations",
   views: "Vues",
+  capabilities: "App par Capability",
+  strategy: "Stratégie par Capability",
+  composition: "Composition",
 };
 
 export function Nav({ onToggleSidebar }: { onToggleSidebar: () => void }) {

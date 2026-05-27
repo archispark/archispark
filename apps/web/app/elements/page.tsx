@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState, useMemo, useCallback } from "react";
+import { Suspense, useEffect, useRef, useState, useMemo, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import type { ColumnDef } from "@tanstack/react-table";
 import {
   fetchElementTypes,
@@ -65,7 +66,29 @@ function getLayer(type: string): string {
   return "Composite";
 }
 
+const LAYER_LABELS: Record<string, string> = {
+  Strategy: "Stratégie",
+  Business: "Métier",
+  Application: "Application",
+  Technology: "Technologie",
+  Motivation: "Motivation",
+  Physical: "Physique",
+  Implementation: "Implémentation",
+  Composite: "Composite",
+};
+
 export default function ElementsPage() {
+  return (
+    <Suspense>
+      <ElementsPageInner />
+    </Suspense>
+  );
+}
+
+function ElementsPageInner() {
+  const searchParams = useSearchParams();
+  const layerFilter = searchParams.get("layer");
+
   const [types, setTypes] = useState<string[]>([]);
   const [elements, setElements] = useState<ElementOut[]>([]);
   const [loading, setLoading] = useState(true);
@@ -252,6 +275,19 @@ export default function ElementsPage() {
     },
   ], []);
 
+  const filteredElements = useMemo(() => {
+    if (!layerFilter) return elements;
+    return elements.filter((el) => getLayer(el.type) === layerFilter);
+  }, [elements, layerFilter]);
+
+  const pageTitle = layerFilter
+    ? `Éléments — ${LAYER_LABELS[layerFilter] || layerFilter}`
+    : "Éléments";
+
+  const pageDesc = layerFilter
+    ? `${filteredElements.length} élément${filteredElements.length !== 1 ? "s" : ""} de la couche ${LAYER_LABELS[layerFilter] || layerFilter}`
+    : "Parcourir tous les éléments ArchiMate du modèle";
+
   if (error) {
     return (
       <div className="p-7">
@@ -266,8 +302,8 @@ export default function ElementsPage() {
     <div className="p-7 space-y-5">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-lg font-semibold">Éléments</h1>
-          <p className="text-muted-foreground text-[13px] mt-0.5">Parcourir tous les éléments ArchiMate du modèle</p>
+          <h1 className="text-lg font-semibold">{pageTitle}</h1>
+          <p className="text-muted-foreground text-[13px] mt-0.5">{pageDesc}</p>
         </div>
         <Dialog open={createOpen} onOpenChange={setCreateOpen}>
           <DialogTrigger render={<Button size="sm" />}>
@@ -321,7 +357,7 @@ export default function ElementsPage() {
         </Select>
       </div>
 
-      <DataTable columns={columns} data={elements} loading={loading} />
+      <DataTable columns={columns} data={filteredElements} loading={loading} />
 
       {/* Edit dialog */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
