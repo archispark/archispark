@@ -9,6 +9,7 @@ WORKDIR /repo
 # Install dependencies (copy manifests first for layer caching)
 COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
 COPY apps/api/package.json apps/api/
+COPY packages/db/package.json packages/db/
 COPY packages/typescript-config/package.json packages/typescript-config/
 COPY packages/eslint-config/package.json packages/eslint-config/
 

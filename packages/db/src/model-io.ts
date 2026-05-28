@@ -29,7 +29,7 @@ import type {
   ArchiPropertyDefinition,
   ArchiColor,
   BendPoint,
-} from "../model.js";
+} from "./model.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

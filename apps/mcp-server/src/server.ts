@@ -1,5 +1,5 @@
 /**
- * MCP server extracted from apps/api.
+ * MCP server.
  *
  * Exposes the same 25 ArchiMate MCP tools via streamable-HTTP transport.
  * Reads from (and writes to) the same SQLite DB as the REST API.
@@ -12,8 +12,8 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 
-import packageJson from "mcp-archimate/package.json" with { type: "json" };
-import { dataSource } from "mcp-archimate/src/registry.js";
+import packageJson from "api/package.json" with { type: "json" };
+import { dataSource } from "api/src/registry.js";
 import {
   getModelInfo,
   listElementTypes,
@@ -38,8 +38,8 @@ import {
   createPropertyDefinition,
   updatePropertyDefinition,
   deletePropertyDefinition,
-} from "mcp-archimate/src/app.js";
-import { renderViewToSvg, renderViewToPng } from "mcp-archimate/src/renderer.js";
+} from "api/src/app.js";
+import { renderViewToSvg, renderViewToPng } from "api/src/renderer.js";
 import {
   ELEMENT_TYPES,
   RELATIONSHIP_TYPES,
@@ -47,7 +47,7 @@ import {
   type ElementUpdateIn,
   type RelationshipUpdateIn,
   type PropertyDefinitionUpdateIn,
-} from "mcp-archimate/src/schemas.js";
+} from "api/src/schemas.js";
 
 // Re-export dataSource so main.ts can trigger init
 export { dataSource };

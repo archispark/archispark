@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import { seedWorkspace, modelFromDb, modelToDb } from "./model-io.js";
 import { runMigrations } from "./migrate.js";
-import type { ArchiModel } from "../model.js";
+import type { ArchiModel } from "./model.js";
 
 beforeAll(() => {
   runMigrations();

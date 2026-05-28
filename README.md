@@ -18,7 +18,7 @@ pnpm dev          # API :3000 · Web :8000 · MCP :3001 · all bound to 0.0.0.0
 ```
 
 On first run the API:
-1. Applies pending SQLite migrations (`apps/api/drizzle/`)
+1. Applies pending SQLite migrations (`packages/db/drizzle/`)
 2. Seeds default users (`admin/admin` and `user/user`) if the `users` table is empty
 3. Seeds workspaces from `workspaces.json` or `config.json` + XML files if present
 
@@ -30,7 +30,7 @@ Schema follows ArchiMate 3 Open Exchange XSDs (`apps/api/models/xsd/`).
 To generate a migration after a schema change:
 
 ```bash
-cd apps/api
+cd packages/db
 npx drizzle-kit generate
 ```
 
@@ -120,7 +120,7 @@ Default credentials: `admin` / `admin` (admin), `user` / `user` (read-only).
 
 ## MCP
 
-Endpoint: `http://localhost:3000/mcp/`  
+Endpoint: `http://localhost:3001/mcp/`  
 Transport: Streamable HTTP (MCP 2025-03-26).
 
 Available tools: `get_model_info`, `list_element_types`, `list_elements`, `get_element`, `list_relationship_types`, `list_relationships`, `get_relationship`, `list_views`, `get_view`, `create_view`, `create_node`, `create_element`, `update_element`, `delete_element`, `create_relationship`, `update_relationship`, `delete_relationship`, `save_model`.
@@ -130,7 +130,6 @@ Interactive docs: `GET /docs` — OpenAPI spec: `GET /openapi.json`.
 ## Tests
 
 ```bash
-cd apps/api
-npm test                    # 335 tests
-npm test -- --coverage      # ≥80% coverage required
+pnpm run -w test            # 425 tests across all packages
+pnpm run -w test:coverage   # ≥80% coverage required
 ```
