@@ -9,3 +9,5 @@ allowBuilds:
   sharp: true
 minimumReleaseAgeExclude:
   - shadcn@4.8.1
+  - eslint-plugin-turbo@2.9.16
+  - lucide-react@1.17.0
