@@ -6,6 +6,7 @@ import { mkdirSync } from "fs";
 import * as schema from "./schema.js";
 
 const DEFAULT_DB_PATH = join(fileURLToPath(new URL("../../../../data/archispark.db", import.meta.url)));
+// v8 ignore next
 const DB_PATH = process.env["DB_PATH"] ?? DEFAULT_DB_PATH;
 
 mkdirSync(dirname(DB_PATH), { recursive: true });
