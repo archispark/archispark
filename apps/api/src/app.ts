@@ -46,19 +46,20 @@ import {
   dataSource,
   DataSource,
   recomputeDataSourceTypes,
+  saveDataSource,
   getWorkspaces,
   activateWorkspace,
   createWorkspace,
   updateWorkspace,
   deleteWorkspace,
 } from "./registry.js";
-import { saveModelToFile, serializeToOpenExchange } from "./oxf-serializer.js";
+import { serializeToOpenExchange } from "./oxf-serializer.js";
 import { parseOpenExchange } from "./oxf-parser.js";
 import { openApiSpec } from "./openapi.js";
 import { renderViewToSvg, renderViewToPng } from "./renderer.js";
 import {
-  users,
-  userOut,
+  initUsers,
+  listUsers,
   loginUser,
   createUser,
   updateUser,
@@ -66,6 +67,7 @@ import {
   requireAuth,
   requireAdmin,
   type AuthRequest,
+  type UserOut,
 } from "./auth.js";
 import {
   ELEMENT_TYPES,
@@ -487,8 +489,8 @@ export function deleteRelationship(ds: DataSource, relationship_id: string): voi
 // ---------------------------------------------------------------------------
 
 export function saveModel(ds: DataSource): SaveResult {
-  saveModelToFile(ds.model, join(process.cwd(), ds.path));
-  return { saved: true, path: ds.path };
+  saveDataSource(ds);
+  return { saved: true, path: ds.path || "archispark.db" };
 }
 
 // ---------------------------------------------------------------------------
@@ -589,7 +591,8 @@ app.use((req: AuthRequest, res, next) => {
   if (
     ["POST", "PUT", "DELETE"].includes(req.method) &&
     !req.path.startsWith("/auth/") &&
-    !req.path.startsWith("/users")
+    !req.path.startsWith("/users") &&
+    !req.path.startsWith("/mcp/")
   ) {
     if (req.user?.role !== "admin") {
       res.status(403).json({ detail: "Modifications réservées aux administrateurs." });
@@ -639,7 +642,7 @@ app.get("/auth/me", (req: AuthRequest, res: Response) => {
 // ---------------------------------------------------------------------------
 
 app.get("/users", requireAdmin as express.RequestHandler, (_req: Request, res: Response) => {
-  res.json(users.map(userOut));
+  res.json(listUsers());
 });
 
 app.post("/users", requireAdmin as express.RequestHandler, (req: Request, res: Response) => {

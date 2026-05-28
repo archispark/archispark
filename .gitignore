@@ -34,3 +34,8 @@ npm-debug.log*
 # Misc
 .DS_Store
 *.pem
+
+# SQLite database (runtime data)
+apps/api/data/*.db
+apps/api/data/*.db-shm
+apps/api/data/*.db-wal

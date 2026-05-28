@@ -1,20 +1,14 @@
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
-import { dirname, join } from "path";
+import { randomUUID } from "crypto";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import type { Request, Response, NextFunction } from "express";
+import { eq } from "drizzle-orm";
+import { db } from "./db/connection.js";
+import { users as usersTable } from "./db/schema.js";
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
-
-export interface User {
-  id: string;
-  username: string;
-  password_hash: string;
-  role: "admin" | "user";
-  created_at: string;
-}
 
 export interface UserOut {
   id: string;
@@ -28,57 +22,51 @@ export interface AuthRequest extends Request {
 }
 
 // ---------------------------------------------------------------------------
-// Storage
+// Config
 // ---------------------------------------------------------------------------
 
-const USERS_FILE = join(process.cwd(), "data/users.json");
 export const JWT_SECRET = process.env.JWT_SECRET ?? "archispark-dev-secret-change-in-prod";
 const JWT_EXPIRES = "24h";
 
-function loadUsers(): User[] {
-  if (!existsSync(USERS_FILE)) {
-    mkdirSync(dirname(USERS_FILE), { recursive: true });
-    const now = new Date().toISOString();
-    const defaults: User[] = [
-      {
-        id: crypto.randomUUID(),
-        username: "admin",
-        password_hash: bcrypt.hashSync("admin", 10),
-        role: "admin",
-        created_at: now,
-      },
-      {
-        id: crypto.randomUUID(),
-        username: "user",
-        password_hash: bcrypt.hashSync("user", 10),
-        role: "user",
-        created_at: now,
-      },
-    ];
-    writeFileSync(USERS_FILE, JSON.stringify(defaults, null, 2), "utf-8");
-    console.log("[auth] Default users created — admin/admin (admin) · user/user (read-only)");
-    return defaults;
-  }
-  return JSON.parse(readFileSync(USERS_FILE, "utf-8")) as User[];
+// ---------------------------------------------------------------------------
+// Seed default users if table is empty
+// ---------------------------------------------------------------------------
+
+export function initUsers(): void {
+  const count = db.select({ id: usersTable.id }).from(usersTable).all().length;
+  if (count > 0) return;
+  const now = Math.floor(Date.now() / 1000);
+  db.insert(usersTable).values([
+    { id: randomUUID(), username: "admin", passwordHash: bcrypt.hashSync("admin", 10), role: "admin", createdAt: now },
+    { id: randomUUID(), username: "user",  passwordHash: bcrypt.hashSync("user",  10), role: "user",  createdAt: now },
+  ]).run();
+  console.log("[auth] Default users created — admin/admin (admin) · user/user (read-only)");
 }
 
-export function saveUsers(users: User[]): void {
-  writeFileSync(USERS_FILE, JSON.stringify(users, null, 2), "utf-8");
-}
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
-export const users: User[] = loadUsers();
+function rowToOut(r: typeof usersTable.$inferSelect): UserOut {
+  return {
+    id: r.id,
+    username: r.username,
+    role: r.role,
+    created_at: new Date(r.createdAt * 1000).toISOString(),
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Business logic
 // ---------------------------------------------------------------------------
 
-export function userOut(u: User): UserOut {
-  return { id: u.id, username: u.username, role: u.role, created_at: u.created_at };
+export function listUsers(): UserOut[] {
+  return db.select().from(usersTable).all().map(rowToOut);
 }
 
 export function loginUser(username: string, password: string): string | null {
-  const user = users.find((u) => u.username === username);
-  if (!user || !bcrypt.compareSync(password, user.password_hash)) return null;
+  const user = db.select().from(usersTable).where(eq(usersTable.username, username)).get();
+  if (!user || !bcrypt.compareSync(password, user.passwordHash)) return null;
   return jwt.sign(
     { id: user.id, username: user.username, role: user.role },
     JWT_SECRET,
@@ -93,40 +81,39 @@ export function createUser(
 ): UserOut {
   if (!username?.trim()) throw new Error("Le nom d'utilisateur est requis.");
   if (!password || password.length < 4) throw new Error("Le mot de passe doit contenir au moins 4 caractères.");
-  if (users.find((u) => u.username === username)) throw new Error("Ce nom d'utilisateur est déjà pris.");
-  const user: User = {
-    id: crypto.randomUUID(),
-    username: username.trim(),
-    password_hash: bcrypt.hashSync(password, 10),
-    role,
-    created_at: new Date().toISOString(),
-  };
-  users.push(user);
-  saveUsers(users);
-  return userOut(user);
+  const existing = db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.username, username)).get();
+  if (existing) throw new Error("Ce nom d'utilisateur est déjà pris.");
+  const now = Math.floor(Date.now() / 1000);
+  const id = randomUUID();
+  db.insert(usersTable).values({
+    id, username: username.trim(), passwordHash: bcrypt.hashSync(password, 10), role, createdAt: now,
+  }).run();
+  return rowToOut(db.select().from(usersTable).where(eq(usersTable.id, id)).get()!);
 }
 
 export function updateUser(
   id: string,
   updates: { password?: string; role?: "admin" | "user" }
 ): UserOut {
-  const user = users.find((u) => u.id === id);
+  const user = db.select().from(usersTable).where(eq(usersTable.id, id)).get();
   if (!user) throw new Error("Utilisateur introuvable.");
+  const patch: Partial<typeof usersTable.$inferInsert> = {};
   if (updates.password !== undefined) {
     if (updates.password.length < 4) throw new Error("Le mot de passe doit contenir au moins 4 caractères.");
-    user.password_hash = bcrypt.hashSync(updates.password, 10);
+    patch.passwordHash = bcrypt.hashSync(updates.password, 10);
   }
-  if (updates.role !== undefined) user.role = updates.role;
-  saveUsers(users);
-  return userOut(user);
+  if (updates.role !== undefined) patch.role = updates.role;
+  if (Object.keys(patch).length > 0) {
+    db.update(usersTable).set(patch).where(eq(usersTable.id, id)).run();
+  }
+  return rowToOut(db.select().from(usersTable).where(eq(usersTable.id, id)).get()!);
 }
 
 export function deleteUser(id: string): void {
-  const idx = users.findIndex((u) => u.id === id);
-  if (idx === -1) throw new Error("Utilisateur introuvable.");
-  if (users.length === 1) throw new Error("Impossible de supprimer le dernier utilisateur.");
-  users.splice(idx, 1);
-  saveUsers(users);
+  const all = db.select({ id: usersTable.id }).from(usersTable).all();
+  if (all.length <= 1) throw new Error("Impossible de supprimer le dernier utilisateur.");
+  const deleted = db.delete(usersTable).where(eq(usersTable.id, id)).returning({ id: usersTable.id }).get();
+  if (!deleted) throw new Error("Utilisateur introuvable.");
 }
 
 // ---------------------------------------------------------------------------

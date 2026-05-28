@@ -1,96 +1,148 @@
 /**
- * Multi-workspace ArchiMate model registry.
- * Loads workspaces from workspaces.json; falls back to legacy config.json migration.
- * The exported `dataSource` is a live ESM binding — switching workspace reassigns it
- * and all importers see the new value on next access.
+ * Multi-workspace registry backed by SQLite (Drizzle ORM).
+ *
+ * Architecture:
+ *   - Workspaces listed in the `workspaces` DB table (replaces workspaces.json).
+ *   - Each workspace stores its ArchiMate model in normalized tables.
+ *   - At runtime the active workspace model is held in-memory (DataSource).
+ *   - `saveDataSource(ds)` flushes the in-memory model back to DB.
+ *   - `activateWorkspace(id)` switches the active workspace and loads its model.
+ *   - The exported `dataSource` is a live ESM binding — all importers see the
+ *     new value after activateWorkspace() without any route changes.
+ *
+ * Startup (called from main.ts):
+ *   1. runMigrations() — idempotently applies pending SQL migrations.
+ *   2. initRegistry() — seeds workspaces.json / XML files if DB is empty,
+ *      then loads the first workspace into memory.
  */
 
-import { readFileSync, writeFileSync, existsSync } from "fs";
-import { join } from "path";
+import { readFileSync, existsSync, mkdirSync } from "fs";
 import { randomUUID } from "crypto";
+import { join } from "path";
+import { eq } from "drizzle-orm";
+import { db } from "./db/connection.js";
+import { runMigrations } from "./db/migrate.js";
+import { workspaces as wsTable } from "./db/schema.js";
+import { modelFromDb, modelToDb, seedWorkspace } from "./db/model-io.js";
 import { parseOpenExchange } from "./oxf-parser.js";
-import type { ArchiModel } from "./model.js";
+import { initUsers } from "./auth.js";
 
-export interface WorkspaceEntry {
-  id: string;
+// ---------------------------------------------------------------------------
+// Public types
+// ---------------------------------------------------------------------------
+
+export interface WorkspaceOut {
+  id: string;       // numeric id as string for URL params
   name: string;
-  path: string;
-}
-
-export interface WorkspaceOut extends WorkspaceEntry {
   active: boolean;
 }
 
 export interface DataSource {
-  readonly path: string;
-  readonly model: ArchiModel;
-  /** Sorted unique element types present in the model. */
+  readonly workspaceDbId: number;
+  readonly path: string;           // kept for backward compat (empty for DB-backed workspaces)
+  readonly model: import("./model.js").ArchiModel;
   elementTypes: string[];
-  /** Sorted unique relationship types present in the model. */
   relationshipTypes: string[];
-}
-
-// ---------------------------------------------------------------------------
-// Persistence helpers
-// ---------------------------------------------------------------------------
-
-const WORKSPACES_FILE = join(process.cwd(), "workspaces.json");
-const CONFIG_FILE = join(process.cwd(), "config.json");
-
-function loadWorkspaceEntries(): WorkspaceEntry[] {
-  if (existsSync(WORKSPACES_FILE)) {
-    return JSON.parse(readFileSync(WORKSPACES_FILE, "utf-8")) as WorkspaceEntry[];
-  }
-  // Migrate from legacy config.json
-  if (existsSync(CONFIG_FILE)) {
-    const cfg = JSON.parse(readFileSync(CONFIG_FILE, "utf-8")) as { path: string; name: string };
-    const entries: WorkspaceEntry[] = [{ id: `ws-${randomUUID().slice(0, 8)}`, name: cfg.name, path: cfg.path }];
-    persistEntries(entries);
-    return entries;
-  }
-  throw new Error("workspaces.json not found and no config.json to migrate from");
-}
-
-function persistEntries(entries: WorkspaceEntry[]): void {
-  writeFileSync(WORKSPACES_FILE, JSON.stringify(entries, null, 2), "utf-8");
-}
-
-function buildDataSource(entry: WorkspaceEntry): DataSource {
-  const content = readFileSync(join(process.cwd(), entry.path), "utf-8");
-  const model = parseOpenExchange(content);
-  return {
-    path: entry.path,
-    model,
-    elementTypes: [...new Set(model.elements.map((e) => e.type).filter(Boolean))].sort(),
-    relationshipTypes: [...new Set(model.relationships.map((r) => r.type).filter(Boolean))].sort(),
-  };
 }
 
 // ---------------------------------------------------------------------------
 // Runtime state
 // ---------------------------------------------------------------------------
 
-const _entries: WorkspaceEntry[] = loadWorkspaceEntries();
-const _loaded = new Map<string, DataSource>();
-let _activeId: string;
+let _activeId: number;
+const _loaded = new Map<number, DataSource>();
 
-if (_entries.length === 0) throw new Error("workspaces.json must contain at least one workspace");
-_activeId = _entries[0]!.id;
-_loaded.set(_activeId, buildDataSource(_entries[0]!));
-
-/** Live ESM binding — reassigned by activateWorkspace(). */
-export let dataSource: DataSource = _loaded.get(_activeId)!;
+// Live ESM binding — reassigned by activateWorkspace()
+export let dataSource: DataSource;
 
 // ---------------------------------------------------------------------------
-// Read helpers
+// Internal helpers
+// ---------------------------------------------------------------------------
+
+function buildRuntimeDs(dbId: number): DataSource {
+  const model = modelFromDb(dbId);
+  return {
+    workspaceDbId: dbId,
+    path: "",
+    model,
+    elementTypes: [...new Set(model.elements.map((e) => e.type).filter(Boolean))].sort(),
+    relationshipTypes: [...new Set(model.relationships.map((r) => r.type).filter(Boolean))].sort(),
+  };
+}
+
+function dbIdToStrId(id: number): string {
+  return String(id);
+}
+
+function strIdToDbId(id: string): number {
+  const n = parseInt(id, 10);
+  if (!Number.isFinite(n)) throw new Error(`Invalid workspace id '${id}'`);
+  return n;
+}
+
+// ---------------------------------------------------------------------------
+// Auto-init at module load time
+// (runs migrations + seeds from legacy files if DB is empty)
+// ---------------------------------------------------------------------------
+
+function _init(): void {
+  mkdirSync(join(process.cwd(), "data"), { recursive: true });
+  runMigrations();
+  initUsers();
+
+  const count = db.select({ id: wsTable.id }).from(wsTable).all().length;
+  if (count === 0) _seedFromLegacy();
+
+  const rows = db.select({ id: wsTable.id }).from(wsTable).all();
+  if (rows.length === 0) throw new Error("No workspaces in DB after init");
+
+  _activeId = rows[0]!.id;
+  const ds = buildRuntimeDs(_activeId);
+  _loaded.set(_activeId, ds);
+  dataSource = ds;
+}
+
+_init();
+
+function _seedFromLegacy(): void {
+  const wsFile = join(process.cwd(), "workspaces.json");
+  const cfgFile = join(process.cwd(), "config.json");
+
+  if (existsSync(wsFile)) {
+    const entries = JSON.parse(readFileSync(wsFile, "utf-8")) as Array<{ id: string; name: string; path: string }>;
+    for (const entry of entries) {
+      const xmlPath = join(process.cwd(), entry.path);
+      if (existsSync(xmlPath)) {
+        const xml = readFileSync(xmlPath, "utf-8");
+        const model = parseOpenExchange(xml);
+        seedWorkspace(entry.name, model);
+      }
+    }
+  } else if (existsSync(cfgFile)) {
+    const cfg = JSON.parse(readFileSync(cfgFile, "utf-8")) as { path: string; name: string };
+    const xmlPath = join(process.cwd(), cfg.path);
+    if (existsSync(xmlPath)) {
+      const xml = readFileSync(xmlPath, "utf-8");
+      const model = parseOpenExchange(xml);
+      seedWorkspace(cfg.name, model);
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Queries
 // ---------------------------------------------------------------------------
 
 export function getWorkspaces(): WorkspaceOut[] {
-  return _entries.map((e) => ({ ...e, active: e.id === _activeId }));
+  return db.select().from(wsTable).all().map((r) => ({
+    id: dbIdToStrId(r.id),
+    name: r.name,
+    active: r.id === _activeId,
+  }));
 }
 
 export function getActiveWorkspaceId(): string {
-  return _activeId;
+  return dbIdToStrId(_activeId);
 }
 
 // ---------------------------------------------------------------------------
@@ -98,58 +150,82 @@ export function getActiveWorkspaceId(): string {
 // ---------------------------------------------------------------------------
 
 export function activateWorkspace(id: string): WorkspaceOut {
-  const entry = _entries.find((e) => e.id === id);
-  if (!entry) throw new Error(`Workspace '${id}' introuvable.`);
-  if (!_loaded.has(id)) _loaded.set(id, buildDataSource(entry));
-  _activeId = id;
-  dataSource = _loaded.get(id)!;
-  return { ...entry, active: true };
+  const dbId = strIdToDbId(id);
+  const row = db.select().from(wsTable).where(eq(wsTable.id, dbId)).get();
+  if (!row) throw new Error(`Workspace '${id}' introuvable.`);
+  if (!_loaded.has(dbId)) {
+    _loaded.set(dbId, buildRuntimeDs(dbId));
+  }
+  _activeId = dbId;
+  dataSource = _loaded.get(dbId)!;
+  return { id, name: row.name, active: true };
 }
 
-export function createWorkspace(name: string, filePath?: string): WorkspaceOut {
+export function createWorkspace(name: string, xmlFilePath?: string): WorkspaceOut {
   if (!name?.trim()) throw new Error("Le nom du workspace est requis.");
-  if (_entries.find((e) => e.name === name)) throw new Error(`Un workspace nommé '${name}' existe déjà.`);
-  const id = `ws-${randomUUID().slice(0, 8)}`;
-  const path = filePath ?? `data/${id}.xml`;
-  const entry: WorkspaceEntry = { id, name: name.trim(), path };
-  _entries.push(entry);
-  persistEntries(_entries);
-  if (filePath && existsSync(join(process.cwd(), filePath))) {
-    _loaded.set(id, buildDataSource(entry));
+  const existing = db.select({ id: wsTable.id }).from(wsTable).where(eq(wsTable.name, name)).get();
+  if (existing) throw new Error(`Un workspace nommé '${name}' existe déjà.`);
+
+  let model: import("./model.js").ArchiModel;
+
+  if (xmlFilePath) {
+    const fullPath = join(process.cwd(), xmlFilePath);
+    if (!existsSync(fullPath)) throw new Error(`Fichier XML introuvable: ${xmlFilePath}`);
+    const xml = readFileSync(fullPath, "utf-8");
+    model = parseOpenExchange(xml);
+  } else {
+    // Empty model
+    model = {
+      uuid: `id-${randomUUID()}`,
+      name: name.trim(),
+      desc: null,
+      version: null,
+      elements: [],
+      relationships: [],
+      propertyDefinitions: [],
+      views: [],
+    };
   }
-  return { ...entry, active: false };
+
+  const dbId = seedWorkspace(name.trim(), model);
+  const ds = buildRuntimeDs(dbId);
+  _loaded.set(dbId, ds);
+  return { id: dbIdToStrId(dbId), name: name.trim(), active: false };
 }
 
 export function updateWorkspace(id: string, name: string): WorkspaceOut {
-  const entry = _entries.find((e) => e.id === id);
-  if (!entry) throw new Error(`Workspace '${id}' introuvable.`);
+  const dbId = strIdToDbId(id);
   if (!name?.trim()) throw new Error("Le nom du workspace est requis.");
-  if (_entries.find((e) => e.name === name && e.id !== id)) throw new Error(`Un workspace nommé '${name}' existe déjà.`);
-  entry.name = name.trim();
-  persistEntries(_entries);
-  return { ...entry, active: entry.id === _activeId };
+  const dup = db.select({ id: wsTable.id }).from(wsTable).where(eq(wsTable.name, name)).get();
+  if (dup && dup.id !== dbId) throw new Error(`Un workspace nommé '${name}' existe déjà.`);
+  const row = db.update(wsTable).set({ name: name.trim(), updatedAt: Math.floor(Date.now() / 1000) })
+    .where(eq(wsTable.id, dbId)).returning().get();
+  if (!row) throw new Error(`Workspace '${id}' introuvable.`);
+  const ds = _loaded.get(dbId);
+  if (ds) ds.model.name = name.trim();
+  return { id, name: name.trim(), active: dbId === _activeId };
 }
 
 export function deleteWorkspace(id: string): void {
-  if (_entries.length <= 1) throw new Error("Impossible de supprimer le dernier workspace.");
-  if (id === _activeId) throw new Error("Impossible de supprimer le workspace actif. Activez-en un autre d'abord.");
-  const idx = _entries.findIndex((e) => e.id === id);
-  if (idx === -1) throw new Error(`Workspace '${id}' introuvable.`);
-  _entries.splice(idx, 1);
-  _loaded.delete(id);
-  persistEntries(_entries);
+  const all = db.select({ id: wsTable.id }).from(wsTable).all();
+  if (all.length <= 1) throw new Error("Impossible de supprimer le dernier workspace.");
+  const dbId = strIdToDbId(id);
+  if (dbId === _activeId) throw new Error("Impossible de supprimer le workspace actif. Activez-en un autre d'abord.");
+  const deleted = db.delete(wsTable).where(eq(wsTable.id, dbId)).returning({ id: wsTable.id }).get();
+  if (!deleted) throw new Error(`Workspace '${id}' introuvable.`);
+  _loaded.delete(dbId);
 }
 
-export function reloadWorkspace(id: string): WorkspaceOut {
-  const entry = _entries.find((e) => e.id === id);
-  if (!entry) throw new Error(`Workspace '${id}' introuvable.`);
-  const ds = buildDataSource(entry);
-  _loaded.set(id, ds);
-  if (id === _activeId) dataSource = ds;
-  return { ...entry, active: id === _activeId };
+// ---------------------------------------------------------------------------
+// Persistence
+// ---------------------------------------------------------------------------
+
+/** Flush the in-memory model of a DataSource back to the DB. */
+export function saveDataSource(ds: DataSource): void {
+  modelToDb(ds.workspaceDbId, ds.model);
 }
 
-/** Recompute elementTypes and relationshipTypes after a mutation. */
+/** Recompute cached element/relationship type lists after a mutation. */
 export function recomputeDataSourceTypes(ds: DataSource): void {
   ds.elementTypes = [...new Set(ds.model.elements.map((e) => e.type).filter(Boolean))].sort();
   ds.relationshipTypes = [...new Set(ds.model.relationships.map((r) => r.type).filter(Boolean))].sort();
