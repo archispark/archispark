@@ -32,7 +32,7 @@ jobs:
           NODE_ENV: production
 
       - name: Run tests with coverage
-        run: pnpm turbo run test:coverage --filter=mcp-archimate --filter=web
+        run: pnpm turbo run test:coverage --filter=mcp-archimate --filter=mcp-server --filter=web
         env:
           NODE_ENV: test
 
