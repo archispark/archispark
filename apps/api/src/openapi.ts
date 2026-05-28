@@ -3,7 +3,8 @@
  * Served as JSON at GET /openapi.json and as Swagger UI at GET /docs.
  */
 
-import { version } from "../package.json";
+import packageJson from "../package.json" with { type: "json" };
+const { version } = packageJson;
 import { ELEMENT_TYPES, RELATIONSHIP_TYPES } from "./schemas.js";
 
 const elementTypesEnum = [...ELEMENT_TYPES].sort();

@@ -3,6 +3,10 @@
   "version": "0.4.2",
   "description": "REST and MCP services to explore an ArchiMate model",
   "type": "module",
+  "exports": {
+    "./package.json": "./package.json",
+    "./src/*.js": "./src/*.ts"
+  },
   "scripts": {
     "start": "tsx src/main.ts",
     "dev": "tsx watch src/main.ts",
@@ -10,7 +14,7 @@
     "start:dist": "node dist/main.js",
     "test": "vitest run",
     "test:watch": "vitest watch",
-    "test:coverage": "vitest run --coverage.enabled --coverage.reporter=lcov",
+    "test:coverage": "vitest run --coverage",
     "test:ci": "vitest run --reporter=junit --outputFile=test-report.junit.xml",
     "lint": "eslint . --ext .ts"
   },

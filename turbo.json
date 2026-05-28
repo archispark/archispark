@@ -8,6 +8,12 @@
       "outputs": [".next/**", "!.next/cache/**"],
       "env": ["ARCHIMATE_API_URL"]
     },
+    "test": {
+      "cache": false
+    },
+    "test:coverage": {
+      "cache": false
+    },
     "lint": {
       "dependsOn": ["^lint"]
     },
