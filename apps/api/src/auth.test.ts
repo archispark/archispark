@@ -139,6 +139,14 @@ describe("PUT /users/:id", () => {
     expect(res.body.role).toBe("admin");
     await request(app).put(`/users/${user.id}`).send({ role: "user" });
   });
+
+  it("returns 200 with no changes when body is empty (no-op patch)", async () => {
+    const listRes = await request(app).get("/users");
+    const user = listRes.body[0];
+    const res = await request(app).put(`/users/${user.id}`).send({});
+    expect(res.status).toBe(200);
+    expect(res.body.id).toBe(user.id);
+  });
 });
 
 describe("DELETE /users/:id", () => {

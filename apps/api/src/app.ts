@@ -33,7 +33,7 @@ import { randomUUID } from "crypto";
 function newId(): string {
   return `id-${randomUUID()}`;
 }
-import type { ArchiElement, ArchiRelationship, ArchiNode, ArchiConnection, ArchiView, ArchiPropertyDefinition } from "./model.js";
+import type { ArchiElement, ArchiRelationship, ArchiNode, ArchiConnection, ArchiView, ArchiPropertyDefinition } from "@workspace/db";
 import {
   dataSource,
   DataSource,
