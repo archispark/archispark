@@ -1,9 +1,14 @@
 /**
- * REST and MCP services to explore and edit an ArchiMate model.
+ * REST and MCP services to explore and edit ArchiMate models.
  *
- * Single-source mode: one ArchiMate Open Exchange (.xml) file configured in config.json.
+ * Multi-workspace mode: workspaces listed in workspaces.json; one is active at a time.
  *
  * Routes:
+ *   GET /workspaces
+ *   POST /workspaces
+ *   PUT /workspaces/:id
+ *   DELETE /workspaces/:id
+ *   POST /workspaces/:id/activate
  *   GET /openapi.json
  *   GET /docs
  *   GET /
@@ -37,7 +42,16 @@ import { z } from "zod";
 
 import type { ArchiElement, ArchiRelationship, ArchiNode, ArchiConnection, ArchiView, ArchiPropertyDefinition } from "./model.js";
 import { version } from "../package.json";
-import { dataSource, DataSource, recomputeDataSourceTypes } from "./registry.js";
+import {
+  dataSource,
+  DataSource,
+  recomputeDataSourceTypes,
+  getWorkspaces,
+  activateWorkspace,
+  createWorkspace,
+  updateWorkspace,
+  deleteWorkspace,
+} from "./registry.js";
 import { saveModelToFile, serializeToOpenExchange } from "./oxf-serializer.js";
 import { parseOpenExchange } from "./oxf-parser.js";
 import { openApiSpec } from "./openapi.js";
@@ -662,6 +676,57 @@ app.delete("/users/:id", requireAdmin as express.RequestHandler, (req: Request, 
   }
 });
 
+// ---------------------------------------------------------------------------
+// Workspace routes
+// ---------------------------------------------------------------------------
+
+app.get("/workspaces", (_req: Request, res: Response) => {
+  res.json(getWorkspaces());
+});
+
+app.post("/workspaces", (req: Request, res: Response) => {
+  const { name, path: filePath } = req.body as { name?: string; path?: string };
+  if (!name) {
+    res.status(422).json({ detail: "Le champ 'name' est requis." });
+    return;
+  }
+  try {
+    res.status(201).json(createWorkspace(name, filePath));
+  } catch (err) {
+    res.status(422).json({ detail: (err as Error).message });
+  }
+});
+
+app.put("/workspaces/:id", (req: Request, res: Response) => {
+  const { name } = req.body as { name?: string };
+  if (!name) {
+    res.status(422).json({ detail: "Le champ 'name' est requis." });
+    return;
+  }
+  try {
+    res.json(updateWorkspace(req.params["id"] as string, name));
+  } catch (err) {
+    res.status(404).json({ detail: (err as Error).message });
+  }
+});
+
+app.delete("/workspaces/:id", (req: Request, res: Response) => {
+  try {
+    deleteWorkspace(req.params["id"] as string);
+    res.status(204).send();
+  } catch (err) {
+    res.status(422).json({ detail: (err as Error).message });
+  }
+});
+
+app.post("/workspaces/:id/activate", (req: Request, res: Response) => {
+  try {
+    res.json(activateWorkspace(req.params["id"] as string));
+  } catch (err) {
+    res.status(404).json({ detail: (err as Error).message });
+  }
+});
+
 // OpenAPI spec and Swagger UI
 app.get("/openapi.json", (_req: Request, res: Response) => {
   res.json(openApiSpec);
@@ -695,7 +760,9 @@ app.get("/docs", (_req: Request, res: Response) => {
 
 // Model info
 app.get("/", (_req: Request, res: Response) => {
-  res.json(getModelInfo(dataSource));
+  const workspaces = getWorkspaces();
+  const active = workspaces.find((w) => w.active);
+  res.json({ ...getModelInfo(dataSource), workspace_id: active?.id ?? null, workspace_name: active?.name ?? null });
 });
 
 // Save model to file

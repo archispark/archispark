@@ -124,6 +124,8 @@ export interface ModelInfo {
   element_count: number;
   relationship_count: number;
   view_count: number;
+  workspace_id?: string | null;
+  workspace_name?: string | null;
 }
 
 export interface ElementOut {

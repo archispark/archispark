@@ -6,6 +6,15 @@ export interface ModelInfo {
   element_count: number;
   relationship_count: number;
   view_count: number;
+  workspace_id: string | null;
+  workspace_name: string | null;
+}
+
+export interface WorkspaceInfo {
+  id: string;
+  name: string;
+  path: string;
+  active: boolean;
 }
 
 export interface Property {
@@ -296,3 +305,15 @@ export const fetchPropertyDefinitions = () => get<PropertyDefinitionOut[]>("/pro
 export const createPropertyDefinition = (body: PropertyDefinitionCreateIn) => post<PropertyDefinitionOut>("/property-definitions", body);
 export const updatePropertyDefinition = (id: string, body: PropertyDefinitionUpdateIn) => put<PropertyDefinitionOut>(`/property-definitions/${encodeURIComponent(id)}`, body);
 export const deletePropertyDefinition = (id: string) => del(`/property-definitions/${encodeURIComponent(id)}`);
+
+// --- Workspaces ---
+
+export const fetchWorkspaces = () => get<WorkspaceInfo[]>("/workspaces");
+
+export interface WorkspaceCreateIn { name: string; path?: string; }
+export interface WorkspaceUpdateIn { name: string; }
+
+export const createWorkspaceApi = (body: WorkspaceCreateIn) => post<WorkspaceInfo>("/workspaces", body);
+export const updateWorkspaceApi = (id: string, body: WorkspaceUpdateIn) => put<WorkspaceInfo>(`/workspaces/${encodeURIComponent(id)}`, body);
+export const deleteWorkspaceApi = (id: string) => del(`/workspaces/${encodeURIComponent(id)}`);
+export const activateWorkspaceApi = (id: string) => post<WorkspaceInfo>(`/workspaces/${encodeURIComponent(id)}/activate`, {});
