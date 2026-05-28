@@ -1,5 +1,3 @@
 # TODO
 
 ## Next release
-
-
