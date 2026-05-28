@@ -31,7 +31,7 @@ importers:
     dependencies:
       '@codecov/vite-plugin':
         specifier: ^2.0.1
-        version: 2.0.1(vite@6.4.2(@types/node@22.19.19)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.22.3))
+        version: 2.0.1(vite@6.4.2(@types/node@25.9.1)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.22.3))
       '@eslint/js':
         specifier: ^10.0.1
         version: 10.0.1(eslint@10.4.0(jiti@2.7.0))
@@ -73,11 +73,11 @@ importers:
         specifier: ^9.0.10
         version: 9.0.10
       '@types/node':
-        specifier: ^22.0.0
-        version: 22.19.19
+        specifier: ^25.9.1
+        version: 25.9.1
       '@types/supertest':
-        specifier: ^6.0.0
-        version: 6.0.3
+        specifier: ^7.2.0
+        version: 7.2.0
       '@vitest/coverage-v8':
         specifier: ^4.1.7
         version: 4.1.7(vitest@4.1.7)
@@ -98,7 +98,7 @@ importers:
         version: 8.60.0(eslint@10.4.0(jiti@2.7.0))(typescript@5.9.3)
       vitest:
         specifier: ^4.1.7
-        version: 4.1.7(@types/node@22.19.19)(@vitest/coverage-v8@4.1.7)(jsdom@29.1.1(@noble/hashes@1.8.0))(msw@2.14.6(@types/node@22.19.19)(typescript@5.9.3))(vite@6.4.2(@types/node@22.19.19)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.22.3))
+        version: 4.1.7(@types/node@25.9.1)(@vitest/coverage-v8@4.1.7)(jsdom@29.1.1(@noble/hashes@1.8.0))(msw@2.14.6(@types/node@25.9.1)(typescript@5.9.3))(vite@6.4.2(@types/node@25.9.1)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.22.3))
 
   apps/mcp-server:
     dependencies:
@@ -2126,6 +2126,9 @@ packages:
 
   '@types/supertest@6.0.3':
     resolution: {integrity: sha512-8WzXq62EXFhJ7QsH3Ocb/iKQ/Ty9ZVWnVzoTKc9tyyFRRF3a74Tk2+TLFgaFFw364Ere+npzHKEJ6ga2LzIL7w==}
+
+  '@types/supertest@7.2.0':
+    resolution: {integrity: sha512-uh2Lv57xvggst6lCqNdFAmDSvoMG7M/HDtX4iUCquxQ5EGPtaPM5PL5Hmi7LCvOG8db7YaCPNJEeoI8s/WzIQw==}
 
   '@types/validate-npm-package-name@4.0.2':
     resolution: {integrity: sha512-lrpDziQipxCEeK5kWxvljWYhUvOiB2A9izZd9B2AFarYAkqZshb4lPbRs7zKEic6eGtH8V/2qJW+dPp9OtF6bw==}
@@ -5247,11 +5250,11 @@ snapshots:
       unplugin: 1.16.1
       zod: 3.25.76
 
-  '@codecov/vite-plugin@2.0.1(vite@6.4.2(@types/node@22.19.19)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.22.3))':
+  '@codecov/vite-plugin@2.0.1(vite@6.4.2(@types/node@25.9.1)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.22.3))':
     dependencies:
       '@codecov/bundler-plugin-core': 2.0.1
       unplugin: 1.16.1
-      vite: 6.4.2(@types/node@22.19.19)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.22.3)
+      vite: 6.4.2(@types/node@25.9.1)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.22.3)
 
   '@csstools/color-helpers@6.0.2': {}
 
@@ -6451,6 +6454,11 @@ snapshots:
       '@types/methods': 1.1.4
       '@types/superagent': 8.1.10
 
+  '@types/supertest@7.2.0':
+    dependencies:
+      '@types/methods': 1.1.4
+      '@types/superagent': 8.1.10
+
   '@types/validate-npm-package-name@4.0.2': {}
 
   '@typescript-eslint/eslint-plugin@8.60.0(@typescript-eslint/parser@8.60.0(eslint@10.4.0(jiti@2.7.0))(typescript@5.9.3))(eslint@10.4.0(jiti@2.7.0))(typescript@5.9.3)':
@@ -6619,7 +6627,7 @@ snapshots:
       obug: 2.1.1
       std-env: 4.1.0
       tinyrainbow: 3.1.0
-      vitest: 4.1.7(@types/node@22.19.19)(@vitest/coverage-v8@4.1.7)(jsdom@29.1.1(@noble/hashes@1.8.0))(msw@2.14.6(@types/node@22.19.19)(typescript@5.9.3))(vite@6.4.2(@types/node@22.19.19)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.22.3))
+      vitest: 4.1.7(@types/node@25.9.1)(@vitest/coverage-v8@4.1.7)(jsdom@29.1.1(@noble/hashes@1.8.0))(msw@2.14.6(@types/node@25.9.1)(typescript@5.9.3))(vite@6.4.2(@types/node@25.9.1)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.22.3))
 
   '@vitest/expect@4.1.7':
     dependencies:
