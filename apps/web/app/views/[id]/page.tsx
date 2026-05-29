@@ -2,20 +2,72 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { fetchView, viewImageUrl, type ViewDetail } from "@/lib/api";
+import { fetchView, fetchElements, fetchRelationships, viewImageUrl, type ViewDetail } from "@/lib/api";
 import { Button } from "@workspace/ui/components/button";
+import { ViewCanvas } from "@/components/view-canvas";
+
+type Tab = "canvas" | "svg" | "png";
+
+function useImageBlob(id: string, format: "svg" | "png" | null) {
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+  const [imgError, setImgError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!format) return;
+    let revoked = false;
+    setBlobUrl(null);
+    setImgError(null);
+
+    const token = document.cookie.match(/(?:^|;\s*)auth_token=([^;]+)/)?.[1];
+    fetch(viewImageUrl(id, format), {
+      headers: token ? { Authorization: `Bearer ${decodeURIComponent(token)}` } : {},
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error(`Erreur ${res.status}`);
+        return res.blob();
+      })
+      .then((blob) => {
+        if (revoked) return;
+        setBlobUrl(URL.createObjectURL(blob));
+      })
+      .catch((err) => {
+        if (!revoked) setImgError((err as Error).message);
+      });
+
+    return () => {
+      revoked = true;
+      setBlobUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return null;
+      });
+    };
+  }, [id, format]);
+
+  return { blobUrl, imgError };
+}
 
 export default function ViewDetailPage() {
   const params = useParams<{ id: string }>();
   const id = decodeURIComponent(params.id);
   const [view, setView] = useState<ViewDetail | null>(null);
+  const [elementNames, setElementNames] = useState<Map<string, string>>(new Map());
+  const [elementTypes, setElementTypes] = useState<Map<string, string>>(new Map());
+  const [relationshipTypes, setRelationshipTypes] = useState<Map<string, string>>(new Map());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [format, setFormat] = useState<"svg" | "png">("svg");
+  const [tab, setTab] = useState<Tab>("canvas");
+
+  const imageFormat = tab === "svg" || tab === "png" ? tab : null;
+  const { blobUrl, imgError } = useImageBlob(id, imageFormat);
 
   useEffect(() => {
-    fetchView(id)
-      .then(setView)
+    Promise.all([fetchView(id), fetchElements(), fetchRelationships()])
+      .then(([v, elements, relationships]) => {
+        setView(v);
+        setElementNames(new Map(elements.map((e) => [e.identifier, e.name])));
+        setElementTypes(new Map(elements.map((e) => [e.identifier, e.type])));
+        setRelationshipTypes(new Map(relationships.map((r) => [r.identifier, r.type])));
+      })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
   }, [id]);
@@ -53,30 +105,51 @@ export default function ViewDetailPage() {
         </div>
         <div className="flex items-center gap-1.5">
           <Button
-            variant={format === "svg" ? "default" : "outline"}
+            variant={tab === "canvas" ? "default" : "outline"}
             size="sm"
-            onClick={() => setFormat("svg")}
+            onClick={() => setTab("canvas")}
+          >
+            Canvas
+          </Button>
+          <Button
+            variant={tab === "svg" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setTab("svg")}
           >
             SVG
           </Button>
           <Button
-            variant={format === "png" ? "default" : "outline"}
+            variant={tab === "png" ? "default" : "outline"}
             size="sm"
-            onClick={() => setFormat("png")}
+            onClick={() => setTab("png")}
           >
             PNG
           </Button>
         </div>
       </div>
 
-      <div className="border border-border rounded-lg bg-card overflow-auto p-4">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          key={`${id}-${format}`}
-          src={viewImageUrl(id, format)}
-          alt={view?.name || "View"}
-          className="max-w-full h-auto"
-        />
+      <div className="border border-border rounded-lg bg-card overflow-hidden">
+        {tab === "canvas" && view ? (
+          <ViewCanvas nodes={view.nodes} connections={view.connections} elementNames={elementNames} elementTypes={elementTypes} relationshipTypes={relationshipTypes} />
+        ) : imgError ? (
+          <div className="p-4 text-sm text-destructive bg-destructive/10 border-t border-destructive/30">
+            Erreur : {imgError}
+          </div>
+        ) : blobUrl ? (
+          <div className="overflow-auto p-4">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={blobUrl}
+              alt={view?.name || "View"}
+              className="max-w-full h-auto"
+            />
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 text-muted-foreground p-8">
+            <div className="size-4 rounded-full border-2 border-border border-t-primary animate-spin shrink-0" />
+            Chargement de l&apos;image…
+          </div>
+        )}
       </div>
     </div>
   );

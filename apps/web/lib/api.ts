@@ -53,21 +53,21 @@ export interface ViewDetail extends ViewOut {
 
 export interface NodeOut {
   identifier: string;
-  element_ref: string | null;
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-  label: string | null;
-  nodes: NodeOut[];
+  name?: string | null;
+  element_ref?: string | null;
+  x?: number | null;
+  y?: number | null;
+  w?: number | null;
+  h?: number | null;
+  children: NodeOut[];
 }
 
 export interface ConnectionOut {
   identifier: string;
-  relationship_ref: string | null;
-  source_node: string;
-  target_node: string;
-  label: string | null;
+  name?: string | null;
+  relationship_ref?: string | null;
+  source?: string | null;
+  target?: string | null;
 }
 
 const BASE = "/api";

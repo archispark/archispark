@@ -102,17 +102,18 @@ export function Nav({ onToggleSidebar }: { onToggleSidebar: () => void }) {
       </button>
 
       <Link href="/" className="flex items-center gap-2.5 no-underline shrink-0">
-        <svg width="22" height="22" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
-          <polygon points="16,2 27,8 27,22 16,28 5,22 5,8" fill="#2563eb" />
-          <polygon
-            points="16,9 22,13 22,21 16,25 10,21 10,13"
-            fill="none"
-            stroke="white"
-            strokeWidth="0.8"
-            strokeLinejoin="round"
-            opacity="0.4"
+        <svg width="22" height="22" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="turbo-spark" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stopColor="#ff1e56" />
+              <stop offset="50%" stopColor="#ff3d74" />
+              <stop offset="100%" stopColor="#0096ff" />
+            </linearGradient>
+          </defs>
+          <path
+            d="M12 0 C12 7 13 11 24 12 C13 13 12 17 12 24 C12 17 11 13 0 12 C11 11 12 7 12 0 Z"
+            fill="url(#turbo-spark)"
           />
-          <polygon points="16,14 19,16 19,19 16,21 13,19 13,16" fill="white" opacity="0.15" />
         </svg>
         <span className="text-[17px] leading-none tracking-tight" style={{ fontFamily: "'Trebuchet MS', Arial, sans-serif" }}>
           <span className="font-light text-foreground">Archi</span>
