@@ -18,11 +18,13 @@ const BREADCRUMBS: Record<string, string> = {
   elements: "Éléments",
   relationships: "Relations",
   views: "Vues",
+  validator: "Validateur",
   capabilities: "App par Capability",
   strategy: "Stratégie par Capability",
   composition: "Composition",
   properties: "Propriétés",
   users: "Utilisateurs",
+  settings: "Paramètres",
   login: "Connexion",
 };
 
@@ -46,9 +48,11 @@ export function Nav({ onToggleSidebar }: { onToggleSidebar: () => void }) {
 
   useEffect(() => { loadWorkspaces(); }, [loadWorkspaces]);
 
-  function logout() {
-    document.cookie = "auth_token=; path=/; max-age=0";
+  async function logout() {
+    const { signOut } = await import("@/lib/auth-client");
+    await signOut();
     router.push("/login");
+    router.refresh();
   }
 
   async function activate(id: string) {

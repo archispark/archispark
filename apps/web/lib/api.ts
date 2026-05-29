@@ -6,6 +6,7 @@ export interface ModelInfo {
   element_count: number;
   relationship_count: number;
   view_count: number;
+  property_definition_count: number;
   workspace_id: string | null;
   workspace_name: string | null;
 }
@@ -44,6 +45,9 @@ export interface ViewOut {
   identifier: string;
   name: string;
   documentation: string | null;
+  viewpoint: string | null;
+  node_count: number;
+  connection_count: number;
 }
 
 export interface ViewDetail extends ViewOut {
@@ -62,12 +66,16 @@ export interface NodeOut {
   children: NodeOut[];
 }
 
+export type EdgeSide = "top" | "right" | "bottom" | "left";
+
 export interface ConnectionOut {
   identifier: string;
   name?: string | null;
   relationship_ref?: string | null;
   source?: string | null;
   target?: string | null;
+  source_side?: EdgeSide | null;
+  target_side?: EdgeSide | null;
 }
 
 const BASE = "/api";
@@ -78,34 +86,12 @@ export interface CurrentUser {
   role: string;
 }
 
-export function getCurrentUser(): CurrentUser | null {
-  const token = getToken();
-  if (!token) return null;
-  try {
-    const part = token.split(".")[1];
-    if (!part) return null;
-    const payload = JSON.parse(atob(part.replace(/-/g, "+").replace(/_/g, "/")));
-    return payload as CurrentUser;
-  } catch {
-    return null;
-  }
-}
-
-function getToken(): string | null {
-  if (typeof document === "undefined") return null;
-  const match = document.cookie.match(/(?:^|;\s*)auth_token=([^;]+)/);
-  return match?.[1] ? decodeURIComponent(match[1]) : null;
-}
-
 function authHeaders(extra?: Record<string, string>): Record<string, string> {
-  const token = getToken();
-  const headers: Record<string, string> = { ...extra };
-  if (token) headers["Authorization"] = `Bearer ${token}`;
-  return headers;
+  return { ...extra };
 }
 
 async function get<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, { headers: authHeaders() });
+  const res = await fetch(`${BASE}${path}`, { credentials: "include", headers: authHeaders() });
   if (!res.ok) throw new Error(`API error: ${res.status}`);
   return res.json();
 }
@@ -149,6 +135,7 @@ export function viewImageUrl(id: string, format: "svg" | "png" = "svg"): string 
 async function post<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     method: "POST",
+    credentials: "include",
     headers: authHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(body),
   });
@@ -184,6 +171,7 @@ export interface ViewCreateIn {
 async function put<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     method: "PUT",
+    credentials: "include",
     headers: authHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(body),
   });
@@ -195,7 +183,7 @@ async function put<T>(path: string, body: unknown): Promise<T> {
 }
 
 async function del(path: string): Promise<void> {
-  const res = await fetch(`${BASE}${path}`, { method: "DELETE", headers: authHeaders() });
+  const res = await fetch(`${BASE}${path}`, { method: "DELETE", credentials: "include", headers: authHeaders() });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: `HTTP ${res.status}` }));
     throw new Error(err.detail || `API error: ${res.status}`);
@@ -238,6 +226,57 @@ export const deleteView = (id: string) => del(`/views/${encodeURIComponent(id)}`
 
 export const saveModel = () => post<{ saved: boolean; path: string }>("/save", {});
 
+export interface NodeCreateIn {
+  element_id: string;
+  x?: number | null;
+  y?: number | null;
+  w?: number | null;
+  h?: number | null;
+}
+
+export interface NodeUpdateIn {
+  x?: number | null;
+  y?: number | null;
+  w?: number | null;
+  h?: number | null;
+  name?: string | null;
+}
+
+export interface ConnectionCreateIn {
+  relationship_id?: string | null;
+  source: string;
+  target: string;
+  name?: string | null;
+  source_side?: EdgeSide | null;
+  target_side?: EdgeSide | null;
+}
+
+export interface ConnectionUpdateIn {
+  name?: string | null;
+  source?: string;
+  target?: string;
+  source_side?: EdgeSide | null;
+  target_side?: EdgeSide | null;
+}
+
+export const createViewNode = (viewId: string, body: NodeCreateIn) =>
+  post<NodeOut>(`/views/${encodeURIComponent(viewId)}/nodes`, body);
+
+export const updateViewNode = (viewId: string, nodeId: string, body: NodeUpdateIn) =>
+  put<NodeOut>(`/views/${encodeURIComponent(viewId)}/nodes/${encodeURIComponent(nodeId)}`, body);
+
+export const deleteViewNode = (viewId: string, nodeId: string) =>
+  del(`/views/${encodeURIComponent(viewId)}/nodes/${encodeURIComponent(nodeId)}`);
+
+export const createViewConnection = (viewId: string, body: ConnectionCreateIn) =>
+  post<ConnectionOut>(`/views/${encodeURIComponent(viewId)}/connections`, body);
+
+export const updateViewConnection = (viewId: string, connId: string, body: ConnectionUpdateIn) =>
+  put<ConnectionOut>(`/views/${encodeURIComponent(viewId)}/connections/${encodeURIComponent(connId)}`, body);
+
+export const deleteViewConnection = (viewId: string, connId: string) =>
+  del(`/views/${encodeURIComponent(viewId)}/connections/${encodeURIComponent(connId)}`);
+
 export const exportModelUrl = `${BASE}/export`;
 
 // --- Auth ---
@@ -249,21 +288,96 @@ export interface UserOut {
   created_at: string;
 }
 
-export async function login(username: string, password: string): Promise<string> {
-  const res = await fetch(`${BASE}/auth/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ username, password }),
+
+export const fetchUsers = () => get<UserOut[]>("/users");
+
+export const ARCHIMATE_LAYERS = [
+  "Strategy",
+  "Business",
+  "Application",
+  "Technology",
+  "Motivation",
+  "Physical",
+  "Implementation",
+  "Composite",
+  "Relations",
+  "Views",
+] as const;
+export type ArchiLayer = typeof ARCHIMATE_LAYERS[number];
+
+export const PERMISSION_FLAGS = ["read", "create", "update", "delete"] as const;
+export type PermissionFlag = typeof PERMISSION_FLAGS[number];
+export type LayerPermissions = PermissionFlag[];
+export type LayerRole = string; // legacy alias
+
+export interface RoleCatalog {
+  layers: readonly string[];
+  flags: readonly string[];
+}
+
+export interface RoleOut {
+  id: string;
+  name: string;
+  description: string | null;
+  is_system: boolean;
+  created_at: string;
+  permissions: Record<ArchiLayer, LayerPermissions>;
+  user_ids: string[];
+}
+
+export interface RoleCreateIn {
+  name: string;
+  description?: string | null;
+  permissions?: Partial<Record<ArchiLayer, LayerPermissions>>;
+}
+
+export interface RoleUpdateIn {
+  name?: string;
+  description?: string | null;
+  permissions?: Partial<Record<ArchiLayer, LayerPermissions>>;
+}
+
+export const fetchRoleCatalog = () => get<RoleCatalog>("/roles/catalog");
+export const fetchRoles = () => get<RoleOut[]>("/roles");
+export const fetchRole = (roleId: string) => get<RoleOut>(`/roles/${encodeURIComponent(roleId)}`);
+export const createRole = (body: RoleCreateIn) => post<RoleOut>("/roles", body);
+export const updateRole = (roleId: string, body: RoleUpdateIn) => put<RoleOut>(`/roles/${encodeURIComponent(roleId)}`, body);
+export const deleteRole = (roleId: string) => del(`/roles/${encodeURIComponent(roleId)}`);
+
+export async function assignUserToRole(roleId: string, userId: string): Promise<void> {
+  const res = await fetch(`${BASE}/roles/${encodeURIComponent(roleId)}/users/${encodeURIComponent(userId)}`, {
+    method: "PUT",
+    headers: authHeaders({ "Content-Type": "application/json" }),
+    body: "{}",
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: `HTTP ${res.status}` }));
-    throw new Error(err.detail || "Identifiants incorrects.");
+    throw new Error(err.detail || `API error: ${res.status}`);
   }
-  const data = await res.json() as { token: string };
-  return data.token;
 }
 
-export const fetchUsers = () => get<UserOut[]>("/users");
+export const unassignUserFromRole = (roleId: string, userId: string) =>
+  del(`/roles/${encodeURIComponent(roleId)}/users/${encodeURIComponent(userId)}`);
+
+export const fetchUserRoles = (userId: string) =>
+  get<RoleOut[]>(`/users/${encodeURIComponent(userId)}/roles`);
+
+export interface LayerPermissionOut {
+  layer: string;
+  permissions: LayerPermissions;
+}
+
+export const fetchRoleLayers = (roleId: string) =>
+  get<Record<ArchiLayer, LayerPermissions>>(`/roles/${encodeURIComponent(roleId)}/layers`);
+
+export const fetchRoleLayer = (roleId: string, layer: string) =>
+  get<LayerPermissionOut>(`/roles/${encodeURIComponent(roleId)}/layers/${encodeURIComponent(layer)}`);
+
+export const setRoleLayer = (roleId: string, layer: string, permissions: LayerPermissions) =>
+  put<LayerPermissionOut>(`/roles/${encodeURIComponent(roleId)}/layers/${encodeURIComponent(layer)}`, { permissions });
+
+export const removeRoleLayer = (roleId: string, layer: string) =>
+  del(`/roles/${encodeURIComponent(roleId)}/layers/${encodeURIComponent(layer)}`);
 
 export interface UserCreateIn { username: string; password: string; role?: string; }
 export interface UserUpdateIn { password?: string; role?: string; }

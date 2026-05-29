@@ -12,7 +12,7 @@
  *   - Bendpoints for connection routing stored in a child table.
  */
 
-import { sqliteTable, text, integer, real, index, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, real, index, uniqueIndex, primaryKey } from "drizzle-orm/sqlite-core";
 import { sql } from "drizzle-orm";
 
 // ---------------------------------------------------------------------------
@@ -213,15 +213,87 @@ export const bendpoints = sqliteTable("bendpoints", {
 ]);
 
 // ---------------------------------------------------------------------------
-// Users  (authentication — replaces users.json)
+// Better Auth tables
 // ---------------------------------------------------------------------------
 
-export const users = sqliteTable("users", {
-  id:           text("id").primaryKey(),            // UUID string
-  username:     text("username").notNull(),
-  passwordHash: text("password_hash").notNull(),
-  role:         text("role", { enum: ["admin", "user"] }).notNull().default("user"),
-  createdAt:    integer("created_at").notNull().default(sql`(unixepoch())`),
+export const users = sqliteTable("user", {
+  id:            text("id").primaryKey(),
+  name:          text("name").notNull(),
+  email:         text("email"),
+  emailVerified: integer("email_verified", { mode: "boolean" }).notNull().default(false),
+  image:         text("image"),
+  createdAt:     integer("created_at", { mode: "timestamp" }).notNull(),
+  updatedAt:     integer("updated_at", { mode: "timestamp" }).notNull(),
+  username:        text("username").notNull(),
+  displayUsername: text("display_username"),
+  role:            text("role", { enum: ["admin", "user"] }).notNull().default("user"),
+  banned:          integer("banned", { mode: "boolean" }),
+  banReason:       text("ban_reason"),
+  banExpires:      integer("ban_expires"),
 }, (t) => [
-  uniqueIndex("users_username_uniq").on(t.username),
+  uniqueIndex("user_username_uniq").on(t.username),
+]);
+
+export const sessions = sqliteTable("session", {
+  id:           text("id").primaryKey(),
+  userId:       text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  token:        text("token").notNull(),
+  expiresAt:    integer("expires_at", { mode: "timestamp" }).notNull(),
+  ipAddress:    text("ip_address"),
+  userAgent:    text("user_agent"),
+  createdAt:    integer("created_at", { mode: "timestamp" }).notNull(),
+  updatedAt:    integer("updated_at", { mode: "timestamp" }).notNull(),
+}, (t) => [
+  uniqueIndex("session_token_uniq").on(t.token),
+]);
+
+export const accounts = sqliteTable("account", {
+  id:                  text("id").primaryKey(),
+  userId:              text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  accountId:           text("account_id").notNull(),
+  providerId:          text("provider_id").notNull(),
+  accessToken:         text("access_token"),
+  refreshToken:        text("refresh_token"),
+  idToken:             text("id_token"),
+  accessTokenExpiresAt: integer("access_token_expires_at", { mode: "timestamp" }),
+  refreshTokenExpiresAt: integer("refresh_token_expires_at", { mode: "timestamp" }),
+  scope:               text("scope"),
+  password:            text("password"),
+  createdAt:           integer("created_at", { mode: "timestamp" }).notNull(),
+  updatedAt:           integer("updated_at", { mode: "timestamp" }).notNull(),
+});
+
+export const verifications = sqliteTable("verification", {
+  id:         text("id").primaryKey(),
+  identifier: text("identifier").notNull(),
+  value:      text("value").notNull(),
+  expiresAt:  integer("expires_at", { mode: "timestamp" }).notNull(),
+  createdAt:  integer("created_at", { mode: "timestamp" }),
+  updatedAt:  integer("updated_at", { mode: "timestamp" }),
+});
+
+export const roles = sqliteTable("roles", {
+  id:          text("id").primaryKey(),
+  name:        text("name").notNull(),
+  description: text("description"),
+  isSystem:    integer("is_system", { mode: "boolean" }).notNull().default(false),
+  createdAt:   integer("created_at").notNull().default(sql`(unixepoch())`),
+}, (t) => [
+  uniqueIndex("roles_name_uniq").on(t.name),
+]);
+
+// permission stored as comma-separated flags: "read", "create", "update", "delete"
+export const roleLayerPermissions = sqliteTable("role_layer_permissions", {
+  roleId:     text("role_id").notNull().references(() => roles.id, { onDelete: "cascade" }),
+  layer:      text("layer").notNull(),
+  permission: text("permission").notNull().default(""),
+}, (t) => [
+  primaryKey({ columns: [t.roleId, t.layer] }),
+]);
+
+export const userRoles = sqliteTable("user_roles", {
+  roleId: text("role_id").notNull().references(() => roles.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+}, (t) => [
+  primaryKey({ columns: [t.roleId, t.userId] }),
 ]);

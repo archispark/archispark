@@ -8,14 +8,16 @@
 
 import { describe, it, expect, beforeAll, afterEach } from "vitest";
 import _request from "supertest";
-import jwt from "jsonwebtoken";
+import { getAdminCookie } from "../src/test-helper.js";
 
-import { JWT_SECRET } from "../src/auth.js";
+let adminCookie: string;
 
-const _TEST_TOKEN = jwt.sign({ id: "test-admin", username: "admin", role: "admin" }, JWT_SECRET);
-// Create a persistent supertest agent that carries a valid admin token on every request.
+beforeAll(async () => {
+  adminCookie = await getAdminCookie();
+});
+
 function request(appArg: Parameters<typeof _request>[0]) {
-  return _request.agent(appArg).set("Authorization", `Bearer ${_TEST_TOKEN}`);
+  return _request.agent(appArg).set("Cookie", adminCookie);
 }
 
 import {

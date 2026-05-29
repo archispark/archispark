@@ -50,6 +50,7 @@ export interface ModelInfo {
     element_count: number;
     relationship_count: number;
     view_count: number;
+    property_definition_count: number;
 }
 export interface ElementOut {
     identifier: string;

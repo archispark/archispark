@@ -4,19 +4,22 @@
 
 import { describe, it, expect, beforeAll } from "vitest";
 import _request from "supertest";
-import jwt from "jsonwebtoken";
-
-import { JWT_SECRET } from "../src/auth.js";
 import { renderViewToSvg } from "../src/renderer.js";
 import { app } from "../src/app.js";
 import { dataSource as _dataSource } from "../src/registry.js";
 import type { ArchiElement, ArchiRelationship, ArchiNode, ArchiConnection, ArchiView } from "../src/model.js";
 import type { ArchiModel } from "../src/model.js";
 import type { ViewOut } from "../src/schemas.js";
+import { getAdminCookie } from "../src/test-helper.js";
 
-const _TEST_TOKEN = jwt.sign({ id: "test-admin", username: "admin", role: "admin" }, JWT_SECRET);
+let adminCookie: string;
+
+beforeAll(async () => {
+  adminCookie = await getAdminCookie();
+});
+
 function request(appArg: Parameters<typeof _request>[0]) {
-  return _request.agent(appArg).set("Authorization", `Bearer ${_TEST_TOKEN}`);
+  return _request.agent(appArg).set("Cookie", adminCookie);
 }
 
 const UNKNOWN_ID = "id-does-not-exist";

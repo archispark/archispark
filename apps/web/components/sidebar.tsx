@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
-import { LayoutDashboard, ArrowRightLeft, LayoutGrid, Tag, Download, Users } from "lucide-react";
-import { fetchModel, fetchElements, importModel, type ModelInfo } from "@/lib/api";
+import { LayoutDashboard, LayoutGrid, Tag, Users, Settings as SettingsIcon, GitBranch } from "lucide-react";
+import { fetchModel, fetchElements, type ModelInfo } from "@/lib/api";
 import { useIsAdmin } from "@/hooks/use-current-user";
 
 interface LayerGroup {
@@ -58,9 +58,6 @@ function SidebarInner({ open, onClose }: { open: boolean; onClose: () => void })
   const [model, setModel] = useState<ModelInfo | null>(null);
   const [layerCounts, setLayerCounts] = useState<Record<string, number>>({});
   const isAdmin = useIsAdmin();
-  const [importing, setImporting] = useState(false);
-  const [importError, setImportError] = useState<string | null>(null);
-  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     Promise.all([fetchModel(), fetchElements()]).then(([m, elements]) => {
@@ -73,54 +70,6 @@ function SidebarInner({ open, onClose }: { open: boolean; onClose: () => void })
       setLayerCounts(counts);
     }).catch(() => {});
   }, []);
-
-  async function handleExport() {
-    setExporting(true);
-    try {
-      const { exportModelUrl: url } = await import("@/lib/api");
-      const token = document.cookie.match(/(?:^|;\s*)auth_token=([^;]+)/)?.[1];
-      const res = await fetch(url, token ? { headers: { Authorization: `Bearer ${decodeURIComponent(token)}` } } : {});
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const blob = await res.blob();
-      const disposition = res.headers.get("Content-Disposition") ?? "";
-      const filename = disposition.match(/filename="?([^";\n]+)"?/)?.[1] ?? "model.xml";
-      const link = document.createElement("a");
-      link.href = URL.createObjectURL(blob);
-      link.download = filename;
-      link.click();
-      URL.revokeObjectURL(link.href);
-    } catch {
-      // silently ignore
-    } finally {
-      setExporting(false);
-    }
-  }
-
-  async function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
-    setImporting(true);
-    setImportError(null);
-    try {
-      const xml = await file.text();
-      const info = await importModel(xml);
-      setModel(info);
-      // Recompute layer counts
-      const { fetchElements: fe } = await import("@/lib/api");
-      const elements = await fe();
-      const counts: Record<string, number> = {};
-      for (const el of elements) {
-        const layer = getLayer(el.type);
-        counts[layer] = (counts[layer] || 0) + 1;
-      }
-      setLayerCounts(counts);
-    } catch (err) {
-      setImportError((err as Error).message);
-    } finally {
-      setImporting(false);
-    }
-  }
 
   const currentLayer = pathname === "/elements" ? searchParams.get("layer") : null;
 
@@ -170,60 +119,6 @@ function SidebarInner({ open, onClose }: { open: boolean; onClose: () => void })
           {/* Separator */}
           <div className="mx-4 mt-3 mb-1 border-t border-border" />
 
-          {/* Layer sections */}
-          <div className="px-2 pt-2 pb-1">
-            <div className="text-[10px] font-bold tracking-[0.8px] uppercase text-muted-foreground px-2 mb-1">
-              Éléments
-            </div>
-            {/* All elements */}
-            <Link
-              href="/elements"
-              onClick={onClose}
-              className={`flex items-center justify-between gap-2 px-2 py-1.5 rounded-md text-sm no-underline transition-colors ${
-                pathname === "/elements" && !currentLayer
-                  ? "bg-card text-foreground font-medium shadow-sm"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
-              }`}
-            >
-              <span className="flex items-center gap-2">
-                <span className="size-1.5 rounded-full shrink-0 bg-foreground/30" />
-                Tous
-              </span>
-              {model && (
-                <span className="text-[11px] text-muted-foreground">{model.element_count}</span>
-              )}
-            </Link>
-            {visibleLayers.map((group) => {
-              const active = pathname === "/elements" && currentLayer === group.key;
-              return (
-                <Link
-                  key={group.key}
-                  href={`/elements?layer=${group.key}`}
-                  onClick={onClose}
-                  className={`flex items-center justify-between gap-2 px-2 py-1.5 rounded-md text-sm no-underline transition-colors ${
-                    active
-                      ? "bg-card text-foreground font-medium shadow-sm"
-                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                  }`}
-                >
-                  <span className="flex items-center gap-2">
-                    <span
-                      className="size-1.5 rounded-full shrink-0"
-                      style={{ background: group.dot }}
-                    />
-                    {group.label}
-                  </span>
-                  <span className="text-[11px] text-muted-foreground">
-                    {layerCounts[group.key] || 0}
-                  </span>
-                </Link>
-              );
-            })}
-          </div>
-
-          {/* Separator */}
-          <div className="mx-4 mt-2 mb-1 border-t border-border" />
-
           {/* Landscape views */}
           <div className="px-2 pt-2 pb-1">
             <div className="text-[10px] font-bold tracking-[0.8px] uppercase text-muted-foreground px-2 mb-1">
@@ -270,105 +165,139 @@ function SidebarInner({ open, onClose }: { open: boolean; onClose: () => void })
           {/* Separator */}
           <div className="mx-4 mt-2 mb-1 border-t border-border" />
 
-          {/* Relations */}
-          <Link
-            href="/relationships"
-            onClick={onClose}
-            className={`flex items-center justify-between gap-2 px-3 py-2 mx-2 rounded-md text-sm no-underline transition-colors ${
-              pathname === "/relationships" || pathname.startsWith("/relationships/")
-                ? "bg-card text-foreground font-medium shadow-sm"
-                : "text-muted-foreground hover:bg-muted hover:text-foreground"
-            }`}
-          >
-            <span className="flex items-center gap-2.5">
-              <ArrowRightLeft className="size-4 shrink-0" />
-              Relations
-            </span>
-            {model && (
-              <span className="text-[11px] text-muted-foreground">{model.relationship_count}</span>
-            )}
-          </Link>
-
-          {/* Views */}
-          <Link
-            href="/views"
-            onClick={onClose}
-            className={`flex items-center justify-between gap-2 px-3 py-2 mx-2 rounded-md text-sm no-underline transition-colors ${
-              pathname === "/views" || pathname.startsWith("/views/")
-                ? "bg-card text-foreground font-medium shadow-sm"
-                : "text-muted-foreground hover:bg-muted hover:text-foreground"
-            }`}
-          >
-            <span className="flex items-center gap-2.5">
-              <LayoutGrid className="size-4 shrink-0" />
-              Vues
-            </span>
-            {model && (
-              <span className="text-[11px] text-muted-foreground">{model.view_count}</span>
-            )}
-          </Link>
+          {/* Layer sections */}
+          <div className="px-2 pt-2 pb-1">
+            <div className="text-[10px] font-bold tracking-[0.8px] uppercase text-muted-foreground px-2 mb-1">
+              Éléments
+            </div>
+            {visibleLayers.map((group) => {
+              const active = pathname === "/elements" && currentLayer === group.key;
+              return (
+                <Link
+                  key={group.key}
+                  href={`/elements?layer=${group.key}`}
+                  onClick={onClose}
+                  className={`flex items-center justify-between gap-2 px-2 py-1.5 rounded-md text-sm no-underline transition-colors ${
+                    active
+                      ? "bg-card text-foreground font-medium shadow-sm"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                  }`}
+                >
+                  <span className="flex items-center gap-2">
+                    <span
+                      className="size-1.5 rounded-full shrink-0"
+                      style={{ background: group.dot }}
+                    />
+                    {group.label}
+                  </span>
+                  <span className="text-[11px] text-muted-foreground">
+                    {layerCounts[group.key] || 0}
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
 
           {/* Separator */}
           <div className="mx-4 mt-2 mb-1 border-t border-border" />
 
-          {/* Model metadata */}
+          {/* Relations group */}
           <div className="px-2 pt-2 pb-1">
             <div className="text-[10px] font-bold tracking-[0.8px] uppercase text-muted-foreground px-2 mb-1">
-              Modèle
+              Relations
+            </div>
+            <Link
+              href="/relationships"
+              onClick={onClose}
+              className={`flex items-center justify-between gap-2 px-2 py-1.5 rounded-md text-sm no-underline transition-colors ${
+                pathname === "/relationships"
+                  ? "bg-card text-foreground font-medium shadow-sm"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              }`}
+            >
+              <span className="flex items-center gap-2">
+                <GitBranch className="size-3.5 shrink-0" />
+                Liste
+              </span>
+              {model && (
+                <span className="text-[11px] text-muted-foreground">{model.relationship_count}</span>
+              )}
+            </Link>
+          </div>
+
+          {/* Separator */}
+          <div className="mx-4 mt-2 mb-1 border-t border-border" />
+
+          {/* Vues group */}
+          <div className="px-2 pt-2 pb-1">
+            <div className="text-[10px] font-bold tracking-[0.8px] uppercase text-muted-foreground px-2 mb-1">
+              Vues
+            </div>
+            <Link
+              href="/views"
+              onClick={onClose}
+              className={`flex items-center justify-between gap-2 px-2 py-1.5 rounded-md text-sm no-underline transition-colors ${
+                pathname === "/views" || pathname.startsWith("/views/")
+                  ? "bg-card text-foreground font-medium shadow-sm"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              }`}
+            >
+              <span className="flex items-center gap-2">
+                <LayoutGrid className="size-3.5 shrink-0" />
+                Liste
+              </span>
+              {model && (
+                <span className="text-[11px] text-muted-foreground">{model.view_count}</span>
+              )}
+            </Link>
+          </div>
+
+          {/* Separator */}
+          <div className="mx-4 mt-2 mb-1 border-t border-border" />
+
+          {/* Propriétés group */}
+          <div className="px-2 pt-2 pb-1">
+            <div className="text-[10px] font-bold tracking-[0.8px] uppercase text-muted-foreground px-2 mb-1">
+              Propriétés
             </div>
             <Link
               href="/properties"
               onClick={onClose}
-              className={`flex items-center gap-2 px-2 py-1.5 rounded-md text-sm no-underline transition-colors ${
+              className={`flex items-center justify-between gap-2 px-2 py-1.5 rounded-md text-sm no-underline transition-colors ${
                 pathname === "/properties"
                   ? "bg-card text-foreground font-medium shadow-sm"
                   : "text-muted-foreground hover:bg-muted hover:text-foreground"
               }`}
             >
-              <Tag className="size-4 shrink-0" />
-              Propriétés
+              <span className="flex items-center gap-2">
+                <Tag className="size-3.5 shrink-0" />
+                Liste
+              </span>
+              {model && (
+                <span className="text-[11px] text-muted-foreground">{model.property_definition_count}</span>
+              )}
             </Link>
-            {isAdmin && (
-              <Link
-                href="/users"
-                onClick={onClose}
-                className={`flex items-center gap-2 px-2 py-1.5 rounded-md text-sm no-underline transition-colors ${
-                  pathname === "/users"
-                    ? "bg-card text-foreground font-medium shadow-sm"
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                }`}
-              >
-                <Users className="size-4 shrink-0" />
-                Utilisateurs
-              </Link>
-            )}
           </div>
+
         </div>
 
-        {/* Import / Export zone */}
-        <div className="px-3 py-3 border-t border-border space-y-2">
-          {isAdmin && importError && (
-            <div className="text-[11px] text-destructive bg-destructive/10 border border-destructive/30 rounded px-2 py-1.5 break-words">
-              {importError}
-            </div>
-          )}
-          {isAdmin && (
-            <label className={`border-2 border-dashed rounded-lg p-3 text-center cursor-pointer transition-colors block ${importing ? "border-primary/50 opacity-60 pointer-events-none" : "border-border text-muted-foreground hover:border-primary hover:text-foreground"}`}>
-              <div className="text-xl mb-1">{importing ? "⏳" : "↑"}</div>
-              <p className="text-xs">{importing ? "Importation…" : "Importer un modèle"}</p>
-              <div className="text-[11px] mt-0.5 opacity-70">.xml (AOEF)</div>
-              <input type="file" accept=".xml" className="hidden" disabled={importing} onChange={handleImport} />
-            </label>
-          )}
-          <button
-            onClick={handleExport}
-            disabled={exporting}
-            className="flex items-center justify-center gap-2 w-full px-3 py-2 rounded-lg border border-border text-muted-foreground text-xs hover:border-primary hover:text-foreground transition-colors disabled:opacity-60 disabled:pointer-events-none"
-          >
-            <Download className="size-3.5" />
-            {exporting ? "Exportation…" : "Exporter le modèle"}
-          </button>
-        </div>
+        {/* Settings — bottom */}
+        {isAdmin && (
+          <div className="border-t border-border px-2 py-2">
+            <Link
+              href="/settings"
+              onClick={onClose}
+              className={`flex items-center gap-2.5 px-3 py-2 rounded-md text-sm no-underline transition-colors ${
+                pathname === "/settings" || pathname.startsWith("/settings/")
+                  ? "bg-card text-foreground font-medium shadow-sm"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              }`}
+            >
+              <SettingsIcon className="size-4 shrink-0" />
+              Settings
+            </Link>
+          </div>
+        )}
       </aside>
     </>
   );

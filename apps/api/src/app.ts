@@ -51,14 +51,27 @@ import { openApiSpec } from "./openapi.js";
 import { renderViewToSvg, renderViewToPng } from "./renderer.js";
 import {
   listUsers,
-  loginUser,
-  createUser,
-  updateUser,
-  deleteUser,
+  listRoles,
+  getRole,
+  createRole,
+  updateRole,
+  deleteRole,
+  assignUserToRole,
+  unassignUserFromRole,
+  listRolesForUser,
+  getRoleLayerPermission,
+  setRoleLayerPermission,
+  removeRoleLayerPermission,
+  ARCHIMATE_LAYERS,
+  PERMISSION_FLAGS,
   requireAuth,
   requireAdmin,
+  requirePermission,
   type AuthRequest,
+  type LayerPermissions,
 } from "./auth.js";
+import { auth as baAuth } from "./better-auth.js";
+import { toNodeHandler } from "better-auth/node";
 import {
   ELEMENT_TYPES,
   RELATIONSHIP_TYPES,
@@ -79,6 +92,9 @@ import {
   RelationshipOut,
   RelationshipUpdateIn,
   NodeCreateIn,
+  NodeUpdateIn,
+  ConnectionCreateIn,
+  ConnectionUpdateIn,
   SaveResult,
   StyleOut,
   ViewCreateIn,
@@ -199,6 +215,8 @@ export function connectionOut(c: ArchiConnection): ConnectionOut {
     relationship_ref: c.ref || null,
     source: c.source || null,
     target: c.target || null,
+    source_side: c.source_side ?? null,
+    target_side: c.target_side ?? null,
     style: connStyleOut(c),
   };
 }
@@ -242,6 +260,7 @@ export function getModelInfo(ds: DataSource): ModelInfo {
     element_count: model.elements.length,
     relationship_count: model.relationships.length,
     view_count: model.views.length,
+    property_definition_count: model.propertyDefinitions.length,
   };
 }
 
@@ -338,6 +357,93 @@ export function createView(ds: DataSource, input: ViewCreateIn): ViewDetailOut {
   };
   ds.model.views.push(view);
   return viewOut(view, true);
+}
+
+function findNodeAnywhere(nodes: ArchiNode[], node_id: string): { node: ArchiNode; parent: ArchiNode[] } | null {
+  for (let i = 0; i < nodes.length; i++) {
+    const n = nodes[i]!;
+    if (n.uuid === node_id) return { node: n, parent: nodes };
+    const inner = findNodeAnywhere(n.nodes, node_id);
+    if (inner) return inner;
+  }
+  return null;
+}
+
+export function updateViewNode(ds: DataSource, view_id: string, node_id: string, input: NodeUpdateIn): NodeOut {
+  const view = ds.model.views.find((v) => v.uuid === view_id);
+  if (!view) throw new Error(`Vue '${view_id}' introuvable.`);
+  const found = findNodeAnywhere(view.nodes, node_id);
+  if (!found) throw new Error(`Nœud '${node_id}' introuvable dans la vue.`);
+  const n = found.node;
+  if (input.x !== undefined) n.x = input.x;
+  if (input.y !== undefined) n.y = input.y;
+  if (input.w !== undefined) n.w = input.w;
+  if (input.h !== undefined) n.h = input.h;
+  if (input.name !== undefined) n.name = input.name;
+  return nodeOut(n);
+}
+
+export function deleteViewNode(ds: DataSource, view_id: string, node_id: string): void {
+  const view = ds.model.views.find((v) => v.uuid === view_id);
+  if (!view) throw new Error(`Vue '${view_id}' introuvable.`);
+  const found = findNodeAnywhere(view.nodes, node_id);
+  if (!found) throw new Error(`Nœud '${node_id}' introuvable dans la vue.`);
+  const idx = found.parent.indexOf(found.node);
+  if (idx !== -1) found.parent.splice(idx, 1);
+  view.conns = view.conns.filter((c) => c.source !== node_id && c.target !== node_id);
+}
+
+export function createViewConnection(ds: DataSource, view_id: string, input: ConnectionCreateIn): ConnectionOut {
+  const view = ds.model.views.find((v) => v.uuid === view_id);
+  if (!view) throw new Error(`Vue '${view_id}' introuvable.`);
+  if (!findNodeAnywhere(view.nodes, input.source)) throw new Error(`Nœud source '${input.source}' introuvable.`);
+  if (!findNodeAnywhere(view.nodes, input.target)) throw new Error(`Nœud cible '${input.target}' introuvable.`);
+  if (input.relationship_id && !ds.model.relationships.find((r) => r.uuid === input.relationship_id)) {
+    throw new Error(`Relation '${input.relationship_id}' introuvable.`);
+  }
+  const conn: ArchiConnection = {
+    uuid: newId(),
+    name: input.name ?? null,
+    ref: input.relationship_id ?? null,
+    source: input.source,
+    target: input.target,
+    line_color: null,
+    font_name: null,
+    font_size: null,
+    font_color: null,
+    line_width: null,
+    source_side: input.source_side ?? null,
+    target_side: input.target_side ?? null,
+  };
+  view.conns.push(conn);
+  return connectionOut(conn);
+}
+
+export function updateViewConnection(ds: DataSource, view_id: string, conn_id: string, input: ConnectionUpdateIn): ConnectionOut {
+  const view = ds.model.views.find((v) => v.uuid === view_id);
+  if (!view) throw new Error(`Vue '${view_id}' introuvable.`);
+  const conn = view.conns.find((c) => c.uuid === conn_id);
+  if (!conn) throw new Error(`Connexion '${conn_id}' introuvable.`);
+  if (input.name !== undefined) conn.name = input.name;
+  if (input.source !== undefined) {
+    if (!findNodeAnywhere(view.nodes, input.source)) throw new Error(`Nœud source '${input.source}' introuvable.`);
+    conn.source = input.source;
+  }
+  if (input.target !== undefined) {
+    if (!findNodeAnywhere(view.nodes, input.target)) throw new Error(`Nœud cible '${input.target}' introuvable.`);
+    conn.target = input.target;
+  }
+  if (input.source_side !== undefined) conn.source_side = input.source_side;
+  if (input.target_side !== undefined) conn.target_side = input.target_side;
+  return connectionOut(conn);
+}
+
+export function deleteViewConnection(ds: DataSource, view_id: string, conn_id: string): void {
+  const view = ds.model.views.find((v) => v.uuid === view_id);
+  if (!view) throw new Error(`Vue '${view_id}' introuvable.`);
+  const idx = view.conns.findIndex((c) => c.uuid === conn_id);
+  if (idx === -1) throw new Error(`Connexion '${conn_id}' introuvable.`);
+  view.conns.splice(idx, 1);
 }
 
 export function createNode(ds: DataSource, view_id: string, input: NodeCreateIn): NodeOut {
@@ -556,21 +662,27 @@ function validateType(
 export const app: ReturnType<typeof express> = express();
 
 app.use((_req, res, next) => {
-  res.header("Access-Control-Allow-Origin", "*");
+  const origin = _req.headers.origin ?? "*";
+  res.header("Access-Control-Allow-Origin", origin);
   res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
   res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  res.header("Access-Control-Allow-Credentials", "true");
   if (_req.method === "OPTIONS") { res.sendStatus(204); return; }
   next();
 });
 
 app.use(express.json());
 
-// Global auth — exempt only public paths
-const PUBLIC_PATHS = new Set(["/auth/login", "/openapi.json", "/docs"]);
+// Mount Better Auth at /auth — handles sign-in, sign-out, session, user CRUD
+// Must be BEFORE global auth middleware
+app.all("/auth/*path", toNodeHandler(baAuth));
+
+// Global auth — exempt Better Auth routes and public paths
 app.use((req: AuthRequest, res, next) => {
   if (
-    PUBLIC_PATHS.has(req.path) ||
-    req.path.startsWith("/docs")
+    req.path.startsWith("/auth") ||
+    req.path.startsWith("/docs") ||
+    req.path === "/openapi.json"
   ) return next();
   requireAuth(req, res, next);
 });
@@ -604,66 +716,162 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 });
 
 // ---------------------------------------------------------------------------
-// Auth routes
+// User info endpoint — wraps Better Auth session
 // ---------------------------------------------------------------------------
 
-app.post("/auth/login", (req: Request, res: Response) => {
-  const { username, password } = req.body as { username?: string; password?: string };
-  if (!username || !password) {
-    res.status(422).json({ detail: "username et password requis." });
-    return;
-  }
-  const token = loginUser(username, password);
-  if (!token) {
-    res.status(401).json({ detail: "Identifiants incorrects." });
-    return;
-  }
-  res.json({ token });
-});
-
-app.get("/auth/me", (req: AuthRequest, res: Response) => {
-  res.json(req.user);
+app.get("/me", (req: AuthRequest, res: Response) => {
+  res.json(req.user ?? null);
 });
 
 // ---------------------------------------------------------------------------
-// Users routes (admin only)
+// Users routes (read via custom query; mutations via Better Auth admin plugin)
 // ---------------------------------------------------------------------------
 
 app.get("/users", requireAdmin as express.RequestHandler, (_req: Request, res: Response) => {
   res.json(listUsers());
 });
 
-app.post("/users", requireAdmin as express.RequestHandler, (req: Request, res: Response) => {
-  const { username, password, role } = req.body as { username?: string; password?: string; role?: string };
-  if (!username || !password) {
-    res.status(422).json({ detail: "username et password requis." });
+// ---------------------------------------------------------------------------
+// Roles routes (first-class entities; many users per role; per-layer permissions)
+// ---------------------------------------------------------------------------
+
+function sanitizePermissions(body: unknown): Record<string, LayerPermissions> | undefined {
+  if (!body || typeof body !== "object") return undefined;
+  const result: Record<string, LayerPermissions> = {};
+  for (const [layer, flags] of Object.entries(body as Record<string, unknown>)) {
+    if (!(ARCHIMATE_LAYERS as readonly string[]).includes(layer)) continue;
+    if (!Array.isArray(flags)) continue;
+    result[layer] = flags.filter((f): f is string => typeof f === "string" && (PERMISSION_FLAGS as readonly string[]).includes(f)) as LayerPermissions;
+  }
+  return result;
+}
+
+app.get("/roles", requireAuth as express.RequestHandler, (_req: Request, res: Response) => {
+  res.json(listRoles());
+});
+
+app.get("/roles/catalog", requireAuth as express.RequestHandler, (_req: Request, res: Response) => {
+  res.json({ layers: ARCHIMATE_LAYERS, flags: PERMISSION_FLAGS });
+});
+
+app.post("/roles", requireAdmin as express.RequestHandler, (req: Request, res: Response) => {
+  const { name, description, permissions } = req.body as { name?: string; description?: string | null; permissions?: unknown };
+  if (!name?.trim()) {
+    res.status(422).json({ detail: "Field 'name' is required." });
     return;
   }
   try {
-    res.status(201).json(createUser(username, password, (role === "admin" ? "admin" : "user")));
+    res.status(201).json(createRole(name, description ?? null, sanitizePermissions(permissions)));
   } catch (err) {
     res.status(422).json({ detail: (err as Error).message });
   }
 });
 
-app.put("/users/:id", requireAdmin as express.RequestHandler, (req: Request, res: Response) => {
-  const { password, role } = req.body as { password?: string; role?: string };
+app.get("/roles/:role_id", requireAuth as express.RequestHandler, (req: Request, res: Response) => {
   try {
-    res.json(updateUser(req.params["id"] as string, {
-      password: password || undefined,
-      role: role === "admin" ? "admin" : role === "user" ? "user" : undefined,
+    res.json(getRole(req.params["role_id"] as string));
+  } catch (err) {
+    res.status(404).json({ detail: (err as Error).message });
+  }
+});
+
+app.put("/roles/:role_id", requireAdmin as express.RequestHandler, (req: Request, res: Response) => {
+  const { name, description, permissions } = req.body as { name?: string; description?: string | null; permissions?: unknown };
+  try {
+    const role = getRole(req.params["role_id"] as string);
+    if (role.is_system) {
+      res.status(403).json({ detail: "Les rôles système ne peuvent pas être modifiés." });
+      return;
+    }
+    res.json(updateRole(req.params["role_id"] as string, {
+      name,
+      description,
+      permissions: sanitizePermissions(permissions),
     }));
   } catch (err) {
     res.status(404).json({ detail: (err as Error).message });
   }
 });
 
-app.delete("/users/:id", requireAdmin as express.RequestHandler, (req: Request, res: Response) => {
+app.delete("/roles/:role_id", requireAdmin as express.RequestHandler, (req: Request, res: Response) => {
   try {
-    deleteUser(req.params["id"] as string);
+    deleteRole(req.params["role_id"] as string);
     res.status(204).send();
   } catch (err) {
+    res.status(404).json({ detail: (err as Error).message });
+  }
+});
+
+app.get("/roles/:role_id/users", requireAuth as express.RequestHandler, (req: Request, res: Response) => {
+  try {
+    res.json(getRole(req.params["role_id"] as string).user_ids);
+  } catch (err) {
+    res.status(404).json({ detail: (err as Error).message });
+  }
+});
+
+app.put("/roles/:role_id/users/:user_id", requireAdmin as express.RequestHandler, (req: Request, res: Response) => {
+  try {
+    assignUserToRole(req.params["role_id"] as string, req.params["user_id"] as string);
+    res.status(204).send();
+  } catch (err) {
+    res.status(404).json({ detail: (err as Error).message });
+  }
+});
+
+app.delete("/roles/:role_id/users/:user_id", requireAdmin as express.RequestHandler, (req: Request, res: Response) => {
+  try {
+    unassignUserFromRole(req.params["role_id"] as string, req.params["user_id"] as string);
+    res.status(204).send();
+  } catch (err) {
+    res.status(404).json({ detail: (err as Error).message });
+  }
+});
+
+app.get("/users/:user_id/roles", requireAdmin as express.RequestHandler, (req: Request, res: Response) => {
+  res.json(listRolesForUser(req.params["user_id"] as string));
+});
+
+// Layer permissions per role
+app.get("/roles/:role_id/layers", requireAuth as express.RequestHandler, (req: Request, res: Response) => {
+  try {
+    res.json(getRole(req.params["role_id"] as string).permissions);
+  } catch (err) {
+    res.status(404).json({ detail: (err as Error).message });
+  }
+});
+
+app.get("/roles/:role_id/layers/:layer", requireAuth as express.RequestHandler, (req: Request, res: Response) => {
+  try {
+    const layer = req.params["layer"] as string;
+    res.json({ layer, permission: getRoleLayerPermission(req.params["role_id"] as string, layer) });
+  } catch (err) {
+    res.status(404).json({ detail: (err as Error).message });
+  }
+});
+
+app.put("/roles/:role_id/layers/:layer", requireAdmin as express.RequestHandler, (req: Request, res: Response) => {
+  const { permissions } = req.body as { permissions?: unknown };
+  if (!Array.isArray(permissions)) {
+    res.status(422).json({ detail: "Field 'permissions' must be an array of flags (read, create, update, delete)." });
+    return;
+  }
+  const flags = permissions.filter((f): f is string => typeof f === "string" && (PERMISSION_FLAGS as readonly string[]).includes(f)) as LayerPermissions;
+  try {
+    const layer = req.params["layer"] as string;
+    const updated = setRoleLayerPermission(req.params["role_id"] as string, layer, flags);
+    res.json({ layer, permissions: updated });
+  } catch (err) {
     res.status(422).json({ detail: (err as Error).message });
+  }
+});
+
+app.delete("/roles/:role_id/layers/:layer", requireAdmin as express.RequestHandler, (req: Request, res: Response) => {
+  try {
+    removeRoleLayerPermission(req.params["role_id"] as string, req.params["layer"] as string);
+    res.status(204).send();
+  } catch (err) {
+    res.status(404).json({ detail: (err as Error).message });
   }
 });
 
@@ -865,7 +1073,7 @@ app.get("/relationships/types", (_req: Request, res: Response) => {
   res.json(listRelationshipTypes(dataSource));
 });
 
-app.get("/relationships", (req: Request, res: Response) => {
+app.get("/relationships", requirePermission("Relations", "read"), (req: Request, res: Response) => {
   const type = (req.query["type"] as string) || null;
   const source_id = (req.query["source_id"] as string) || null;
   const target_id = (req.query["target_id"] as string) || null;
@@ -873,7 +1081,7 @@ app.get("/relationships", (req: Request, res: Response) => {
   res.json(listRelationships(dataSource, type, source_id, target_id));
 });
 
-app.get("/relationships/:relationship_id", (req: Request, res: Response) => {
+app.get("/relationships/:relationship_id", requirePermission("Relations", "read"), (req: Request, res: Response) => {
   try {
     res.json(getRelationshipById(dataSource, req.params["relationship_id"] as string));
   } catch (err) {
@@ -881,7 +1089,7 @@ app.get("/relationships/:relationship_id", (req: Request, res: Response) => {
   }
 });
 
-app.post("/relationships", (req: Request, res: Response) => {
+app.post("/relationships", requirePermission("Relations", "create"), (req: Request, res: Response) => {
   const body = req.body as RelationshipCreateIn;
   if (!body.type || typeof body.type !== "string") {
     res.status(422).json({ detail: "Le champ 'type' est requis." });
@@ -903,7 +1111,7 @@ app.post("/relationships", (req: Request, res: Response) => {
   }
 });
 
-app.put("/relationships/:relationship_id", (req: Request, res: Response) => {
+app.put("/relationships/:relationship_id", requirePermission("Relations", "update"), (req: Request, res: Response) => {
   const body = req.body as RelationshipUpdateIn;
   if (body.type !== undefined && !validateType(body.type, RELATIONSHIP_TYPES, _RELATIONSHIP_TYPES_STR, "de relation ArchiMate", res)) return;
   try {
@@ -914,7 +1122,7 @@ app.put("/relationships/:relationship_id", (req: Request, res: Response) => {
   }
 });
 
-app.delete("/relationships/:relationship_id", (req: Request, res: Response) => {
+app.delete("/relationships/:relationship_id", requirePermission("Relations", "delete"), (req: Request, res: Response) => {
   try {
     deleteRelationship(dataSource, req.params["relationship_id"] as string);
     res.status(204).send();
@@ -924,11 +1132,11 @@ app.delete("/relationships/:relationship_id", (req: Request, res: Response) => {
 });
 
 // Views
-app.get("/views", (_req: Request, res: Response) => {
+app.get("/views", requirePermission("Views", "read"), (_req: Request, res: Response) => {
   res.json(listViews(dataSource));
 });
 
-app.get("/views/:view_id", (req: Request, res: Response) => {
+app.get("/views/:view_id", requirePermission("Views", "read"), (req: Request, res: Response) => {
   try {
     res.json(getViewById(dataSource, req.params["view_id"] as string));
   } catch (err) {
@@ -936,7 +1144,7 @@ app.get("/views/:view_id", (req: Request, res: Response) => {
   }
 });
 
-app.post("/views", (req: Request, res: Response) => {
+app.post("/views", requirePermission("Views", "create"), (req: Request, res: Response) => {
   const body = req.body as ViewCreateIn;
   if (!body.name || typeof body.name !== "string") {
     res.status(422).json({ detail: "Field 'name' is required." });
@@ -945,7 +1153,7 @@ app.post("/views", (req: Request, res: Response) => {
   res.status(201).json(createView(dataSource, body));
 });
 
-app.put("/views/:view_id", (req: Request, res: Response) => {
+app.put("/views/:view_id", requirePermission("Views", "update"), (req: Request, res: Response) => {
   const body = req.body as ViewUpdateIn;
   try {
     res.json(updateView(dataSource, req.params["view_id"] as string, body));
@@ -954,7 +1162,7 @@ app.put("/views/:view_id", (req: Request, res: Response) => {
   }
 });
 
-app.delete("/views/:view_id", (req: Request, res: Response) => {
+app.delete("/views/:view_id", requirePermission("Views", "delete"), (req: Request, res: Response) => {
   try {
     deleteView(dataSource, req.params["view_id"] as string);
     res.status(204).send();
@@ -963,7 +1171,7 @@ app.delete("/views/:view_id", (req: Request, res: Response) => {
   }
 });
 
-app.post("/views/:view_id/nodes", (req: Request, res: Response) => {
+app.post("/views/:view_id/nodes", requirePermission("Views", "update"), (req: Request, res: Response) => {
   const body = req.body as NodeCreateIn;
   if (!body.element_id || typeof body.element_id !== "string") {
     res.status(422).json({ detail: "Field 'element_id' is required." });
@@ -971,6 +1179,53 @@ app.post("/views/:view_id/nodes", (req: Request, res: Response) => {
   }
   try {
     res.status(201).json(createNode(dataSource, req.params["view_id"] as string, body));
+  } catch (err) {
+    res.status(404).json({ detail: (err as Error).message });
+  }
+});
+
+app.put("/views/:view_id/nodes/:node_id", requirePermission("Views", "update"), (req: Request, res: Response) => {
+  try {
+    res.json(updateViewNode(dataSource, req.params["view_id"] as string, req.params["node_id"] as string, req.body as NodeUpdateIn));
+  } catch (err) {
+    res.status(404).json({ detail: (err as Error).message });
+  }
+});
+
+app.delete("/views/:view_id/nodes/:node_id", requirePermission("Views", "update"), (req: Request, res: Response) => {
+  try {
+    deleteViewNode(dataSource, req.params["view_id"] as string, req.params["node_id"] as string);
+    res.status(204).send();
+  } catch (err) {
+    res.status(404).json({ detail: (err as Error).message });
+  }
+});
+
+app.post("/views/:view_id/connections", requirePermission("Views", "update"), (req: Request, res: Response) => {
+  const body = req.body as ConnectionCreateIn;
+  if (!body.source || !body.target) {
+    res.status(422).json({ detail: "Fields 'source' and 'target' are required." });
+    return;
+  }
+  try {
+    res.status(201).json(createViewConnection(dataSource, req.params["view_id"] as string, body));
+  } catch (err) {
+    res.status(404).json({ detail: (err as Error).message });
+  }
+});
+
+app.put("/views/:view_id/connections/:conn_id", requirePermission("Views", "update"), (req: Request, res: Response) => {
+  try {
+    res.json(updateViewConnection(dataSource, req.params["view_id"] as string, req.params["conn_id"] as string, req.body as ConnectionUpdateIn));
+  } catch (err) {
+    res.status(404).json({ detail: (err as Error).message });
+  }
+});
+
+app.delete("/views/:view_id/connections/:conn_id", requirePermission("Views", "update"), (req: Request, res: Response) => {
+  try {
+    deleteViewConnection(dataSource, req.params["view_id"] as string, req.params["conn_id"] as string);
+    res.status(204).send();
   } catch (err) {
     res.status(404).json({ detail: (err as Error).message });
   }

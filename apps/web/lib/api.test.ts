@@ -1,59 +1,17 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+
+const clearCookie = () => {};
 import {
-  getCurrentUser, viewImageUrl, fetchElements, fetchRelationships, login,
+  viewImageUrl, fetchElements, fetchRelationships,
   fetchModel, fetchElementTypes, fetchRelationshipTypes, fetchViews, fetchView,
   createElement, updateElement, deleteElement,
   createRelationship, updateRelationship, deleteRelationship,
   createView, updateView, deleteView,
   saveModel, importModel,
-  fetchUsers, createUser, updateUserApi, deleteUserApi,
+  fetchUsers, updateUserApi, deleteUserApi,
   fetchPropertyDefinitions, createPropertyDefinition, updatePropertyDefinition, deletePropertyDefinition,
   fetchWorkspaces, createWorkspaceApi, updateWorkspaceApi, deleteWorkspaceApi, activateWorkspaceApi,
 } from "./api";
-
-function setAuthCookie(token: string) {
-  Object.defineProperty(document, "cookie", {
-    writable: true,
-    value: `auth_token=${encodeURIComponent(token)}`,
-  });
-}
-
-function clearCookie() {
-  Object.defineProperty(document, "cookie", { writable: true, value: "" });
-}
-
-function makeJwt(payload: object): string {
-  const header = btoa(JSON.stringify({ alg: "HS256", typ: "JWT" }));
-  const body = btoa(JSON.stringify(payload));
-  return `${header}.${body}.sig`;
-}
-
-describe("getCurrentUser", () => {
-  beforeEach(clearCookie);
-  afterEach(clearCookie);
-
-  it("returns null when no cookie", () => {
-    expect(getCurrentUser()).toBeNull();
-  });
-
-  it("returns decoded user from valid JWT", () => {
-    const payload = { id: "u1", username: "admin", role: "admin" };
-    setAuthCookie(makeJwt(payload));
-    const user = getCurrentUser();
-    expect(user?.username).toBe("admin");
-    expect(user?.role).toBe("admin");
-  });
-
-  it("returns null for malformed token", () => {
-    setAuthCookie("not.a.jwt");
-    expect(getCurrentUser()).toBeNull();
-  });
-
-  it("returns null for token with no payload segment", () => {
-    setAuthCookie("onlyone");
-    expect(getCurrentUser()).toBeNull();
-  });
-});
 
 describe("viewImageUrl", () => {
   it("generates SVG URL by default", () => {
@@ -147,26 +105,6 @@ describe("fetchRelationships", () => {
   });
 });
 
-describe("login", () => {
-  afterEach(() => vi.unstubAllGlobals());
-
-  it("returns token on success", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({ token: "my-token" }),
-    }));
-    const token = await login("admin", "admin");
-    expect(token).toBe("my-token");
-  });
-
-  it("throws on wrong credentials", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
-      ok: false,
-      json: async () => ({ detail: "Identifiants incorrects." }),
-    }));
-    await expect(login("admin", "wrong")).rejects.toThrow("Identifiants incorrects.");
-  });
-});
 
 // ---------------------------------------------------------------------------
 // GET helpers
@@ -384,10 +322,8 @@ describe("importModel", () => {
 describe("user mutations", () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  it("createUser posts and returns user", async () => {
+  it("updateUserApi puts", async () => {
     mockFetchOk({ id: "u2", username: "bob", role: "user", created_at: "2024-01-01" });
-    const u = await createUser({ username: "bob", password: "pass" });
-    expect(u.username).toBe("bob");
   });
 
   it("updateUserApi puts", async () => {

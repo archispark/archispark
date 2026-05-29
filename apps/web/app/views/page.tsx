@@ -1,30 +1,26 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react"; // eslint-disable-line
 import Link from "next/link";
-import { fetchViews, createView, updateView, deleteView, type ViewOut } from "@/lib/api";
+import {
+  fetchViews,
+  createView, updateView, deleteView,
+  type ViewOut,
+} from "@/lib/api";
 import { Button } from "@workspace/ui/components/button";
 import { Input } from "@workspace/ui/components/input";
 import { Label } from "@workspace/ui/components/label";
 import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
+  Select, SelectTrigger, SelectValue, SelectContent, SelectItem,
 } from "@workspace/ui/components/select";
 import {
-  Dialog,
-  DialogTrigger,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-  DialogClose,
+  Dialog, DialogTrigger, DialogContent, DialogHeader,
+  DialogTitle, DialogDescription, DialogFooter, DialogClose,
 } from "@workspace/ui/components/dialog";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import { useIsAdmin } from "@/hooks/use-current-user";
+import type { ColumnDef } from "@tanstack/react-table";
+import { DataTable } from "@/components/data-table";
 
 const VIEWPOINTS = [
   "Organization", "Application Platform", "Application Structure",
@@ -75,81 +71,104 @@ export default function ViewsPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  useEffect(() => {
-    fetchViews()
-      .then(setViews)
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false));
-  }, []);
+  useEffect(() => { reload(); }, [reload]);
 
   function openEdit(view: ViewOut, e: React.MouseEvent) {
-    e.preventDefault();
-    e.stopPropagation();
+    e.preventDefault(); e.stopPropagation();
     setEditTarget(view);
     setEditName(view.name);
-    setEditViewpoint("");
+    setEditViewpoint(view.viewpoint ?? "");
     setEditDoc(view.documentation ?? "");
     setEditError(null);
     setEditOpen(true);
   }
 
   function openDelete(view: ViewOut, e: React.MouseEvent) {
-    e.preventDefault();
-    e.stopPropagation();
-    setDelTarget(view);
-    setDeleteError(null);
-    setDeleteOpen(true);
+    e.preventDefault(); e.stopPropagation();
+    setDelTarget(view); setDeleteError(null); setDeleteOpen(true);
   }
 
   async function handleCreate() {
     if (!newName.trim()) return;
-    setCreating(true);
-    setCreateError(null);
+    setCreating(true); setCreateError(null);
     try {
       await createView({ name: newName.trim(), viewpoint: newViewpoint || null, documentation: newDoc.trim() || null });
-      setCreateOpen(false);
-      setNewName(""); setNewViewpoint(""); setNewDoc("");
+      setCreateOpen(false); setNewName(""); setNewViewpoint(""); setNewDoc("");
       reload();
-    } catch (err) {
-      setCreateError((err as Error).message);
-    } finally {
-      setCreating(false);
-    }
+    } catch (err) { setCreateError((err as Error).message); }
+    finally { setCreating(false); }
   }
 
   async function handleEdit() {
     if (!editTarget || !editName.trim()) return;
-    setSaving(true);
-    setEditError(null);
+    setSaving(true); setEditError(null);
     try {
-      await updateView(editTarget.identifier, {
-        name: editName.trim(),
-        viewpoint: editViewpoint || null,
-        documentation: editDoc.trim() || null,
-      });
-      setEditOpen(false);
-      reload();
-    } catch (err) {
-      setEditError((err as Error).message);
-    } finally {
-      setSaving(false);
-    }
+      await updateView(editTarget.identifier, { name: editName.trim(), viewpoint: editViewpoint || null, documentation: editDoc.trim() || null });
+      setEditOpen(false); reload();
+    } catch (err) { setEditError((err as Error).message); }
+    finally { setSaving(false); }
   }
 
   async function handleDelete() {
     if (!delTarget) return;
-    setDeleting(true);
-    setDeleteError(null);
+    setDeleting(true); setDeleteError(null);
     try {
-      await deleteView(delTarget.identifier);
-      setDeleteOpen(false);
-      reload();
-    } catch (err) {
-      setDeleteError((err as Error).message);
-    } finally {
-      setDeleting(false);
-    }
+      await deleteView(delTarget.identifier); setDeleteOpen(false); reload();
+    } catch (err) { setDeleteError((err as Error).message); }
+    finally { setDeleting(false); }
   }
+
+  const viewColumns: ColumnDef<ViewOut>[] = useMemo(() => [
+    {
+      accessorKey: "name",
+      header: "Nom",
+      cell: ({ row }) => (
+        <Link
+          href={`/views/${encodeURIComponent(row.original.identifier)}`}
+          className="font-medium text-foreground hover:text-primary no-underline"
+        >
+          {row.original.name || "Sans nom"}
+        </Link>
+      ),
+    },
+    {
+      accessorKey: "viewpoint",
+      header: "Viewpoint",
+      cell: ({ row }) => (
+        <span className="text-[13px] text-muted-foreground">{row.original.viewpoint || "—"}</span>
+      ),
+    },
+    {
+      accessorKey: "node_count",
+      header: "Nœuds",
+      cell: ({ row }) => (
+        <span className="text-[13px] text-muted-foreground">{row.original.node_count}</span>
+      ),
+    },
+    {
+      accessorKey: "connection_count",
+      header: "Connexions",
+      cell: ({ row }) => (
+        <span className="text-[13px] text-muted-foreground">{row.original.connection_count}</span>
+      ),
+    },
+    {
+      id: "actions",
+      header: "",
+      enableSorting: false,
+      cell: ({ row }) =>
+        isAdmin ? (
+          <div className="flex items-center gap-1 justify-end">
+            <Button variant="ghost" size="icon-xs" onClick={(e) => openEdit(row.original, e)} aria-label="Modifier">
+              <Pencil className="size-3.5" />
+            </Button>
+            <Button variant="ghost" size="icon-xs" onClick={(e) => openDelete(row.original, e)} aria-label="Supprimer">
+              <Trash2 className="size-3.5 text-destructive" />
+            </Button>
+          </div>
+        ) : null,
+    },
+  ], [isAdmin]);
 
   if (loading && views.length === 0) {
     return (
@@ -170,47 +189,52 @@ export default function ViewsPage() {
 
   return (
     <div className="p-7 space-y-5">
+      {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-lg font-semibold">Vues</h1>
-          <p className="text-muted-foreground text-[13px] mt-0.5">{views.length} diagramme{views.length !== 1 ? "s" : ""} dans le modèle</p>
+          <p className="text-muted-foreground text-[13px] mt-0.5">
+            {views.length} diagramme{views.length !== 1 ? "s" : ""}
+          </p>
         </div>
-        {isAdmin && <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-          <DialogTrigger render={<Button size="sm" />}>
-            <Plus className="size-4" /> Nouvelle vue
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>Nouvelle vue</DialogTitle>
-              <DialogDescription>Créer une nouvelle vue (diagramme) dans le modèle.</DialogDescription>
-            </DialogHeader>
-            <div className="flex flex-col gap-4 py-2">
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="view-name">Nom *</Label>
-                <Input id="view-name" value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Ma vue" onKeyDown={(e) => e.key === "Enter" && handleCreate()} />
+        {isAdmin && (
+          <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+            <DialogTrigger render={<Button size="sm" />}>
+              <Plus className="size-4" /> Nouvelle vue
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Nouvelle vue</DialogTitle>
+                <DialogDescription>Créer une nouvelle vue dans le modèle.</DialogDescription>
+              </DialogHeader>
+              <div className="flex flex-col gap-4 py-2">
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="view-name">Nom *</Label>
+                  <Input id="view-name" value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Ma vue" onKeyDown={(e) => e.key === "Enter" && handleCreate()} />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label>Viewpoint</Label>
+                  <Select value={newViewpoint} onValueChange={(v) => setNewViewpoint(v ?? "")}>
+                    <SelectTrigger><SelectValue placeholder="Aucun (vue libre)" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">Aucun</SelectItem>
+                      {VIEWPOINTS.map((vp) => <SelectItem key={vp} value={vp}>{vp}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="view-doc">Documentation</Label>
+                  <textarea id="view-doc" value={newDoc} onChange={(e) => setNewDoc(e.target.value)} placeholder="Description optionnelle" className="bg-background border border-input rounded-md text-foreground text-sm px-3 py-2 outline-none focus:border-ring resize-vertical min-h-[72px]" />
+                </div>
               </div>
-              <div className="flex flex-col gap-1.5">
-                <Label>Viewpoint</Label>
-                <Select value={newViewpoint} onValueChange={(v) => setNewViewpoint(v ?? "")}>
-                  <SelectTrigger><SelectValue placeholder="Aucun (vue libre)" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="">Aucun</SelectItem>
-                    {VIEWPOINTS.map((vp) => <SelectItem key={vp} value={vp}>{vp}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="view-doc">Documentation</Label>
-                <textarea id="view-doc" value={newDoc} onChange={(e) => setNewDoc(e.target.value)} placeholder="Description optionnelle" className="bg-background border border-input rounded-md text-foreground text-sm px-3 py-2 outline-none focus:border-ring resize-vertical min-h-[72px]" />
-              </div>
-            </div>
-            {createError && <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">{createError}</div>}
-            <DialogFooter>
-              <DialogClose render={<Button variant="outline" />}>Annuler</DialogClose>
-              <Button onClick={handleCreate} disabled={creating || !newName.trim()}>{creating ? "Création…" : "Créer"}</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>}
+              {createError && <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">{createError}</div>}
+              <DialogFooter>
+                <DialogClose render={<Button variant="outline" />}>Annuler</DialogClose>
+                <Button onClick={handleCreate} disabled={creating || !newName.trim()}>{creating ? "Création…" : "Créer"}</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
 
       {views.length === 0 ? (
@@ -219,27 +243,8 @@ export default function ViewsPage() {
           <p className="text-sm">Aucune vue dans le modèle.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-3">
-          {views.map((view) => (
-            <Link
-              key={view.identifier}
-              href={`/views/${encodeURIComponent(view.identifier)}`}
-              className="group bg-card border border-border rounded-lg p-5 no-underline transition-all hover:border-primary hover:-translate-y-px flex flex-col gap-2 relative"
-            >
-              {isAdmin && (
-                <div className="absolute top-3 right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <Button variant="ghost" size="icon-xs" onClick={(e) => openEdit(view, e)} aria-label="Modifier">
-                    <Pencil className="size-3.5" />
-                  </Button>
-                  <Button variant="ghost" size="icon-xs" onClick={(e) => openDelete(view, e)} aria-label="Supprimer">
-                    <Trash2 className="size-3.5 text-destructive" />
-                  </Button>
-                </div>
-              )}
-              <h2 className="text-[14px] font-semibold text-foreground pr-16">{view.name || "Sans nom"}</h2>
-              <div className="text-muted-foreground text-[13px] leading-relaxed flex-1">{view.documentation || "Pas de description"}</div>
-            </Link>
-          ))}
+        <div className="border border-border rounded-lg bg-card overflow-hidden">
+          <DataTable columns={viewColumns} data={views} pageSize={10} />
         </div>
       )}
 

@@ -165,6 +165,12 @@ function ElementsPageInner() {
     return groups;
   }, [types]);
 
+  useEffect(() => {
+    if (layerFilter && typeFilter && !(grouped[layerFilter] ?? []).includes(typeFilter)) {
+      setTypeFilter(null);
+    }
+  }, [layerFilter, typeFilter, grouped]);
+
   function openEdit(el: ElementOut) {
     setEditTarget(el);
     setEditName(el.name);
@@ -362,7 +368,7 @@ function ElementsPageInner() {
           <SelectTrigger className="min-w-[180px]"><SelectValue placeholder="Tous les types" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="">Tous les types</SelectItem>
-            {Object.values(grouped).flat().map((t) => (
+            {(layerFilter ? (grouped[layerFilter] ?? []) : Object.values(grouped).flat()).map((t) => (
               <SelectItem key={t} value={t}>{t}</SelectItem>
             ))}
           </SelectContent>

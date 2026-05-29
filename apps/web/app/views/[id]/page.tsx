@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { fetchView, fetchElements, fetchRelationships, viewImageUrl, type ViewDetail } from "@/lib/api";
+import { fetchView, fetchElements, fetchRelationships, viewImageUrl, type ViewDetail, type ElementOut, type RelationshipOut } from "@/lib/api";
 import { Button } from "@workspace/ui/components/button";
 import { ViewCanvas } from "@/components/view-canvas";
+import { ValidatorTable } from "@/components/validator-table";
 
 type Tab = "canvas" | "svg" | "png";
 
@@ -18,9 +19,8 @@ function useImageBlob(id: string, format: "svg" | "png" | null) {
     setBlobUrl(null);
     setImgError(null);
 
-    const token = document.cookie.match(/(?:^|;\s*)auth_token=([^;]+)/)?.[1];
     fetch(viewImageUrl(id, format), {
-      headers: token ? { Authorization: `Bearer ${decodeURIComponent(token)}` } : {},
+      credentials: "include",
     })
       .then((res) => {
         if (!res.ok) throw new Error(`Erreur ${res.status}`);
@@ -50,9 +50,12 @@ export default function ViewDetailPage() {
   const params = useParams<{ id: string }>();
   const id = decodeURIComponent(params.id);
   const [view, setView] = useState<ViewDetail | null>(null);
+  const [elementsList, setElementsList] = useState<ElementOut[]>([]);
+  const [relationshipsList, setRelationshipsList] = useState<RelationshipOut[]>([]);
   const [elementNames, setElementNames] = useState<Map<string, string>>(new Map());
   const [elementTypes, setElementTypes] = useState<Map<string, string>>(new Map());
   const [relationshipTypes, setRelationshipTypes] = useState<Map<string, string>>(new Map());
+  const [relationshipNames, setRelationshipNames] = useState<Map<string, string>>(new Map());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("canvas");
@@ -64,9 +67,12 @@ export default function ViewDetailPage() {
     Promise.all([fetchView(id), fetchElements(), fetchRelationships()])
       .then(([v, elements, relationships]) => {
         setView(v);
+        setElementsList(elements);
         setElementNames(new Map(elements.map((e) => [e.identifier, e.name])));
         setElementTypes(new Map(elements.map((e) => [e.identifier, e.type])));
+        setRelationshipsList(relationships);
         setRelationshipTypes(new Map(relationships.map((r) => [r.identifier, r.type])));
+        setRelationshipNames(new Map(relationships.filter((r) => r.name).map((r) => [r.identifier, r.name])));
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
@@ -128,26 +134,48 @@ export default function ViewDetailPage() {
         </div>
       </div>
 
-      <div className="border border-border rounded-lg bg-card overflow-hidden">
-        {tab === "canvas" && view ? (
-          <ViewCanvas nodes={view.nodes} connections={view.connections} elementNames={elementNames} elementTypes={elementTypes} relationshipTypes={relationshipTypes} />
-        ) : imgError ? (
-          <div className="p-4 text-sm text-destructive bg-destructive/10 border-t border-destructive/30">
-            Erreur : {imgError}
-          </div>
-        ) : blobUrl ? (
-          <div className="overflow-auto p-4">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={blobUrl}
-              alt={view?.name || "View"}
-              className="max-w-full h-auto"
+      <div className="space-y-4">
+        <div className="border border-border rounded-lg bg-card overflow-hidden">
+          {view ? (
+            <div style={{ display: tab === "canvas" ? "block" : "none" }}>
+              <ViewCanvas viewId={id} nodes={view.nodes} connections={view.connections} elements={elementsList} elementNames={elementNames} elementTypes={elementTypes} relationshipTypes={relationshipTypes} relationshipNames={relationshipNames} />
+            </div>
+          ) : null}
+          {tab === "svg" || tab === "png" ? (
+            imgError ? (
+              <div className="p-4 text-sm text-destructive bg-destructive/10 border-t border-destructive/30">
+                Erreur : {imgError}
+              </div>
+            ) : blobUrl ? (
+              <div className="overflow-auto p-4">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={blobUrl}
+                  alt={view?.name || "View"}
+                  className="max-w-full h-auto"
+                />
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 text-muted-foreground p-8">
+                <div className="size-4 rounded-full border-2 border-border border-t-primary animate-spin shrink-0" />
+                Chargement de l&apos;image…
+              </div>
+            )
+          ) : null}
+        </div>
+
+        {view && tab === "canvas" && (
+          <div className="border border-border rounded-lg bg-card overflow-hidden">
+            <div className="px-4 pt-3 pb-1 text-[12px] font-medium text-muted-foreground uppercase tracking-wide">
+              Validateur des relations de la vue
+            </div>
+            <ValidatorTable
+              elements={elementsList}
+              relationships={(() => {
+                const refs = new Set(view.connections.map((c) => c.relationship_ref).filter((r): r is string => !!r));
+                return relationshipsList.filter((r) => refs.has(r.identifier));
+              })()}
             />
-          </div>
-        ) : (
-          <div className="flex items-center gap-2 text-muted-foreground p-8">
-            <div className="size-4 rounded-full border-2 border-border border-t-primary animate-spin shrink-0" />
-            Chargement de l&apos;image…
           </div>
         )}
       </div>

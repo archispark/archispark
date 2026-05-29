@@ -22,9 +22,11 @@ vi.mock("@xyflow/react", () => ({
   getSmoothStepPath: () => ["M0,0 L1,1", 0, 0],
   getNodesBounds: () => ({ x: 0, y: 0, width: 0, height: 0 }),
   getViewportForBounds: () => ({ x: 0, y: 0, zoom: 1 }),
+  reconnectEdge: (_old: unknown, _new: unknown, eds: unknown[]) => eds,
   useNodesState: (initial: unknown[]) => [initial, vi.fn(), vi.fn()],
   useEdgesState: (initial: unknown[]) => [initial, vi.fn(), vi.fn()],
-  useReactFlow: () => ({ getNodes: () => [] }),
+  useReactFlow: () => ({ getNodes: () => [], setEdges: vi.fn(), setNodes: vi.fn(), screenToFlowPosition: (p: { x: number; y: number }) => p }),
+  ReactFlowProvider: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
 }));
 
 vi.mock("html-to-image", () => ({

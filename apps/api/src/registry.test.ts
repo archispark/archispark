@@ -2,16 +2,19 @@
  * Tests for src/registry.ts — workspace routes.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeAll } from "vitest";
 import _request from "supertest";
-import jwt from "jsonwebtoken";
-
-import { JWT_SECRET } from "../src/auth.js";
 import { app } from "../src/app.js";
+import { getAdminCookie } from "../src/test-helper.js";
 
-const _TEST_TOKEN = jwt.sign({ id: "test-admin", username: "admin", role: "admin" }, JWT_SECRET);
+let adminCookie: string;
+
+beforeAll(async () => {
+  adminCookie = await getAdminCookie();
+});
+
 function request(appArg: Parameters<typeof _request>[0]) {
-  return _request.agent(appArg).set("Authorization", `Bearer ${_TEST_TOKEN}`);
+  return _request.agent(appArg).set("Cookie", adminCookie);
 }
 
 // ===========================================================================

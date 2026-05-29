@@ -124,6 +124,7 @@ export interface ModelInfo {
   element_count: number;
   relationship_count: number;
   view_count: number;
+  property_definition_count: number;
   workspace_id?: string | null;
   workspace_name?: string | null;
 }
@@ -151,12 +152,16 @@ export interface RelationshipOut {
   modifier?: string | null;
 }
 
+export type EdgeSide = "top" | "right" | "bottom" | "left";
+
 export interface ConnectionOut {
   identifier: string;
   name?: string | null;
   relationship_ref?: string | null;
   source?: string | null;
   target?: string | null;
+  source_side?: EdgeSide | null;
+  target_side?: EdgeSide | null;
   style?: StyleOut | null;
 }
 
@@ -252,3 +257,29 @@ export interface NodeCreateIn {
   w?: number | null;
   h?: number | null;
 }
+
+export interface NodeUpdateIn {
+  x?: number | null;
+  y?: number | null;
+  w?: number | null;
+  h?: number | null;
+  name?: string | null;
+}
+
+export interface ConnectionCreateIn {
+  relationship_id?: string | null;
+  source: string;
+  target: string;
+  name?: string | null;
+  source_side?: EdgeSide | null;
+  target_side?: EdgeSide | null;
+}
+
+export interface ConnectionUpdateIn {
+  name?: string | null;
+  source?: string;
+  target?: string;
+  source_side?: EdgeSide | null;
+  target_side?: EdgeSide | null;
+}
+

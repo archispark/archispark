@@ -1,56 +1,57 @@
-import { describe, it, expect, afterEach } from "vitest";
-import { renderHook, act } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { renderHook } from "@testing-library/react";
 import { useCurrentUser, useIsAdmin } from "./use-current-user";
 
-function setAuthCookie(payload: object) {
-  const header = btoa(JSON.stringify({ alg: "HS256", typ: "JWT" }));
-  const body = btoa(JSON.stringify(payload));
-  const token = encodeURIComponent(`${header}.${body}.sig`);
-  Object.defineProperty(document, "cookie", { writable: true, value: `auth_token=${token}` });
-}
+vi.mock("@/lib/auth-client", () => {
+  let mockUser: { id: string; name: string; username?: string; role?: string } | null = null;
+  return {
+    useSession: () => ({
+      data: mockUser ? { user: mockUser, session: {} } : null,
+    }),
+    signIn: { username: vi.fn() },
+    signOut: vi.fn(),
+    signUp: vi.fn(),
+    getSession: vi.fn(),
+    _setMockUser: (u: typeof mockUser) => { mockUser = u; },
+  };
+});
 
-function clearCookie() {
-  Object.defineProperty(document, "cookie", { writable: true, value: "" });
-}
+import * as authClient from "@/lib/auth-client";
+const setMockUser = (authClient as unknown as { _setMockUser: (u: unknown) => void })._setMockUser;
 
 describe("useCurrentUser", () => {
-  afterEach(clearCookie);
+  beforeEach(() => setMockUser(null));
 
-  it("returns null when no auth cookie", () => {
-    clearCookie();
+  it("returns null when no session", () => {
     const { result } = renderHook(() => useCurrentUser());
     expect(result.current).toBeNull();
   });
 
-  it("returns user when valid JWT in cookie", async () => {
-    setAuthCookie({ id: "u1", username: "alice", role: "admin" });
+  it("returns user when session exists", () => {
+    setMockUser({ id: "u1", name: "alice", username: "alice", role: "admin" });
     const { result } = renderHook(() => useCurrentUser());
-    await act(async () => {});
     expect(result.current?.username).toBe("alice");
     expect(result.current?.role).toBe("admin");
   });
 });
 
 describe("useIsAdmin", () => {
-  afterEach(clearCookie);
+  beforeEach(() => setMockUser(null));
 
   it("returns false when no user", () => {
-    clearCookie();
     const { result } = renderHook(() => useIsAdmin());
     expect(result.current).toBe(false);
   });
 
-  it("returns true when user role is admin", async () => {
-    setAuthCookie({ id: "u1", username: "alice", role: "admin" });
+  it("returns true when user role is admin", () => {
+    setMockUser({ id: "u1", name: "alice", username: "alice", role: "admin" });
     const { result } = renderHook(() => useIsAdmin());
-    await act(async () => {});
     expect(result.current).toBe(true);
   });
 
-  it("returns false when user role is user", async () => {
-    setAuthCookie({ id: "u2", username: "bob", role: "user" });
+  it("returns false when user role is user", () => {
+    setMockUser({ id: "u2", name: "bob", username: "bob", role: "user" });
     const { result } = renderHook(() => useIsAdmin());
-    await act(async () => {});
     expect(result.current).toBe(false);
   });
 });

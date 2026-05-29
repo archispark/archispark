@@ -35,9 +35,10 @@ import {
 } from "@workspace/ui/components/dialog";
 import { DataTable } from "@/components/data-table";
 import { PropertiesEditor } from "@/components/properties-editor";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2, ChevronDown, ChevronRight } from "lucide-react";
 import type { Property } from "@/lib/api";
 import { useIsAdmin } from "@/hooks/use-current-user";
+import { allowedRelationships } from "@/lib/archimate-rules";
 
 export default function RelationshipsPage() {
   const isAdmin = useIsAdmin();
@@ -49,6 +50,7 @@ export default function RelationshipsPage() {
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<"all" | "ok" | "conflict">("all");
   const initialLoad = useRef(true);
 
   // Create
@@ -186,11 +188,45 @@ export default function RelationshipsPage() {
     }
   }
 
+  const byId = useMemo(() => new Map(allElements.map((e) => [e.identifier, e])), [allElements]);
+
   const columns: ColumnDef<RelationshipOut>[] = useMemo(() => [
     {
-      accessorKey: "name",
-      header: "Nom",
-      cell: ({ row }) => <span className="font-medium">{row.getValue("name") || "—"}</span>,
+      id: "expand",
+      header: "",
+      enableSorting: false,
+      cell: ({ row }) => (
+        <button
+          type="button"
+          onClick={() => row.toggleExpanded()}
+          className="text-muted-foreground hover:text-foreground transition-colors"
+          aria-label={row.getIsExpanded() ? "Replier" : "Déplier"}
+        >
+          {row.getIsExpanded()
+            ? <ChevronDown className="size-3.5" />
+            : <ChevronRight className="size-3.5" />}
+        </button>
+      ),
+    },
+    {
+      id: "status",
+      header: "Statut",
+      enableSorting: true,
+      accessorFn: (rel) => {
+        const src = byId.get(rel.source);
+        const tgt = byId.get(rel.target);
+        return allowedRelationships(src?.type, tgt?.type).includes(rel.type) ? "OK" : "Conflit";
+      },
+      cell: ({ row }) => {
+        const src = byId.get(row.original.source);
+        const tgt = byId.get(row.original.target);
+        const ok = allowedRelationships(src?.type, tgt?.type).includes(row.original.type);
+        return ok ? (
+          <span className="inline-flex items-center justify-center size-5 rounded-full bg-emerald-500/15 text-emerald-700 text-[11px]">✓</span>
+        ) : (
+          <span className="inline-flex items-center justify-center size-5 rounded-full bg-destructive/15 text-destructive text-[11px]">✕</span>
+        );
+      },
     },
     {
       accessorKey: "type",
@@ -198,22 +234,35 @@ export default function RelationshipsPage() {
       cell: ({ row }) => <Badge variant="secondary" className="font-mono text-xs">{row.getValue("type")}</Badge>,
     },
     {
+      accessorKey: "name",
+      header: "Nom",
+      cell: ({ row }) => <span className="font-medium">{row.getValue("name") || "—"}</span>,
+    },
+    {
       accessorKey: "source",
       header: "Source",
-      cell: ({ row }) => (
-        <span className="text-muted-foreground text-xs truncate block max-w-[160px]" title={row.getValue("source")}>
-          {elLabel(row.getValue("source"))}
-        </span>
-      ),
+      cell: ({ row }) => {
+        const el = byId.get(row.getValue("source"));
+        return (
+          <div className="text-xs max-w-[150px]">
+            <div className="truncate">{el?.name || row.getValue("source")}</div>
+            {el && <div className="text-muted-foreground">{el.type}</div>}
+          </div>
+        );
+      },
     },
     {
       accessorKey: "target",
       header: "Cible",
-      cell: ({ row }) => (
-        <span className="text-muted-foreground text-xs truncate block max-w-[160px]" title={row.getValue("target")}>
-          {elLabel(row.getValue("target"))}
-        </span>
-      ),
+      cell: ({ row }) => {
+        const el = byId.get(row.getValue("target"));
+        return (
+          <div className="text-xs max-w-[150px]">
+            <div className="truncate">{el?.name || row.getValue("target")}</div>
+            {el && <div className="text-muted-foreground">{el.type}</div>}
+          </div>
+        );
+      },
     },
     ...(isAdmin ? [{
       id: "actions",
@@ -230,7 +279,7 @@ export default function RelationshipsPage() {
         </div>
       ),
     }] : []),
-  ], [isAdmin, elLabel]);
+  ], [isAdmin, byId]);
 
   if (error) {
     return (
@@ -253,12 +302,37 @@ export default function RelationshipsPage() {
     </Select>
   );
 
+  const validationStats = useMemo(() => {
+    let ok = 0, bad = 0;
+    for (const rel of relationships) {
+      const src = byId.get(rel.source);
+      const tgt = byId.get(rel.target);
+      if (allowedRelationships(src?.type, tgt?.type).includes(rel.type)) ok++; else bad++;
+    }
+    return { ok, bad };
+  }, [relationships, byId]);
+
+  const filteredRelationships = useMemo(() => {
+    if (statusFilter === "all") return relationships;
+    return relationships.filter((rel) => {
+      const src = byId.get(rel.source);
+      const tgt = byId.get(rel.target);
+      const ok = allowedRelationships(src?.type, tgt?.type).includes(rel.type);
+      return statusFilter === "ok" ? ok : !ok;
+    });
+  }, [relationships, byId, statusFilter]);
+
   return (
     <div className="p-7 space-y-5">
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-lg font-semibold">Relations</h1>
-          <p className="text-muted-foreground text-[13px] mt-0.5">Explorer les relations entre éléments ArchiMate</p>
+          <p className="text-muted-foreground text-[13px] mt-0.5">
+            {relationships.length} relation{relationships.length !== 1 ? "s" : ""}
+            {" · "}
+            <span className="text-emerald-600">{validationStats.ok} OK</span>
+            {validationStats.bad > 0 && <span className="text-destructive"> · {validationStats.bad} conflit{validationStats.bad > 1 ? "s" : ""}</span>}
+          </p>
         </div>
         {isAdmin && <Dialog open={createOpen} onOpenChange={setCreateOpen}>
           <DialogTrigger render={<Button size="sm" />}>
@@ -316,9 +390,48 @@ export default function RelationshipsPage() {
             {types.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
           </SelectContent>
         </Select>
+        <div className="flex items-center gap-1">
+          {(["all", "ok", "conflict"] as const).map((f) => (
+            <button
+              key={f}
+              type="button"
+              onClick={() => setStatusFilter(f)}
+              className={`text-[12px] px-2.5 py-1 rounded-md border transition-colors ${
+                statusFilter === f
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "bg-background text-foreground border-border hover:bg-muted"
+              }`}
+            >
+              {f === "all" ? "Toutes" : f === "ok" ? "OK" : "Conflits"}
+            </button>
+          ))}
+        </div>
       </div>
 
-      <DataTable columns={columns} data={relationships} loading={loading} />
+      <DataTable
+        columns={columns}
+        data={filteredRelationships}
+        loading={loading}
+        renderSubRow={(row) => {
+          const rel = row.original as RelationshipOut;
+          const src = byId.get(rel.source);
+          const tgt = byId.get(rel.target);
+          const allowed = allowedRelationships(src?.type, tgt?.type);
+          const ok = allowed.includes(rel.type);
+          return (
+            <div className="text-[12px] text-muted-foreground space-y-0.5">
+              {ok ? (
+                <p><span className="text-emerald-700 font-medium">Autorisé</span> — {rel.type} entre {src?.type ?? "?"} et {tgt?.type ?? "?"}</p>
+              ) : (
+                <>
+                  <p><span className="text-destructive font-medium">Non autorisé</span> — {rel.type} entre {src?.type ?? "?"} et {tgt?.type ?? "?"}</p>
+                  <p>Suggestions : {allowed.length > 0 ? allowed.join(", ") : "aucune"}</p>
+                </>
+              )}
+            </div>
+          );
+        }}
+      />
 
       {/* Edit dialog */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>

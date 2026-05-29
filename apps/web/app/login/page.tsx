@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { login } from "@/lib/api";
+import { signIn } from "@/lib/auth-client";
 import { Input } from "@workspace/ui/components/input";
 import { Button } from "@workspace/ui/components/button";
 import { Label } from "@workspace/ui/components/label";
@@ -20,9 +20,11 @@ export default function LoginPage() {
     setLoading(true);
     setError(null);
     try {
-      const token = await login(username, password);
-      // Store in cookie (readable by middleware) — 24h expiry
-      document.cookie = `auth_token=${encodeURIComponent(token)}; path=/; max-age=86400; SameSite=Lax`;
+      const result = await signIn.username({ username, password });
+      if (result.error) {
+        setError(result.error.message ?? "Identifiants incorrects.");
+        return;
+      }
       router.push("/");
       router.refresh();
     } catch (err) {
@@ -36,12 +38,20 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-background px-4">
       <div className="w-full max-w-sm">
         <div className="flex items-center gap-2.5 justify-center mb-8">
-          <svg width="28" height="28" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
-            <polygon points="16,2 27,8 27,22 16,28 5,22 5,8" fill="#2563eb" />
-            <polygon points="16,9 22,13 22,21 16,25 10,21 10,13" fill="none" stroke="white" strokeWidth="0.8" strokeLinejoin="round" opacity="0.4" />
-            <polygon points="16,14 19,16 19,19 16,21 13,19 13,16" fill="white" opacity="0.15" />
+          <svg width="32" height="32" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="login-spark" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
+                <stop offset="0%" stopColor="#ff1e56" />
+                <stop offset="50%" stopColor="#ff3d74" />
+                <stop offset="100%" stopColor="#0096ff" />
+              </linearGradient>
+            </defs>
+            <path
+              d="M12 0 C12 7 13 11 24 12 C13 13 12 17 12 24 C12 17 11 13 0 12 C11 11 12 7 12 0 Z"
+              fill="url(#login-spark)"
+            />
           </svg>
-          <span className="text-[20px] leading-none tracking-tight" style={{ fontFamily: "'Trebuchet MS', Arial, sans-serif" }}>
+          <span className="text-[22px] leading-none tracking-tight" style={{ fontFamily: "'Trebuchet MS', Arial, sans-serif" }}>
             <span className="font-light text-foreground">Archi</span>
             <span className="font-bold text-primary">Spark</span>
           </span>

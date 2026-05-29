@@ -1,14 +1,22 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { getCurrentUser, type CurrentUser } from "@/lib/api";
+import { useSession } from "@/lib/auth-client";
+
+export interface CurrentUser {
+  id: string;
+  username: string;
+  role: string;
+}
 
 export function useCurrentUser(): CurrentUser | null {
-  const [user, setUser] = useState<CurrentUser | null>(null);
-  useEffect(() => {
-    setUser(getCurrentUser());
-  }, []);
-  return user;
+  const { data } = useSession();
+  if (!data?.user) return null;
+  const u = data.user as unknown as { id: string; name: string; username?: string; role?: string };
+  return {
+    id: u.id,
+    username: u.username ?? u.name,
+    role: u.role ?? "user",
+  };
 }
 
 export function useIsAdmin(): boolean {
