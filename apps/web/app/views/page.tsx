@@ -243,9 +243,7 @@ export default function ViewsPage() {
           <p className="text-sm">Aucune vue dans le modèle.</p>
         </div>
       ) : (
-        <div className="border border-border rounded-lg bg-card overflow-hidden">
-          <DataTable columns={viewColumns} data={views} pageSize={10} />
-        </div>
+        <DataTable columns={viewColumns} data={views} pageSize={10} searchable searchPlaceholder="Rechercher une vue…" />
       )}
 
       {/* Edit dialog */}

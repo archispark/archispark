@@ -3,8 +3,8 @@ import { seedWorkspace, modelFromDb, modelToDb } from "./model-io.js";
 import { runMigrations } from "./migrate.js";
 import type { ArchiModel } from "./model.js";
 
-beforeAll(() => {
-  runMigrations();
+beforeAll(async () => {
+  await runMigrations();
 });
 
 function emptyModel(uuid: string, name = "Empty"): ArchiModel {
@@ -16,16 +16,16 @@ function emptyModel(uuid: string, name = "Empty"): ArchiModel {
 // ---------------------------------------------------------------------------
 
 describe("seedWorkspace", () => {
-  it("creates workspace and returns numeric id", () => {
-    const id = seedWorkspace(`SW-${Date.now()}`, emptyModel("sw-uuid-1"));
+  it("creates workspace and returns numeric id", async () => {
+    const id = await seedWorkspace(`SW-${Date.now()}`, emptyModel("sw-uuid-1"));
     expect(typeof id).toBe("number");
     expect(id).toBeGreaterThan(0);
   });
 
-  it("returns existing id when name already exists (idempotent)", () => {
+  it("returns existing id when name already exists (idempotent)", async () => {
     const name = `SW-dup-${Date.now()}`;
-    const id1 = seedWorkspace(name, emptyModel("sw-dup-1"));
-    const id2 = seedWorkspace(name, emptyModel("sw-dup-2"));
+    const id1 = await seedWorkspace(name, emptyModel("sw-dup-1"));
+    const id2 = await seedWorkspace(name, emptyModel("sw-dup-2"));
     expect(id2).toBe(id1);
   });
 });
@@ -35,8 +35,8 @@ describe("seedWorkspace", () => {
 // ---------------------------------------------------------------------------
 
 describe("modelFromDb", () => {
-  it("throws when workspace id not found", () => {
-    expect(() => modelFromDb(999999)).toThrow(/not found/i);
+  it("throws when workspace id not found", async () => {
+    await expect(modelFromDb(999999)).rejects.toThrow(/not found/i);
   });
 });
 
@@ -45,7 +45,7 @@ describe("modelFromDb", () => {
 // ---------------------------------------------------------------------------
 
 describe("modelToDb + modelFromDb roundtrip", () => {
-  it("roundtrips a rich model with elements, relationships, propertyDefs, views", () => {
+  it("roundtrips a rich model with elements, relationships, propertyDefs, views", async () => {
     const model: ArchiModel = {
       uuid: `rt-uuid-${Date.now()}`,
       name: "Roundtrip Model",
@@ -67,8 +67,8 @@ describe("modelToDb + modelFromDb roundtrip", () => {
       relationships: [
         {
           uuid: "r1", type: "Association", name: "uses",
-          source: "e1",  // string form
-          target: { uuid: "e2", name: "Actor B", type: "BusinessActor", desc: null, props: {} },  // object form
+          source: "e1",
+          target: { uuid: "e2", name: "Actor B", type: "BusinessActor", desc: null, props: {} },
           desc: "rel desc", props: { pd1: "rel-cat" },
           access_type: "Write", is_directed: true, influence_strength: "high",
         },
@@ -129,21 +129,18 @@ describe("modelToDb + modelFromDb roundtrip", () => {
       ],
     };
 
-    const wsId = seedWorkspace(`RT-WS-${Date.now()}`, model);
-    const loaded = modelFromDb(wsId);
+    const wsId = await seedWorkspace(`RT-WS-${Date.now()}`, model);
+    const loaded = await modelFromDb(wsId);
 
-    // Workspace metadata
     expect(loaded.uuid).toBe(model.uuid);
     expect(loaded.desc).toBe("model description");
     expect(loaded.version).toBe("2.0");
 
-    // Elements
     expect(loaded.elements).toHaveLength(2);
     const elA = loaded.elements.find((e) => e.uuid === "e1")!;
     expect(elA.desc).toBe("el desc");
     expect(elA.props["pd1"]).toBe("cat-a");
 
-    // Relationships — both string and object source/target forms
     expect(loaded.relationships).toHaveLength(2);
     const rel1 = loaded.relationships.find((r) => r.uuid === "r1")!;
     expect(rel1.name).toBe("uses");
@@ -155,27 +152,23 @@ describe("modelToDb + modelFromDb roundtrip", () => {
     expect(rel2.access_type).toBeNull();
     expect(rel2.is_directed).toBeNull();
 
-    // Property definitions
     expect(loaded.propertyDefinitions).toHaveLength(1);
     expect(loaded.propertyDefinitions[0]!.name).toBe("Category");
 
-    // Views
     expect(loaded.views).toHaveLength(2);
     const v1 = loaded.views.find((v) => v.uuid === "v1")!;
     expect(v1.desc).toBe("view desc");
     expect(v1.primary_viewpoint).toBe("Layered");
 
-    // Nodes — parent + nested child
     expect(v1.nodes).toHaveLength(1);
     const parentNode = v1.nodes[0]!;
     expect(parentNode.fill_color).toEqual({ r: 255, g: 200, b: 100, a: 90 });
     expect(parentNode.font_name).toBe("Arial");
     expect(parentNode.nodes).toHaveLength(1);
     const childNode = parentNode.nodes[0]!;
-    expect(childNode.fill_color).toBeNull();  // null color roundtrip
+    expect(childNode.fill_color).toBeNull();
     expect(childNode.line_color).toBeNull();
 
-    // Connections
     expect(v1.conns).toHaveLength(2);
     const c1 = v1.conns.find((c) => c.uuid === "c1")!;
     expect(c1.bendpoints).toHaveLength(2);
@@ -185,16 +178,15 @@ describe("modelToDb + modelFromDb roundtrip", () => {
     expect(c2.line_color).toBeNull();
     expect(c2.bendpoints).toHaveLength(0);
 
-    // Empty view
     const v2 = loaded.views.find((v) => v.uuid === "v2")!;
     expect(v2.nodes).toHaveLength(0);
     expect(v2.conns).toHaveLength(0);
     expect(v2.primary_viewpoint).toBeNull();
   });
 
-  it("replaces model data on second modelToDb call", () => {
+  it("replaces model data on second modelToDb call", async () => {
     const initial = emptyModel(`upd-uuid-${Date.now()}`, "Initial");
-    const wsId = seedWorkspace(`Upd-WS-${Date.now()}`, initial);
+    const wsId = await seedWorkspace(`Upd-WS-${Date.now()}`, initial);
 
     const updated: ArchiModel = {
       ...initial,
@@ -206,14 +198,14 @@ describe("modelToDb + modelFromDb roundtrip", () => {
       views: [],
     };
 
-    modelToDb(wsId, updated);
-    const loaded = modelFromDb(wsId);
+    await modelToDb(wsId, updated);
+    const loaded = await modelFromDb(wsId);
     expect(loaded.desc).toBe("updated");
     expect(loaded.elements).toHaveLength(1);
     expect(loaded.elements[0]!.uuid).toBe("upd-e1");
   });
 
-  it("handles element with multiple properties", () => {
+  it("handles element with multiple properties", async () => {
     const model: ArchiModel = {
       uuid: `props-uuid-${Date.now()}`,
       name: "Props Model", desc: null, version: null,
@@ -226,8 +218,8 @@ describe("modelToDb + modelFromDb roundtrip", () => {
       ],
       relationships: [], views: [],
     };
-    const wsId = seedWorkspace(`Props-WS-${Date.now()}`, model);
-    const loaded = modelFromDb(wsId);
+    const wsId = await seedWorkspace(`Props-WS-${Date.now()}`, model);
+    const loaded = await modelFromDb(wsId);
     expect(loaded.elements[0]!.props["p1"]).toBe("team-a");
     expect(loaded.elements[0]!.props["p2"]).toBe("1000");
   });

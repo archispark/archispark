@@ -1509,9 +1509,9 @@ describe("createNode", () => {
 // ===========================================================================
 
 describe("saveModel", () => {
-  it("returns { saved: true, path }", () => {
+  it("returns { saved: true, path }", async () => {
     const ds = makeDataSource({ name: "Save Test" });
-    const result = saveModel(ds);
+    const result = await saveModel(ds);
     expect(result.saved).toBe(true);
     expect(typeof result.path).toBe("string");
   });

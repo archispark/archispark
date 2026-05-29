@@ -55,15 +55,18 @@ const Property = {
 
 const ModelInfo = {
   type: "object",
-  required: ["identifier", "name", "element_count", "relationship_count", "view_count"],
+  required: ["identifier", "name", "element_count", "relationship_count", "view_count", "property_definition_count"],
   properties: {
-    identifier:         { type: "string" },
-    name:               { type: "string" },
-    documentation:      { type: "string", nullable: true },
-    version:            { type: "string", nullable: true },
-    element_count:      { type: "integer" },
-    relationship_count: { type: "integer" },
-    view_count:         { type: "integer" },
+    identifier:                  { type: "string" },
+    name:                        { type: "string" },
+    documentation:               { type: "string", nullable: true },
+    version:                     { type: "string", nullable: true },
+    element_count:               { type: "integer" },
+    relationship_count:          { type: "integer" },
+    view_count:                  { type: "integer" },
+    property_definition_count:   { type: "integer" },
+    workspace_id:                { type: "string", nullable: true },
+    workspace_name:              { type: "string", nullable: true },
   },
 };
 
@@ -126,6 +129,8 @@ const Connection = {
     relationship_ref: { type: "string", nullable: true },
     source:           { type: "string", nullable: true },
     target:           { type: "string", nullable: true },
+    source_side:      { type: "string", enum: ["top", "right", "bottom", "left"], nullable: true },
+    target_side:      { type: "string", enum: ["top", "right", "bottom", "left"], nullable: true },
     style:            { $ref: "#/components/schemas/Style", nullable: true },
   },
 };
@@ -248,6 +253,88 @@ const NodeCreateInput = {
   },
 };
 
+const ConnectionCreateInput = {
+  type: "object",
+  required: ["source", "target"],
+  properties: {
+    source:           { type: "string" },
+    target:           { type: "string" },
+    name:             { type: "string", nullable: true },
+    relationship_ref: { type: "string", nullable: true },
+    source_side:      { type: "string", enum: ["top", "right", "bottom", "left"], nullable: true },
+    target_side:      { type: "string", enum: ["top", "right", "bottom", "left"], nullable: true },
+  },
+};
+
+const ConnectionUpdateInput = {
+  type: "object",
+  properties: {
+    name:             { type: "string", nullable: true },
+    source_side:      { type: "string", enum: ["top", "right", "bottom", "left"], nullable: true },
+    target_side:      { type: "string", enum: ["top", "right", "bottom", "left"], nullable: true },
+  },
+};
+
+const NodeUpdateInput = {
+  type: "object",
+  properties: {
+    x: { type: "number", nullable: true },
+    y: { type: "number", nullable: true },
+    w: { type: "number", nullable: true },
+    h: { type: "number", nullable: true },
+  },
+};
+
+const WorkspaceInfo = {
+  type: "object",
+  required: ["id", "name", "active"],
+  properties: {
+    id:     { type: "string" },
+    name:   { type: "string" },
+    path:   { type: "string", nullable: true },
+    active: { type: "boolean" },
+  },
+};
+
+const UserOut = {
+  type: "object",
+  required: ["id", "username", "role", "created_at"],
+  properties: {
+    id:         { type: "string" },
+    username:   { type: "string" },
+    role:       { type: "string", example: "user" },
+    created_at: { type: "string", format: "date-time" },
+  },
+};
+
+const RoleOut = {
+  type: "object",
+  required: ["id", "name", "is_system", "created_at", "permissions", "user_ids"],
+  properties: {
+    id:          { type: "string" },
+    name:        { type: "string" },
+    description: { type: "string", nullable: true },
+    is_system:   { type: "boolean" },
+    created_at:  { type: "string", format: "date-time" },
+    permissions: {
+      type: "object",
+      description: "Map de layer → liste de flags (read|create|update|delete)",
+      additionalProperties: { type: "array", items: { type: "string" } },
+    },
+    user_ids: { type: "array", items: { type: "string" } },
+  },
+};
+
+const PropertyDefinition = {
+  type: "object",
+  required: ["identifier", "name"],
+  properties: {
+    identifier: { type: "string" },
+    name:       { type: "string" },
+    type:       { type: "string", nullable: true },
+  },
+};
+
 // ---------------------------------------------------------------------------
 // Spec
 // ---------------------------------------------------------------------------
@@ -255,21 +342,26 @@ const NodeCreateInput = {
 export const openApiSpec = {
   openapi: "3.0.3",
   info: {
-    title: "mcp-archimate",
+    title: "ArchiSpark API",
     version,
     description:
-      "API REST pour interroger et modifier un modèle ArchiMate 3.1 au format Open Exchange File (.xml). " +
-      "La source est configurée dans `config.json`.",
-    contact: { name: "GitHub", url: "https://github.com/lacrif/mcp-archimate" },
+      "API REST pour interroger et modifier un modèle ArchiMate 3.1. " +
+      "Authentification via Better Auth (cookie httpOnly). Permissions RBAC par couche ArchiMate.",
+    contact: { name: "GitHub", url: "https://github.com/lacrif/archispark" },
   },
   servers: [{ url: "http://localhost:3000", description: "Serveur local" }],
 
   tags: [
-    { name: "Model",         description: "Informations et persistance du modèle" },
-    { name: "Elements",      description: "Elements ArchiMate" },
-    { name: "Relationships", description: "Relations ArchiMate" },
-    { name: "Views",         description: "Vues et diagrammes" },
-    { name: "MCP",           description: "Transport MCP (streamable-http)" },
+    { name: "Auth",               description: "Authentification (Better Auth)" },
+    { name: "Model",              description: "Informations et persistance du modèle" },
+    { name: "Workspaces",         description: "Gestion des workspaces" },
+    { name: "Elements",           description: "Éléments ArchiMate 3.1" },
+    { name: "Relationships",      description: "Relations ArchiMate 3.1" },
+    { name: "Views",              description: "Vues et diagrammes" },
+    { name: "PropertyDefinitions", description: "Définitions de propriétés" },
+    { name: "Users",              description: "Gestion des utilisateurs" },
+    { name: "Roles",              description: "Rôles et permissions RBAC" },
+    { name: "MCP",                description: "Transport MCP (streamable-http)" },
   ],
 
   paths: {
@@ -681,6 +773,373 @@ export const openApiSpec = {
       },
     },
 
+    "/me": {
+      get: {
+        tags: ["Auth"],
+        summary: "Utilisateur courant",
+        operationId: "getMe",
+        security: [{ cookieAuth: [] }],
+        responses: {
+          "200": { description: "Utilisateur connecté", content: { "application/json": { schema: { $ref: "#/components/schemas/UserOut" } } } },
+          "401": { $ref: "#/components/responses/Unauthorized" },
+        },
+      },
+    },
+
+    "/workspaces": {
+      get: {
+        tags: ["Workspaces"],
+        summary: "Lister les workspaces",
+        operationId: "listWorkspaces",
+        security: [{ cookieAuth: [] }],
+        responses: {
+          "200": { description: "Liste des workspaces", content: { "application/json": { schema: { type: "array", items: { $ref: "#/components/schemas/WorkspaceInfo" } } } } },
+          "401": { $ref: "#/components/responses/Unauthorized" },
+        },
+      },
+      post: {
+        tags: ["Workspaces"],
+        summary: "Créer un workspace",
+        operationId: "createWorkspace",
+        security: [{ cookieAuth: [] }],
+        requestBody: {
+          required: true,
+          content: { "application/json": { schema: { type: "object", required: ["name"], properties: { name: { type: "string" }, path: { type: "string", nullable: true } } } } },
+        },
+        responses: {
+          "201": { description: "Workspace créé", content: { "application/json": { schema: { $ref: "#/components/schemas/WorkspaceInfo" } } } },
+          "401": { $ref: "#/components/responses/Unauthorized" },
+          "422": { $ref: "#/components/responses/UnprocessableType" },
+        },
+      },
+    },
+
+    "/workspaces/{id}": {
+      put: {
+        tags: ["Workspaces"],
+        summary: "Renommer un workspace",
+        operationId: "updateWorkspace",
+        security: [{ cookieAuth: [] }],
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+        requestBody: { required: true, content: { "application/json": { schema: { type: "object", properties: { name: { type: "string" } } } } } },
+        responses: {
+          "200": { description: "Workspace mis à jour", content: { "application/json": { schema: { $ref: "#/components/schemas/WorkspaceInfo" } } } },
+          "401": { $ref: "#/components/responses/Unauthorized" },
+          "404": { $ref: "#/components/responses/NotFound" },
+        },
+      },
+      delete: {
+        tags: ["Workspaces"],
+        summary: "Supprimer un workspace",
+        operationId: "deleteWorkspace",
+        security: [{ cookieAuth: [] }],
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+        responses: {
+          "204": { description: "Workspace supprimé" },
+          "401": { $ref: "#/components/responses/Unauthorized" },
+          "404": { $ref: "#/components/responses/NotFound" },
+        },
+      },
+    },
+
+    "/workspaces/{id}/activate": {
+      post: {
+        tags: ["Workspaces"],
+        summary: "Activer un workspace",
+        operationId: "activateWorkspace",
+        security: [{ cookieAuth: [] }],
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+        responses: {
+          "200": { description: "Workspace activé", content: { "application/json": { schema: { $ref: "#/components/schemas/WorkspaceInfo" } } } },
+          "401": { $ref: "#/components/responses/Unauthorized" },
+          "404": { $ref: "#/components/responses/NotFound" },
+        },
+      },
+    },
+
+    "/users": {
+      get: {
+        tags: ["Users"],
+        summary: "Lister les utilisateurs",
+        operationId: "listUsers",
+        security: [{ cookieAuth: [] }],
+        responses: {
+          "200": { description: "Liste des utilisateurs", content: { "application/json": { schema: { type: "array", items: { $ref: "#/components/schemas/UserOut" } } } } },
+          "401": { $ref: "#/components/responses/Unauthorized" },
+          "403": { $ref: "#/components/responses/Forbidden" },
+        },
+      },
+    },
+
+    "/users/{uid}/roles": {
+      get: {
+        tags: ["Users"],
+        summary: "Rôles d'un utilisateur",
+        operationId: "listUserRoles",
+        security: [{ cookieAuth: [] }],
+        parameters: [{ name: "uid", in: "path", required: true, schema: { type: "string" } }],
+        responses: {
+          "200": { description: "Rôles assignés", content: { "application/json": { schema: { type: "array", items: { $ref: "#/components/schemas/RoleOut" } } } } },
+          "401": { $ref: "#/components/responses/Unauthorized" },
+        },
+      },
+    },
+
+    "/roles": {
+      get: {
+        tags: ["Roles"],
+        summary: "Lister les rôles",
+        operationId: "listRoles",
+        security: [{ cookieAuth: [] }],
+        responses: {
+          "200": { description: "Liste des rôles RBAC", content: { "application/json": { schema: { type: "array", items: { $ref: "#/components/schemas/RoleOut" } } } } },
+          "401": { $ref: "#/components/responses/Unauthorized" },
+        },
+      },
+      post: {
+        tags: ["Roles"],
+        summary: "Créer un rôle",
+        operationId: "createRole",
+        security: [{ cookieAuth: [] }],
+        requestBody: {
+          required: true,
+          content: { "application/json": { schema: { type: "object", required: ["name"], properties: { name: { type: "string" }, description: { type: "string", nullable: true }, permissions: { type: "object", additionalProperties: { type: "array", items: { type: "string" } } } } } } },
+        },
+        responses: {
+          "201": { description: "Rôle créé", content: { "application/json": { schema: { $ref: "#/components/schemas/RoleOut" } } } },
+          "401": { $ref: "#/components/responses/Unauthorized" },
+          "403": { $ref: "#/components/responses/Forbidden" },
+        },
+      },
+    },
+
+    "/roles/{id}": {
+      get: {
+        tags: ["Roles"],
+        summary: "Détail d'un rôle",
+        operationId: "getRole",
+        security: [{ cookieAuth: [] }],
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+        responses: {
+          "200": { description: "Rôle", content: { "application/json": { schema: { $ref: "#/components/schemas/RoleOut" } } } },
+          "401": { $ref: "#/components/responses/Unauthorized" },
+          "404": { $ref: "#/components/responses/NotFound" },
+        },
+      },
+      put: {
+        tags: ["Roles"],
+        summary: "Modifier un rôle",
+        operationId: "updateRole",
+        security: [{ cookieAuth: [] }],
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+        requestBody: { required: true, content: { "application/json": { schema: { type: "object", properties: { name: { type: "string" }, description: { type: "string", nullable: true }, permissions: { type: "object" } } } } } },
+        responses: {
+          "200": { description: "Rôle mis à jour", content: { "application/json": { schema: { $ref: "#/components/schemas/RoleOut" } } } },
+          "401": { $ref: "#/components/responses/Unauthorized" },
+          "403": { $ref: "#/components/responses/Forbidden" },
+          "404": { $ref: "#/components/responses/NotFound" },
+        },
+      },
+      delete: {
+        tags: ["Roles"],
+        summary: "Supprimer un rôle",
+        operationId: "deleteRole",
+        security: [{ cookieAuth: [] }],
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+        responses: {
+          "204": { description: "Rôle supprimé" },
+          "401": { $ref: "#/components/responses/Unauthorized" },
+          "403": { $ref: "#/components/responses/Forbidden" },
+          "404": { $ref: "#/components/responses/NotFound" },
+        },
+      },
+    },
+
+    "/roles/{id}/layers/{layer}": {
+      get: {
+        tags: ["Roles"],
+        summary: "Permissions d'un rôle sur une couche",
+        operationId: "getRoleLayer",
+        security: [{ cookieAuth: [] }],
+        parameters: [
+          { name: "id", in: "path", required: true, schema: { type: "string" } },
+          { name: "layer", in: "path", required: true, schema: { type: "string" }, description: "Couche ArchiMate ou 'Relations'/'Views'" },
+        ],
+        responses: {
+          "200": { description: "Permissions", content: { "application/json": { schema: { type: "array", items: { type: "string" } } } } },
+          "401": { $ref: "#/components/responses/Unauthorized" },
+        },
+      },
+      put: {
+        tags: ["Roles"],
+        summary: "Définir permissions sur une couche",
+        operationId: "setRoleLayer",
+        security: [{ cookieAuth: [] }],
+        parameters: [
+          { name: "id", in: "path", required: true, schema: { type: "string" } },
+          { name: "layer", in: "path", required: true, schema: { type: "string" } },
+        ],
+        requestBody: { required: true, content: { "application/json": { schema: { type: "object", properties: { permissions: { type: "array", items: { type: "string", enum: ["read", "create", "update", "delete"] } } } } } } },
+        responses: {
+          "200": { description: "Permissions mises à jour" },
+          "401": { $ref: "#/components/responses/Unauthorized" },
+          "403": { $ref: "#/components/responses/Forbidden" },
+        },
+      },
+      delete: {
+        tags: ["Roles"],
+        summary: "Supprimer permissions sur une couche",
+        operationId: "deleteRoleLayer",
+        security: [{ cookieAuth: [] }],
+        parameters: [
+          { name: "id", in: "path", required: true, schema: { type: "string" } },
+          { name: "layer", in: "path", required: true, schema: { type: "string" } },
+        ],
+        responses: {
+          "204": { description: "Permissions supprimées" },
+          "401": { $ref: "#/components/responses/Unauthorized" },
+          "403": { $ref: "#/components/responses/Forbidden" },
+        },
+      },
+    },
+
+    "/roles/{id}/users/{uid}": {
+      put: {
+        tags: ["Roles"],
+        summary: "Assigner un utilisateur à un rôle",
+        operationId: "assignUserToRole",
+        security: [{ cookieAuth: [] }],
+        parameters: [
+          { name: "id", in: "path", required: true, schema: { type: "string" } },
+          { name: "uid", in: "path", required: true, schema: { type: "string" } },
+        ],
+        responses: {
+          "200": { description: "Assignation effectuée" },
+          "401": { $ref: "#/components/responses/Unauthorized" },
+          "403": { $ref: "#/components/responses/Forbidden" },
+          "404": { $ref: "#/components/responses/NotFound" },
+        },
+      },
+      delete: {
+        tags: ["Roles"],
+        summary: "Retirer un utilisateur d'un rôle",
+        operationId: "unassignUserFromRole",
+        security: [{ cookieAuth: [] }],
+        parameters: [
+          { name: "id", in: "path", required: true, schema: { type: "string" } },
+          { name: "uid", in: "path", required: true, schema: { type: "string" } },
+        ],
+        responses: {
+          "204": { description: "Désassignation effectuée" },
+          "401": { $ref: "#/components/responses/Unauthorized" },
+          "403": { $ref: "#/components/responses/Forbidden" },
+          "404": { $ref: "#/components/responses/NotFound" },
+        },
+      },
+    },
+
+    "/property-definitions": {
+      get: {
+        tags: ["PropertyDefinitions"],
+        summary: "Lister les définitions de propriétés",
+        operationId: "listPropertyDefinitions",
+        security: [{ cookieAuth: [] }],
+        responses: {
+          "200": { description: "Définitions de propriétés", content: { "application/json": { schema: { type: "array", items: { $ref: "#/components/schemas/PropertyDefinition" } } } } },
+          "401": { $ref: "#/components/responses/Unauthorized" },
+        },
+      },
+    },
+
+    "/views/{view_id}/nodes/{node_id}": {
+      put: {
+        tags: ["Views"],
+        summary: "Déplacer / redimensionner un nœud",
+        operationId: "updateNode",
+        security: [{ cookieAuth: [] }],
+        parameters: [
+          { name: "view_id", in: "path", required: true, schema: { type: "string" } },
+          { name: "node_id", in: "path", required: true, schema: { type: "string" } },
+        ],
+        requestBody: { required: true, content: { "application/json": { schema: { $ref: "#/components/schemas/NodeUpdateInput" } } } },
+        responses: {
+          "200": { description: "Nœud mis à jour", content: { "application/json": { schema: { $ref: "#/components/schemas/Node" } } } },
+          "401": { $ref: "#/components/responses/Unauthorized" },
+          "403": { $ref: "#/components/responses/Forbidden" },
+          "404": { $ref: "#/components/responses/NotFound" },
+        },
+      },
+      delete: {
+        tags: ["Views"],
+        summary: "Retirer un nœud d'une vue",
+        operationId: "deleteNode",
+        security: [{ cookieAuth: [] }],
+        parameters: [
+          { name: "view_id", in: "path", required: true, schema: { type: "string" } },
+          { name: "node_id", in: "path", required: true, schema: { type: "string" } },
+        ],
+        responses: {
+          "204": { description: "Nœud retiré" },
+          "401": { $ref: "#/components/responses/Unauthorized" },
+          "403": { $ref: "#/components/responses/Forbidden" },
+          "404": { $ref: "#/components/responses/NotFound" },
+        },
+      },
+    },
+
+    "/views/{view_id}/connections": {
+      post: {
+        tags: ["Views"],
+        summary: "Créer une connexion dans une vue",
+        operationId: "createConnection",
+        security: [{ cookieAuth: [] }],
+        parameters: [{ name: "view_id", in: "path", required: true, schema: { type: "string" } }],
+        requestBody: { required: true, content: { "application/json": { schema: { $ref: "#/components/schemas/ConnectionCreateInput" } } } },
+        responses: {
+          "201": { description: "Connexion créée", content: { "application/json": { schema: { $ref: "#/components/schemas/Connection" } } } },
+          "401": { $ref: "#/components/responses/Unauthorized" },
+          "403": { $ref: "#/components/responses/Forbidden" },
+          "404": { $ref: "#/components/responses/NotFound" },
+        },
+      },
+    },
+
+    "/views/{view_id}/connections/{conn_id}": {
+      put: {
+        tags: ["Views"],
+        summary: "Modifier une connexion",
+        operationId: "updateConnection",
+        security: [{ cookieAuth: [] }],
+        parameters: [
+          { name: "view_id", in: "path", required: true, schema: { type: "string" } },
+          { name: "conn_id", in: "path", required: true, schema: { type: "string" } },
+        ],
+        requestBody: { required: true, content: { "application/json": { schema: { $ref: "#/components/schemas/ConnectionUpdateInput" } } } },
+        responses: {
+          "200": { description: "Connexion mise à jour", content: { "application/json": { schema: { $ref: "#/components/schemas/Connection" } } } },
+          "401": { $ref: "#/components/responses/Unauthorized" },
+          "403": { $ref: "#/components/responses/Forbidden" },
+          "404": { $ref: "#/components/responses/NotFound" },
+        },
+      },
+      delete: {
+        tags: ["Views"],
+        summary: "Supprimer une connexion",
+        operationId: "deleteConnection",
+        security: [{ cookieAuth: [] }],
+        parameters: [
+          { name: "view_id", in: "path", required: true, schema: { type: "string" } },
+          { name: "conn_id", in: "path", required: true, schema: { type: "string" } },
+        ],
+        responses: {
+          "204": { description: "Connexion supprimée" },
+          "401": { $ref: "#/components/responses/Unauthorized" },
+          "403": { $ref: "#/components/responses/Forbidden" },
+          "404": { $ref: "#/components/responses/NotFound" },
+        },
+      },
+    },
+
     "/mcp/": {
       post: {
         tags: ["MCP"],
@@ -741,12 +1200,27 @@ export const openApiSpec = {
       RelationshipCreateInput,
       RelationshipUpdateInput,
       Node,
+      NodeCreateInput,
+      NodeUpdateInput,
       Connection,
+      ConnectionCreateInput,
+      ConnectionUpdateInput,
       View,
       ViewDetail,
       ViewCreateInput,
-      NodeCreateInput,
+      WorkspaceInfo,
+      UserOut,
+      RoleOut,
+      PropertyDefinition,
       ErrorDetail,
+    },
+    securitySchemes: {
+      cookieAuth: {
+        type: "apiKey",
+        in: "cookie",
+        name: "better-auth.session_token",
+        description: "Cookie de session httpOnly défini par Better Auth après /auth/sign-in/username",
+      },
     },
     responses: {
       NotFound: {
@@ -755,6 +1229,14 @@ export const openApiSpec = {
       },
       UnprocessableType: {
         description: "Type ArchiMate invalide",
+        content: { "application/json": { schema: { $ref: "#/components/schemas/ErrorDetail" } } },
+      },
+      Unauthorized: {
+        description: "Non authentifié",
+        content: { "application/json": { schema: { $ref: "#/components/schemas/ErrorDetail" } } },
+      },
+      Forbidden: {
+        description: "Permission insuffisante",
         content: { "application/json": { schema: { $ref: "#/components/schemas/ErrorDetail" } } },
       },
     },

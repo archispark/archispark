@@ -70,7 +70,7 @@ import {
   type AuthRequest,
   type LayerPermissions,
 } from "./auth.js";
-import { auth as baAuth } from "./better-auth.js";
+import { auth as baAuth, getConfiguredProviders } from "./better-auth.js";
 import { toNodeHandler } from "better-auth/node";
 import {
   ELEMENT_TYPES,
@@ -584,8 +584,8 @@ export function deleteRelationship(ds: DataSource, relationship_id: string): voi
 // Business logic – persistence
 // ---------------------------------------------------------------------------
 
-export function saveModel(ds: DataSource): SaveResult {
-  saveDataSource(ds);
+export async function saveModel(ds: DataSource): Promise<SaveResult> {
+  await saveDataSource(ds);
   return { saved: true, path: ds.path || "archispark.db" };
 }
 
@@ -673,6 +673,11 @@ app.use((_req, res, next) => {
 
 app.use(express.json());
 
+// Returns configured OAuth/OIDC providers so the frontend can render SSO buttons
+app.get("/auth/providers", (_req, res) => {
+  res.json(getConfiguredProviders());
+});
+
 // Mount Better Auth at /auth — handles sign-in, sign-out, session, user CRUD
 // Must be BEFORE global auth middleware
 app.all("/auth/*path", toNodeHandler(baAuth));
@@ -709,7 +714,7 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   if (!MODEL_WRITE_PATHS.some((p) => req.path.startsWith(p))) return next();
   res.on("finish", () => {
     if (res.statusCode >= 200 && res.statusCode < 300) {
-      try { saveModel(dataSource); } catch { /* ignore */ }
+      saveDataSource(dataSource).catch(() => { /* ignore */ });
     }
   });
   next();
@@ -727,8 +732,8 @@ app.get("/me", (req: AuthRequest, res: Response) => {
 // Users routes (read via custom query; mutations via Better Auth admin plugin)
 // ---------------------------------------------------------------------------
 
-app.get("/users", requireAdmin as express.RequestHandler, (_req: Request, res: Response) => {
-  res.json(listUsers());
+app.get("/users", requireAdmin as express.RequestHandler, async (_req: Request, res: Response) => {
+  res.json(await listUsers());
 });
 
 // ---------------------------------------------------------------------------
@@ -746,44 +751,44 @@ function sanitizePermissions(body: unknown): Record<string, LayerPermissions> | 
   return result;
 }
 
-app.get("/roles", requireAuth as express.RequestHandler, (_req: Request, res: Response) => {
-  res.json(listRoles());
+app.get("/roles", requireAuth as express.RequestHandler, async (_req: Request, res: Response) => {
+  res.json(await listRoles());
 });
 
 app.get("/roles/catalog", requireAuth as express.RequestHandler, (_req: Request, res: Response) => {
   res.json({ layers: ARCHIMATE_LAYERS, flags: PERMISSION_FLAGS });
 });
 
-app.post("/roles", requireAdmin as express.RequestHandler, (req: Request, res: Response) => {
+app.post("/roles", requireAdmin as express.RequestHandler, async (req: Request, res: Response) => {
   const { name, description, permissions } = req.body as { name?: string; description?: string | null; permissions?: unknown };
   if (!name?.trim()) {
     res.status(422).json({ detail: "Field 'name' is required." });
     return;
   }
   try {
-    res.status(201).json(createRole(name, description ?? null, sanitizePermissions(permissions)));
+    res.status(201).json(await createRole(name, description ?? null, sanitizePermissions(permissions)));
   } catch (err) {
     res.status(422).json({ detail: (err as Error).message });
   }
 });
 
-app.get("/roles/:role_id", requireAuth as express.RequestHandler, (req: Request, res: Response) => {
+app.get("/roles/:role_id", requireAuth as express.RequestHandler, async (req: Request, res: Response) => {
   try {
-    res.json(getRole(req.params["role_id"] as string));
+    res.json(await getRole(req.params["role_id"] as string));
   } catch (err) {
     res.status(404).json({ detail: (err as Error).message });
   }
 });
 
-app.put("/roles/:role_id", requireAdmin as express.RequestHandler, (req: Request, res: Response) => {
+app.put("/roles/:role_id", requireAdmin as express.RequestHandler, async (req: Request, res: Response) => {
   const { name, description, permissions } = req.body as { name?: string; description?: string | null; permissions?: unknown };
   try {
-    const role = getRole(req.params["role_id"] as string);
+    const role = await getRole(req.params["role_id"] as string);
     if (role.is_system) {
       res.status(403).json({ detail: "Les rôles système ne peuvent pas être modifiés." });
       return;
     }
-    res.json(updateRole(req.params["role_id"] as string, {
+    res.json(await updateRole(req.params["role_id"] as string, {
       name,
       description,
       permissions: sanitizePermissions(permissions),
@@ -793,64 +798,64 @@ app.put("/roles/:role_id", requireAdmin as express.RequestHandler, (req: Request
   }
 });
 
-app.delete("/roles/:role_id", requireAdmin as express.RequestHandler, (req: Request, res: Response) => {
+app.delete("/roles/:role_id", requireAdmin as express.RequestHandler, async (req: Request, res: Response) => {
   try {
-    deleteRole(req.params["role_id"] as string);
+    await deleteRole(req.params["role_id"] as string);
     res.status(204).send();
   } catch (err) {
     res.status(404).json({ detail: (err as Error).message });
   }
 });
 
-app.get("/roles/:role_id/users", requireAuth as express.RequestHandler, (req: Request, res: Response) => {
+app.get("/roles/:role_id/users", requireAuth as express.RequestHandler, async (req: Request, res: Response) => {
   try {
-    res.json(getRole(req.params["role_id"] as string).user_ids);
+    res.json((await getRole(req.params["role_id"] as string)).user_ids);
   } catch (err) {
     res.status(404).json({ detail: (err as Error).message });
   }
 });
 
-app.put("/roles/:role_id/users/:user_id", requireAdmin as express.RequestHandler, (req: Request, res: Response) => {
+app.put("/roles/:role_id/users/:user_id", requireAdmin as express.RequestHandler, async (req: Request, res: Response) => {
   try {
-    assignUserToRole(req.params["role_id"] as string, req.params["user_id"] as string);
+    await assignUserToRole(req.params["role_id"] as string, req.params["user_id"] as string);
     res.status(204).send();
   } catch (err) {
     res.status(404).json({ detail: (err as Error).message });
   }
 });
 
-app.delete("/roles/:role_id/users/:user_id", requireAdmin as express.RequestHandler, (req: Request, res: Response) => {
+app.delete("/roles/:role_id/users/:user_id", requireAdmin as express.RequestHandler, async (req: Request, res: Response) => {
   try {
-    unassignUserFromRole(req.params["role_id"] as string, req.params["user_id"] as string);
+    await unassignUserFromRole(req.params["role_id"] as string, req.params["user_id"] as string);
     res.status(204).send();
   } catch (err) {
     res.status(404).json({ detail: (err as Error).message });
   }
 });
 
-app.get("/users/:user_id/roles", requireAdmin as express.RequestHandler, (req: Request, res: Response) => {
-  res.json(listRolesForUser(req.params["user_id"] as string));
+app.get("/users/:user_id/roles", requireAdmin as express.RequestHandler, async (req: Request, res: Response) => {
+  res.json(await listRolesForUser(req.params["user_id"] as string));
 });
 
 // Layer permissions per role
-app.get("/roles/:role_id/layers", requireAuth as express.RequestHandler, (req: Request, res: Response) => {
+app.get("/roles/:role_id/layers", requireAuth as express.RequestHandler, async (req: Request, res: Response) => {
   try {
-    res.json(getRole(req.params["role_id"] as string).permissions);
+    res.json((await getRole(req.params["role_id"] as string)).permissions);
   } catch (err) {
     res.status(404).json({ detail: (err as Error).message });
   }
 });
 
-app.get("/roles/:role_id/layers/:layer", requireAuth as express.RequestHandler, (req: Request, res: Response) => {
+app.get("/roles/:role_id/layers/:layer", requireAuth as express.RequestHandler, async (req: Request, res: Response) => {
   try {
     const layer = req.params["layer"] as string;
-    res.json({ layer, permission: getRoleLayerPermission(req.params["role_id"] as string, layer) });
+    res.json({ layer, permission: await getRoleLayerPermission(req.params["role_id"] as string, layer) });
   } catch (err) {
     res.status(404).json({ detail: (err as Error).message });
   }
 });
 
-app.put("/roles/:role_id/layers/:layer", requireAdmin as express.RequestHandler, (req: Request, res: Response) => {
+app.put("/roles/:role_id/layers/:layer", requireAdmin as express.RequestHandler, async (req: Request, res: Response) => {
   const { permissions } = req.body as { permissions?: unknown };
   if (!Array.isArray(permissions)) {
     res.status(422).json({ detail: "Field 'permissions' must be an array of flags (read, create, update, delete)." });
@@ -859,16 +864,16 @@ app.put("/roles/:role_id/layers/:layer", requireAdmin as express.RequestHandler,
   const flags = permissions.filter((f): f is string => typeof f === "string" && (PERMISSION_FLAGS as readonly string[]).includes(f)) as LayerPermissions;
   try {
     const layer = req.params["layer"] as string;
-    const updated = setRoleLayerPermission(req.params["role_id"] as string, layer, flags);
+    const updated = await setRoleLayerPermission(req.params["role_id"] as string, layer, flags);
     res.json({ layer, permissions: updated });
   } catch (err) {
     res.status(422).json({ detail: (err as Error).message });
   }
 });
 
-app.delete("/roles/:role_id/layers/:layer", requireAdmin as express.RequestHandler, (req: Request, res: Response) => {
+app.delete("/roles/:role_id/layers/:layer", requireAdmin as express.RequestHandler, async (req: Request, res: Response) => {
   try {
-    removeRoleLayerPermission(req.params["role_id"] as string, req.params["layer"] as string);
+    await removeRoleLayerPermission(req.params["role_id"] as string, req.params["layer"] as string);
     res.status(204).send();
   } catch (err) {
     res.status(404).json({ detail: (err as Error).message });
@@ -879,48 +884,48 @@ app.delete("/roles/:role_id/layers/:layer", requireAdmin as express.RequestHandl
 // Workspace routes
 // ---------------------------------------------------------------------------
 
-app.get("/workspaces", (_req: Request, res: Response) => {
-  res.json(getWorkspaces());
+app.get("/workspaces", async (_req: Request, res: Response) => {
+  res.json(await getWorkspaces());
 });
 
-app.post("/workspaces", (req: Request, res: Response) => {
+app.post("/workspaces", async (req: Request, res: Response) => {
   const { name, path: filePath } = req.body as { name?: string; path?: string };
   if (!name) {
     res.status(422).json({ detail: "Le champ 'name' est requis." });
     return;
   }
   try {
-    res.status(201).json(createWorkspace(name, filePath));
+    res.status(201).json(await createWorkspace(name, filePath));
   } catch (err) {
     res.status(422).json({ detail: (err as Error).message });
   }
 });
 
-app.put("/workspaces/:id", (req: Request, res: Response) => {
+app.put("/workspaces/:id", async (req: Request, res: Response) => {
   const { name } = req.body as { name?: string };
   if (!name) {
     res.status(422).json({ detail: "Le champ 'name' est requis." });
     return;
   }
   try {
-    res.json(updateWorkspace(req.params["id"] as string, name));
+    res.json(await updateWorkspace(req.params["id"] as string, name));
   } catch (err) {
     res.status(404).json({ detail: (err as Error).message });
   }
 });
 
-app.delete("/workspaces/:id", (req: Request, res: Response) => {
+app.delete("/workspaces/:id", async (req: Request, res: Response) => {
   try {
-    deleteWorkspace(req.params["id"] as string);
+    await deleteWorkspace(req.params["id"] as string);
     res.status(204).send();
   } catch (err) {
     res.status(422).json({ detail: (err as Error).message });
   }
 });
 
-app.post("/workspaces/:id/activate", (req: Request, res: Response) => {
+app.post("/workspaces/:id/activate", async (req: Request, res: Response) => {
   try {
-    res.json(activateWorkspace(req.params["id"] as string));
+    res.json(await activateWorkspace(req.params["id"] as string));
   } catch (err) {
     res.status(404).json({ detail: (err as Error).message });
   }
@@ -958,16 +963,16 @@ app.get("/docs", (_req: Request, res: Response) => {
 });
 
 // Model info
-app.get("/", (_req: Request, res: Response) => {
-  const workspaces = getWorkspaces();
+app.get("/", async (_req: Request, res: Response) => {
+  const workspaces = await getWorkspaces();
   const active = workspaces.find((w) => w.active);
   res.json({ ...getModelInfo(dataSource), workspace_id: active?.id ?? null, workspace_name: active?.name ?? null });
 });
 
 // Save model to file
-app.post("/save", (_req: Request, res: Response) => {
+app.post("/save", async (_req: Request, res: Response) => {
   try {
-    res.json(saveModel(dataSource));
+    res.json(await saveModel(dataSource));
   } catch (err) {
     res.status(500).json({ detail: (err as Error).message });
   }

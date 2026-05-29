@@ -1,12 +1,12 @@
 /**
- * Bidirectional conversion between the normalized SQLite DB and the in-memory ArchiModel.
+ * Bidirectional conversion between the normalized DB and the in-memory ArchiModel.
  *
  * modelFromDb(workspaceId) — reads all rows and builds an ArchiModel.
  * modelToDb(workspaceId, model) — replaces all rows for the workspace with the model data.
  */
 
 import { eq } from "drizzle-orm";
-import { db } from "./connection.js";
+import { db, dbDriver } from "./connection.js";
 import {
   workspaces,
   elements,
@@ -72,138 +72,6 @@ function buildNodeTree(
     });
 }
 
-// ---------------------------------------------------------------------------
-// Load: DB → ArchiModel
-// ---------------------------------------------------------------------------
-
-export function modelFromDb(workspaceId: number): ArchiModel {
-  const ws = db.select().from(workspaces).where(eq(workspaces.id, workspaceId)).get();
-  if (!ws) throw new Error(`Workspace ${workspaceId} not found in DB`);
-
-  // Elements
-  const elemRows = db.select().from(elements).where(eq(elements.workspaceId, workspaceId)).all();
-  const elemPropsRows = db.select().from(elementProperties)
-    .innerJoin(elements, eq(elementProperties.elementId, elements.id))
-    .where(eq(elements.workspaceId, workspaceId))
-    .all();
-
-  const elemPropsByElemId = new Map<number, Record<string, string>>();
-  for (const row of elemPropsRows) {
-    const ep = row.element_properties;
-    const map = elemPropsByElemId.get(ep.elementId) ?? {};
-    map[ep.propertyDefUuid] = ep.value;
-    elemPropsByElemId.set(ep.elementId, map);
-  }
-
-  const archiElements: ArchiElement[] = elemRows.map((r) => ({
-    uuid: r.uuid,
-    name: r.name,
-    type: r.type,
-    desc: r.description ?? null,
-    props: elemPropsByElemId.get(r.id) ?? {},
-  }));
-
-  const elementMap = new Map<string, ArchiElement>(archiElements.map((e) => [e.uuid, e]));
-
-  // Relationships
-  const relRows = db.select().from(relationships).where(eq(relationships.workspaceId, workspaceId)).all();
-  const relPropsRows = db.select().from(relationshipProperties)
-    .innerJoin(relationships, eq(relationshipProperties.relationshipId, relationships.id))
-    .where(eq(relationships.workspaceId, workspaceId))
-    .all();
-
-  const relPropsByRelId = new Map<number, Record<string, string>>();
-  for (const row of relPropsRows) {
-    const rp = row.relationship_properties;
-    const map = relPropsByRelId.get(rp.relationshipId) ?? {};
-    map[rp.propertyDefUuid] = rp.value;
-    relPropsByRelId.set(rp.relationshipId, map);
-  }
-
-  const archiRelationships: ArchiRelationship[] = relRows.map((r) => ({
-    uuid: r.uuid,
-    name: r.name ?? null,
-    type: r.type,
-    source: elementMap.get(r.sourceUuid) ?? r.sourceUuid,
-    target: elementMap.get(r.targetUuid) ?? r.targetUuid,
-    desc: r.description ?? null,
-    props: relPropsByRelId.get(r.id) ?? {},
-    access_type: r.accessType ?? null,
-    is_directed: r.isDirected ?? null,
-    influence_strength: r.influenceModifier ?? null,
-  }));
-
-  // Property definitions
-  const pdRows = db.select().from(propertyDefinitions).where(eq(propertyDefinitions.workspaceId, workspaceId)).all();
-  const archiPropDefs: ArchiPropertyDefinition[] = pdRows.map((r) => ({
-    uuid: r.uuid,
-    name: r.name,
-    type: r.type,
-  }));
-
-  // Views
-  const viewRows = db.select().from(views).where(eq(views.workspaceId, workspaceId)).all();
-
-  const archiViews: ArchiView[] = viewRows.map((v) => {
-    // Nodes (flat, will build tree)
-    const nodeRows = db.select().from(nodes).where(eq(nodes.viewId, v.id)).all();
-    const rootNodes = buildNodeTree(nodeRows, null, elementMap);
-
-    // Connections
-    const connRows = db.select().from(connections).where(eq(connections.viewId, v.id)).all();
-    const bpRows = db.select().from(bendpoints)
-      .innerJoin(connections, eq(bendpoints.connectionId, connections.id))
-      .where(eq(connections.viewId, v.id))
-      .all();
-
-    const bpByConnId = new Map<number, BendPoint[]>();
-    for (const row of bpRows) {
-      const bp = row.bendpoints;
-      const arr = bpByConnId.get(bp.connectionId) ?? [];
-      arr.push({ x: bp.x, y: bp.y });
-      bpByConnId.set(bp.connectionId, arr);
-    }
-
-    const archiConns: ArchiConnection[] = connRows.map((c) => ({
-      uuid: c.uuid,
-      name: c.name ?? null,
-      ref: c.relationshipUuid ?? null,
-      source: c.sourceNodeUuid ?? null,
-      target: c.targetNodeUuid ?? null,
-      line_color: rowToColor(c.lineColorR, c.lineColorG, c.lineColorB, c.lineColorA),
-      font_name: c.fontName ?? null,
-      font_size: c.fontSize ?? null,
-      font_color: rowToColor(c.fontColorR, c.fontColorG, c.fontColorB, null),
-      line_width: c.lineWidth ?? null,
-      bendpoints: bpByConnId.get(c.id) ?? [],
-    }));
-
-    return {
-      uuid: v.uuid,
-      name: v.name,
-      desc: v.description ?? null,
-      primary_viewpoint: v.viewpoint ?? null,
-      nodes: rootNodes,
-      conns: archiConns,
-    };
-  });
-
-  return {
-    uuid: ws.uuid,
-    name: ws.name,
-    desc: ws.description ?? null,
-    version: ws.version ?? null,
-    elements: archiElements,
-    relationships: archiRelationships,
-    propertyDefinitions: archiPropDefs,
-    views: archiViews,
-  };
-}
-
-// ---------------------------------------------------------------------------
-// Save: ArchiModel → DB  (replaces all rows for the workspace)
-// ---------------------------------------------------------------------------
-
 function colorToRow(c: ArchiColor | null): { r: number | null; g: number | null; b: number | null; a: number | null } {
   if (!c) return { r: null, g: null, b: null, a: null };
   return { r: c.r, g: c.g, b: c.b, a: c.a ?? null };
@@ -246,46 +114,177 @@ function flattenNodes(
   }
 }
 
-export function modelToDb(workspaceId: number, model: ArchiModel): void {
-  db.transaction(() => {
-    // Update workspace metadata (preserve workspace name — only update model uuid/desc/version)
-    db.update(workspaces).set({
+// ---------------------------------------------------------------------------
+// Load: DB → ArchiModel
+// ---------------------------------------------------------------------------
+
+export async function modelFromDb(workspaceId: number): Promise<ArchiModel> {
+  const [ws] = await db.select().from(workspaces).where(eq(workspaces.id, workspaceId));
+  if (!ws) throw new Error(`Workspace ${workspaceId} not found in DB`);
+
+  // Elements
+  const elemRows = await db.select().from(elements).where(eq(elements.workspaceId, workspaceId));
+  const elemPropsRows = await db.select().from(elementProperties)
+    .innerJoin(elements, eq(elementProperties.elementId, elements.id))
+    .where(eq(elements.workspaceId, workspaceId));
+
+  const elemPropsByElemId = new Map<number, Record<string, string>>();
+  for (const row of elemPropsRows) {
+    const ep = row.element_properties;
+    const map = elemPropsByElemId.get(ep.elementId) ?? {};
+    map[ep.propertyDefUuid] = ep.value;
+    elemPropsByElemId.set(ep.elementId, map);
+  }
+
+  const archiElements: ArchiElement[] = elemRows.map((r) => ({
+    uuid: r.uuid,
+    name: r.name,
+    type: r.type,
+    desc: r.description ?? null,
+    props: elemPropsByElemId.get(r.id) ?? {},
+  }));
+
+  const elementMap = new Map<string, ArchiElement>(archiElements.map((e) => [e.uuid, e]));
+
+  // Relationships
+  const relRows = await db.select().from(relationships).where(eq(relationships.workspaceId, workspaceId));
+  const relPropsRows = await db.select().from(relationshipProperties)
+    .innerJoin(relationships, eq(relationshipProperties.relationshipId, relationships.id))
+    .where(eq(relationships.workspaceId, workspaceId));
+
+  const relPropsByRelId = new Map<number, Record<string, string>>();
+  for (const row of relPropsRows) {
+    const rp = row.relationship_properties;
+    const map = relPropsByRelId.get(rp.relationshipId) ?? {};
+    map[rp.propertyDefUuid] = rp.value;
+    relPropsByRelId.set(rp.relationshipId, map);
+  }
+
+  const archiRelationships: ArchiRelationship[] = relRows.map((r) => ({
+    uuid: r.uuid,
+    name: r.name ?? null,
+    type: r.type,
+    source: elementMap.get(r.sourceUuid) ?? r.sourceUuid,
+    target: elementMap.get(r.targetUuid) ?? r.targetUuid,
+    desc: r.description ?? null,
+    props: relPropsByRelId.get(r.id) ?? {},
+    access_type: r.accessType ?? null,
+    is_directed: r.isDirected ?? null,
+    influence_strength: r.influenceModifier ?? null,
+  }));
+
+  // Property definitions
+  const pdRows = await db.select().from(propertyDefinitions).where(eq(propertyDefinitions.workspaceId, workspaceId));
+  const archiPropDefs: ArchiPropertyDefinition[] = pdRows.map((r) => ({
+    uuid: r.uuid,
+    name: r.name,
+    type: r.type,
+  }));
+
+  // Views
+  const viewRows = await db.select().from(views).where(eq(views.workspaceId, workspaceId));
+
+  const archiViews: ArchiView[] = await Promise.all(viewRows.map(async (v) => {
+    const nodeRows = await db.select().from(nodes).where(eq(nodes.viewId, v.id));
+    const rootNodes = buildNodeTree(nodeRows, null, elementMap);
+
+    const connRows = await db.select().from(connections).where(eq(connections.viewId, v.id));
+    const bpRows = await db.select().from(bendpoints)
+      .innerJoin(connections, eq(bendpoints.connectionId, connections.id))
+      .where(eq(connections.viewId, v.id));
+
+    const bpByConnId = new Map<number, BendPoint[]>();
+    for (const row of bpRows) {
+      const bp = row.bendpoints;
+      const arr = bpByConnId.get(bp.connectionId) ?? [];
+      arr.push({ x: bp.x, y: bp.y });
+      bpByConnId.set(bp.connectionId, arr);
+    }
+
+    const archiConns: ArchiConnection[] = connRows.map((c) => ({
+      uuid: c.uuid,
+      name: c.name ?? null,
+      ref: c.relationshipUuid ?? null,
+      source: c.sourceNodeUuid ?? null,
+      target: c.targetNodeUuid ?? null,
+      line_color: rowToColor(c.lineColorR, c.lineColorG, c.lineColorB, c.lineColorA),
+      font_name: c.fontName ?? null,
+      font_size: c.fontSize ?? null,
+      font_color: rowToColor(c.fontColorR, c.fontColorG, c.fontColorB, null),
+      line_width: c.lineWidth ?? null,
+      bendpoints: bpByConnId.get(c.id) ?? [],
+    }));
+
+    return {
+      uuid: v.uuid,
+      name: v.name,
+      desc: v.description ?? null,
+      primary_viewpoint: v.viewpoint ?? null,
+      nodes: rootNodes,
+      conns: archiConns,
+    };
+  }));
+
+  return {
+    uuid: ws.uuid,
+    name: ws.name,
+    desc: ws.description ?? null,
+    version: ws.version ?? null,
+    elements: archiElements,
+    relationships: archiRelationships,
+    propertyDefinitions: archiPropDefs,
+    views: archiViews,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Save: ArchiModel → DB  (replaces all rows for the workspace, atomic)
+// ---------------------------------------------------------------------------
+
+export async function modelToDb(workspaceId: number, model: ArchiModel): Promise<void> {
+  if (dbDriver === "postgres") {
+    await modelToDbPg(workspaceId, model);
+  } else {
+    modelToDbSqlite(workspaceId, model);
+  }
+}
+
+// SQLite path — uses synchronous Drizzle + better-sqlite3 transaction
+function modelToDbSqlite(workspaceId: number, model: ArchiModel): void {
+  (db as any).transaction((tx: any) => {
+    tx.update(workspaces).set({
       uuid: model.uuid,
       description: model.desc ?? null,
       version: model.version ?? null,
       updatedAt: Math.floor(Date.now() / 1000),
     }).where(eq(workspaces.id, workspaceId)).run();
 
-    // Clear all existing data for this workspace (cascade deletes children)
-    db.delete(elements).where(eq(elements.workspaceId, workspaceId)).run();
-    db.delete(relationships).where(eq(relationships.workspaceId, workspaceId)).run();
-    db.delete(propertyDefinitions).where(eq(propertyDefinitions.workspaceId, workspaceId)).run();
-    db.delete(views).where(eq(views.workspaceId, workspaceId)).run();
+    tx.delete(elements).where(eq(elements.workspaceId, workspaceId)).run();
+    tx.delete(relationships).where(eq(relationships.workspaceId, workspaceId)).run();
+    tx.delete(propertyDefinitions).where(eq(propertyDefinitions.workspaceId, workspaceId)).run();
+    tx.delete(views).where(eq(views.workspaceId, workspaceId)).run();
 
-    // Property definitions
     for (const pd of model.propertyDefinitions) {
-      db.insert(propertyDefinitions).values({
+      tx.insert(propertyDefinitions).values({
         workspaceId, uuid: pd.uuid, name: pd.name, type: pd.type,
       }).run();
     }
 
-    // Elements
     for (const e of model.elements) {
-      const res = db.insert(elements).values({
+      const res = tx.insert(elements).values({
         workspaceId, uuid: e.uuid, type: e.type, name: e.name, description: e.desc ?? null,
       }).returning({ id: elements.id }).get();
       // v8 ignore next
       if (!res) continue;
       for (const [defUuid, value] of Object.entries(e.props)) {
-        db.insert(elementProperties).values({ elementId: res.id, propertyDefUuid: defUuid, value }).run();
+        tx.insert(elementProperties).values({ elementId: res.id, propertyDefUuid: defUuid, value }).run();
       }
     }
 
-    // Relationships
     for (const r of model.relationships) {
       const srcUuid = typeof r.source === "string" ? r.source : r.source.uuid;
       const tgtUuid = typeof r.target === "string" ? r.target : r.target.uuid;
-      const res = db.insert(relationships).values({
+      const res = tx.insert(relationships).values({
         workspaceId, uuid: r.uuid, type: r.type, name: r.name ?? null,
         description: r.desc ?? null, sourceUuid: srcUuid, targetUuid: tgtUuid,
         accessType: r.access_type ?? null,
@@ -295,13 +294,12 @@ export function modelToDb(workspaceId: number, model: ArchiModel): void {
       // v8 ignore next
       if (!res) continue;
       for (const [defUuid, value] of Object.entries(r.props)) {
-        db.insert(relationshipProperties).values({ relationshipId: res.id, propertyDefUuid: defUuid, value }).run();
+        tx.insert(relationshipProperties).values({ relationshipId: res.id, propertyDefUuid: defUuid, value }).run();
       }
     }
 
-    // Views
     for (const v of model.views) {
-      const vRes = db.insert(views).values({
+      const vRes = tx.insert(views).values({
         workspaceId, uuid: v.uuid, name: v.name,
         description: v.desc ?? null, viewpoint: v.primary_viewpoint ?? null,
       }).returning({ id: views.id }).get();
@@ -309,18 +307,16 @@ export function modelToDb(workspaceId: number, model: ArchiModel): void {
       if (!vRes) continue;
       const viewId = vRes.id;
 
-      // Nodes (flatten tree)
       const flatNodes: Parameters<typeof flattenNodes>[2] = [];
       flattenNodes(v.nodes, null, flatNodes, { i: 0 });
       for (const n of flatNodes) {
-        db.insert(nodes).values({ viewId, ...n }).run();
+        tx.insert(nodes).values({ viewId, ...n }).run();
       }
 
-      // Connections
       for (const c of v.conns) {
         const lineC = colorToRow(c.line_color);
         const fontC2 = colorToRow(c.font_color);
-        const cRes = db.insert(connections).values({
+        const cRes = tx.insert(connections).values({
           viewId, uuid: c.uuid, name: c.name ?? null,
           relationshipUuid: c.ref ?? null,
           sourceNodeUuid: c.source ?? null,
@@ -336,7 +332,98 @@ export function modelToDb(workspaceId: number, model: ArchiModel): void {
         if (c.bendpoints?.length) {
           for (let i = 0; i < c.bendpoints.length; i++) {
             const bp = c.bendpoints[i]!;
-            db.insert(bendpoints).values({ connectionId: cRes.id, x: bp.x, y: bp.y, sortOrder: i }).run();
+            tx.insert(bendpoints).values({ connectionId: cRes.id, x: bp.x, y: bp.y, sortOrder: i }).run();
+          }
+        }
+      }
+    }
+  });
+}
+
+// PostgreSQL path — uses Drizzle async transaction
+async function modelToDbPg(workspaceId: number, model: ArchiModel): Promise<void> {
+  await (db as any).transaction(async (tx: any) => {
+    await tx.update(workspaces).set({
+      uuid: model.uuid,
+      description: model.desc ?? null,
+      version: model.version ?? null,
+      updatedAt: Math.floor(Date.now() / 1000),
+    }).where(eq(workspaces.id, workspaceId));
+
+    await tx.delete(elements).where(eq(elements.workspaceId, workspaceId));
+    await tx.delete(relationships).where(eq(relationships.workspaceId, workspaceId));
+    await tx.delete(propertyDefinitions).where(eq(propertyDefinitions.workspaceId, workspaceId));
+    await tx.delete(views).where(eq(views.workspaceId, workspaceId));
+
+    for (const pd of model.propertyDefinitions) {
+      await tx.insert(propertyDefinitions).values({
+        workspaceId, uuid: pd.uuid, name: pd.name, type: pd.type,
+      });
+    }
+
+    for (const e of model.elements) {
+      const [res] = await tx.insert(elements).values({
+        workspaceId, uuid: e.uuid, type: e.type, name: e.name, description: e.desc ?? null,
+      }).returning({ id: elements.id });
+      // v8 ignore next
+      if (!res) continue;
+      for (const [defUuid, value] of Object.entries(e.props)) {
+        await tx.insert(elementProperties).values({ elementId: res.id, propertyDefUuid: defUuid, value });
+      }
+    }
+
+    for (const r of model.relationships) {
+      const srcUuid = typeof r.source === "string" ? r.source : r.source.uuid;
+      const tgtUuid = typeof r.target === "string" ? r.target : r.target.uuid;
+      const [res] = await tx.insert(relationships).values({
+        workspaceId, uuid: r.uuid, type: r.type, name: r.name ?? null,
+        description: r.desc ?? null, sourceUuid: srcUuid, targetUuid: tgtUuid,
+        accessType: r.access_type ?? null,
+        isDirected: r.is_directed ?? null,
+        influenceModifier: r.influence_strength ?? null,
+      }).returning({ id: relationships.id });
+      // v8 ignore next
+      if (!res) continue;
+      for (const [defUuid, value] of Object.entries(r.props)) {
+        await tx.insert(relationshipProperties).values({ relationshipId: res.id, propertyDefUuid: defUuid, value });
+      }
+    }
+
+    for (const v of model.views) {
+      const [vRes] = await tx.insert(views).values({
+        workspaceId, uuid: v.uuid, name: v.name,
+        description: v.desc ?? null, viewpoint: v.primary_viewpoint ?? null,
+      }).returning({ id: views.id });
+      // v8 ignore next
+      if (!vRes) continue;
+      const viewId = vRes.id;
+
+      const flatNodes: Parameters<typeof flattenNodes>[2] = [];
+      flattenNodes(v.nodes, null, flatNodes, { i: 0 });
+      for (const n of flatNodes) {
+        await tx.insert(nodes).values({ viewId, ...n });
+      }
+
+      for (const c of v.conns) {
+        const lineC = colorToRow(c.line_color);
+        const fontC2 = colorToRow(c.font_color);
+        const [cRes] = await tx.insert(connections).values({
+          viewId, uuid: c.uuid, name: c.name ?? null,
+          relationshipUuid: c.ref ?? null,
+          sourceNodeUuid: c.source ?? null,
+          targetNodeUuid: c.target ?? null,
+          lineColorR: lineC.r, lineColorG: lineC.g, lineColorB: lineC.b, lineColorA: lineC.a,
+          lineWidth: c.line_width ?? null,
+          fontName: c.font_name ?? null,
+          fontSize: c.font_size ?? null,
+          fontColorR: fontC2.r, fontColorG: fontC2.g, fontColorB: fontC2.b, fontColorA: fontC2.a,
+        }).returning({ id: connections.id });
+        // v8 ignore next
+        if (!cRes) continue;
+        if (c.bendpoints?.length) {
+          for (let i = 0; i < c.bendpoints.length; i++) {
+            const bp = c.bendpoints[i]!;
+            await tx.insert(bendpoints).values({ connectionId: cRes.id, x: bp.x, y: bp.y, sortOrder: i });
           }
         }
       }
@@ -348,17 +435,17 @@ export function modelToDb(workspaceId: number, model: ArchiModel): void {
 // Seed: create a workspace row and populate from an ArchiModel
 // ---------------------------------------------------------------------------
 
-export function seedWorkspace(name: string, model: ArchiModel): number {
-  const existing = db.select({ id: workspaces.id }).from(workspaces).where(eq(workspaces.name, name)).get();
+export async function seedWorkspace(name: string, model: ArchiModel): Promise<number> {
+  const [existing] = await db.select({ id: workspaces.id }).from(workspaces).where(eq(workspaces.name, name));
   if (existing) return existing.id;
 
   const now = Math.floor(Date.now() / 1000);
-  const ws = db.insert(workspaces).values({
+  const [ws] = await db.insert(workspaces).values({
     uuid: model.uuid, name, description: model.desc ?? null,
     version: model.version ?? null, createdAt: now, updatedAt: now,
-  }).returning({ id: workspaces.id }).get();
+  }).returning({ id: workspaces.id });
   if (!ws) throw new Error("Failed to create workspace");
 
-  modelToDb(ws.id, model);
+  await modelToDb(ws.id, model);
   return ws.id;
 }

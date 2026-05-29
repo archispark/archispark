@@ -13,10 +13,12 @@
   },
   "dependencies": {
     "better-sqlite3": "^12.10.0",
-    "drizzle-orm": "^0.45.2"
+    "drizzle-orm": "^0.45.2",
+    "pg": "^8.13.3"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
+    "@types/pg": "^8.11.11",
     "@types/node": "^22.0.0",
     "@vitest/coverage-v8": "^4.1.7",
     "@workspace/typescript-config": "workspace:*",

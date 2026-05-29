@@ -1,4 +1,44 @@
 services:
+  postgres:
+    image: postgres:18
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: archispark
+      POSTGRES_PASSWORD: archispark
+      POSTGRES_DB: archispark
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U archispark -d archispark"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  mock-oidc:
+    image: ghcr.io/navikt/mock-oauth2-server:2.1.10
+    ports:
+      - "9000:8080"
+    environment:
+      JSON_CONFIG: |
+        {
+          "interactiveLogin": false,
+          "httpServer": "NettyWrapper",
+          "tokenCallbacks": [{
+            "issuerId": "archispark",
+            "requestMappings": [{
+              "requestParam": "scope",
+              "match": "openid",
+              "claims": {
+                "sub": "testuser",
+                "email": "testuser@example.com",
+                "name": "Test User"
+              }
+            }]
+          }]
+        }
+
   api:
     build:
       context: .
@@ -11,6 +51,15 @@ services:
     environment:
       PORT: "3000"
       HOST: "0.0.0.0"
+      # DB_DRIVER: postgres                                         # uncomment to use PostgreSQL
+      # DATABASE_URL: postgresql://archispark:archispark@postgres:5432/archispark
+      # GENERIC_OIDC_CLIENT_ID: archispark-client                  # uncomment to enable mock SSO
+      # GENERIC_OIDC_CLIENT_SECRET: secret
+      # GENERIC_OIDC_ISSUER: http://mock-oidc:8080/archispark
+      # GENERIC_OIDC_NAME: "Mock SSO"
+    # depends_on:                                                   # uncomment when DB_DRIVER=postgres
+    #   postgres:
+    #     condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3000/"]
       interval: 10s
@@ -50,3 +99,6 @@ services:
 networks:
   default:
     name: archispark
+
+volumes:
+  postgres_data:

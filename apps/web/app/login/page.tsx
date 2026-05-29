@@ -1,11 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { signIn } from "@/lib/auth-client";
 import { Input } from "@workspace/ui/components/input";
 import { Button } from "@workspace/ui/components/button";
 import { Label } from "@workspace/ui/components/label";
+
+interface OAuthProvider {
+  id: string;
+  name: string;
+}
 
 export default function LoginPage() {
   const router = useRouter();
@@ -13,6 +18,15 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [providers, setProviders] = useState<OAuthProvider[]>([]);
+  const [ssoLoading, setSsoLoading] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/auth/providers")
+      .then((r) => r.json())
+      .then((data: OAuthProvider[]) => setProviders(data))
+      .catch(() => {});
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -31,6 +45,16 @@ export default function LoginPage() {
       setError((err as Error).message);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleSso(providerId: string) {
+    setSsoLoading(providerId);
+    try {
+      await signIn.oauth2({ providerId, callbackURL: "/" });
+    } catch (err) {
+      setError((err as Error).message);
+      setSsoLoading(null);
     }
   }
 
@@ -95,6 +119,30 @@ export default function LoginPage() {
               {loading ? "Connexion…" : "Se connecter"}
             </Button>
           </form>
+
+          {providers.length > 0 && (
+            <>
+              <div className="flex items-center gap-3 my-4">
+                <div className="flex-1 h-px bg-border" />
+                <span className="text-[11px] text-muted-foreground uppercase tracking-wide">ou</span>
+                <div className="flex-1 h-px bg-border" />
+              </div>
+              <div className="flex flex-col gap-2">
+                {providers.map((p) => (
+                  <Button
+                    key={p.id}
+                    type="button"
+                    variant="outline"
+                    className="w-full"
+                    disabled={ssoLoading !== null}
+                    onClick={() => handleSso(p.id)}
+                  >
+                    {ssoLoading === p.id ? "Redirection…" : `Continuer avec ${p.name}`}
+                  </Button>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>

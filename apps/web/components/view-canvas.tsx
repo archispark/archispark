@@ -48,7 +48,8 @@ const HANDLE_STYLE: React.CSSProperties = {
   background: "#fff",
   border: "1px solid #555",
   borderRadius: "50%",
-  opacity: 0.85,
+  opacity: 0,
+  transition: "opacity 0.15s",
 };
 
 const ARCHIMATE_LAYER: Record<string, string> = {
@@ -180,7 +181,7 @@ function archimateEdgeStyle(type?: string): ArchiEdgeStyle {
     case "Aggregation":
       return { markerStart: "url(#archi-diamond-open)" };
     case "Assignment":
-      return { markerStart: "url(#archi-dot-filled)", markerEnd: "url(#archi-arrow-filled)" };
+      return { markerStart: "url(#archi-dot-filled)", markerEnd: "url(#archi-arrow-open)" };
     case "Realization":
       return { markerEnd: "url(#archi-triangle-open)", strokeDasharray: "6 3" };
     case "Serving":
@@ -191,7 +192,7 @@ function archimateEdgeStyle(type?: string): ArchiEdgeStyle {
     case "Flow":
       return { markerEnd: "url(#archi-arrow-filled)", strokeDasharray: "6 3" };
     case "Access":
-      return { markerEnd: "url(#archi-arrow-open)", strokeDasharray: "1 4" };
+      return { markerEnd: "url(#archi-arrow-open)", strokeDasharray: "4 3" };
     case "Influence":
       return { markerEnd: "url(#archi-arrow-open)", strokeDasharray: "6 3" };
     case "Specialization":
@@ -607,6 +608,10 @@ function DownloadButton({ filename = "view.png" }: { filename?: string }) {
   );
 }
 
+const HANDLE_HOVER_CSS = (
+  <style>{`.react-flow__node:hover .react-flow__handle { opacity: 0.85 !important; }`}</style>
+);
+
 const MARKER_DEFS = (
   <svg style={{ position: "absolute", width: 0, height: 0, overflow: "hidden" }} aria-hidden>
     <defs>
@@ -625,8 +630,8 @@ const MARKER_DEFS = (
       <marker id="archi-arrow-open" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" orient="auto" markerUnits="userSpaceOnUse">
         <path d="M0,0 L10,5 L0,10" fill="none" stroke="#222" strokeWidth="1.2" />
       </marker>
-      <marker id="archi-dot-filled" viewBox="0 0 8 8" refX="0" refY="4" markerWidth="8" markerHeight="8" orient="auto-start-reverse" markerUnits="userSpaceOnUse">
-        <circle cx="4" cy="4" r="3.2" fill="#222" />
+      <marker id="archi-dot-filled" viewBox="0 0 16 16" refX="9" refY="8" markerWidth="16" markerHeight="16" orient="auto-start-reverse" markerUnits="userSpaceOnUse">
+        <circle cx="7" cy="8" r="7" fill="#000" stroke="#fff" strokeWidth="1.5" />
       </marker>
     </defs>
   </svg>
@@ -865,6 +870,7 @@ function ViewCanvasInner({ viewId, nodes, connections, elements = [], elementNam
     <div style={{ width: "100%", height: 600, position: "relative", display: "flex" }}>
       {viewId ? <ElementPalette elements={elements} /> : null}
       <div style={{ flex: 1, position: "relative" }} onDragOver={onDragOver} onDrop={onDrop}>
+      {HANDLE_HOVER_CSS}
       {MARKER_DEFS}
       {pendingConnection ? (
         <div

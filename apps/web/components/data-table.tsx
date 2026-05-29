@@ -7,13 +7,14 @@ import {
   type Row,
   flexRender,
   getCoreRowModel,
+  getFilteredRowModel,
   getSortedRowModel,
   getPaginationRowModel,
   getExpandedRowModel,
   useReactTable,
 } from "@tanstack/react-table";
 import React, { useState } from "react";
-import { ArrowUpDown, ChevronLeft, ChevronRight } from "lucide-react";
+import { ArrowUpDown, ChevronLeft, ChevronRight, Search } from "lucide-react";
 import {
   Table,
   TableHeader,
@@ -31,6 +32,8 @@ interface DataTableProps<TData, TValue> {
   pageSize?: number;
   pageSizeOptions?: number[];
   renderSubRow?: (row: Row<TData>) => React.ReactNode;
+  searchable?: boolean;
+  searchPlaceholder?: string;
 }
 
 const DEFAULT_PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
@@ -42,21 +45,26 @@ export function DataTable<TData, TValue>({
   pageSize = 10,
   pageSizeOptions = DEFAULT_PAGE_SIZE_OPTIONS,
   renderSubRow,
+  searchable,
+  searchPlaceholder = "Rechercher…",
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
     pageSize,
   });
+  const [globalFilter, setGlobalFilter] = useState("");
 
   // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
     data,
     columns,
-    state: { sorting, pagination },
+    state: { sorting, pagination, globalFilter },
     onSortingChange: setSorting,
     onPaginationChange: setPagination,
+    onGlobalFilterChange: (v) => { setGlobalFilter(v); setPagination((p) => ({ ...p, pageIndex: 0 })); },
     getCoreRowModel: getCoreRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     getExpandedRowModel: getExpandedRowModel(),
@@ -64,6 +72,18 @@ export function DataTable<TData, TValue>({
 
   return (
     <div className="space-y-2">
+      {searchable && (
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />
+          <input
+            type="search"
+            value={globalFilter}
+            onChange={(e) => table.setGlobalFilter(e.target.value)}
+            placeholder={searchPlaceholder}
+            className="w-full pl-8 pr-3 py-1.5 text-sm border border-border rounded-md bg-background text-foreground placeholder:text-muted-foreground outline-none focus:border-ring"
+          />
+        </div>
+      )}
       <div className="rounded-lg border">
         <Table>
           <TableHeader>

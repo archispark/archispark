@@ -1,5 +1,5 @@
 /**
- * Multi-workspace registry backed by SQLite (Drizzle ORM).
+ * Multi-workspace registry backed by SQLite or PostgreSQL (Drizzle ORM).
  *
  * Architecture:
  *   - Workspaces listed in the `workspaces` DB table (replaces workspaces.json).
@@ -56,8 +56,8 @@ export let dataSource: DataSource;
 // Internal helpers
 // ---------------------------------------------------------------------------
 
-function buildRuntimeDs(dbId: number): DataSource {
-  const model = modelFromDb(dbId);
+async function buildRuntimeDs(dbId: number): Promise<DataSource> {
+  const model = await modelFromDb(dbId);
   return {
     workspaceDbId: dbId,
     path: "",
@@ -78,35 +78,35 @@ function strIdToDbId(id: string): number {
 }
 
 // ---------------------------------------------------------------------------
-// Auto-init at module load time
+// Auto-init at module load time via top-level await
 // (runs migrations + seeds from legacy files if DB is empty)
 // ---------------------------------------------------------------------------
 
-function _init(): void {
-  runMigrations();
-  initUsers();
+async function _init(): Promise<void> {
+  await runMigrations();
+  await initUsers();
 
-  const count = db.select({ id: wsTable.id }).from(wsTable).all().length;
-  if (count === 0) {
-    _seedFromLegacy();
-    const afterSeed = db.select({ id: wsTable.id }).from(wsTable).all().length;
-    if (afterSeed === 0) {
-      seedWorkspace("Default", { uuid: randomUUID(), name: "Default", desc: null, version: null, elements: [], relationships: [], propertyDefinitions: [], views: [] });
+  const rows = await db.select({ id: wsTable.id }).from(wsTable);
+  if (rows.length === 0) {
+    await _seedFromLegacy();
+    const afterSeed = await db.select({ id: wsTable.id }).from(wsTable);
+    if (afterSeed.length === 0) {
+      await seedWorkspace("Default", { uuid: randomUUID(), name: "Default", desc: null, version: null, elements: [], relationships: [], propertyDefinitions: [], views: [] });
     }
   }
 
-  const rows = db.select({ id: wsTable.id }).from(wsTable).all();
-  if (rows.length === 0) throw new Error("No workspaces in DB after init");
+  const finalRows = await db.select({ id: wsTable.id }).from(wsTable);
+  if (finalRows.length === 0) throw new Error("No workspaces in DB after init");
 
-  _activeId = rows[0]!.id;
-  const ds = buildRuntimeDs(_activeId);
+  _activeId = finalRows[0]!.id;
+  const ds = await buildRuntimeDs(_activeId);
   _loaded.set(_activeId, ds);
   dataSource = ds;
 }
 
-_init();
+await _init();
 
-function _seedFromLegacy(): void {
+async function _seedFromLegacy(): Promise<void> {
   const wsFile = join(process.cwd(), "workspaces.json");
   const cfgFile = join(process.cwd(), "config.json");
 
@@ -117,7 +117,7 @@ function _seedFromLegacy(): void {
       if (existsSync(xmlPath)) {
         const xml = readFileSync(xmlPath, "utf-8");
         const model = parseOpenExchange(xml);
-        seedWorkspace(entry.name, model);
+        await seedWorkspace(entry.name, model);
       }
     }
   } else if (existsSync(cfgFile)) {
@@ -126,7 +126,7 @@ function _seedFromLegacy(): void {
     if (existsSync(xmlPath)) {
       const xml = readFileSync(xmlPath, "utf-8");
       const model = parseOpenExchange(xml);
-      seedWorkspace(cfg.name, model);
+      await seedWorkspace(cfg.name, model);
     }
   }
 }
@@ -135,8 +135,9 @@ function _seedFromLegacy(): void {
 // Queries
 // ---------------------------------------------------------------------------
 
-export function getWorkspaces(): WorkspaceOut[] {
-  return db.select().from(wsTable).all().map((r) => ({
+export async function getWorkspaces(): Promise<WorkspaceOut[]> {
+  const rows = await db.select().from(wsTable);
+  return rows.map((r) => ({
     id: dbIdToStrId(r.id),
     name: r.name,
     active: r.id === _activeId,
@@ -151,21 +152,21 @@ export function getActiveWorkspaceId(): string {
 // Mutations
 // ---------------------------------------------------------------------------
 
-export function activateWorkspace(id: string): WorkspaceOut {
+export async function activateWorkspace(id: string): Promise<WorkspaceOut> {
   const dbId = strIdToDbId(id);
-  const row = db.select().from(wsTable).where(eq(wsTable.id, dbId)).get();
+  const [row] = await db.select().from(wsTable).where(eq(wsTable.id, dbId));
   if (!row) throw new Error(`Workspace '${id}' introuvable.`);
   if (!_loaded.has(dbId)) {
-    _loaded.set(dbId, buildRuntimeDs(dbId));
+    _loaded.set(dbId, await buildRuntimeDs(dbId));
   }
   _activeId = dbId;
   dataSource = _loaded.get(dbId)!;
   return { id, name: row.name, active: true };
 }
 
-export function createWorkspace(name: string, xmlFilePath?: string): WorkspaceOut {
+export async function createWorkspace(name: string, xmlFilePath?: string): Promise<WorkspaceOut> {
   if (!name?.trim()) throw new Error("Le nom du workspace est requis.");
-  const existing = db.select({ id: wsTable.id }).from(wsTable).where(eq(wsTable.name, name)).get();
+  const [existing] = await db.select({ id: wsTable.id }).from(wsTable).where(eq(wsTable.name, name));
   if (existing) throw new Error(`Un workspace nommé '${name}' existe déjà.`);
 
   let model: import("./model.js").ArchiModel;
@@ -176,7 +177,6 @@ export function createWorkspace(name: string, xmlFilePath?: string): WorkspaceOu
     const xml = readFileSync(fullPath, "utf-8");
     model = parseOpenExchange(xml);
   } else {
-    // Empty model
     model = {
       uuid: `id-${randomUUID()}`,
       name: name.trim(),
@@ -189,31 +189,31 @@ export function createWorkspace(name: string, xmlFilePath?: string): WorkspaceOu
     };
   }
 
-  const dbId = seedWorkspace(name.trim(), model);
-  const ds = buildRuntimeDs(dbId);
+  const dbId = await seedWorkspace(name.trim(), model);
+  const ds = await buildRuntimeDs(dbId);
   _loaded.set(dbId, ds);
   return { id: dbIdToStrId(dbId), name: name.trim(), active: false };
 }
 
-export function updateWorkspace(id: string, name: string): WorkspaceOut {
+export async function updateWorkspace(id: string, name: string): Promise<WorkspaceOut> {
   const dbId = strIdToDbId(id);
   if (!name?.trim()) throw new Error("Le nom du workspace est requis.");
-  const dup = db.select({ id: wsTable.id }).from(wsTable).where(eq(wsTable.name, name)).get();
+  const [dup] = await db.select({ id: wsTable.id }).from(wsTable).where(eq(wsTable.name, name));
   if (dup && dup.id !== dbId) throw new Error(`Un workspace nommé '${name}' existe déjà.`);
-  const row = db.update(wsTable).set({ name: name.trim(), updatedAt: Math.floor(Date.now() / 1000) })
-    .where(eq(wsTable.id, dbId)).returning().get();
+  const [row] = await db.update(wsTable).set({ name: name.trim(), updatedAt: Math.floor(Date.now() / 1000) })
+    .where(eq(wsTable.id, dbId)).returning();
   if (!row) throw new Error(`Workspace '${id}' introuvable.`);
   const ds = _loaded.get(dbId);
   if (ds) ds.model.name = name.trim();
   return { id, name: name.trim(), active: dbId === _activeId };
 }
 
-export function deleteWorkspace(id: string): void {
-  const all = db.select({ id: wsTable.id }).from(wsTable).all();
+export async function deleteWorkspace(id: string): Promise<void> {
+  const all = await db.select({ id: wsTable.id }).from(wsTable);
   if (all.length <= 1) throw new Error("Impossible de supprimer le dernier workspace.");
   const dbId = strIdToDbId(id);
   if (dbId === _activeId) throw new Error("Impossible de supprimer le workspace actif. Activez-en un autre d'abord.");
-  const deleted = db.delete(wsTable).where(eq(wsTable.id, dbId)).returning({ id: wsTable.id }).get();
+  const [deleted] = await db.delete(wsTable).where(eq(wsTable.id, dbId)).returning({ id: wsTable.id });
   if (!deleted) throw new Error(`Workspace '${id}' introuvable.`);
   _loaded.delete(dbId);
 }
@@ -223,8 +223,8 @@ export function deleteWorkspace(id: string): void {
 // ---------------------------------------------------------------------------
 
 /** Flush the in-memory model of a DataSource back to the DB. */
-export function saveDataSource(ds: DataSource): void {
-  modelToDb(ds.workspaceDbId, ds.model);
+export async function saveDataSource(ds: DataSource): Promise<void> {
+  await modelToDb(ds.workspaceDbId, ds.model);
 }
 
 /** Recompute cached element/relationship type lists after a mutation. */
