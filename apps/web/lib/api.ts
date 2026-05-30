@@ -86,18 +86,15 @@ export interface CurrentUser {
   role: string;
 }
 
-function authHeaders(extra?: Record<string, string>): Record<string, string> {
-  return { ...extra };
-}
-
 async function get<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, { credentials: "include", headers: authHeaders() });
+  const res = await fetch(`${BASE}${path}`, { credentials: "include" });
   if (!res.ok) throw new Error(`API error: ${res.status}`);
   return res.json();
 }
 
 export const fetchModel = () => get<ModelInfo>("/");
 export const fetchElementTypes = () => get<string[]>("/elements/types");
+export const fetchViewpoints = () => get<string[]>("/viewpoints");
 
 export async function fetchElements(
   type?: string | null,
@@ -136,7 +133,7 @@ async function post<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     method: "POST",
     credentials: "include",
-    headers: authHeaders({ "Content-Type": "application/json" }),
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
   if (!res.ok) {
@@ -172,7 +169,7 @@ async function put<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     method: "PUT",
     credentials: "include",
-    headers: authHeaders({ "Content-Type": "application/json" }),
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
   if (!res.ok) {
@@ -183,7 +180,7 @@ async function put<T>(path: string, body: unknown): Promise<T> {
 }
 
 async function del(path: string): Promise<void> {
-  const res = await fetch(`${BASE}${path}`, { method: "DELETE", credentials: "include", headers: authHeaders() });
+  const res = await fetch(`${BASE}${path}`, { method: "DELETE", credentials: "include" });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: `HTTP ${res.status}` }));
     throw new Error(err.detail || `API error: ${res.status}`);
@@ -347,7 +344,7 @@ export const deleteRole = (roleId: string) => del(`/roles/${encodeURIComponent(r
 export async function assignUserToRole(roleId: string, userId: string): Promise<void> {
   const res = await fetch(`${BASE}/roles/${encodeURIComponent(roleId)}/users/${encodeURIComponent(userId)}`, {
     method: "PUT",
-    headers: authHeaders({ "Content-Type": "application/json" }),
+    headers: { "Content-Type": "application/json" },
     body: "{}",
   });
   if (!res.ok) {
@@ -386,12 +383,10 @@ export const createUser = (body: UserCreateIn) => post<UserOut>("/users", body);
 export const updateUserApi = (id: string, body: UserUpdateIn) => put<UserOut>(`/users/${encodeURIComponent(id)}`, body);
 export const deleteUserApi = (id: string) => del(`/users/${encodeURIComponent(id)}`);
 
-export async function importModel(xml: string): Promise<ModelInfo> {
-  const res = await fetch(`${BASE}/import`, {
-    method: "POST",
-    headers: authHeaders({ "Content-Type": "text/xml" }),
-    body: xml,
-  });
+export async function importModel(file: File): Promise<ModelInfo> {
+  const form = new FormData();
+  form.append("file", file);
+  const res = await fetch(`${BASE}/import`, { method: "POST", credentials: "include", body: form });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: `HTTP ${res.status}` }));
     throw new Error(err.detail || `API error: ${res.status}`);

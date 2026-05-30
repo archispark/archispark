@@ -269,7 +269,7 @@ export const roles = pgTable("roles", {
 export const roleLayerPermissions = pgTable("role_layer_permissions", {
   roleId:     text("role_id").notNull().references(() => roles.id, { onDelete: "cascade" }),
   layer:      text("layer").notNull(),
-  permission: text("permission").notNull().default(""),
+  permission: integer("permission").notNull().default(0),
 }, (t) => [
   primaryKey({ columns: [t.roleId, t.layer] }),
 ]);

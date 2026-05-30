@@ -6,6 +6,7 @@ import { Suspense, useEffect, useState } from "react";
 import { LayoutDashboard, LayoutGrid, Tag, Users, Settings as SettingsIcon, GitBranch } from "lucide-react";
 import { fetchModel, fetchElements, type ModelInfo } from "@/lib/api";
 import { useIsAdmin } from "@/hooks/use-current-user";
+import { getLayer, LAYER_HEX_COLORS, LAYER_LABELS } from "@/lib/archimate-helpers";
 
 interface LayerGroup {
   key: string;
@@ -13,36 +14,11 @@ interface LayerGroup {
   dot: string;
 }
 
-const LAYER_GROUPS: LayerGroup[] = [
-  { key: "Strategy", label: "Stratégie", dot: "#dc2626" },
-  { key: "Business", label: "Métier", dot: "#d97706" },
-  { key: "Application", label: "Application", dot: "#2563eb" },
-  { key: "Technology", label: "Technologie", dot: "#16a34a" },
-  { key: "Motivation", label: "Motivation", dot: "#7c3aed" },
-  { key: "Physical", label: "Physique", dot: "#059669" },
-  { key: "Implementation", label: "Implémentation", dot: "#ea580c" },
-  { key: "Composite", label: "Composite", dot: "#64748b" },
-];
-
-function getLayer(type: string): string {
-  if (type.startsWith("Business") || ["Contract", "Representation", "Product"].includes(type))
-    return "Business";
-  if (type.startsWith("Application") || type === "DataObject") return "Application";
-  if (
-    type.startsWith("Technology") ||
-    ["Node", "Device", "SystemSoftware", "Path", "CommunicationNetwork", "Artifact"].includes(type)
-  )
-    return "Technology";
-  if (["Equipment", "Facility", "DistributionNetwork", "Material"].includes(type)) return "Physical";
-  if (
-    ["Stakeholder", "Driver", "Assessment", "Goal", "Outcome", "Principle", "Requirement", "Constraint", "Meaning", "Value"].includes(type)
-  )
-    return "Motivation";
-  if (["Resource", "Capability", "CourseOfAction", "ValueStream"].includes(type)) return "Strategy";
-  if (["WorkPackage", "Deliverable", "ImplementationEvent", "Plateau", "Gap"].includes(type))
-    return "Implementation";
-  return "Composite";
-}
+const LAYER_GROUPS: LayerGroup[] = Object.entries(LAYER_HEX_COLORS).map(([key, dot]) => ({
+  key,
+  dot,
+  label: LAYER_LABELS[key] ?? key,
+}));
 
 export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
   return (

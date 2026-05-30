@@ -1,6 +1,6 @@
 import { randomUUID } from "crypto";
 import type { Request, Response, NextFunction } from "express";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { db, dbDriver, sqlite, users as usersTable, roles as rolesTable, roleLayerPermissions as rolePermsTable, userRoles as userRolesTable } from "@workspace/db";
 import { auth } from "./better-auth.js";
 import { fromNodeHeaders } from "better-auth/node";
@@ -32,13 +32,19 @@ export const READ_ONLY_PERMISSIONS: LayerPermissions = ["read"];
 export const NO_PERMISSIONS: LayerPermissions = [];
 export type LayerRole = string;
 
-function parsePermissions(raw: string): LayerPermissions {
-  if (!raw) return [];
-  return raw.split(",").filter((p): p is PermissionFlag => (PERMISSION_FLAGS as readonly string[]).includes(p));
+// Bit flag mapping: read=1, create=2, update=4, delete=8
+const PERM_BIT: Record<PermissionFlag, number> = { read: 1, create: 2, update: 4, delete: 8 };
+
+export function parsePermissions(bits: number): LayerPermissions {
+  return PERMISSION_FLAGS.filter((f) => (bits & PERM_BIT[f]) !== 0);
 }
 
-function serializePermissions(perms: LayerPermissions): string {
-  return [...new Set(perms)].filter((p) => (PERMISSION_FLAGS as readonly string[]).includes(p)).join(",");
+export function serializePermissions(perms: LayerPermissions): number {
+  return [...new Set(perms)].reduce((acc, f) => acc | (PERM_BIT[f] ?? 0), 0);
+}
+
+export function permissionHasFlag(bits: number, flag: PermissionFlag): boolean {
+  return (bits & PERM_BIT[flag]) !== 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -133,7 +139,7 @@ export async function initUsers(): Promise<void> {
       CREATE TABLE IF NOT EXISTS role_layer_permissions (
         role_id    TEXT NOT NULL,
         layer      TEXT NOT NULL,
-        permission TEXT NOT NULL DEFAULT '',
+        permission INTEGER NOT NULL DEFAULT 0,
         PRIMARY KEY (role_id, layer),
         FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE
       );
@@ -151,65 +157,51 @@ export async function initUsers(): Promise<void> {
 
   const now = Math.floor(Date.now() / 1000);
 
-  // Seed system RBAC roles
-  const [existingAdmin] = await db.select().from(rolesTable).where(eq(rolesTable.name, "admin"));
-  if (!existingAdmin) {
-    const adminRoleId = randomUUID();
-    await db.insert(rolesTable).values({ id: adminRoleId, name: "admin", description: "Accès complet à toutes les couches.", isSystem: true, createdAt: now });
-    for (const layer of ARCHIMATE_LAYERS) {
-      await db.insert(rolePermsTable).values({ roleId: adminRoleId, layer, permission: serializePermissions(ALL_PERMISSIONS) });
-    }
-  }
-  const [existingUser] = await db.select().from(rolesTable).where(eq(rolesTable.name, "user"));
-  if (!existingUser) {
-    const userRoleId = randomUUID();
-    await db.insert(rolesTable).values({ id: userRoleId, name: "user", description: "Lecture seule sur toutes les couches.", isSystem: true, createdAt: now });
-    for (const layer of ARCHIMATE_LAYERS) {
-      await db.insert(rolePermsTable).values({ roleId: userRoleId, layer, permission: serializePermissions(READ_ONLY_PERMISSIONS) });
-    }
-  }
+  // Seed system RBAC roles (idempotent via onConflictDoNothing)
+  const adminRoleId = randomUUID();
+  await db.insert(rolesTable).values({ id: adminRoleId, name: "admin", description: "Accès complet à toutes les couches.", isSystem: true, createdAt: now }).onConflictDoNothing();
+  const [adminRole] = await db.select().from(rolesTable).where(eq(rolesTable.name, "admin"));
 
-  // Idempotent migration: ensure system roles have entries for ALL current layers
-  for (const [roleName, defaultPerms] of [["admin", ALL_PERMISSIONS], ["user", READ_ONLY_PERMISSIONS]] as const) {
-    const [sysRole] = await db.select().from(rolesTable).where(eq(rolesTable.name, roleName));
-    if (!sysRole) continue;
-    for (const layer of ARCHIMATE_LAYERS) {
-      const [exists] = await db.select({ roleId: rolePermsTable.roleId }).from(rolePermsTable)
-        .where(and(eq(rolePermsTable.roleId, sysRole.id), eq(rolePermsTable.layer, layer)));
-      if (!exists) {
-        await db.insert(rolePermsTable).values({ roleId: sysRole.id, layer, permission: serializePermissions(defaultPerms) });
-      }
+  const userRoleId = randomUUID();
+  await db.insert(rolesTable).values({ id: userRoleId, name: "user", description: "Lecture seule sur toutes les couches.", isSystem: true, createdAt: now }).onConflictDoNothing();
+  const [userRole] = await db.select().from(rolesTable).where(eq(rolesTable.name, "user"));
+
+  // Ensure all layers have permissions for both system roles (upsert: add missing, preserve existing)
+  for (const layer of ARCHIMATE_LAYERS) {
+    if (adminRole) {
+      await db.insert(rolePermsTable).values({ roleId: adminRole.id, layer, permission: serializePermissions(ALL_PERMISSIONS) }).onConflictDoNothing();
+    }
+    if (userRole) {
+      await db.insert(rolePermsTable).values({ roleId: userRole.id, layer, permission: serializePermissions(READ_ONLY_PERMISSIONS) }).onConflictDoNothing();
     }
   }
 
   // Seed default users
   const seedUser = async (username: string, password: string, role: "admin" | "user") => {
     const [existing] = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.username, username));
-    if (existing) {
-      const [rbacRole] = await db.select().from(rolesTable).where(eq(rolesTable.name, role));
-      if (rbacRole) {
-        const [linked] = await db.select().from(userRolesTable)
-          .where(and(eq(userRolesTable.roleId, rbacRole.id), eq(userRolesTable.userId, existing.id)));
-        if (!linked) await db.insert(userRolesTable).values({ roleId: rbacRole.id, userId: existing.id });
-      }
-      return;
+    let userId = existing?.id ?? null;
+    if (!userId) {
+      const res = await auth.api.signUpEmail({
+        body: { email: `${username}@archispark.internal`, password, name: username, username } as never,
+      }).catch(() => null);
+      if (!res?.user) return;
+      await db.update(usersTable).set({ username, role }).where(eq(usersTable.id, res.user.id));
+      userId = res.user.id;
     }
-    const res = await auth.api.signUpEmail({
-      body: { email: `${username}@archispark.internal`, password, name: username, username } as never,
-    }).catch(() => null);
-    if (!res?.user) return;
-    await db.update(usersTable).set({ username, role }).where(eq(usersTable.id, res.user.id));
     const [rbacRole] = await db.select().from(rolesTable).where(eq(rolesTable.name, role));
     if (rbacRole) {
-      const [linked] = await db.select().from(userRolesTable)
-        .where(and(eq(userRolesTable.roleId, rbacRole.id), eq(userRolesTable.userId, res.user.id)));
-      if (!linked) await db.insert(userRolesTable).values({ roleId: rbacRole.id, userId: res.user.id });
+      await db.insert(userRolesTable).values({ roleId: rbacRole.id, userId }).onConflictDoNothing();
     }
   };
 
-  await seedUser("admin", "admin", "admin");
-  await seedUser("user",  "user",  "user");
-  console.log("[auth] Better Auth users ready — admin/admin · user/user");
+  const adminPwd = process.env["SEED_ADMIN_PASSWORD"] ?? "admin";
+  const userPwd  = process.env["SEED_USER_PASSWORD"]  ?? "user";
+  await seedUser("admin", adminPwd, "admin");
+  await seedUser("user",  userPwd,  "user");
+  if (!process.env["SEED_ADMIN_PASSWORD"]) {
+    console.warn("[auth] SEED_ADMIN_PASSWORD not set — using default 'admin'. Set it in production!");
+  }
+  console.log("[auth] Better Auth users ready.");
 }
 
 // ---------------------------------------------------------------------------
@@ -265,20 +257,19 @@ export function requireAdmin(req: AuthRequest, res: Response, next: NextFunction
 
 async function userHasPermission(userId: string, baRole: string, resource: string, flag: PermissionFlag): Promise<boolean> {
   if (baRole === "admin") return true;
-  const roleRows = await db.select({ roleId: userRolesTable.roleId })
-    .from(userRolesTable).where(eq(userRolesTable.userId, userId));
-  for (const { roleId } of roleRows) {
-    const [perm] = await db.select().from(rolePermsTable)
-      .where(and(eq(rolePermsTable.roleId, roleId), eq(rolePermsTable.layer, resource)));
-    if (perm && parsePermissions(perm.permission).includes(flag)) return true;
-  }
-  return false;
+  const rows = await db
+    .select({ permission: rolePermsTable.permission })
+    .from(userRolesTable)
+    .innerJoin(rolePermsTable, and(eq(rolePermsTable.roleId, userRolesTable.roleId), eq(rolePermsTable.layer, resource)))
+    .where(eq(userRolesTable.userId, userId));
+  return rows.some(({ permission }) => permissionHasFlag(permission, flag));
 }
 
 export function requirePermission(resource: string, flag: PermissionFlag) {
   return async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     if (!req.user) { res.status(401).json({ detail: "Non authentifié." }); return; }
     if (!(await userHasPermission(req.user.id, req.user.role, resource, flag))) {
+      console.warn(`[security] permission denied user=${req.user.id} role=${req.user.role} layer=${resource} flag=${flag} path=${req.path}`);
       res.status(403).json({ detail: `Permission '${flag}' requise sur '${resource}'.` });
       return;
     }
@@ -320,21 +311,49 @@ async function roleUsers(roleId: string): Promise<string[]> {
   return rows.map((r) => r.userId);
 }
 
-async function roleOut(r: typeof rolesTable.$inferSelect): Promise<RoleOut> {
+function buildRoleOut(
+  r: typeof rolesTable.$inferSelect,
+  permMap: Map<string, Record<ArchiLayer, LayerPermissions>>,
+  userMap: Map<string, string[]>,
+): RoleOut {
   return {
     id: r.id,
     name: r.name,
     description: r.description ?? null,
     is_system: Boolean(r.isSystem),
     created_at: new Date(r.createdAt * 1000).toISOString(),
-    permissions: await rolePermissions(r.id),
-    user_ids: await roleUsers(r.id),
+    permissions: permMap.get(r.id) ?? emptyPermissions(),
+    user_ids: userMap.get(r.id) ?? [],
   };
+}
+
+async function roleOut(r: typeof rolesTable.$inferSelect): Promise<RoleOut> {
+  const [perms, uids] = await Promise.all([rolePermissions(r.id), roleUsers(r.id)]);
+  const permMap = new Map([[r.id, perms]]);
+  const userMap = new Map([[r.id, uids]]);
+  return buildRoleOut(r, permMap, userMap);
 }
 
 export async function listRoles(): Promise<RoleOut[]> {
   const rows = await db.select().from(rolesTable);
-  return Promise.all(rows.map(roleOut));
+  if (rows.length === 0) return [];
+  const roleIds = rows.map((r) => r.id);
+  // Batch: 2 queries for all roles instead of 2N
+  const [allPerms, allUsers] = await Promise.all([
+    db.select().from(rolePermsTable).where(inArray(rolePermsTable.roleId, roleIds)),
+    db.select({ roleId: userRolesTable.roleId, userId: userRolesTable.userId }).from(userRolesTable).where(inArray(userRolesTable.roleId, roleIds)),
+  ]);
+  const permMap = new Map<string, Record<ArchiLayer, LayerPermissions>>();
+  for (const r of rows) permMap.set(r.id, emptyPermissions());
+  for (const p of allPerms) {
+    if ((ARCHIMATE_LAYERS as readonly string[]).includes(p.layer)) {
+      permMap.get(p.roleId)![p.layer as ArchiLayer] = parsePermissions(p.permission);
+    }
+  }
+  const userMap = new Map<string, string[]>();
+  for (const r of rows) userMap.set(r.id, []);
+  for (const u of allUsers) userMap.get(u.roleId)?.push(u.userId);
+  return rows.map((r) => buildRoleOut(r, permMap, userMap));
 }
 
 export async function getRole(roleId: string): Promise<RoleOut> {
@@ -379,14 +398,8 @@ export async function setRolePermissions(roleId: string, perms: Partial<Record<A
     if (!flags) continue;
     if (!(ARCHIMATE_LAYERS as readonly string[]).includes(layer)) continue;
     const serialized = serializePermissions(flags);
-    const [exists] = await db.select().from(rolePermsTable)
-      .where(and(eq(rolePermsTable.roleId, roleId), eq(rolePermsTable.layer, layer)));
-    if (exists) {
-      await db.update(rolePermsTable).set({ permission: serialized })
-        .where(and(eq(rolePermsTable.roleId, roleId), eq(rolePermsTable.layer, layer)));
-    } else {
-      await db.insert(rolePermsTable).values({ roleId, layer, permission: serialized });
-    }
+    await db.insert(rolePermsTable).values({ roleId, layer, permission: serialized })
+      .onConflictDoUpdate({ target: [rolePermsTable.roleId, rolePermsTable.layer], set: { permission: serialized } });
   }
 }
 
@@ -396,7 +409,7 @@ export async function getRoleLayerPermission(roleId: string, layer: string): Pro
   if (!role) throw new Error(`Rôle '${roleId}' introuvable.`);
   const [row] = await db.select().from(rolePermsTable)
     .where(and(eq(rolePermsTable.roleId, roleId), eq(rolePermsTable.layer, layer)));
-  return parsePermissions(row?.permission ?? "");
+  return parsePermissions(row?.permission ?? 0);
 }
 
 export async function setRoleLayerPermission(roleId: string, layer: string, permissions: LayerPermissions): Promise<LayerPermissions> {
@@ -406,14 +419,8 @@ export async function setRoleLayerPermission(roleId: string, layer: string, perm
   if (!role) throw new Error(`Rôle '${roleId}' introuvable.`);
   if (role.isSystem) throw new Error("Les permissions des rôles système ne peuvent pas être modifiées.");
   const serialized = serializePermissions(permissions);
-  const [exists] = await db.select().from(rolePermsTable)
-    .where(and(eq(rolePermsTable.roleId, roleId), eq(rolePermsTable.layer, layer)));
-  if (exists) {
-    await db.update(rolePermsTable).set({ permission: serialized })
-      .where(and(eq(rolePermsTable.roleId, roleId), eq(rolePermsTable.layer, layer)));
-  } else {
-    await db.insert(rolePermsTable).values({ roleId, layer, permission: serialized });
-  }
+  await db.insert(rolePermsTable).values({ roleId, layer, permission: serialized })
+    .onConflictDoUpdate({ target: [rolePermsTable.roleId, rolePermsTable.layer], set: { permission: serialized } });
   return permissions;
 }
 
@@ -430,10 +437,7 @@ export async function assignUserToRole(roleId: string, userId: string): Promise<
   if (!role) throw new Error(`Rôle '${roleId}' introuvable.`);
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
   if (!user) throw new Error(`Utilisateur '${userId}' introuvable.`);
-  const [exists] = await db.select().from(userRolesTable)
-    .where(and(eq(userRolesTable.roleId, roleId), eq(userRolesTable.userId, userId)));
-  if (exists) return;
-  await db.insert(userRolesTable).values({ roleId, userId });
+  await db.insert(userRolesTable).values({ roleId, userId }).onConflictDoNothing();
 }
 
 export async function unassignUserFromRole(roleId: string, userId: string): Promise<void> {

@@ -50,6 +50,7 @@ import {
 import { DataTable } from "@/components/data-table";
 import { Plus, Trash2, Users as UsersIcon, Settings as SettingsIcon, Shield, Upload, Download } from "lucide-react";
 import { exportModelUrl, importModel } from "@/lib/api";
+import { useDropzone } from "react-dropzone";
 
 type Tab = "members" | "roles" | "general" | "import-export";
 
@@ -778,16 +779,12 @@ function ImportExportTab() {
     }
   }
 
-  async function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
+  async function handleImportFile(file: File) {
     setImporting(true);
     setImportError(null);
     setImportSuccess(null);
     try {
-      const xml = await file.text();
-      const info = await importModel(xml);
+      const info = await importModel(file);
       setImportSuccess(`Modèle « ${info.name} » importé — ${info.element_count} éléments, ${info.view_count} vues.`);
     } catch (err) {
       setImportError((err as Error).message);
@@ -795,6 +792,13 @@ function ImportExportTab() {
       setImporting(false);
     }
   }
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    accept: { "text/xml": [".xml"], "application/xml": [".xml"] },
+    maxFiles: 1,
+    disabled: importing,
+    onDropAccepted: ([file]) => { if (file) handleImportFile(file); },
+  });
 
   return (
     <div className="space-y-6 max-w-xl">
@@ -808,16 +812,23 @@ function ImportExportTab() {
       <div className="space-y-2">
         <Label>Importer un modèle</Label>
         <p className="text-[12px] text-muted-foreground">Fichier Open Exchange Format (.xml). Remplace le workspace actif.</p>
-        <label className={`flex items-center justify-center gap-3 border-2 border-dashed rounded-lg p-6 cursor-pointer transition-colors ${
-          importing ? "border-primary/50 opacity-60 pointer-events-none" : "border-border text-muted-foreground hover:border-primary hover:text-foreground"
-        }`}>
+        <div
+          {...getRootProps()}
+          className={`flex items-center justify-center gap-3 border-2 border-dashed rounded-lg p-6 cursor-pointer transition-colors ${
+            importing ? "border-primary/50 opacity-60 pointer-events-none"
+            : isDragActive ? "border-primary bg-primary/5 text-primary"
+            : "border-border text-muted-foreground hover:border-primary hover:text-foreground"
+          }`}
+        >
+          <input {...getInputProps()} />
           <Upload className="size-5 shrink-0" />
           <div className="text-center">
-            <p className="text-sm font-medium">{importing ? "Importation en cours…" : "Cliquez ou déposez un fichier"}</p>
+            <p className="text-sm font-medium">
+              {importing ? "Importation en cours…" : isDragActive ? "Déposez le fichier ici…" : "Cliquez ou déposez un fichier"}
+            </p>
             <p className="text-[11px] opacity-70 mt-0.5">.xml (AOEF)</p>
           </div>
-          <input type="file" accept=".xml" className="hidden" disabled={importing} onChange={handleImport} />
-        </label>
+        </div>
       </div>
 
       <div className="space-y-2">

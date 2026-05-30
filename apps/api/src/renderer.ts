@@ -9,15 +9,18 @@ import { readFileSync, existsSync } from "fs";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 import type { ArchiView, ArchiNode, ArchiModel } from "@workspace/db";
+import { escXml } from "./xml-escape.js";
+import { colord } from "colord";
+import { LRUCache } from "lru-cache";
 
 const _srcDir = dirname(fileURLToPath(import.meta.url));
 const ICONS_DIR = join(_srcDir, "..", "public", "images", "archimate");
 
 // ---------------------------------------------------------------------------
-// PNG icon loader (lazy, cached)
+// PNG icon loader (lazy, LRU-cached with max 200 entries)
 // ---------------------------------------------------------------------------
 
-const _iconCache = new Map<string, string | null>();
+const _iconCache = new LRUCache<string, string | null>({ max: 200 });
 
 function _typeToKebab(type: string): string {
   return type.replace(/([A-Z])/g, (m, _, i) => (i > 0 ? `-${m.toLowerCase()}` : m.toLowerCase()));
@@ -25,17 +28,15 @@ function _typeToKebab(type: string): string {
 
 function loadIconDataUri(type: string): string | null {
   if (_iconCache.has(type)) return _iconCache.get(type) ?? null;
+  let uri: string | null = null;
   const file = join(ICONS_DIR, `${_typeToKebab(type)}.png`);
   try {
     if (existsSync(file)) {
-      const b64 = readFileSync(file).toString("base64");
-      const uri = `data:image/png;base64,${b64}`;
-      _iconCache.set(type, uri);
-      return uri;
+      uri = `data:image/png;base64,${readFileSync(file).toString("base64")}`;
     }
   } catch { /* ignore */ }
-  _iconCache.set(type, null);
-  return null;
+  _iconCache.set(type, uri);
+  return uri;
 }
 
 // ---------------------------------------------------------------------------
@@ -141,30 +142,15 @@ function collectNodes(
 // Helpers
 // ---------------------------------------------------------------------------
 
-function escXml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
 function rgbStr(c: { r: number; g: number; b: number } | null | undefined): string | null {
   if (!c) return null;
-  return `rgb(${c.r},${c.g},${c.b})`;
+  const { r, g, b } = colord({ r: c.r, g: c.g, b: c.b }).toRgb();
+  return `rgb(${r},${g},${b})`;
 }
 
 // Archi's derived line color: fill_color × 0.7 (see ColorFactory.getDerivedLineColor)
 function derivedLineColor(fill: string): string {
-  let r = 0, g = 0, b = 0;
-  if (fill.startsWith("#") && fill.length === 7) {
-    r = parseInt(fill.slice(1, 3), 16);
-    g = parseInt(fill.slice(3, 5), 16);
-    b = parseInt(fill.slice(5, 7), 16);
-  } else {
-    const m = /^rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)$/.exec(fill);
-    if (m) { r = +m[1]!; g = +m[2]!; b = +m[3]!; }
-  }
+  const { r, g, b } = colord(fill).toRgb();
   return `rgb(${Math.floor(r * 0.7)},${Math.floor(g * 0.7)},${Math.floor(b * 0.7)})`;
 }
 
@@ -825,8 +811,6 @@ export function renderViewToSvg(view: ArchiView, model: ArchiModel): string {
     for (const bp of conn.bendpoints ?? []) {
       waypoints.push({ x: bp.x, y: bp.y });
     }
-    void srcCx; void srcCy; void tgtCx; void tgtCy;
-
     let allPts: Array<{ x: number; y: number }>;
     if (waypoints.length === 0) {
       const start = rectEdge(tgtCx, tgtCy, sx, sy, srcG.absW, srcG.absH);

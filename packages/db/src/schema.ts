@@ -282,11 +282,11 @@ export const roles = sqliteTable("roles", {
   uniqueIndex("roles_name_uniq").on(t.name),
 ]);
 
-// permission stored as comma-separated flags: "read", "create", "update", "delete"
+// permission stored as bit flags: read=1, create=2, update=4, delete=8
 export const roleLayerPermissions = sqliteTable("role_layer_permissions", {
   roleId:     text("role_id").notNull().references(() => roles.id, { onDelete: "cascade" }),
   layer:      text("layer").notNull(),
-  permission: text("permission").notNull().default(""),
+  permission: integer("permission").notNull().default(0),
 }, (t) => [
   primaryKey({ columns: [t.roleId, t.layer] }),
 ]);

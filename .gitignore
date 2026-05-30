@@ -39,3 +39,6 @@ npm-debug.log*
 *.db
 *.db-shm
 *.db-wal
+
+# Documentation — vit dans le repo séparé archispark-docs
+docs/

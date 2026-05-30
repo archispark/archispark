@@ -1,38 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
-import { fetchModel, fetchElements, type ModelInfo, type ElementOut } from "@/lib/api";
-
-const LAYER_COLORS: Record<string, string> = {
-  Business: "#d97706",
-  Application: "#2563eb",
-  Technology: "#16a34a",
-  Motivation: "#7c3aed",
-  Strategy: "#dc2626",
-  Physical: "#059669",
-  Implementation: "#ea580c",
-};
-
-function getLayer(type: string): string {
-  if (type.startsWith("Business") || ["Contract", "Representation", "Product"].includes(type))
-    return "Business";
-  if (type.startsWith("Application") || type === "DataObject") return "Application";
-  if (
-    type.startsWith("Technology") ||
-    ["Node", "Device", "SystemSoftware", "Path", "CommunicationNetwork", "Artifact"].includes(type)
-  )
-    return "Technology";
-  if (["Equipment", "Facility", "DistributionNetwork", "Material"].includes(type)) return "Physical";
-  if (
-    ["Stakeholder", "Driver", "Assessment", "Goal", "Outcome", "Principle", "Requirement", "Constraint", "Meaning", "Value"].includes(type)
-  )
-    return "Motivation";
-  if (["Resource", "Capability", "CourseOfAction", "ValueStream"].includes(type)) return "Strategy";
-  if (["WorkPackage", "Deliverable", "ImplementationEvent", "Plateau", "Gap"].includes(type))
-    return "Implementation";
-  return "Composite";
-}
+import { useModel, useElements } from "@/lib/queries";
+import { getLayer, LAYER_HEX_COLORS as LAYER_COLORS } from "@/lib/archimate-helpers";
+import type { ElementOut } from "@/lib/api";
 
 const SECTIONS = [
   { href: "/elements", label: "Éléments", desc: "Parcourir tous les éléments ArchiMate du modèle" },
@@ -41,20 +12,11 @@ const SECTIONS = [
 ];
 
 export default function OverviewPage() {
-  const [model, setModel] = useState<ModelInfo | null>(null);
-  const [elements, setElements] = useState<ElementOut[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data: model, isLoading: modelLoading, error: modelError } = useModel();
+  const { data: elements = [], isLoading: elementsLoading } = useElements();
 
-  useEffect(() => {
-    Promise.all([fetchModel(), fetchElements()])
-      .then(([m, e]) => {
-        setModel(m);
-        setElements(e);
-      })
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false));
-  }, []);
+  const loading = modelLoading || elementsLoading;
+  const error = modelError;
 
   const layerCounts = elements.reduce<Record<string, number>>((acc, el) => {
     const layer = getLayer(el.type);
@@ -75,7 +37,7 @@ export default function OverviewPage() {
     return (
       <div className="p-8">
         <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">
-          Erreur : {error}
+          Erreur : {(error as Error).message}
         </div>
         <p className="text-muted-foreground text-xs mt-2">
           Assurez-vous que l&apos;API ArchiMate tourne sur le port 8000.

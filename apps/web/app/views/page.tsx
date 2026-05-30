@@ -7,6 +7,8 @@ import {
   createView, updateView, deleteView,
   type ViewOut,
 } from "@/lib/api";
+import { useViewpoints } from "@/lib/queries";
+import { useFormModal } from "@/hooks/use-form-modal";
 import { Button } from "@workspace/ui/components/button";
 import { Input } from "@workspace/ui/components/input";
 import { Label } from "@workspace/ui/components/label";
@@ -22,46 +24,21 @@ import { useIsAdmin } from "@/hooks/use-current-user";
 import type { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/components/data-table";
 
-const VIEWPOINTS = [
-  "Organization", "Application Platform", "Application Structure",
-  "Information Structure", "Technology", "Layered", "Physical",
-  "Product", "Application Usage", "Technology Usage",
-  "Business Process Cooperation", "Application Cooperation",
-  "Service Realization", "Implementation and Deployment",
-  "Goal Realization", "Goal Contribution", "Principles",
-  "Requirements Realization", "Motivation", "Strategy",
-  "Capability Map", "Outcome Realization", "Resource Map", "Value Stream",
-  "Project", "Migration", "Implementation and Migration", "Stakeholder",
-];
-
 export default function ViewsPage() {
   const isAdmin = useIsAdmin();
+  const { data: viewpoints = [] } = useViewpoints();
   const [views, setViews] = useState<ViewOut[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Create
-  const [createOpen, setCreateOpen] = useState(false);
-  const [newName, setNewName] = useState("");
-  const [newViewpoint, setNewViewpoint] = useState("");
-  const [newDoc, setNewDoc] = useState("");
-  const [creating, setCreating] = useState(false);
-  const [createError, setCreateError] = useState<string | null>(null);
+  // Form fields
+  const [name, setName] = useState("");
+  const [viewpoint, setViewpoint] = useState("");
+  const [doc, setDoc] = useState("");
 
-  // Edit
-  const [editOpen, setEditOpen] = useState(false);
-  const [editTarget, setEditTarget] = useState<ViewOut | null>(null);
-  const [editName, setEditName] = useState("");
-  const [editViewpoint, setEditViewpoint] = useState("");
-  const [editDoc, setEditDoc] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [editError, setEditError] = useState<string | null>(null);
-
-  // Delete
-  const [deleteOpen, setDeleteOpen] = useState(false);
-  const [delTarget, setDelTarget] = useState<ViewOut | null>(null);
-  const [deleting, setDeleting] = useState(false);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [createModal, createActions] = useFormModal<null>();
+  const [editModal, editActions] = useFormModal<ViewOut>();
+  const [deleteModal, deleteActions] = useFormModal<ViewOut>();
 
   const reload = useCallback(() => {
     setLoading(true);
@@ -75,47 +52,37 @@ export default function ViewsPage() {
 
   function openEdit(view: ViewOut, e: React.MouseEvent) {
     e.preventDefault(); e.stopPropagation();
-    setEditTarget(view);
-    setEditName(view.name);
-    setEditViewpoint(view.viewpoint ?? "");
-    setEditDoc(view.documentation ?? "");
-    setEditError(null);
-    setEditOpen(true);
+    setName(view.name); setViewpoint(view.viewpoint ?? ""); setDoc(view.documentation ?? "");
+    editActions.openWith(view);
   }
 
-  function openDelete(view: ViewOut, e: React.MouseEvent) {
-    e.preventDefault(); e.stopPropagation();
-    setDelTarget(view); setDeleteError(null); setDeleteOpen(true);
+  function openCreate() {
+    setName(""); setViewpoint(""); setDoc("");
+    createActions.openNew();
   }
 
   async function handleCreate() {
-    if (!newName.trim()) return;
-    setCreating(true); setCreateError(null);
-    try {
-      await createView({ name: newName.trim(), viewpoint: newViewpoint || null, documentation: newDoc.trim() || null });
-      setCreateOpen(false); setNewName(""); setNewViewpoint(""); setNewDoc("");
+    if (!name.trim()) return;
+    await createActions.run(async () => {
+      await createView({ name: name.trim(), viewpoint: viewpoint || null, documentation: doc.trim() || null });
       reload();
-    } catch (err) { setCreateError((err as Error).message); }
-    finally { setCreating(false); }
+    });
   }
 
   async function handleEdit() {
-    if (!editTarget || !editName.trim()) return;
-    setSaving(true); setEditError(null);
-    try {
-      await updateView(editTarget.identifier, { name: editName.trim(), viewpoint: editViewpoint || null, documentation: editDoc.trim() || null });
-      setEditOpen(false); reload();
-    } catch (err) { setEditError((err as Error).message); }
-    finally { setSaving(false); }
+    if (!editModal.target || !name.trim()) return;
+    await editActions.run(async () => {
+      await updateView(editModal.target!.identifier, { name: name.trim(), viewpoint: viewpoint || null, documentation: doc.trim() || null });
+      reload();
+    });
   }
 
   async function handleDelete() {
-    if (!delTarget) return;
-    setDeleting(true); setDeleteError(null);
-    try {
-      await deleteView(delTarget.identifier); setDeleteOpen(false); reload();
-    } catch (err) { setDeleteError((err as Error).message); }
-    finally { setDeleting(false); }
+    if (!deleteModal.target) return;
+    await deleteActions.run(async () => {
+      await deleteView(deleteModal.target!.identifier);
+      reload();
+    });
   }
 
   const viewColumns: ColumnDef<ViewOut>[] = useMemo(() => [
@@ -198,8 +165,8 @@ export default function ViewsPage() {
           </p>
         </div>
         {isAdmin && (
-          <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-            <DialogTrigger render={<Button size="sm" />}>
+          <Dialog open={createModal.open} onOpenChange={(o) => !o && createActions.close()}>
+            <DialogTrigger render={<Button size="sm" onClick={openCreate} />}>
               <Plus className="size-4" /> Nouvelle vue
             </DialogTrigger>
             <DialogContent className="sm:max-w-md">
@@ -210,27 +177,27 @@ export default function ViewsPage() {
               <div className="flex flex-col gap-4 py-2">
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="view-name">Nom *</Label>
-                  <Input id="view-name" value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Ma vue" onKeyDown={(e) => e.key === "Enter" && handleCreate()} />
+                  <Input id="view-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Ma vue" onKeyDown={(e) => e.key === "Enter" && handleCreate()} />
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <Label>Viewpoint</Label>
-                  <Select value={newViewpoint} onValueChange={(v) => setNewViewpoint(v ?? "")}>
+                  <Select value={viewpoint} onValueChange={(v) => setViewpoint(v ?? "")}>
                     <SelectTrigger><SelectValue placeholder="Aucun (vue libre)" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="">Aucun</SelectItem>
-                      {VIEWPOINTS.map((vp) => <SelectItem key={vp} value={vp}>{vp}</SelectItem>)}
+                      {viewpoints.map((vp) => <SelectItem key={vp} value={vp}>{vp}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="view-doc">Documentation</Label>
-                  <textarea id="view-doc" value={newDoc} onChange={(e) => setNewDoc(e.target.value)} placeholder="Description optionnelle" className="bg-background border border-input rounded-md text-foreground text-sm px-3 py-2 outline-none focus:border-ring resize-vertical min-h-[72px]" />
+                  <textarea id="view-doc" value={doc} onChange={(e) => setDoc(e.target.value)} placeholder="Description optionnelle" className="bg-background border border-input rounded-md text-foreground text-sm px-3 py-2 outline-none focus:border-ring resize-vertical min-h-[72px]" />
                 </div>
               </div>
-              {createError && <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">{createError}</div>}
+              {createModal.error && <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">{createModal.error}</div>}
               <DialogFooter>
                 <DialogClose render={<Button variant="outline" />}>Annuler</DialogClose>
-                <Button onClick={handleCreate} disabled={creating || !newName.trim()}>{creating ? "Création…" : "Créer"}</Button>
+                <Button onClick={handleCreate} disabled={createModal.isPending || !name.trim()}>{createModal.isPending ? "Création…" : "Créer"}</Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
@@ -247,50 +214,50 @@ export default function ViewsPage() {
       )}
 
       {/* Edit dialog */}
-      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+      <Dialog open={editModal.open} onOpenChange={(o) => !o && editActions.close()}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader><DialogTitle>Modifier la vue</DialogTitle></DialogHeader>
           <div className="flex flex-col gap-4 py-2">
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="edit-view-name">Nom *</Label>
-              <Input id="edit-view-name" value={editName} onChange={(e) => setEditName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleEdit()} />
+              <Input id="edit-view-name" value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleEdit()} />
             </div>
             <div className="flex flex-col gap-1.5">
               <Label>Viewpoint</Label>
-              <Select value={editViewpoint} onValueChange={(v) => setEditViewpoint(v ?? "")}>
+              <Select value={viewpoint} onValueChange={(v) => setViewpoint(v ?? "")}>
                 <SelectTrigger><SelectValue placeholder="Aucun" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="">Aucun</SelectItem>
-                  {VIEWPOINTS.map((vp) => <SelectItem key={vp} value={vp}>{vp}</SelectItem>)}
+                  {viewpoints.map((vp) => <SelectItem key={vp} value={vp}>{vp}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="edit-view-doc">Documentation</Label>
-              <textarea id="edit-view-doc" value={editDoc} onChange={(e) => setEditDoc(e.target.value)} className="bg-background border border-input rounded-md text-foreground text-sm px-3 py-2 outline-none focus:border-ring resize-vertical min-h-[72px]" />
+              <textarea id="edit-view-doc" value={doc} onChange={(e) => setDoc(e.target.value)} className="bg-background border border-input rounded-md text-foreground text-sm px-3 py-2 outline-none focus:border-ring resize-vertical min-h-[72px]" />
             </div>
           </div>
-          {editError && <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">{editError}</div>}
+          {editModal.error && <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">{editModal.error}</div>}
           <DialogFooter>
             <DialogClose render={<Button variant="outline" />}>Annuler</DialogClose>
-            <Button onClick={handleEdit} disabled={saving || !editName.trim()}>{saving ? "Enregistrement…" : "Enregistrer"}</Button>
+            <Button onClick={handleEdit} disabled={editModal.isPending || !name.trim()}>{editModal.isPending ? "Enregistrement…" : "Enregistrer"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* Delete dialog */}
-      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+      <Dialog open={deleteModal.open} onOpenChange={(o) => !o && deleteActions.close()}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
             <DialogTitle>Supprimer la vue</DialogTitle>
             <DialogDescription>
-              Supprimer <strong>{delTarget?.name || "cette vue"}</strong> ? Cette action est irréversible.
+              Supprimer <strong>{deleteModal.target?.name || "cette vue"}</strong> ? Cette action est irréversible.
             </DialogDescription>
           </DialogHeader>
-          {deleteError && <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">{deleteError}</div>}
+          {deleteModal.error && <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">{deleteModal.error}</div>}
           <DialogFooter>
             <DialogClose render={<Button variant="outline" />}>Annuler</DialogClose>
-            <Button variant="destructive" onClick={handleDelete} disabled={deleting}>{deleting ? "Suppression…" : "Supprimer"}</Button>
+            <Button variant="destructive" onClick={handleDelete} disabled={deleteModal.isPending}>{deleteModal.isPending ? "Suppression…" : "Supprimer"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -7,42 +7,12 @@ import {
   type ElementOut,
   type RelationshipOut,
 } from "@/lib/api";
+import { getLayer, LAYER_HEX_COLORS as LAYER_COLORS } from "@/lib/archimate-helpers";
 import { ChevronDown, ChevronRight } from "lucide-react";
 
 interface TreeNode {
   el: ElementOut;
   children: TreeNode[];
-}
-
-const LAYER_COLORS: Record<string, string> = {
-  Business: "#d97706",
-  Application: "#2563eb",
-  Technology: "#16a34a",
-  Physical: "#059669",
-  Motivation: "#7c3aed",
-  Strategy: "#dc2626",
-  Implementation: "#ea580c",
-  Composite: "#64748b",
-};
-
-function getLayer(type: string): string {
-  if (type.startsWith("Business") || ["Contract", "Representation", "Product"].includes(type))
-    return "Business";
-  if (type.startsWith("Application") || type === "DataObject") return "Application";
-  if (
-    type.startsWith("Technology") ||
-    ["Node", "Device", "SystemSoftware", "Path", "CommunicationNetwork", "Artifact"].includes(type)
-  )
-    return "Technology";
-  if (["Equipment", "Facility", "DistributionNetwork", "Material"].includes(type)) return "Physical";
-  if (
-    ["Stakeholder", "Driver", "Assessment", "Goal", "Outcome", "Principle", "Requirement", "Constraint", "Meaning", "Value"].includes(type)
-  )
-    return "Motivation";
-  if (["Resource", "Capability", "CourseOfAction", "ValueStream"].includes(type)) return "Strategy";
-  if (["WorkPackage", "Deliverable", "ImplementationEvent", "Plateau", "Gap"].includes(type))
-    return "Implementation";
-  return "Composite";
 }
 
 function buildTree(elements: ElementOut[], relationships: RelationshipOut[]): TreeNode[] {

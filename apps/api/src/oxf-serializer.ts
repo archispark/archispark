@@ -17,20 +17,12 @@ import type {
   ArchiConnection,
   ArchiNode,
 } from "@workspace/db";
+import { escXml as esc } from "./xml-escape.js";
 
 type XmlNode = Record<string, unknown>;
 
 const NS = "http://www.opengroup.org/xsd/archimate/3.0/";
 const XSI = "http://www.w3.org/2001/XMLSchema-instance";
-
-function esc(s: string | null | undefined): string {
-  if (s == null) return "";
-  return String(s)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
 
 function ensureArr<T>(value: unknown): T[] {
   if (value === undefined || value === null) return [];

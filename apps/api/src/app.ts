@@ -26,6 +26,13 @@
 
 import express, { Request, Response, NextFunction } from "express";
 import { randomUUID } from "crypto";
+import cors from "cors";
+import helmet from "helmet";
+import { rateLimit } from "express-rate-limit";
+import { colord } from "colord";
+import multer from "multer";
+import archiver from "archiver";
+import { AppError, NotFoundError, ValidationError } from "./errors.js";
 
 /** xs:ID / NCName requires the first char to be a letter or underscore.
  *  `crypto.randomUUID()` may return strings starting with a digit, which is
@@ -73,9 +80,7 @@ import {
 import { auth as baAuth, getConfiguredProviders } from "./better-auth.js";
 import { toNodeHandler } from "better-auth/node";
 import {
-  ELEMENT_TYPES,
-  RELATIONSHIP_TYPES,
-  PROPERTY_DEFINITION_TYPES,
+  VIEWPOINTS,
   ConnectionOut,
   ElementCreateIn,
   ElementOut,
@@ -102,6 +107,27 @@ import {
   ViewDetailOut,
   ViewOut,
 } from "./schemas.js";
+import {
+  parseBody,
+  ElementCreateSchema,
+  ElementUpdateSchema,
+  ElementQuerySchema,
+  RelationshipCreateSchema,
+  RelationshipUpdateSchema,
+  RelationshipQuerySchema,
+  ViewCreateSchema,
+  ViewUpdateSchema,
+  NodeCreateSchema,
+  NodeUpdateSchema,
+  ConnectionCreateSchema,
+  ConnectionUpdateSchema,
+  PropertyDefinitionCreateSchema,
+  PropertyDefinitionUpdateSchema,
+  WorkspaceCreateSchema,
+  WorkspaceUpdateSchema,
+  RoleCreateSchema,
+  RoleUpdateSchema,
+} from "./validation.js";
 
 // ---------------------------------------------------------------------------
 // Style helpers
@@ -111,11 +137,8 @@ export function hexToRgb(hexStr: string | null | undefined): RGBColorOut | null 
   if (!hexStr) return null;
   const s = hexStr.replace(/^#/, "");
   if (s.length !== 6 || !/^[0-9a-fA-F]{6}$/.test(s)) return null;
-  return {
-    r: parseInt(s.slice(0, 2), 16),
-    g: parseInt(s.slice(2, 4), 16),
-    b: parseInt(s.slice(4, 6), 16),
-  };
+  const { r, g, b } = colord(`#${s}`).toRgb();
+  return { r, g, b };
 }
 
 function colorOut(color: { r: number; g: number; b: number; a?: number | null } | null): RGBColorOut | null {
@@ -280,7 +303,7 @@ export function listElements(ds: DataSource, element_type?: string | null, name?
 
 export function getElementById(ds: DataSource, element_id: string): ElementOut {
   const match = ds.model.elements.find((e) => e.uuid === element_id);
-  if (!match) throw new Error(`Élément '${element_id}' introuvable.`);
+  if (!match) throw new NotFoundError(`Élément '${element_id}' introuvable.`);
   return elementOut(match);
 }
 
@@ -313,7 +336,7 @@ export function listRelationships(
 
 export function getRelationshipById(ds: DataSource, relationship_id: string): RelationshipOut {
   const match = ds.model.relationships.find((r) => r.uuid === relationship_id);
-  if (!match) throw new Error(`Relation '${relationship_id}' introuvable.`);
+  if (!match) throw new NotFoundError(`Relation '${relationship_id}' introuvable.`);
   return relOut(match);
 }
 
@@ -323,7 +346,7 @@ export function listViews(ds: DataSource): ViewOut[] {
 
 export function getViewById(ds: DataSource, view_id: string): ViewDetailOut {
   const match = ds.model.views.find((v) => v.uuid === view_id);
-  if (!match) throw new Error(`Vue '${view_id}' introuvable.`);
+  if (!match) throw new NotFoundError(`Vue '${view_id}' introuvable.`);
   return viewOut(match, true);
 }
 
@@ -333,7 +356,7 @@ export function getViewById(ds: DataSource, view_id: string): ViewDetailOut {
 
 export function updateView(ds: DataSource, view_id: string, input: ViewUpdateIn): ViewDetailOut {
   const view = ds.model.views.find((v) => v.uuid === view_id);
-  if (!view) throw new Error(`Vue '${view_id}' introuvable.`);
+  if (!view) throw new NotFoundError(`Vue '${view_id}' introuvable.`);
   if (input.name !== undefined) view.name = input.name;
   if (input.documentation !== undefined) view.desc = input.documentation ?? null;
   if (input.viewpoint !== undefined) view.primary_viewpoint = input.viewpoint ?? null;
@@ -342,7 +365,7 @@ export function updateView(ds: DataSource, view_id: string, input: ViewUpdateIn)
 
 export function deleteView(ds: DataSource, view_id: string): void {
   const idx = ds.model.views.findIndex((v) => v.uuid === view_id);
-  if (idx === -1) throw new Error(`Vue '${view_id}' introuvable.`);
+  if (idx === -1) throw new NotFoundError(`Vue '${view_id}' introuvable.`);
   ds.model.views.splice(idx, 1);
 }
 
@@ -371,9 +394,9 @@ function findNodeAnywhere(nodes: ArchiNode[], node_id: string): { node: ArchiNod
 
 export function updateViewNode(ds: DataSource, view_id: string, node_id: string, input: NodeUpdateIn): NodeOut {
   const view = ds.model.views.find((v) => v.uuid === view_id);
-  if (!view) throw new Error(`Vue '${view_id}' introuvable.`);
+  if (!view) throw new NotFoundError(`Vue '${view_id}' introuvable.`);
   const found = findNodeAnywhere(view.nodes, node_id);
-  if (!found) throw new Error(`Nœud '${node_id}' introuvable dans la vue.`);
+  if (!found) throw new NotFoundError(`Nœud '${node_id}' introuvable dans la vue.`);
   const n = found.node;
   if (input.x !== undefined) n.x = input.x;
   if (input.y !== undefined) n.y = input.y;
@@ -385,9 +408,9 @@ export function updateViewNode(ds: DataSource, view_id: string, node_id: string,
 
 export function deleteViewNode(ds: DataSource, view_id: string, node_id: string): void {
   const view = ds.model.views.find((v) => v.uuid === view_id);
-  if (!view) throw new Error(`Vue '${view_id}' introuvable.`);
+  if (!view) throw new NotFoundError(`Vue '${view_id}' introuvable.`);
   const found = findNodeAnywhere(view.nodes, node_id);
-  if (!found) throw new Error(`Nœud '${node_id}' introuvable dans la vue.`);
+  if (!found) throw new NotFoundError(`Nœud '${node_id}' introuvable dans la vue.`);
   const idx = found.parent.indexOf(found.node);
   if (idx !== -1) found.parent.splice(idx, 1);
   view.conns = view.conns.filter((c) => c.source !== node_id && c.target !== node_id);
@@ -395,11 +418,11 @@ export function deleteViewNode(ds: DataSource, view_id: string, node_id: string)
 
 export function createViewConnection(ds: DataSource, view_id: string, input: ConnectionCreateIn): ConnectionOut {
   const view = ds.model.views.find((v) => v.uuid === view_id);
-  if (!view) throw new Error(`Vue '${view_id}' introuvable.`);
-  if (!findNodeAnywhere(view.nodes, input.source)) throw new Error(`Nœud source '${input.source}' introuvable.`);
-  if (!findNodeAnywhere(view.nodes, input.target)) throw new Error(`Nœud cible '${input.target}' introuvable.`);
+  if (!view) throw new NotFoundError(`Vue '${view_id}' introuvable.`);
+  if (!findNodeAnywhere(view.nodes, input.source)) throw new ValidationError(`Nœud source '${input.source}' introuvable.`);
+  if (!findNodeAnywhere(view.nodes, input.target)) throw new ValidationError(`Nœud cible '${input.target}' introuvable.`);
   if (input.relationship_id && !ds.model.relationships.find((r) => r.uuid === input.relationship_id)) {
-    throw new Error(`Relation '${input.relationship_id}' introuvable.`);
+    throw new ValidationError(`Relation '${input.relationship_id}' introuvable.`);
   }
   const conn: ArchiConnection = {
     uuid: newId(),
@@ -421,16 +444,16 @@ export function createViewConnection(ds: DataSource, view_id: string, input: Con
 
 export function updateViewConnection(ds: DataSource, view_id: string, conn_id: string, input: ConnectionUpdateIn): ConnectionOut {
   const view = ds.model.views.find((v) => v.uuid === view_id);
-  if (!view) throw new Error(`Vue '${view_id}' introuvable.`);
+  if (!view) throw new NotFoundError(`Vue '${view_id}' introuvable.`);
   const conn = view.conns.find((c) => c.uuid === conn_id);
-  if (!conn) throw new Error(`Connexion '${conn_id}' introuvable.`);
+  if (!conn) throw new NotFoundError(`Connexion '${conn_id}' introuvable.`);
   if (input.name !== undefined) conn.name = input.name;
   if (input.source !== undefined) {
-    if (!findNodeAnywhere(view.nodes, input.source)) throw new Error(`Nœud source '${input.source}' introuvable.`);
+    if (!findNodeAnywhere(view.nodes, input.source)) throw new ValidationError(`Nœud source '${input.source}' introuvable.`);
     conn.source = input.source;
   }
   if (input.target !== undefined) {
-    if (!findNodeAnywhere(view.nodes, input.target)) throw new Error(`Nœud cible '${input.target}' introuvable.`);
+    if (!findNodeAnywhere(view.nodes, input.target)) throw new ValidationError(`Nœud cible '${input.target}' introuvable.`);
     conn.target = input.target;
   }
   if (input.source_side !== undefined) conn.source_side = input.source_side;
@@ -440,17 +463,17 @@ export function updateViewConnection(ds: DataSource, view_id: string, conn_id: s
 
 export function deleteViewConnection(ds: DataSource, view_id: string, conn_id: string): void {
   const view = ds.model.views.find((v) => v.uuid === view_id);
-  if (!view) throw new Error(`Vue '${view_id}' introuvable.`);
+  if (!view) throw new NotFoundError(`Vue '${view_id}' introuvable.`);
   const idx = view.conns.findIndex((c) => c.uuid === conn_id);
-  if (idx === -1) throw new Error(`Connexion '${conn_id}' introuvable.`);
+  if (idx === -1) throw new NotFoundError(`Connexion '${conn_id}' introuvable.`);
   view.conns.splice(idx, 1);
 }
 
 export function createNode(ds: DataSource, view_id: string, input: NodeCreateIn): NodeOut {
   const view = ds.model.views.find((v) => v.uuid === view_id);
-  if (!view) throw new Error(`Vue '${view_id}' introuvable.`);
+  if (!view) throw new NotFoundError(`Vue '${view_id}' introuvable.`);
   const element = ds.model.elements.find((e) => e.uuid === input.element_id);
-  if (!element) throw new Error(`Élément '${input.element_id}' introuvable.`);
+  if (!element) throw new NotFoundError(`Élément '${input.element_id}' introuvable.`);
   const node: ArchiNode = {
     uuid: newId(),
     name: null,
@@ -491,7 +514,7 @@ export function createElement(ds: DataSource, input: ElementCreateIn): ElementOu
 
 export function updateElement(ds: DataSource, element_id: string, input: ElementUpdateIn): ElementOut {
   const match = ds.model.elements.find((e) => e.uuid === element_id);
-  if (!match) throw new Error(`Élément '${element_id}' introuvable.`);
+  if (!match) throw new NotFoundError(`Élément '${element_id}' introuvable.`);
   if (input.name !== undefined) match.name = input.name;
   if (input.type !== undefined) match.type = input.type;
   if (input.documentation !== undefined) match.desc = input.documentation ?? null;
@@ -502,7 +525,7 @@ export function updateElement(ds: DataSource, element_id: string, input: Element
 
 export function deleteElement(ds: DataSource, element_id: string): void {
   const idx = ds.model.elements.findIndex((e) => e.uuid === element_id);
-  if (idx === -1) throw new Error(`Élément '${element_id}' introuvable.`);
+  if (idx === -1) throw new NotFoundError(`Élément '${element_id}' introuvable.`);
   ds.model.elements.splice(idx, 1);
   ds.model.relationships = ds.model.relationships.filter((r) => {
     const srcId = typeof r.source === "string" ? r.source : r.source.uuid;
@@ -530,8 +553,8 @@ export function deleteElement(ds: DataSource, element_id: string): void {
 export function createRelationship(ds: DataSource, input: RelationshipCreateIn): RelationshipOut {
   const srcElem = ds.model.elements.find((e) => e.uuid === input.source);
   const tgtElem = ds.model.elements.find((e) => e.uuid === input.target);
-  if (!srcElem) throw new Error(`Élément source '${input.source}' introuvable.`);
-  if (!tgtElem) throw new Error(`Élément cible '${input.target}' introuvable.`);
+  if (!srcElem) throw new ValidationError(`Élément source '${input.source}' introuvable.`);
+  if (!tgtElem) throw new ValidationError(`Élément cible '${input.target}' introuvable.`);
   const rel: ArchiRelationship = {
     uuid: newId(),
     name: input.name ?? null,
@@ -551,17 +574,17 @@ export function createRelationship(ds: DataSource, input: RelationshipCreateIn):
 
 export function updateRelationship(ds: DataSource, relationship_id: string, input: RelationshipUpdateIn): RelationshipOut {
   const match = ds.model.relationships.find((r) => r.uuid === relationship_id);
-  if (!match) throw new Error(`Relation '${relationship_id}' introuvable.`);
+  if (!match) throw new NotFoundError(`Relation '${relationship_id}' introuvable.`);
   if (input.name !== undefined) match.name = input.name;
   if (input.type !== undefined) match.type = input.type;
   if (input.source !== undefined) {
     const srcElem = ds.model.elements.find((e) => e.uuid === input.source);
-    if (!srcElem) throw new Error(`Élément source '${input.source}' introuvable.`);
+    if (!srcElem) throw new ValidationError(`Élément source '${input.source}' introuvable.`);
     match.source = srcElem;
   }
   if (input.target !== undefined) {
     const tgtElem = ds.model.elements.find((e) => e.uuid === input.target);
-    if (!tgtElem) throw new Error(`Élément cible '${input.target}' introuvable.`);
+    if (!tgtElem) throw new ValidationError(`Élément cible '${input.target}' introuvable.`);
     match.target = tgtElem;
   }
   if (input.documentation !== undefined) match.desc = input.documentation ?? null;
@@ -575,7 +598,7 @@ export function updateRelationship(ds: DataSource, relationship_id: string, inpu
 
 export function deleteRelationship(ds: DataSource, relationship_id: string): void {
   const idx = ds.model.relationships.findIndex((r) => r.uuid === relationship_id);
-  if (idx === -1) throw new Error(`Relation '${relationship_id}' introuvable.`);
+  if (idx === -1) throw new NotFoundError(`Relation '${relationship_id}' introuvable.`);
   ds.model.relationships.splice(idx, 1);
   recomputeDataSourceTypes(ds);
 }
@@ -603,7 +626,7 @@ export function listPropertyDefinitions(ds: DataSource): PropertyDefinitionOut[]
 
 export function getPropertyDefinitionById(ds: DataSource, id: string): PropertyDefinitionOut {
   const match = ds.model.propertyDefinitions.find((pd) => pd.uuid === id);
-  if (!match) throw new Error(`Définition de propriété '${id}' introuvable.`);
+  if (!match) throw new NotFoundError(`Définition de propriété '${id}' introuvable.`);
   return pdOut(match);
 }
 
@@ -619,7 +642,7 @@ export function createPropertyDefinition(ds: DataSource, input: PropertyDefiniti
 
 export function updatePropertyDefinition(ds: DataSource, id: string, input: PropertyDefinitionUpdateIn): PropertyDefinitionOut {
   const match = ds.model.propertyDefinitions.find((pd) => pd.uuid === id);
-  if (!match) throw new Error(`Définition de propriété '${id}' introuvable.`);
+  if (!match) throw new NotFoundError(`Définition de propriété '${id}' introuvable.`);
   if (input.name !== undefined) match.name = input.name;
   if (input.type !== undefined) match.type = input.type;
   return pdOut(match);
@@ -627,32 +650,10 @@ export function updatePropertyDefinition(ds: DataSource, id: string, input: Prop
 
 export function deletePropertyDefinition(ds: DataSource, id: string): void {
   const idx = ds.model.propertyDefinitions.findIndex((pd) => pd.uuid === id);
-  if (idx === -1) throw new Error(`Définition de propriété '${id}' introuvable.`);
+  if (idx === -1) throw new NotFoundError(`Définition de propriété '${id}' introuvable.`);
   ds.model.propertyDefinitions.splice(idx, 1);
   for (const elem of ds.model.elements) delete elem.props[id];
   for (const rel of ds.model.relationships) delete rel.props[id];
-}
-
-// ---------------------------------------------------------------------------
-// Input validation helper
-// ---------------------------------------------------------------------------
-
-const _ELEMENT_TYPES_STR = [...ELEMENT_TYPES].sort().join(", ");
-const _RELATIONSHIP_TYPES_STR = [...RELATIONSHIP_TYPES].sort().join(", ");
-const _PROPERTY_DEFINITION_TYPES_STR = [...PROPERTY_DEFINITION_TYPES].sort().join(", ");
-
-function validateType(
-  value: string | null | undefined,
-  allowed: ReadonlySet<string>,
-  typesStr: string,
-  label: string,
-  res: Response
-): boolean {
-  if (value && !allowed.has(value)) {
-    res.status(422).json({ detail: `Type ${label} invalide: '${value}'. Types valides: ${typesStr}` });
-    return false;
-  }
-  return true;
 }
 
 // ---------------------------------------------------------------------------
@@ -661,17 +662,34 @@ function validateType(
 
 export const app: ReturnType<typeof express> = express();
 
-app.use((_req, res, next) => {
-  const origin = _req.headers.origin ?? "*";
-  res.header("Access-Control-Allow-Origin", origin);
-  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-  res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
-  res.header("Access-Control-Allow-Credentials", "true");
-  if (_req.method === "OPTIONS") { res.sendStatus(204); return; }
-  next();
+app.use(helmet({ contentSecurityPolicy: false }));
+app.use(cors({ origin: true, credentials: true, methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"] }));
+app.use(express.json());
+
+const authRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 50,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { detail: "Trop de tentatives, réessayez dans 15 minutes." },
 });
 
-app.use(express.json());
+const xmlUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 50 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const ok = file.mimetype === "text/xml" || file.mimetype === "application/xml" || file.originalname.endsWith(".xml");
+    cb(null, ok);
+  },
+});
+
+const importRateLimit = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { detail: "Trop d'imports, réessayez dans 1 minute." },
+});
 
 // Returns configured OAuth/OIDC providers so the frontend can render SSO buttons
 app.get("/auth/providers", (_req, res) => {
@@ -680,7 +698,7 @@ app.get("/auth/providers", (_req, res) => {
 
 // Mount Better Auth at /auth — handles sign-in, sign-out, session, user CRUD
 // Must be BEFORE global auth middleware
-app.all("/auth/*path", toNodeHandler(baAuth));
+app.all("/auth/*path", authRateLimit, toNodeHandler(baAuth));
 
 // Global auth — exempt Better Auth routes and public paths
 app.use((req: AuthRequest, res, next) => {
@@ -760,77 +778,47 @@ app.get("/roles/catalog", requireAuth as express.RequestHandler, (_req: Request,
 });
 
 app.post("/roles", requireAdmin as express.RequestHandler, async (req: Request, res: Response) => {
-  const { name, description, permissions } = req.body as { name?: string; description?: string | null; permissions?: unknown };
-  if (!name?.trim()) {
-    res.status(422).json({ detail: "Field 'name' is required." });
-    return;
-  }
-  try {
-    res.status(201).json(await createRole(name, description ?? null, sanitizePermissions(permissions)));
-  } catch (err) {
-    res.status(422).json({ detail: (err as Error).message });
-  }
+  const body = parseBody(RoleCreateSchema, req.body, res);
+  if (!body) return;
+  res.status(201).json(await createRole(body.name, body.description ?? null, sanitizePermissions(body.permissions)));
 });
 
 app.get("/roles/:role_id", requireAuth as express.RequestHandler, async (req: Request, res: Response) => {
-  try {
-    res.json(await getRole(req.params["role_id"] as string));
-  } catch (err) {
-    res.status(404).json({ detail: (err as Error).message });
-  }
+  res.json(await getRole(req.params["role_id"] as string));
 });
 
 app.put("/roles/:role_id", requireAdmin as express.RequestHandler, async (req: Request, res: Response) => {
-  const { name, description, permissions } = req.body as { name?: string; description?: string | null; permissions?: unknown };
-  try {
-    const role = await getRole(req.params["role_id"] as string);
+  const body = parseBody(RoleUpdateSchema, req.body, res);
+  if (!body) return;
+  const role = await getRole(req.params["role_id"] as string);
     if (role.is_system) {
       res.status(403).json({ detail: "Les rôles système ne peuvent pas être modifiés." });
       return;
     }
     res.json(await updateRole(req.params["role_id"] as string, {
-      name,
-      description,
-      permissions: sanitizePermissions(permissions),
+      name: body.name,
+      description: body.description,
+      permissions: sanitizePermissions(body.permissions),
     }));
-  } catch (err) {
-    res.status(404).json({ detail: (err as Error).message });
-  }
 });
 
 app.delete("/roles/:role_id", requireAdmin as express.RequestHandler, async (req: Request, res: Response) => {
-  try {
-    await deleteRole(req.params["role_id"] as string);
+  await deleteRole(req.params["role_id"] as string);
     res.status(204).send();
-  } catch (err) {
-    res.status(404).json({ detail: (err as Error).message });
-  }
 });
 
 app.get("/roles/:role_id/users", requireAuth as express.RequestHandler, async (req: Request, res: Response) => {
-  try {
-    res.json((await getRole(req.params["role_id"] as string)).user_ids);
-  } catch (err) {
-    res.status(404).json({ detail: (err as Error).message });
-  }
+  res.json((await getRole(req.params["role_id"] as string)).user_ids);
 });
 
 app.put("/roles/:role_id/users/:user_id", requireAdmin as express.RequestHandler, async (req: Request, res: Response) => {
-  try {
-    await assignUserToRole(req.params["role_id"] as string, req.params["user_id"] as string);
+  await assignUserToRole(req.params["role_id"] as string, req.params["user_id"] as string);
     res.status(204).send();
-  } catch (err) {
-    res.status(404).json({ detail: (err as Error).message });
-  }
 });
 
 app.delete("/roles/:role_id/users/:user_id", requireAdmin as express.RequestHandler, async (req: Request, res: Response) => {
-  try {
-    await unassignUserFromRole(req.params["role_id"] as string, req.params["user_id"] as string);
+  await unassignUserFromRole(req.params["role_id"] as string, req.params["user_id"] as string);
     res.status(204).send();
-  } catch (err) {
-    res.status(404).json({ detail: (err as Error).message });
-  }
 });
 
 app.get("/users/:user_id/roles", requireAdmin as express.RequestHandler, async (req: Request, res: Response) => {
@@ -839,20 +827,12 @@ app.get("/users/:user_id/roles", requireAdmin as express.RequestHandler, async (
 
 // Layer permissions per role
 app.get("/roles/:role_id/layers", requireAuth as express.RequestHandler, async (req: Request, res: Response) => {
-  try {
-    res.json((await getRole(req.params["role_id"] as string)).permissions);
-  } catch (err) {
-    res.status(404).json({ detail: (err as Error).message });
-  }
+  res.json((await getRole(req.params["role_id"] as string)).permissions);
 });
 
 app.get("/roles/:role_id/layers/:layer", requireAuth as express.RequestHandler, async (req: Request, res: Response) => {
-  try {
-    const layer = req.params["layer"] as string;
+  const layer = req.params["layer"] as string;
     res.json({ layer, permission: await getRoleLayerPermission(req.params["role_id"] as string, layer) });
-  } catch (err) {
-    res.status(404).json({ detail: (err as Error).message });
-  }
 });
 
 app.put("/roles/:role_id/layers/:layer", requireAdmin as express.RequestHandler, async (req: Request, res: Response) => {
@@ -862,22 +842,14 @@ app.put("/roles/:role_id/layers/:layer", requireAdmin as express.RequestHandler,
     return;
   }
   const flags = permissions.filter((f): f is string => typeof f === "string" && (PERMISSION_FLAGS as readonly string[]).includes(f)) as LayerPermissions;
-  try {
-    const layer = req.params["layer"] as string;
+  const layer = req.params["layer"] as string;
     const updated = await setRoleLayerPermission(req.params["role_id"] as string, layer, flags);
     res.json({ layer, permissions: updated });
-  } catch (err) {
-    res.status(422).json({ detail: (err as Error).message });
-  }
 });
 
 app.delete("/roles/:role_id/layers/:layer", requireAdmin as express.RequestHandler, async (req: Request, res: Response) => {
-  try {
-    await removeRoleLayerPermission(req.params["role_id"] as string, req.params["layer"] as string);
+  await removeRoleLayerPermission(req.params["role_id"] as string, req.params["layer"] as string);
     res.status(204).send();
-  } catch (err) {
-    res.status(404).json({ detail: (err as Error).message });
-  }
 });
 
 // ---------------------------------------------------------------------------
@@ -889,51 +861,33 @@ app.get("/workspaces", async (_req: Request, res: Response) => {
 });
 
 app.post("/workspaces", async (req: Request, res: Response) => {
-  const { name, path: filePath } = req.body as { name?: string; path?: string };
-  if (!name) {
-    res.status(422).json({ detail: "Le champ 'name' est requis." });
-    return;
-  }
-  try {
-    res.status(201).json(await createWorkspace(name, filePath));
-  } catch (err) {
-    res.status(422).json({ detail: (err as Error).message });
-  }
+  const body = parseBody(WorkspaceCreateSchema, req.body, res);
+  if (!body) return;
+  res.status(201).json(await createWorkspace(body.name, body.path));
 });
 
 app.put("/workspaces/:id", async (req: Request, res: Response) => {
-  const { name } = req.body as { name?: string };
-  if (!name) {
-    res.status(422).json({ detail: "Le champ 'name' est requis." });
-    return;
-  }
-  try {
-    res.json(await updateWorkspace(req.params["id"] as string, name));
-  } catch (err) {
-    res.status(404).json({ detail: (err as Error).message });
-  }
+  const body = parseBody(WorkspaceUpdateSchema, req.body, res);
+  if (!body) return;
+  res.json(await updateWorkspace(req.params["id"] as string, body.name));
 });
 
 app.delete("/workspaces/:id", async (req: Request, res: Response) => {
-  try {
-    await deleteWorkspace(req.params["id"] as string);
+  await deleteWorkspace(req.params["id"] as string);
     res.status(204).send();
-  } catch (err) {
-    res.status(422).json({ detail: (err as Error).message });
-  }
 });
 
 app.post("/workspaces/:id/activate", async (req: Request, res: Response) => {
-  try {
-    res.json(await activateWorkspace(req.params["id"] as string));
-  } catch (err) {
-    res.status(404).json({ detail: (err as Error).message });
-  }
+  res.json(await activateWorkspace(req.params["id"] as string));
 });
 
 // OpenAPI spec and Swagger UI
 app.get("/openapi.json", (_req: Request, res: Response) => {
   res.json(openApiSpec);
+});
+
+app.get("/viewpoints", (_req: Request, res: Response) => {
+  res.json([...VIEWPOINTS].sort());
 });
 
 app.get("/docs", (_req: Request, res: Response) => {
@@ -971,34 +925,51 @@ app.get("/", async (_req: Request, res: Response) => {
 
 // Save model to file
 app.post("/save", async (_req: Request, res: Response) => {
-  try {
-    res.json(await saveModel(dataSource));
-  } catch (err) {
-    res.status(500).json({ detail: (err as Error).message });
-  }
+  res.json(await saveModel(dataSource));
 });
 
 // Export model as XML
 app.get("/export", (_req: Request, res: Response) => {
-  try {
-    const xml = serializeToOpenExchange(dataSource.model);
+  const xml = serializeToOpenExchange(dataSource.model);
     res.setHeader("Content-Type", "application/xml; charset=utf-8");
     res.setHeader("Content-Disposition", `attachment; filename="${dataSource.model.name || "model"}.xml"`);
     res.send(xml);
-  } catch (err) {
-    res.status(500).json({ detail: (err as Error).message });
-  }
 });
 
-// Import model from XML (replaces in-memory model, does not auto-save)
-app.post("/import", express.text({ type: ["text/xml", "application/xml", "text/plain"], limit: "50mb" }), (req: Request, res: Response) => {
-  try {
-    const xml = req.body as string;
-    if (!xml || typeof xml !== "string") {
-      res.status(422).json({ detail: "Le corps de la requête doit être un XML valide." });
-      return;
+// Export model + all view SVGs as a ZIP archive
+app.get("/export/zip", async (_req: Request, res: Response) => {
+  const modelName = dataSource.model.name || "model";
+    res.setHeader("Content-Type", "application/zip");
+    res.setHeader("Content-Disposition", `attachment; filename="${modelName}.zip"`);
+    const archive = archiver("zip", { zlib: { level: 9 } });
+    archive.on("error", (err) => { res.status(500).json({ detail: err.message }); });
+    archive.pipe(res);
+    archive.append(serializeToOpenExchange(dataSource.model), { name: `${modelName}.xml` });
+    for (const view of dataSource.model.views) {
+      const svg = renderViewToSvg(view, dataSource.model);
+      const safeName = view.name.replace(/[^a-zA-Z0-9_-]/g, "_");
+      archive.append(svg, { name: `views/${safeName}.svg` });
     }
-    const newModel = parseOpenExchange(xml);
+    await archive.finalize();
+});
+
+// Import model from XML — accepts multipart/form-data (file field "file") or raw XML body
+app.post("/import", importRateLimit,
+  (req, res, next) => {
+    if (req.is("multipart/form-data")) {
+      xmlUpload.single("file")(req, res, next);
+    } else {
+      express.text({ type: ["text/xml", "application/xml", "text/plain"], limit: "50mb" })(req, res, next);
+    }
+  },
+  (req: Request, res: Response) => {
+    const xml: string = (req as Request & { file?: Express.Multer.File }).file
+      ? (req as Request & { file?: Express.Multer.File }).file!.buffer.toString("utf-8")
+      : (req.body as string);
+    if (!xml || typeof xml !== "string") throw new ValidationError("Le corps de la requête doit être un XML valide.");
+    let newModel: ReturnType<typeof parseOpenExchange>;
+    try { newModel = parseOpenExchange(xml); }
+    catch (err) { throw new ValidationError(`Erreur de parsing XML : ${(err as Error).message}`); }
     // Replace model in-place so all references to dataSource remain valid
     dataSource.model.uuid = newModel.uuid;
     dataSource.model.name = newModel.name;
@@ -1011,9 +982,6 @@ app.post("/import", express.text({ type: ["text/xml", "application/xml", "text/p
     (dataSource.model as { _raw?: unknown })._raw = newModel._raw;
     recomputeDataSourceTypes(dataSource);
     res.json(getModelInfo(dataSource));
-  } catch (err) {
-    res.status(422).json({ detail: `Erreur de parsing XML : ${(err as Error).message}` });
-  }
 });
 
 // Elements
@@ -1022,55 +990,30 @@ app.get("/elements/types", (_req: Request, res: Response) => {
 });
 
 app.get("/elements", (req: Request, res: Response) => {
-  const type = (req.query["type"] as string) || null;
-  const name = (req.query["name"] as string) || null;
-  if (!validateType(type, ELEMENT_TYPES, _ELEMENT_TYPES_STR, "d'élément ArchiMate", res)) return;
-  res.json(listElements(dataSource, type, name));
+  const q = parseBody(ElementQuerySchema, req.query, res);
+  if (!q) return;
+  res.json(listElements(dataSource, q.type ?? null, q.name ?? null));
 });
 
 app.get("/elements/:element_id", (req: Request, res: Response) => {
-  try {
-    res.json(getElementById(dataSource, req.params["element_id"] as string));
-  } catch (err) {
-    res.status(404).json({ detail: (err as Error).message });
-  }
+  res.json(getElementById(dataSource, req.params["element_id"] as string));
 });
 
 app.post("/elements", (req: Request, res: Response) => {
-  const body = req.body as ElementCreateIn;
-  if (!body.name || typeof body.name !== "string") {
-    res.status(422).json({ detail: "Le champ 'name' est requis." });
-    return;
-  }
-  if (!body.type || typeof body.type !== "string") {
-    res.status(422).json({ detail: "Le champ 'type' est requis." });
-    return;
-  }
-  if (!validateType(body.type, ELEMENT_TYPES, _ELEMENT_TYPES_STR, "d'élément ArchiMate", res)) return;
-  try {
-    res.status(201).json(createElement(dataSource, body));
-  } catch (err) {
-    res.status(422).json({ detail: (err as Error).message });
-  }
+  const body = parseBody(ElementCreateSchema, req.body, res);
+  if (!body) return;
+  res.status(201).json(createElement(dataSource, body as ElementCreateIn));
 });
 
 app.put("/elements/:element_id", (req: Request, res: Response) => {
-  const body = req.body as ElementUpdateIn;
-  if (body.type !== undefined && !validateType(body.type, ELEMENT_TYPES, _ELEMENT_TYPES_STR, "d'élément ArchiMate", res)) return;
-  try {
-    res.json(updateElement(dataSource, req.params["element_id"] as string, body));
-  } catch (err) {
-    res.status(404).json({ detail: (err as Error).message });
-  }
+  const body = parseBody(ElementUpdateSchema, req.body, res);
+  if (!body) return;
+  res.json(updateElement(dataSource, req.params["element_id"] as string, body as ElementUpdateIn));
 });
 
 app.delete("/elements/:element_id", (req: Request, res: Response) => {
-  try {
-    deleteElement(dataSource, req.params["element_id"] as string);
+  deleteElement(dataSource, req.params["element_id"] as string);
     res.status(204).send();
-  } catch (err) {
-    res.status(404).json({ detail: (err as Error).message });
-  }
 });
 
 // Relationships
@@ -1079,61 +1022,30 @@ app.get("/relationships/types", (_req: Request, res: Response) => {
 });
 
 app.get("/relationships", requirePermission("Relations", "read"), (req: Request, res: Response) => {
-  const type = (req.query["type"] as string) || null;
-  const source_id = (req.query["source_id"] as string) || null;
-  const target_id = (req.query["target_id"] as string) || null;
-  if (!validateType(type, RELATIONSHIP_TYPES, _RELATIONSHIP_TYPES_STR, "de relation ArchiMate", res)) return;
-  res.json(listRelationships(dataSource, type, source_id, target_id));
+  const q = parseBody(RelationshipQuerySchema, req.query, res);
+  if (!q) return;
+  res.json(listRelationships(dataSource, q.type ?? null, q.source_id ?? null, q.target_id ?? null));
 });
 
 app.get("/relationships/:relationship_id", requirePermission("Relations", "read"), (req: Request, res: Response) => {
-  try {
-    res.json(getRelationshipById(dataSource, req.params["relationship_id"] as string));
-  } catch (err) {
-    res.status(404).json({ detail: (err as Error).message });
-  }
+  res.json(getRelationshipById(dataSource, req.params["relationship_id"] as string));
 });
 
 app.post("/relationships", requirePermission("Relations", "create"), (req: Request, res: Response) => {
-  const body = req.body as RelationshipCreateIn;
-  if (!body.type || typeof body.type !== "string") {
-    res.status(422).json({ detail: "Le champ 'type' est requis." });
-    return;
-  }
-  if (!body.source || typeof body.source !== "string") {
-    res.status(422).json({ detail: "Le champ 'source' est requis." });
-    return;
-  }
-  if (!body.target || typeof body.target !== "string") {
-    res.status(422).json({ detail: "Le champ 'target' est requis." });
-    return;
-  }
-  if (!validateType(body.type, RELATIONSHIP_TYPES, _RELATIONSHIP_TYPES_STR, "de relation ArchiMate", res)) return;
-  try {
-    res.status(201).json(createRelationship(dataSource, body));
-  } catch (err) {
-    res.status(422).json({ detail: (err as Error).message });
-  }
+  const body = parseBody(RelationshipCreateSchema, req.body, res);
+  if (!body) return;
+  res.status(201).json(createRelationship(dataSource, body as RelationshipCreateIn));
 });
 
 app.put("/relationships/:relationship_id", requirePermission("Relations", "update"), (req: Request, res: Response) => {
-  const body = req.body as RelationshipUpdateIn;
-  if (body.type !== undefined && !validateType(body.type, RELATIONSHIP_TYPES, _RELATIONSHIP_TYPES_STR, "de relation ArchiMate", res)) return;
-  try {
-    res.json(updateRelationship(dataSource, req.params["relationship_id"] as string, body));
-  } catch (err) {
-    const msg = (err as Error).message;
-    res.status(msg.startsWith("Relation ") ? 404 : 422).json({ detail: msg });
-  }
+  const body = parseBody(RelationshipUpdateSchema, req.body, res);
+  if (!body) return;
+  res.json(updateRelationship(dataSource, req.params["relationship_id"] as string, body as RelationshipUpdateIn));
 });
 
 app.delete("/relationships/:relationship_id", requirePermission("Relations", "delete"), (req: Request, res: Response) => {
-  try {
-    deleteRelationship(dataSource, req.params["relationship_id"] as string);
+  deleteRelationship(dataSource, req.params["relationship_id"] as string);
     res.status(204).send();
-  } catch (err) {
-    res.status(404).json({ detail: (err as Error).message });
-  }
 });
 
 // Views
@@ -1142,98 +1054,58 @@ app.get("/views", requirePermission("Views", "read"), (_req: Request, res: Respo
 });
 
 app.get("/views/:view_id", requirePermission("Views", "read"), (req: Request, res: Response) => {
-  try {
-    res.json(getViewById(dataSource, req.params["view_id"] as string));
-  } catch (err) {
-    res.status(404).json({ detail: (err as Error).message });
-  }
+  res.json(getViewById(dataSource, req.params["view_id"] as string));
 });
 
 app.post("/views", requirePermission("Views", "create"), (req: Request, res: Response) => {
-  const body = req.body as ViewCreateIn;
-  if (!body.name || typeof body.name !== "string") {
-    res.status(422).json({ detail: "Field 'name' is required." });
-    return;
-  }
-  res.status(201).json(createView(dataSource, body));
+  const body = parseBody(ViewCreateSchema, req.body, res);
+  if (!body) return;
+  res.status(201).json(createView(dataSource, body as ViewCreateIn));
 });
 
 app.put("/views/:view_id", requirePermission("Views", "update"), (req: Request, res: Response) => {
-  const body = req.body as ViewUpdateIn;
-  try {
-    res.json(updateView(dataSource, req.params["view_id"] as string, body));
-  } catch (err) {
-    res.status(404).json({ detail: (err as Error).message });
-  }
+  const body = parseBody(ViewUpdateSchema, req.body, res);
+  if (!body) return;
+  res.json(updateView(dataSource, req.params["view_id"] as string, body as ViewUpdateIn));
 });
 
 app.delete("/views/:view_id", requirePermission("Views", "delete"), (req: Request, res: Response) => {
-  try {
-    deleteView(dataSource, req.params["view_id"] as string);
+  deleteView(dataSource, req.params["view_id"] as string);
     res.status(204).send();
-  } catch (err) {
-    res.status(404).json({ detail: (err as Error).message });
-  }
 });
 
 app.post("/views/:view_id/nodes", requirePermission("Views", "update"), (req: Request, res: Response) => {
-  const body = req.body as NodeCreateIn;
-  if (!body.element_id || typeof body.element_id !== "string") {
-    res.status(422).json({ detail: "Field 'element_id' is required." });
-    return;
-  }
-  try {
-    res.status(201).json(createNode(dataSource, req.params["view_id"] as string, body));
-  } catch (err) {
-    res.status(404).json({ detail: (err as Error).message });
-  }
+  const body = parseBody(NodeCreateSchema, req.body, res);
+  if (!body) return;
+  res.status(201).json(createNode(dataSource, req.params["view_id"] as string, body as NodeCreateIn));
 });
 
 app.put("/views/:view_id/nodes/:node_id", requirePermission("Views", "update"), (req: Request, res: Response) => {
-  try {
-    res.json(updateViewNode(dataSource, req.params["view_id"] as string, req.params["node_id"] as string, req.body as NodeUpdateIn));
-  } catch (err) {
-    res.status(404).json({ detail: (err as Error).message });
-  }
+  const body = parseBody(NodeUpdateSchema, req.body, res);
+  if (!body) return;
+  res.json(updateViewNode(dataSource, req.params["view_id"] as string, req.params["node_id"] as string, body as NodeUpdateIn));
 });
 
 app.delete("/views/:view_id/nodes/:node_id", requirePermission("Views", "update"), (req: Request, res: Response) => {
-  try {
-    deleteViewNode(dataSource, req.params["view_id"] as string, req.params["node_id"] as string);
+  deleteViewNode(dataSource, req.params["view_id"] as string, req.params["node_id"] as string);
     res.status(204).send();
-  } catch (err) {
-    res.status(404).json({ detail: (err as Error).message });
-  }
 });
 
 app.post("/views/:view_id/connections", requirePermission("Views", "update"), (req: Request, res: Response) => {
-  const body = req.body as ConnectionCreateIn;
-  if (!body.source || !body.target) {
-    res.status(422).json({ detail: "Fields 'source' and 'target' are required." });
-    return;
-  }
-  try {
-    res.status(201).json(createViewConnection(dataSource, req.params["view_id"] as string, body));
-  } catch (err) {
-    res.status(404).json({ detail: (err as Error).message });
-  }
+  const body = parseBody(ConnectionCreateSchema, req.body, res);
+  if (!body) return;
+  res.status(201).json(createViewConnection(dataSource, req.params["view_id"] as string, body as ConnectionCreateIn));
 });
 
 app.put("/views/:view_id/connections/:conn_id", requirePermission("Views", "update"), (req: Request, res: Response) => {
-  try {
-    res.json(updateViewConnection(dataSource, req.params["view_id"] as string, req.params["conn_id"] as string, req.body as ConnectionUpdateIn));
-  } catch (err) {
-    res.status(404).json({ detail: (err as Error).message });
-  }
+  const body = parseBody(ConnectionUpdateSchema, req.body, res);
+  if (!body) return;
+  res.json(updateViewConnection(dataSource, req.params["view_id"] as string, req.params["conn_id"] as string, body as ConnectionUpdateIn));
 });
 
 app.delete("/views/:view_id/connections/:conn_id", requirePermission("Views", "update"), (req: Request, res: Response) => {
-  try {
-    deleteViewConnection(dataSource, req.params["view_id"] as string, req.params["conn_id"] as string);
+  deleteViewConnection(dataSource, req.params["view_id"] as string, req.params["conn_id"] as string);
     res.status(204).send();
-  } catch (err) {
-    res.status(404).json({ detail: (err as Error).message });
-  }
 });
 
 app.get("/views/:view_id/image", async (req: Request, res: Response) => {
@@ -1247,8 +1119,7 @@ app.get("/views/:view_id/image", async (req: Request, res: Response) => {
     res.status(404).json({ detail: `Vue '${req.params["view_id"]}' introuvable.` });
     return;
   }
-  try {
-    if (format === "png") {
+  if (format === "png") {
       const buf = await renderViewToPng(view, dataSource.model);
       res.setHeader("Content-Type", "image/png");
       res.send(buf);
@@ -1257,9 +1128,6 @@ app.get("/views/:view_id/image", async (req: Request, res: Response) => {
       res.setHeader("Content-Type", "image/svg+xml; charset=utf-8");
       res.send(svg);
     }
-  } catch (err) {
-    res.status(500).json({ detail: (err as Error).message });
-  }
 });
 
 // PropertyDefinitions
@@ -1268,44 +1136,35 @@ app.get("/property-definitions", (_req: Request, res: Response) => {
 });
 
 app.get("/property-definitions/:id", (req: Request, res: Response) => {
-  try {
-    res.json(getPropertyDefinitionById(dataSource, req.params["id"] as string));
-  } catch (err) {
-    res.status(404).json({ detail: (err as Error).message });
-  }
+  res.json(getPropertyDefinitionById(dataSource, req.params["id"] as string));
 });
 
 app.post("/property-definitions", (req: Request, res: Response) => {
-  const body = req.body as PropertyDefinitionCreateIn;
-  if (!body.name || typeof body.name !== "string") {
-    res.status(422).json({ detail: "Le champ 'name' est requis." });
-    return;
-  }
-  if (body.type !== undefined && !PROPERTY_DEFINITION_TYPES.has(body.type)) {
-    res.status(422).json({ detail: `Type invalide: '${body.type}'. Types valides: ${_PROPERTY_DEFINITION_TYPES_STR}` });
-    return;
-  }
-  res.status(201).json(createPropertyDefinition(dataSource, body));
+  const body = parseBody(PropertyDefinitionCreateSchema, req.body, res);
+  if (!body) return;
+  res.status(201).json(createPropertyDefinition(dataSource, body as PropertyDefinitionCreateIn));
 });
 
 app.put("/property-definitions/:id", (req: Request, res: Response) => {
-  const body = req.body as PropertyDefinitionUpdateIn;
-  if (body.type !== undefined && !PROPERTY_DEFINITION_TYPES.has(body.type)) {
-    res.status(422).json({ detail: `Type invalide: '${body.type}'. Types valides: ${_PROPERTY_DEFINITION_TYPES_STR}` });
-    return;
-  }
-  try {
-    res.json(updatePropertyDefinition(dataSource, req.params["id"] as string, body));
-  } catch (err) {
-    res.status(404).json({ detail: (err as Error).message });
-  }
+  const body = parseBody(PropertyDefinitionUpdateSchema, req.body, res);
+  if (!body) return;
+  res.json(updatePropertyDefinition(dataSource, req.params["id"] as string, body as PropertyDefinitionUpdateIn));
 });
 
 app.delete("/property-definitions/:id", (req: Request, res: Response) => {
-  try {
-    deletePropertyDefinition(dataSource, req.params["id"] as string);
+  deletePropertyDefinition(dataSource, req.params["id"] as string);
     res.status(204).send();
-  } catch (err) {
-    res.status(404).json({ detail: (err as Error).message });
+});
+
+// ---------------------------------------------------------------------------
+// Global error handler — catches AppError subclasses + unknown errors
+// ---------------------------------------------------------------------------
+
+app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
+  if (err instanceof AppError) {
+    res.status(err.statusCode).json({ detail: err.message });
+    return;
   }
+  const msg = err instanceof Error ? err.message : "Erreur interne du serveur.";
+  res.status(500).json({ detail: msg });
 });

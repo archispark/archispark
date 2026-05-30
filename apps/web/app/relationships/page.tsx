@@ -1,194 +1,124 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback, useMemo } from "react";
+import { useState, useMemo } from "react";
+import { useDebounce } from "use-debounce";
 import type { ColumnDef } from "@tanstack/react-table";
+import { type RelationshipOut, type ElementOut, type Property } from "@/lib/api";
 import {
-  fetchRelationshipTypes,
-  fetchRelationships,
-  fetchElements,
-  createRelationship,
-  updateRelationship,
-  deleteRelationship,
-  type RelationshipOut,
-  type ElementOut,
-} from "@/lib/api";
+  useRelationships, useRelationshipTypes, useElements,
+  useCreateRelationship, useUpdateRelationship, useDeleteRelationship,
+} from "@/lib/queries";
+import { useFormModal } from "@/hooks/use-form-modal";
 import { Input } from "@workspace/ui/components/input";
 import { Badge } from "@workspace/ui/components/badge";
 import { Button } from "@workspace/ui/components/button";
 import { Label } from "@workspace/ui/components/label";
 import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
+  Select, SelectTrigger, SelectValue, SelectContent, SelectItem,
 } from "@workspace/ui/components/select";
 import {
-  Dialog,
-  DialogTrigger,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-  DialogClose,
+  Dialog, DialogTrigger, DialogContent, DialogHeader,
+  DialogTitle, DialogDescription, DialogFooter, DialogClose,
 } from "@workspace/ui/components/dialog";
 import { DataTable } from "@/components/data-table";
 import { PropertiesEditor } from "@/components/properties-editor";
 import { Plus, Pencil, Trash2, ChevronDown, ChevronRight } from "lucide-react";
-import type { Property } from "@/lib/api";
 import { useIsAdmin } from "@/hooks/use-current-user";
 import { allowedRelationships } from "@/lib/archimate-rules";
 
 export default function RelationshipsPage() {
   const isAdmin = useIsAdmin();
-  const [types, setTypes] = useState<string[]>([]);
-  const [relationships, setRelationships] = useState<RelationshipOut[]>([]);
-  const [allElements, setAllElements] = useState<ElementOut[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [debouncedSearch] = useDebounce(search, 300);
   const [typeFilter, setTypeFilter] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<"all" | "ok" | "conflict">("all");
-  const initialLoad = useRef(true);
 
-  // Create
-  const [createOpen, setCreateOpen] = useState(false);
-  const [newName, setNewName] = useState("");
-  const [newType, setNewType] = useState("");
-  const [newSource, setNewSource] = useState("");
-  const [newTarget, setNewTarget] = useState("");
-  const [newDoc, setNewDoc] = useState("");
-  const [newProps, setNewProps] = useState<Property[]>([]);
-  const [creating, setCreating] = useState(false);
-  const [createError, setCreateError] = useState<string | null>(null);
+  // Form fields shared between create/edit
+  const [name, setName] = useState("");
+  const [type, setType] = useState("");
+  const [source, setSource] = useState("");
+  const [target, setTarget] = useState("");
+  const [doc, setDoc] = useState("");
+  const [props, setProps] = useState<Property[]>([]);
 
-  // Edit
-  const [editOpen, setEditOpen] = useState(false);
-  const [editTarget, setEditTarget] = useState<RelationshipOut | null>(null);
-  const [editName, setEditName] = useState("");
-  const [editType, setEditType] = useState("");
-  const [editSource, setEditSource] = useState("");
-  const [editTargetEl, setEditTargetEl] = useState("");
-  const [editDoc, setEditDoc] = useState("");
-  const [editProps, setEditProps] = useState<Property[]>([]);
-  const [saving, setSaving] = useState(false);
-  const [editError, setEditError] = useState<string | null>(null);
+  const { data: types = [] } = useRelationshipTypes();
+  const { data: relationships = [], isLoading: loading, error } = useRelationships(typeFilter, debouncedSearch || null);
+  const { data: allElements = [] } = useElements();
 
-  // Delete
-  const [deleteOpen, setDeleteOpen] = useState(false);
-  const [delTarget, setDelTarget] = useState<RelationshipOut | null>(null);
-  const [deleting, setDeleting] = useState(false);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const createMutation = useCreateRelationship();
+  const updateMutation = useUpdateRelationship();
+  const deleteMutation = useDeleteRelationship();
 
-  useEffect(() => {
-    const timer = setTimeout(() => setDebouncedSearch(search), 300);
-    return () => clearTimeout(timer);
-  }, [search]);
+  const [createModal, createActions] = useFormModal<null>();
+  const [editModal, editActions] = useFormModal<RelationshipOut>();
+  const [deleteModal, deleteActions] = useFormModal<RelationshipOut>();
 
-  const reload = useCallback(() => {
-    setLoading(true);
-    fetchRelationships(typeFilter, debouncedSearch || null)
-      .then(setRelationships)
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false));
-  }, [typeFilter, debouncedSearch]);
+  const byId = useMemo(() => new Map<string, ElementOut>(allElements.map((e) => [e.identifier, e])), [allElements]);
 
-  useEffect(() => {
-    Promise.all([fetchRelationshipTypes(), fetchRelationships(), fetchElements()])
-      .then(([t, r, e]) => {
-        setTypes(t);
-        setRelationships(r);
-        setAllElements(e);
-        initialLoad.current = false;
-      })
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false));
-  }, []);
-
-  useEffect(() => {
-    if (initialLoad.current) return;
-    reload();
-  }, [typeFilter, debouncedSearch, reload]);
-
-  const elLabel = useCallback((id: string) => {
-    const el = allElements.find((e) => e.identifier === id);
-    return el ? `${el.name || el.identifier} (${el.type})` : id;
-  }, [allElements]);
-
-  function openEdit(rel: RelationshipOut) {
-    setEditTarget(rel);
-    setEditName(rel.name ?? "");
-    setEditType(rel.type);
-    setEditSource(rel.source);
-    setEditTargetEl(rel.target);
-    setEditDoc(rel.documentation ?? "");
-    setEditProps(rel.properties ?? []);
-    setEditError(null);
-    setEditOpen(true);
+  function openCreate() {
+    setName(""); setType(""); setSource(""); setTarget(""); setDoc(""); setProps([]);
+    createActions.openNew();
   }
 
-  function openDelete(rel: RelationshipOut) {
-    setDelTarget(rel);
-    setDeleteError(null);
-    setDeleteOpen(true);
+  function openEdit(rel: RelationshipOut) {
+    setName(rel.name ?? ""); setType(rel.type); setSource(rel.source);
+    setTarget(rel.target); setDoc(rel.documentation ?? ""); setProps(rel.properties ?? []);
+    editActions.openWith(rel);
   }
 
   async function handleCreate() {
-    if (!newType || !newSource || !newTarget) return;
-    setCreating(true);
-    setCreateError(null);
-    try {
-      await createRelationship({ name: newName.trim() || null, type: newType, source: newSource, target: newTarget, documentation: newDoc.trim() || null, properties: newProps });
-      setCreateOpen(false);
-      setNewName(""); setNewType(""); setNewSource(""); setNewTarget(""); setNewDoc(""); setNewProps([]);
-      reload();
-    } catch (err) {
-      setCreateError((err as Error).message);
-    } finally {
-      setCreating(false);
-    }
+    if (!type || !source || !target) return;
+    await createActions.run(async () => {
+      await createMutation.mutateAsync({ name: name.trim() || null, type, source, target, documentation: doc.trim() || null, properties: props });
+    });
   }
 
   async function handleEdit() {
-    if (!editTarget || !editType || !editSource || !editTargetEl) return;
-    setSaving(true);
-    setEditError(null);
-    try {
-      await updateRelationship(editTarget.identifier, {
-        name: editName.trim() || null,
-        type: editType,
-        source: editSource,
-        target: editTargetEl,
-        documentation: editDoc.trim() || null,
-        properties: editProps,
-      });
-      setEditOpen(false);
-      reload();
-    } catch (err) {
-      setEditError((err as Error).message);
-    } finally {
-      setSaving(false);
-    }
+    if (!editModal.target || !type || !source || !target) return;
+    await editActions.run(async () => {
+      await updateMutation.mutateAsync({ id: editModal.target!.identifier, body: { name: name.trim() || null, type, source, target, documentation: doc.trim() || null, properties: props } });
+    });
   }
 
   async function handleDelete() {
-    if (!delTarget) return;
-    setDeleting(true);
-    setDeleteError(null);
-    try {
-      await deleteRelationship(delTarget.identifier);
-      setDeleteOpen(false);
-      reload();
-    } catch (err) {
-      setDeleteError((err as Error).message);
-    } finally {
-      setDeleting(false);
-    }
+    if (!deleteModal.target) return;
+    await deleteActions.run(async () => {
+      await deleteMutation.mutateAsync(deleteModal.target!.identifier);
+    });
   }
 
-  const byId = useMemo(() => new Map(allElements.map((e) => [e.identifier, e])), [allElements]);
+  const elementSelect = (value: string, onChange: (v: string) => void, placeholder: string) => (
+    <Select value={value} onValueChange={(v) => onChange(v ?? "")}>
+      <SelectTrigger><SelectValue placeholder={placeholder} /></SelectTrigger>
+      <SelectContent>
+        {allElements.map((el) => (
+          <SelectItem key={el.identifier} value={el.identifier}>
+            {el.name || el.identifier} ({el.type})
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+
+  const validationStats = useMemo(() => {
+    let ok = 0, bad = 0;
+    for (const rel of relationships) {
+      const src = byId.get(rel.source);
+      const tgt = byId.get(rel.target);
+      if (allowedRelationships(src?.type, tgt?.type).includes(rel.type)) ok++; else bad++;
+    }
+    return { ok, bad };
+  }, [relationships, byId]);
+
+  const filteredRelationships = useMemo(() => {
+    if (statusFilter === "all") return relationships;
+    return relationships.filter((rel) => {
+      const src = byId.get(rel.source);
+      const tgt = byId.get(rel.target);
+      const ok = allowedRelationships(src?.type, tgt?.type).includes(rel.type);
+      return statusFilter === "ok" ? ok : !ok;
+    });
+  }, [relationships, byId, statusFilter]);
 
   const columns: ColumnDef<RelationshipOut>[] = useMemo(() => [
     {
@@ -196,15 +126,10 @@ export default function RelationshipsPage() {
       header: "",
       enableSorting: false,
       cell: ({ row }) => (
-        <button
-          type="button"
-          onClick={() => row.toggleExpanded()}
+        <button type="button" onClick={() => row.toggleExpanded()}
           className="text-muted-foreground hover:text-foreground transition-colors"
-          aria-label={row.getIsExpanded() ? "Replier" : "Déplier"}
-        >
-          {row.getIsExpanded()
-            ? <ChevronDown className="size-3.5" />
-            : <ChevronRight className="size-3.5" />}
+          aria-label={row.getIsExpanded() ? "Replier" : "Déplier"}>
+          {row.getIsExpanded() ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
         </button>
       ),
     },
@@ -273,54 +198,22 @@ export default function RelationshipsPage() {
           <Button variant="ghost" size="icon-xs" onClick={() => openEdit(row.original)} aria-label="Modifier">
             <Pencil className="size-3.5" />
           </Button>
-          <Button variant="ghost" size="icon-xs" onClick={() => openDelete(row.original)} aria-label="Supprimer">
+          <Button variant="ghost" size="icon-xs" onClick={() => deleteActions.openWith(row.original)} aria-label="Supprimer">
             <Trash2 className="size-3.5 text-destructive" />
           </Button>
         </div>
       ),
     }] : []),
-  ], [isAdmin, byId]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  ], [isAdmin, byId, openEdit, deleteActions]);
 
   if (error) {
     return (
       <div className="p-7">
-        <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">Erreur : {error}</div>
+        <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">Erreur : {(error as Error).message}</div>
       </div>
     );
   }
-
-  const elementSelect = (value: string, onChange: (v: string) => void, placeholder: string) => (
-    <Select value={value} onValueChange={(v) => onChange(v ?? "")}>
-      <SelectTrigger><SelectValue placeholder={placeholder} /></SelectTrigger>
-      <SelectContent>
-        {allElements.map((el) => (
-          <SelectItem key={el.identifier} value={el.identifier}>
-            {el.name || el.identifier} ({el.type})
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  );
-
-  const validationStats = useMemo(() => {
-    let ok = 0, bad = 0;
-    for (const rel of relationships) {
-      const src = byId.get(rel.source);
-      const tgt = byId.get(rel.target);
-      if (allowedRelationships(src?.type, tgt?.type).includes(rel.type)) ok++; else bad++;
-    }
-    return { ok, bad };
-  }, [relationships, byId]);
-
-  const filteredRelationships = useMemo(() => {
-    if (statusFilter === "all") return relationships;
-    return relationships.filter((rel) => {
-      const src = byId.get(rel.source);
-      const tgt = byId.get(rel.target);
-      const ok = allowedRelationships(src?.type, tgt?.type).includes(rel.type);
-      return statusFilter === "ok" ? ok : !ok;
-    });
-  }, [relationships, byId, statusFilter]);
 
   return (
     <div className="p-7 space-y-5">
@@ -334,51 +227,44 @@ export default function RelationshipsPage() {
             {validationStats.bad > 0 && <span className="text-destructive"> · {validationStats.bad} conflit{validationStats.bad > 1 ? "s" : ""}</span>}
           </p>
         </div>
-        {isAdmin && <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-          <DialogTrigger render={<Button size="sm" />}>
-            <Plus className="size-4" /> Nouvelle relation
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>Nouvelle relation</DialogTitle>
-              <DialogDescription>Créer une relation entre deux éléments du modèle.</DialogDescription>
-            </DialogHeader>
-            <div className="flex flex-col gap-4 py-2">
-              <div className="flex flex-col gap-1.5">
-                <Label>Type *</Label>
-                <Select value={newType} onValueChange={(v) => setNewType(v ?? "")}>
-                  <SelectTrigger><SelectValue placeholder="Choisir un type" /></SelectTrigger>
-                  <SelectContent>{types.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
-                </Select>
+        {isAdmin && (
+          <Dialog open={createModal.open} onOpenChange={(o) => !o && createActions.close()}>
+            <DialogTrigger render={<Button size="sm" onClick={openCreate} />}>
+              <Plus className="size-4" /> Nouvelle relation
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Nouvelle relation</DialogTitle>
+                <DialogDescription>Créer une relation entre deux éléments du modèle.</DialogDescription>
+              </DialogHeader>
+              <div className="flex flex-col gap-4 py-2">
+                <div className="flex flex-col gap-1.5">
+                  <Label>Type *</Label>
+                  <Select value={type} onValueChange={(v) => setType(v ?? "")}>
+                    <SelectTrigger><SelectValue placeholder="Choisir un type" /></SelectTrigger>
+                    <SelectContent>{types.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div className="flex flex-col gap-1.5"><Label>Source *</Label>{elementSelect(source, setSource, "Élément source")}</div>
+                <div className="flex flex-col gap-1.5"><Label>Cible *</Label>{elementSelect(target, setTarget, "Élément cible")}</div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="rel-name">Nom</Label>
+                  <Input id="rel-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Nom optionnel" />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="rel-doc">Documentation</Label>
+                  <textarea id="rel-doc" value={doc} onChange={(e) => setDoc(e.target.value)} placeholder="Description optionnelle" className="bg-background border border-input rounded-md text-foreground text-sm px-3 py-2 outline-none focus:border-ring resize-vertical min-h-[72px]" />
+                </div>
+                <div className="flex flex-col gap-1.5"><Label>Propriétés</Label><PropertiesEditor value={props} onChange={setProps} /></div>
               </div>
-              <div className="flex flex-col gap-1.5">
-                <Label>Source *</Label>
-                {elementSelect(newSource, setNewSource, "Élément source")}
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <Label>Cible *</Label>
-                {elementSelect(newTarget, setNewTarget, "Élément cible")}
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="rel-name">Nom</Label>
-                <Input id="rel-name" value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Nom optionnel" />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="rel-doc">Documentation</Label>
-                <textarea id="rel-doc" value={newDoc} onChange={(e) => setNewDoc(e.target.value)} placeholder="Description optionnelle" className="bg-background border border-input rounded-md text-foreground text-sm px-3 py-2 outline-none focus:border-ring resize-vertical min-h-[72px]" />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <Label>Propriétés</Label>
-                <PropertiesEditor value={newProps} onChange={setNewProps} />
-              </div>
-            </div>
-            {createError && <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">{createError}</div>}
-            <DialogFooter>
-              <DialogClose render={<Button variant="outline" />}>Annuler</DialogClose>
-              <Button onClick={handleCreate} disabled={creating || !newType || !newSource || !newTarget}>{creating ? "Création…" : "Créer"}</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>}
+              {createModal.error && <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">{createModal.error}</div>}
+              <DialogFooter>
+                <DialogClose render={<Button variant="outline" />}>Annuler</DialogClose>
+                <Button onClick={handleCreate} disabled={createModal.isPending || !type || !source || !target}>{createModal.isPending ? "Création…" : "Créer"}</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
@@ -392,16 +278,8 @@ export default function RelationshipsPage() {
         </Select>
         <div className="flex items-center gap-1">
           {(["all", "ok", "conflict"] as const).map((f) => (
-            <button
-              key={f}
-              type="button"
-              onClick={() => setStatusFilter(f)}
-              className={`text-[12px] px-2.5 py-1 rounded-md border transition-colors ${
-                statusFilter === f
-                  ? "bg-primary text-primary-foreground border-primary"
-                  : "bg-background text-foreground border-border hover:bg-muted"
-              }`}
-            >
+            <button key={f} type="button" onClick={() => setStatusFilter(f)}
+              className={`text-[12px] px-2.5 py-1 rounded-md border transition-colors ${statusFilter === f ? "bg-primary text-primary-foreground border-primary" : "bg-background text-foreground border-border hover:bg-muted"}`}>
               {f === "all" ? "Toutes" : f === "ok" ? "OK" : "Conflits"}
             </button>
           ))}
@@ -434,59 +312,50 @@ export default function RelationshipsPage() {
       />
 
       {/* Edit dialog */}
-      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+      <Dialog open={editModal.open} onOpenChange={(o) => !o && editActions.close()}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader><DialogTitle>Modifier la relation</DialogTitle></DialogHeader>
           <div className="flex flex-col gap-4 py-2">
             <div className="flex flex-col gap-1.5">
               <Label>Type *</Label>
-              <Select value={editType} onValueChange={(v) => setEditType(v ?? "")}>
+              <Select value={type} onValueChange={(v) => setType(v ?? "")}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>{types.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <div className="flex flex-col gap-1.5">
-              <Label>Source *</Label>
-              {elementSelect(editSource, setEditSource, "Élément source")}
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label>Cible *</Label>
-              {elementSelect(editTargetEl, setEditTargetEl, "Élément cible")}
-            </div>
+            <div className="flex flex-col gap-1.5"><Label>Source *</Label>{elementSelect(source, setSource, "Élément source")}</div>
+            <div className="flex flex-col gap-1.5"><Label>Cible *</Label>{elementSelect(target, setTarget, "Élément cible")}</div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="edit-rel-name">Nom</Label>
-              <Input id="edit-rel-name" value={editName} onChange={(e) => setEditName(e.target.value)} />
+              <Input id="edit-rel-name" value={name} onChange={(e) => setName(e.target.value)} />
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="edit-rel-doc">Documentation</Label>
-              <textarea id="edit-rel-doc" value={editDoc} onChange={(e) => setEditDoc(e.target.value)} className="bg-background border border-input rounded-md text-foreground text-sm px-3 py-2 outline-none focus:border-ring resize-vertical min-h-[72px]" />
+              <textarea id="edit-rel-doc" value={doc} onChange={(e) => setDoc(e.target.value)} className="bg-background border border-input rounded-md text-foreground text-sm px-3 py-2 outline-none focus:border-ring resize-vertical min-h-[72px]" />
             </div>
-            <div className="flex flex-col gap-1.5">
-              <Label>Propriétés</Label>
-              <PropertiesEditor value={editProps} onChange={setEditProps} />
-            </div>
+            <div className="flex flex-col gap-1.5"><Label>Propriétés</Label><PropertiesEditor value={props} onChange={setProps} /></div>
           </div>
-          {editError && <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">{editError}</div>}
+          {editModal.error && <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">{editModal.error}</div>}
           <DialogFooter>
             <DialogClose render={<Button variant="outline" />}>Annuler</DialogClose>
-            <Button onClick={handleEdit} disabled={saving || !editType || !editSource || !editTargetEl}>{saving ? "Enregistrement…" : "Enregistrer"}</Button>
+            <Button onClick={handleEdit} disabled={editModal.isPending || !type || !source || !target}>{editModal.isPending ? "Enregistrement…" : "Enregistrer"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* Delete dialog */}
-      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+      <Dialog open={deleteModal.open} onOpenChange={(o) => !o && deleteActions.close()}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
             <DialogTitle>Supprimer la relation</DialogTitle>
             <DialogDescription>
-              Supprimer cette relation {delTarget?.type} ? Cette action est irréversible.
+              Supprimer cette relation {deleteModal.target?.type} ? Cette action est irréversible.
             </DialogDescription>
           </DialogHeader>
-          {deleteError && <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">{deleteError}</div>}
+          {deleteModal.error && <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">{deleteModal.error}</div>}
           <DialogFooter>
             <DialogClose render={<Button variant="outline" />}>Annuler</DialogClose>
-            <Button variant="destructive" onClick={handleDelete} disabled={deleting}>{deleting ? "Suppression…" : "Supprimer"}</Button>
+            <Button variant="destructive" onClick={handleDelete} disabled={deleteModal.isPending}>{deleteModal.isPending ? "Suppression…" : "Supprimer"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

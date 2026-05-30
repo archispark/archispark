@@ -1,11 +1,31 @@
 /**
  * OpenAPI 3.0 specification for the mcp-archimate REST API.
  * Served as JSON at GET /openapi.json and as Swagger UI at GET /docs.
+ *
+ * Request body schemas are auto-generated from the Zod schemas in validation.ts.
  */
 
 import packageJson from "../package.json" with { type: "json" };
 const { version } = packageJson;
 import { ELEMENT_TYPES, RELATIONSHIP_TYPES } from "./schemas.js";
+import { zodToJsonSchema } from "zod-to-json-schema";
+import {
+  ElementCreateSchema, ElementUpdateSchema,
+  RelationshipCreateSchema, RelationshipUpdateSchema,
+  ViewCreateSchema, ViewUpdateSchema,
+  NodeCreateSchema, NodeUpdateSchema,
+  ConnectionCreateSchema, ConnectionUpdateSchema,
+  PropertyDefinitionCreateSchema, PropertyDefinitionUpdateSchema,
+  WorkspaceCreateSchema, WorkspaceUpdateSchema,
+  RoleCreateSchema, RoleUpdateSchema,
+} from "./validation.js";
+
+function toOpenApiSchema(zodSchema: Parameters<typeof zodToJsonSchema>[0]): unknown {
+  const s = zodToJsonSchema(zodSchema, { target: "openApi3" }) as Record<string, unknown>;
+  // Remove $schema key which isn't needed inline
+  const { $schema: _, ...rest } = s;
+  return rest;
+}
 
 const elementTypesEnum = [...ELEMENT_TYPES].sort();
 const relationshipTypesEnum = [...RELATIONSHIP_TYPES].sort();
@@ -170,57 +190,10 @@ const ErrorDetail = {
   },
 };
 
-const ElementCreateInput = {
-  type: "object",
-  required: ["name", "type"],
-  properties: {
-    name:          { type: "string", example: "Mon Application" },
-    type:          { type: "string", enum: elementTypesEnum, example: "ApplicationComponent" },
-    documentation: { type: "string", nullable: true },
-    properties:    { type: "array", items: { $ref: "#/components/schemas/Property" } },
-  },
-};
-
-const ElementUpdateInput = {
-  type: "object",
-  properties: {
-    name:          { type: "string" },
-    type:          { type: "string", enum: elementTypesEnum },
-    documentation: { type: "string", nullable: true },
-    properties:    { type: "array", items: { $ref: "#/components/schemas/Property" } },
-  },
-};
-
-const RelationshipCreateInput = {
-  type: "object",
-  required: ["type", "source", "target"],
-  properties: {
-    name:               { type: "string", nullable: true },
-    type:               { type: "string", enum: relationshipTypesEnum },
-    source:             { type: "string", description: "Identifiant de l'element source" },
-    target:             { type: "string", description: "Identifiant de l'element cible" },
-    documentation:      { type: "string", nullable: true },
-    properties:         { type: "array", items: { $ref: "#/components/schemas/Property" } },
-    access_type:        { type: "string", enum: ["Access", "Read", "Write", "ReadWrite"], nullable: true },
-    is_directed:        { type: "boolean", nullable: true },
-    influence_strength: { type: "string", nullable: true },
-  },
-};
-
-const RelationshipUpdateInput = {
-  type: "object",
-  properties: {
-    name:               { type: "string", nullable: true },
-    type:               { type: "string", enum: relationshipTypesEnum },
-    source:             { type: "string" },
-    target:             { type: "string" },
-    documentation:      { type: "string", nullable: true },
-    properties:         { type: "array", items: { $ref: "#/components/schemas/Property" } },
-    access_type:        { type: "string", enum: ["Access", "Read", "Write", "ReadWrite"], nullable: true },
-    is_directed:        { type: "boolean", nullable: true },
-    influence_strength: { type: "string", nullable: true },
-  },
-};
+const ElementCreateInput = toOpenApiSchema(ElementCreateSchema);
+const ElementUpdateInput = toOpenApiSchema(ElementUpdateSchema);
+const RelationshipCreateInput = toOpenApiSchema(RelationshipCreateSchema);
+const RelationshipUpdateInput = toOpenApiSchema(RelationshipUpdateSchema);
 
 const SaveResult = {
   type: "object",
@@ -231,59 +204,15 @@ const SaveResult = {
   },
 };
 
-const ViewCreateInput = {
-  type: "object",
-  required: ["name"],
-  properties: {
-    name:          { type: "string", example: "Vue applicative" },
-    viewpoint:     { type: "string", nullable: true, example: "Application Structure" },
-    documentation: { type: "string", nullable: true },
-  },
-};
+const ViewCreateInput = toOpenApiSchema(ViewCreateSchema);
+const ViewUpdateInput = toOpenApiSchema(ViewUpdateSchema);
+const NodeCreateInput = toOpenApiSchema(NodeCreateSchema);
+const NodeUpdateInput = toOpenApiSchema(NodeUpdateSchema);
+const ConnectionCreateInput = toOpenApiSchema(ConnectionCreateSchema);
+const ConnectionUpdateInput = toOpenApiSchema(ConnectionUpdateSchema);
 
-const NodeCreateInput = {
-  type: "object",
-  required: ["element_id"],
-  properties: {
-    element_id: { type: "string", description: "Identifiant de l'élément à représenter" },
-    x: { type: "number", nullable: true, example: 10 },
-    y: { type: "number", nullable: true, example: 10 },
-    w: { type: "number", nullable: true, example: 120 },
-    h: { type: "number", nullable: true, example: 55 },
-  },
-};
-
-const ConnectionCreateInput = {
-  type: "object",
-  required: ["source", "target"],
-  properties: {
-    source:           { type: "string" },
-    target:           { type: "string" },
-    name:             { type: "string", nullable: true },
-    relationship_ref: { type: "string", nullable: true },
-    source_side:      { type: "string", enum: ["top", "right", "bottom", "left"], nullable: true },
-    target_side:      { type: "string", enum: ["top", "right", "bottom", "left"], nullable: true },
-  },
-};
-
-const ConnectionUpdateInput = {
-  type: "object",
-  properties: {
-    name:             { type: "string", nullable: true },
-    source_side:      { type: "string", enum: ["top", "right", "bottom", "left"], nullable: true },
-    target_side:      { type: "string", enum: ["top", "right", "bottom", "left"], nullable: true },
-  },
-};
-
-const NodeUpdateInput = {
-  type: "object",
-  properties: {
-    x: { type: "number", nullable: true },
-    y: { type: "number", nullable: true },
-    w: { type: "number", nullable: true },
-    h: { type: "number", nullable: true },
-  },
-};
+const WorkspaceCreateInput = toOpenApiSchema(WorkspaceCreateSchema);
+const WorkspaceUpdateInput = toOpenApiSchema(WorkspaceUpdateSchema);
 
 const WorkspaceInfo = {
   type: "object",
@@ -324,6 +253,11 @@ const RoleOut = {
     user_ids: { type: "array", items: { type: "string" } },
   },
 };
+
+const PropertyDefinitionCreateInput = toOpenApiSchema(PropertyDefinitionCreateSchema);
+const PropertyDefinitionUpdateInput = toOpenApiSchema(PropertyDefinitionUpdateSchema);
+const RoleCreateInput = toOpenApiSchema(RoleCreateSchema);
+const RoleUpdateInput = toOpenApiSchema(RoleUpdateSchema);
 
 const PropertyDefinition = {
   type: "object",
@@ -804,7 +738,7 @@ export const openApiSpec = {
         security: [{ cookieAuth: [] }],
         requestBody: {
           required: true,
-          content: { "application/json": { schema: { type: "object", required: ["name"], properties: { name: { type: "string" }, path: { type: "string", nullable: true } } } } },
+          content: { "application/json": { schema: WorkspaceCreateInput } },
         },
         responses: {
           "201": { description: "Workspace créé", content: { "application/json": { schema: { $ref: "#/components/schemas/WorkspaceInfo" } } } },
@@ -821,7 +755,7 @@ export const openApiSpec = {
         operationId: "updateWorkspace",
         security: [{ cookieAuth: [] }],
         parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
-        requestBody: { required: true, content: { "application/json": { schema: { type: "object", properties: { name: { type: "string" } } } } } },
+        requestBody: { required: true, content: { "application/json": { schema: WorkspaceUpdateInput } } },
         responses: {
           "200": { description: "Workspace mis à jour", content: { "application/json": { schema: { $ref: "#/components/schemas/WorkspaceInfo" } } } },
           "401": { $ref: "#/components/responses/Unauthorized" },
@@ -1208,10 +1142,17 @@ export const openApiSpec = {
       View,
       ViewDetail,
       ViewCreateInput,
+      ViewUpdateInput,
       WorkspaceInfo,
+      WorkspaceCreateInput,
+      WorkspaceUpdateInput,
       UserOut,
       RoleOut,
+      RoleCreateInput,
+      RoleUpdateInput,
       PropertyDefinition,
+      PropertyDefinitionCreateInput,
+      PropertyDefinitionUpdateInput,
       ErrorDetail,
     },
     securitySchemes: {

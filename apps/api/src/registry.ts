@@ -23,6 +23,7 @@ import { eq } from "drizzle-orm";
 import { db, runMigrations, workspaces as wsTable, modelFromDb, modelToDb, seedWorkspace } from "@workspace/db";
 import { parseOpenExchange } from "./oxf-parser.js";
 import { initUsers } from "./auth.js";
+import { NotFoundError, ValidationError } from "./errors.js";
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -155,7 +156,7 @@ export function getActiveWorkspaceId(): string {
 export async function activateWorkspace(id: string): Promise<WorkspaceOut> {
   const dbId = strIdToDbId(id);
   const [row] = await db.select().from(wsTable).where(eq(wsTable.id, dbId));
-  if (!row) throw new Error(`Workspace '${id}' introuvable.`);
+  if (!row) throw new NotFoundError(`Workspace '${id}' introuvable.`);
   if (!_loaded.has(dbId)) {
     _loaded.set(dbId, await buildRuntimeDs(dbId));
   }
@@ -165,15 +166,15 @@ export async function activateWorkspace(id: string): Promise<WorkspaceOut> {
 }
 
 export async function createWorkspace(name: string, xmlFilePath?: string): Promise<WorkspaceOut> {
-  if (!name?.trim()) throw new Error("Le nom du workspace est requis.");
+  if (!name?.trim()) throw new ValidationError("Le nom du workspace est requis.");
   const [existing] = await db.select({ id: wsTable.id }).from(wsTable).where(eq(wsTable.name, name));
-  if (existing) throw new Error(`Un workspace nommé '${name}' existe déjà.`);
+  if (existing) throw new ValidationError(`Un workspace nommé '${name}' existe déjà.`);
 
   let model: import("./model.js").ArchiModel;
 
   if (xmlFilePath) {
     const fullPath = join(process.cwd(), xmlFilePath);
-    if (!existsSync(fullPath)) throw new Error(`Fichier XML introuvable: ${xmlFilePath}`);
+    if (!existsSync(fullPath)) throw new ValidationError(`Fichier XML introuvable: ${xmlFilePath}`);
     const xml = readFileSync(fullPath, "utf-8");
     model = parseOpenExchange(xml);
   } else {
@@ -197,12 +198,12 @@ export async function createWorkspace(name: string, xmlFilePath?: string): Promi
 
 export async function updateWorkspace(id: string, name: string): Promise<WorkspaceOut> {
   const dbId = strIdToDbId(id);
-  if (!name?.trim()) throw new Error("Le nom du workspace est requis.");
+  if (!name?.trim()) throw new ValidationError("Le nom du workspace est requis.");
   const [dup] = await db.select({ id: wsTable.id }).from(wsTable).where(eq(wsTable.name, name));
-  if (dup && dup.id !== dbId) throw new Error(`Un workspace nommé '${name}' existe déjà.`);
+  if (dup && dup.id !== dbId) throw new ValidationError(`Un workspace nommé '${name}' existe déjà.`);
   const [row] = await db.update(wsTable).set({ name: name.trim(), updatedAt: Math.floor(Date.now() / 1000) })
     .where(eq(wsTable.id, dbId)).returning();
-  if (!row) throw new Error(`Workspace '${id}' introuvable.`);
+  if (!row) throw new NotFoundError(`Workspace '${id}' introuvable.`);
   const ds = _loaded.get(dbId);
   if (ds) ds.model.name = name.trim();
   return { id, name: name.trim(), active: dbId === _activeId };
@@ -210,11 +211,11 @@ export async function updateWorkspace(id: string, name: string): Promise<Workspa
 
 export async function deleteWorkspace(id: string): Promise<void> {
   const all = await db.select({ id: wsTable.id }).from(wsTable);
-  if (all.length <= 1) throw new Error("Impossible de supprimer le dernier workspace.");
+  if (all.length <= 1) throw new ValidationError("Impossible de supprimer le dernier workspace.");
   const dbId = strIdToDbId(id);
-  if (dbId === _activeId) throw new Error("Impossible de supprimer le workspace actif. Activez-en un autre d'abord.");
+  if (dbId === _activeId) throw new ValidationError("Impossible de supprimer le workspace actif. Activez-en un autre d'abord.");
   const [deleted] = await db.delete(wsTable).where(eq(wsTable.id, dbId)).returning({ id: wsTable.id });
-  if (!deleted) throw new Error(`Workspace '${id}' introuvable.`);
+  if (!deleted) throw new ValidationError(`Workspace '${id}' introuvable.`);
   _loaded.delete(dbId);
 }
 

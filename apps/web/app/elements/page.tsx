@@ -1,16 +1,18 @@
 "use client";
 
-import { Suspense, useEffect, useRef, useState, useMemo, useCallback } from "react";
+import { Suspense, useState, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
+import { useDebounce } from "use-debounce";
 import type { ColumnDef } from "@tanstack/react-table";
+import { type ElementOut } from "@/lib/api";
+import { getLayer, LAYER_BADGE_COLORS, LAYER_LABELS } from "@/lib/archimate-helpers";
 import {
-  fetchElementTypes,
-  fetchElements,
-  createElement,
-  updateElement,
-  deleteElement,
-  type ElementOut,
-} from "@/lib/api";
+  useElements,
+  useElementTypes,
+  useCreateElement,
+  useUpdateElement,
+  useDeleteElement,
+} from "@/lib/queries";
 import { Input } from "@workspace/ui/components/input";
 import { Badge } from "@workspace/ui/components/badge";
 import { Button } from "@workspace/ui/components/button";
@@ -37,48 +39,7 @@ import { PropertiesEditor } from "@/components/properties-editor";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import type { Property } from "@/lib/api";
 import { useIsAdmin } from "@/hooks/use-current-user";
-
-const LAYER_COLORS: Record<string, string> = {
-  Business: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300",
-  Application: "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300",
-  Technology: "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300",
-  Physical: "bg-green-200 text-green-900 dark:bg-green-800/40 dark:text-green-200",
-  Motivation: "bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300",
-  Strategy: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300",
-  Implementation: "bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300",
-  Composite: "bg-gray-100 text-gray-800 dark:bg-gray-800/40 dark:text-gray-300",
-};
-
-function getLayer(type: string): string {
-  if (type.startsWith("Business") || ["Contract", "Representation", "Product"].includes(type))
-    return "Business";
-  if (type.startsWith("Application") || type === "DataObject") return "Application";
-  if (
-    type.startsWith("Technology") ||
-    ["Node", "Device", "SystemSoftware", "Path", "CommunicationNetwork", "Artifact"].includes(type)
-  )
-    return "Technology";
-  if (["Equipment", "Facility", "DistributionNetwork", "Material"].includes(type)) return "Physical";
-  if (
-    ["Stakeholder", "Driver", "Assessment", "Goal", "Outcome", "Principle", "Requirement", "Constraint", "Meaning", "Value"].includes(type)
-  )
-    return "Motivation";
-  if (["Resource", "Capability", "CourseOfAction", "ValueStream"].includes(type)) return "Strategy";
-  if (["WorkPackage", "Deliverable", "ImplementationEvent", "Plateau", "Gap"].includes(type))
-    return "Implementation";
-  return "Composite";
-}
-
-const LAYER_LABELS: Record<string, string> = {
-  Strategy: "Stratégie",
-  Business: "Métier",
-  Application: "Application",
-  Technology: "Technologie",
-  Motivation: "Motivation",
-  Physical: "Physique",
-  Implementation: "Implémentation",
-  Composite: "Composite",
-};
+const LAYER_COLORS = LAYER_BADGE_COLORS;
 
 export default function ElementsPage() {
   return (
@@ -93,14 +54,12 @@ function ElementsPageInner() {
   const searchParams = useSearchParams();
   const layerFilter = searchParams.get("layer");
 
-  const [types, setTypes] = useState<string[]>([]);
-  const [elements, setElements] = useState<ElementOut[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [debouncedSearch] = useDebounce(search, 300);
   const [typeFilter, setTypeFilter] = useState<string | null>(null);
-  const initialLoad = useRef(true);
+
+  const { data: types = [] } = useElementTypes();
+  const { data: elements = [], isLoading: loading, error } = useElements(typeFilter, debouncedSearch || null);
 
   // Create dialog
   const [createOpen, setCreateOpen] = useState(false);
@@ -108,8 +67,7 @@ function ElementsPageInner() {
   const [newType, setNewType] = useState("");
   const [newDoc, setNewDoc] = useState("");
   const [newProps, setNewProps] = useState<Property[]>([]);
-  const [creating, setCreating] = useState(false);
-  const [createError, setCreateError] = useState<string | null>(null);
+  const createMutation = useCreateElement();
 
   // Edit dialog
   const [editOpen, setEditOpen] = useState(false);
@@ -118,43 +76,12 @@ function ElementsPageInner() {
   const [editType, setEditType] = useState("");
   const [editDoc, setEditDoc] = useState("");
   const [editProps, setEditProps] = useState<Property[]>([]);
-  const [saving, setSaving] = useState(false);
-  const [editError, setEditError] = useState<string | null>(null);
+  const updateMutation = useUpdateElement();
 
   // Delete dialog
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<ElementOut | null>(null);
-  const [deleting, setDeleting] = useState(false);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const timer = setTimeout(() => setDebouncedSearch(search), 300);
-    return () => clearTimeout(timer);
-  }, [search]);
-
-  const reload = useCallback(() => {
-    setLoading(true);
-    fetchElements(typeFilter, debouncedSearch || null)
-      .then(setElements)
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false));
-  }, [typeFilter, debouncedSearch]);
-
-  useEffect(() => {
-    Promise.all([fetchElementTypes(), fetchElements()])
-      .then(([t, e]) => {
-        setTypes(t);
-        setElements(e);
-        initialLoad.current = false;
-      })
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false));
-  }, []);
-
-  useEffect(() => {
-    if (initialLoad.current) return;
-    reload();
-  }, [typeFilter, debouncedSearch, reload]);
+  const deleteMutation = useDeleteElement();
 
   const grouped = useMemo(() => {
     const groups: Record<string, string[]> = {};
@@ -189,53 +116,25 @@ function ElementsPageInner() {
 
   async function handleCreate() {
     if (!newName.trim() || !newType) return;
-    setCreating(true);
-    setCreateError(null);
-    try {
-      await createElement({ name: newName.trim(), type: newType, documentation: newDoc.trim() || null, properties: newProps });
-      setCreateOpen(false);
-      setNewName(""); setNewType(""); setNewDoc(""); setNewProps([]);
-      reload();
-    } catch (err) {
-      setCreateError((err as Error).message);
-    } finally {
-      setCreating(false);
-    }
+    await createMutation.mutateAsync(
+      { name: newName.trim(), type: newType, documentation: newDoc.trim() || null, properties: newProps },
+      {
+        onSuccess: () => { setCreateOpen(false); setNewName(""); setNewType(""); setNewDoc(""); setNewProps([]); },
+      }
+    );
   }
 
   async function handleEdit() {
     if (!editTarget || !editName.trim() || !editType) return;
-    setSaving(true);
-    setEditError(null);
-    try {
-      await updateElement(editTarget.identifier, {
-        name: editName.trim(),
-        type: editType,
-        documentation: editDoc.trim() || null,
-        properties: editProps,
-      });
-      setEditOpen(false);
-      reload();
-    } catch (err) {
-      setEditError((err as Error).message);
-    } finally {
-      setSaving(false);
-    }
+    await updateMutation.mutateAsync(
+      { id: editTarget.identifier, body: { name: editName.trim(), type: editType, documentation: editDoc.trim() || null, properties: editProps } },
+      { onSuccess: () => setEditOpen(false) }
+    );
   }
 
   async function handleDelete() {
     if (!deleteTarget) return;
-    setDeleting(true);
-    setDeleteError(null);
-    try {
-      await deleteElement(deleteTarget.identifier);
-      setDeleteOpen(false);
-      reload();
-    } catch (err) {
-      setDeleteError((err as Error).message);
-    } finally {
-      setDeleting(false);
-    }
+    await deleteMutation.mutateAsync(deleteTarget.identifier, { onSuccess: () => setDeleteOpen(false) });
   }
 
   const columns: ColumnDef<ElementOut>[] = useMemo(() => [
@@ -306,7 +205,7 @@ function ElementsPageInner() {
     return (
       <div className="p-7">
         <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">
-          Erreur : {error}
+          Erreur : {(error as Error).message}
         </div>
       </div>
     );
@@ -353,10 +252,10 @@ function ElementsPageInner() {
                 <PropertiesEditor value={newProps} onChange={setNewProps} />
               </div>
             </div>
-            {createError && <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">{createError}</div>}
+            {createMutation.error && <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">{(createMutation.error as Error).message}</div>}
             <DialogFooter>
               <DialogClose render={<Button variant="outline" />}>Annuler</DialogClose>
-              <Button onClick={handleCreate} disabled={creating || !newName.trim() || !newType}>{creating ? "Création…" : "Créer"}</Button>
+              <Button onClick={handleCreate} disabled={createMutation.isPending || !newName.trim() || !newType}>{createMutation.isPending ? "Création…" : "Créer"}</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>}
@@ -408,10 +307,10 @@ function ElementsPageInner() {
               <PropertiesEditor value={editProps} onChange={setEditProps} />
             </div>
           </div>
-          {editError && <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">{editError}</div>}
+          {updateMutation.error && <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">{(updateMutation.error as Error).message}</div>}
           <DialogFooter>
             <DialogClose render={<Button variant="outline" />}>Annuler</DialogClose>
-            <Button onClick={handleEdit} disabled={saving || !editName.trim() || !editType}>{saving ? "Enregistrement…" : "Enregistrer"}</Button>
+            <Button onClick={handleEdit} disabled={updateMutation.isPending || !editName.trim() || !editType}>{updateMutation.isPending ? "Enregistrement…" : "Enregistrer"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -425,10 +324,10 @@ function ElementsPageInner() {
               Supprimer <strong>{deleteTarget?.name || "cet élément"}</strong> ? Les relations associées seront aussi supprimées. Cette action est irréversible.
             </DialogDescription>
           </DialogHeader>
-          {deleteError && <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">{deleteError}</div>}
+          {deleteMutation.error && <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">{(deleteMutation.error as Error).message}</div>}
           <DialogFooter>
             <DialogClose render={<Button variant="outline" />}>Annuler</DialogClose>
-            <Button variant="destructive" onClick={handleDelete} disabled={deleting}>{deleting ? "Suppression…" : "Supprimer"}</Button>
+            <Button variant="destructive" onClick={handleDelete} disabled={deleteMutation.isPending}>{deleteMutation.isPending ? "Suppression…" : "Supprimer"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
