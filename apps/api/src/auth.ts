@@ -397,7 +397,7 @@ export async function listRoles(): Promise<RoleOut[]> {
 
 export async function getRole(roleId: string): Promise<RoleOut> {
   const [r] = await db.select().from(rolesTable).where(eq(rolesTable.id, roleId));
-  if (!r) throw new Error(`Rôle '${roleId}' introuvable.`);
+  if (!r) throw new NotFoundError(`Rôle '${roleId}' introuvable.`);
   return roleOut(r);
 }
 

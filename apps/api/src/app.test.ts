@@ -6,7 +6,7 @@
  * - Integration tests: supertest against the Express app with the real model.
  */
 
-import { describe, it, expect, beforeAll, afterEach } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, afterEach } from "vitest";
 import _request from "supertest";
 import { getAdminCookie } from "../src/test-helper.js";
 
@@ -35,7 +35,14 @@ import {
   updateRelationship,
   deleteRelationship,
   createView,
+  updateView,
+  deleteView,
   createNode,
+  updateViewNode,
+  deleteViewNode,
+  createViewConnection,
+  updateViewConnection,
+  deleteViewConnection,
   saveModel,
   pdOut,
   listPropertyDefinitions,
@@ -1810,5 +1817,619 @@ describe("POST/GET/PUT/DELETE /property-definitions", () => {
 
   it("DELETE 404 for unknown id", async () => {
     expect((await request(app).delete(`/property-definitions/${UNKNOWN_ID}`)).status).toBe(404);
+  });
+});
+
+// ===========================================================================
+// Unit tests – updateView / deleteView
+// ===========================================================================
+
+describe("updateView", () => {
+  it("updates view name", () => {
+    const ds = makeDataSource({ views: [makeView()] });
+    const out = updateView(ds, "view-001", { name: "Renamed" });
+    expect(out.name).toBe("Renamed");
+  });
+
+  it("updates viewpoint and documentation", () => {
+    const ds = makeDataSource({ views: [makeView()] });
+    const out = updateView(ds, "view-001", { viewpoint: "Layered", documentation: "desc" });
+    expect(out.viewpoint).toBe("Layered");
+    expect(out.documentation).toBe("desc");
+  });
+
+  it("clears viewpoint when null passed", () => {
+    const ds = makeDataSource({ views: [makeView({ primary_viewpoint: "Layered" })] });
+    const out = updateView(ds, "view-001", { viewpoint: null });
+    expect(out.viewpoint).toBeNull();
+  });
+
+  it("throws when view not found", () => {
+    const ds = makeDataSource();
+    expect(() => updateView(ds, "no-such-view", { name: "X" })).toThrow();
+  });
+});
+
+describe("deleteView", () => {
+  it("removes the view from the model", () => {
+    const ds = makeDataSource({ views: [makeView()] });
+    deleteView(ds, "view-001");
+    expect(ds.model.views).toHaveLength(0);
+  });
+
+  it("throws when view not found", () => {
+    const ds = makeDataSource();
+    expect(() => deleteView(ds, "no-such-view")).toThrow();
+  });
+});
+
+// ===========================================================================
+// Unit tests – updateViewNode / deleteViewNode
+// ===========================================================================
+
+describe("updateViewNode", () => {
+  it("updates node position", () => {
+    const node = makeNode({ uuid: "node-x" });
+    const ds = makeDataSource({ views: [makeView({ nodes: [node] })] });
+    const out = updateViewNode(ds, "view-001", "node-x", { x: 99, y: 88, w: 200, h: 100 });
+    expect(out.x).toBe(99);
+    expect(out.y).toBe(88);
+    expect(out.w).toBe(200);
+    expect(out.h).toBe(100);
+  });
+
+  it("updates node name", () => {
+    const node = makeNode({ uuid: "node-x" });
+    const ds = makeDataSource({ views: [makeView({ nodes: [node] })] });
+    const out = updateViewNode(ds, "view-001", "node-x", { name: "Label" });
+    expect(out.name).toBe("Label");
+  });
+
+  it("throws when view not found", () => {
+    const ds = makeDataSource();
+    expect(() => updateViewNode(ds, "no-view", "node-x", {})).toThrow();
+  });
+
+  it("throws when node not found", () => {
+    const ds = makeDataSource({ views: [makeView()] });
+    expect(() => updateViewNode(ds, "view-001", "no-node", {})).toThrow();
+  });
+});
+
+describe("deleteViewNode", () => {
+  it("removes node from view", () => {
+    const node = makeNode({ uuid: "node-x" });
+    const ds = makeDataSource({ views: [makeView({ nodes: [node] })] });
+    deleteViewNode(ds, "view-001", "node-x");
+    expect(ds.model.views[0]!.nodes).toHaveLength(0);
+  });
+
+  it("also removes connections referencing the deleted node", () => {
+    const node = makeNode({ uuid: "node-x" });
+    const conn = makeConnection({ uuid: "conn-x", source: "node-x", target: "node-other" });
+    const ds = makeDataSource({ views: [makeView({ nodes: [node], conns: [conn] })] });
+    deleteViewNode(ds, "view-001", "node-x");
+    expect(ds.model.views[0]!.conns).toHaveLength(0);
+  });
+
+  it("throws when view not found", () => {
+    const ds = makeDataSource();
+    expect(() => deleteViewNode(ds, "no-view", "node-x")).toThrow();
+  });
+
+  it("throws when node not found", () => {
+    const ds = makeDataSource({ views: [makeView()] });
+    expect(() => deleteViewNode(ds, "view-001", "no-node")).toThrow();
+  });
+});
+
+// ===========================================================================
+// Unit tests – createViewConnection / updateViewConnection / deleteViewConnection
+// ===========================================================================
+
+function makeViewWithNodes() {
+  const nodeA = makeNode({ uuid: "node-a" });
+  const nodeB = makeNode({ uuid: "node-b" });
+  return makeView({ nodes: [nodeA, nodeB] });
+}
+
+describe("createViewConnection", () => {
+  it("adds a connection to the view", () => {
+    const ds = makeDataSource({ views: [makeViewWithNodes()] });
+    createViewConnection(ds, "view-001", { source: "node-a", target: "node-b" });
+    expect(ds.model.views[0]!.conns).toHaveLength(1);
+  });
+
+  it("returns ConnectionOut with correct fields", () => {
+    const ds = makeDataSource({ views: [makeViewWithNodes()] });
+    const out = createViewConnection(ds, "view-001", { source: "node-a", target: "node-b", source_side: "top", target_side: "bottom" });
+    expect(out.source).toBe("node-a");
+    expect(out.target).toBe("node-b");
+    expect(out.source_side).toBe("top");
+    expect(out.target_side).toBe("bottom");
+  });
+
+  it("throws when view not found", () => {
+    const ds = makeDataSource();
+    expect(() => createViewConnection(ds, "no-view", { source: "a", target: "b" })).toThrow();
+  });
+
+  it("throws when source node not found", () => {
+    const ds = makeDataSource({ views: [makeView()] });
+    expect(() => createViewConnection(ds, "view-001", { source: "no-node", target: "b" })).toThrow();
+  });
+
+  it("throws when target node not found", () => {
+    const nodeA = makeNode({ uuid: "node-a" });
+    const ds = makeDataSource({ views: [makeView({ nodes: [nodeA] })] });
+    expect(() => createViewConnection(ds, "view-001", { source: "node-a", target: "no-node" })).toThrow();
+  });
+
+  it("throws when relationship_id does not exist in model", () => {
+    const ds = makeDataSource({ views: [makeViewWithNodes()] });
+    expect(() => createViewConnection(ds, "view-001", { source: "node-a", target: "node-b", relationship_id: "no-rel" })).toThrow();
+  });
+});
+
+describe("updateViewConnection", () => {
+  it("updates connection name", () => {
+    const conn = makeConnection({ uuid: "conn-x", source: "node-a", target: "node-b" });
+    const nodeA = makeNode({ uuid: "node-a" });
+    const nodeB = makeNode({ uuid: "node-b" });
+    const ds = makeDataSource({ views: [makeView({ nodes: [nodeA, nodeB], conns: [conn] })] });
+    const out = updateViewConnection(ds, "view-001", "conn-x", { name: "Flow" });
+    expect(out.name).toBe("Flow");
+  });
+
+  it("updates source_side and target_side", () => {
+    const conn = makeConnection({ uuid: "conn-x", source: "node-a", target: "node-b" });
+    const nodeA = makeNode({ uuid: "node-a" });
+    const nodeB = makeNode({ uuid: "node-b" });
+    const ds = makeDataSource({ views: [makeView({ nodes: [nodeA, nodeB], conns: [conn] })] });
+    const out = updateViewConnection(ds, "view-001", "conn-x", { source_side: "right", target_side: "left" });
+    expect(out.source_side).toBe("right");
+    expect(out.target_side).toBe("left");
+  });
+
+  it("throws when view not found", () => {
+    const ds = makeDataSource();
+    expect(() => updateViewConnection(ds, "no-view", "conn-x", {})).toThrow();
+  });
+
+  it("throws when connection not found", () => {
+    const ds = makeDataSource({ views: [makeView()] });
+    expect(() => updateViewConnection(ds, "view-001", "no-conn", {})).toThrow();
+  });
+
+  it("throws when updated source node not found", () => {
+    const conn = makeConnection({ uuid: "conn-x", source: "node-a", target: "node-b" });
+    const nodeA = makeNode({ uuid: "node-a" });
+    const nodeB = makeNode({ uuid: "node-b" });
+    const ds = makeDataSource({ views: [makeView({ nodes: [nodeA, nodeB], conns: [conn] })] });
+    expect(() => updateViewConnection(ds, "view-001", "conn-x", { source: "no-node" })).toThrow();
+  });
+});
+
+describe("deleteViewConnection", () => {
+  it("removes connection from view", () => {
+    const conn = makeConnection({ uuid: "conn-x" });
+    const ds = makeDataSource({ views: [makeView({ conns: [conn] })] });
+    deleteViewConnection(ds, "view-001", "conn-x");
+    expect(ds.model.views[0]!.conns).toHaveLength(0);
+  });
+
+  it("throws when view not found", () => {
+    const ds = makeDataSource();
+    expect(() => deleteViewConnection(ds, "no-view", "conn-x")).toThrow();
+  });
+
+  it("throws when connection not found", () => {
+    const ds = makeDataSource({ views: [makeView()] });
+    expect(() => deleteViewConnection(ds, "view-001", "no-conn")).toThrow();
+  });
+});
+
+// ===========================================================================
+// Integration tests – view CRUD endpoints
+// ===========================================================================
+
+describe("PUT /views/:view_id", () => {
+  it("updates view name and returns 200", async () => {
+    const createRes = await request(app).post("/views").send({ name: "TmpView" });
+    expect(createRes.status).toBe(201);
+    const id = (createRes.body as ViewDetailOut).identifier;
+
+    const putRes = await request(app).put(`/views/${id}`).send({ name: "RenamedView" });
+    expect(putRes.status).toBe(200);
+    expect(putRes.body.name).toBe("RenamedView");
+
+    await request(app).delete(`/views/${id}`);
+  });
+
+  it("returns 404 for unknown id", async () => {
+    expect((await request(app).put(`/views/${UNKNOWN_ID}`).send({ name: "X" })).status).toBe(404);
+  });
+});
+
+describe("DELETE /views/:view_id", () => {
+  it("removes view and returns 204", async () => {
+    const createRes = await request(app).post("/views").send({ name: "ToDelete" });
+    const id = (createRes.body as ViewDetailOut).identifier;
+    expect((await request(app).delete(`/views/${id}`)).status).toBe(204);
+    expect((await request(app).get(`/views/${id}`)).status).toBe(404);
+  });
+
+  it("returns 404 for unknown id", async () => {
+    expect((await request(app).delete(`/views/${UNKNOWN_ID}`)).status).toBe(404);
+  });
+});
+
+describe("POST /views/:view_id/nodes", () => {
+  let testViewId: string;
+  let testElemId: string;
+
+  beforeAll(async () => {
+    const vRes = await request(app).post("/views").send({ name: "NodeTestView" });
+    testViewId = (vRes.body as ViewDetailOut).identifier;
+    const eRes = await request(app).post("/elements").send({ name: "NodeTestElem", type: "ApplicationComponent" });
+    testElemId = eRes.body.identifier as string;
+  });
+
+  it("creates a node and returns 201", async () => {
+    const res = await request(app).post(`/views/${testViewId}/nodes`).send({ element_id: testElemId, x: 10, y: 20, w: 100, h: 60 });
+    expect(res.status).toBe(201);
+    expect(res.body.element_ref).toBe(testElemId);
+    expect(res.body.x).toBe(10);
+  });
+
+  it("returns 422 when element_id is missing", async () => {
+    const res = await request(app).post(`/views/${testViewId}/nodes`).send({ x: 0, y: 0 });
+    expect(res.status).toBe(422);
+  });
+
+  it("returns 404 when view not found", async () => {
+    const res = await request(app).post(`/views/${UNKNOWN_ID}/nodes`).send({ element_id: testElemId });
+    expect(res.status).toBe(404);
+  });
+});
+
+describe("PUT /views/:view_id/nodes/:node_id and DELETE", () => {
+  let viewId: string;
+  let elemId: string;
+  let nodeId: string;
+
+  beforeAll(async () => {
+    const vRes = await request(app).post("/views").send({ name: "NodeUpdateView" });
+    viewId = (vRes.body as ViewDetailOut).identifier;
+    const eRes = await request(app).post("/elements").send({ name: "NodeUpdateElem", type: "ApplicationComponent" });
+    elemId = eRes.body.identifier as string;
+    const nRes = await request(app).post(`/views/${viewId}/nodes`).send({ element_id: elemId });
+    nodeId = nRes.body.identifier as string;
+  });
+
+  it("updates node position via PUT", async () => {
+    const res = await request(app).put(`/views/${viewId}/nodes/${nodeId}`).send({ x: 50, y: 60 });
+    expect(res.status).toBe(200);
+    expect(res.body.x).toBe(50);
+  });
+
+  it("returns 404 PUT when view not found", async () => {
+    expect((await request(app).put(`/views/${UNKNOWN_ID}/nodes/${nodeId}`).send({ x: 0 })).status).toBe(404);
+  });
+
+  it("deletes node via DELETE and returns 204", async () => {
+    const nRes = await request(app).post(`/views/${viewId}/nodes`).send({ element_id: elemId });
+    const nId = nRes.body.identifier as string;
+    expect((await request(app).delete(`/views/${viewId}/nodes/${nId}`)).status).toBe(204);
+  });
+
+  it("returns 404 DELETE when view not found", async () => {
+    expect((await request(app).delete(`/views/${UNKNOWN_ID}/nodes/${nodeId}`)).status).toBe(404);
+  });
+});
+
+describe("POST/PUT/DELETE /views/:view_id/connections", () => {
+  let viewId: string;
+  let nodeAId: string;
+  let nodeBId: string;
+
+  beforeAll(async () => {
+    const vRes = await request(app).post("/views").send({ name: "ConnTestView" });
+    viewId = (vRes.body as ViewDetailOut).identifier;
+    const eRes1 = await request(app).post("/elements").send({ name: "ConnElemA", type: "ApplicationComponent" });
+    const eRes2 = await request(app).post("/elements").send({ name: "ConnElemB", type: "ApplicationComponent" });
+    const nRes1 = await request(app).post(`/views/${viewId}/nodes`).send({ element_id: eRes1.body.identifier });
+    const nRes2 = await request(app).post(`/views/${viewId}/nodes`).send({ element_id: eRes2.body.identifier });
+    nodeAId = nRes1.body.identifier as string;
+    nodeBId = nRes2.body.identifier as string;
+  });
+
+  it("creates a connection and returns 201", async () => {
+    const res = await request(app).post(`/views/${viewId}/connections`).send({ source: nodeAId, target: nodeBId });
+    expect(res.status).toBe(201);
+    expect(res.body.source).toBe(nodeAId);
+    expect(res.body.target).toBe(nodeBId);
+  });
+
+  it("returns 422 when source is missing", async () => {
+    const res = await request(app).post(`/views/${viewId}/connections`).send({ target: nodeBId });
+    expect(res.status).toBe(422);
+  });
+
+  it("returns 404 when view not found", async () => {
+    expect((await request(app).post(`/views/${UNKNOWN_ID}/connections`).send({ source: nodeAId, target: nodeBId })).status).toBe(404);
+  });
+
+  it("updates connection name via PUT", async () => {
+    const cRes = await request(app).post(`/views/${viewId}/connections`).send({ source: nodeAId, target: nodeBId });
+    const connId = cRes.body.identifier as string;
+    const putRes = await request(app).put(`/views/${viewId}/connections/${connId}`).send({ name: "Flow" });
+    expect(putRes.status).toBe(200);
+    expect(putRes.body.name).toBe("Flow");
+  });
+
+  it("returns 404 PUT when connection not found", async () => {
+    expect((await request(app).put(`/views/${viewId}/connections/${UNKNOWN_ID}`).send({ name: "X" })).status).toBe(404);
+  });
+
+  it("deletes connection and returns 204", async () => {
+    const cRes = await request(app).post(`/views/${viewId}/connections`).send({ source: nodeAId, target: nodeBId });
+    const connId = cRes.body.identifier as string;
+    expect((await request(app).delete(`/views/${viewId}/connections/${connId}`)).status).toBe(204);
+  });
+
+  it("returns 404 DELETE when connection not found", async () => {
+    expect((await request(app).delete(`/views/${viewId}/connections/${UNKNOWN_ID}`)).status).toBe(404);
+  });
+});
+
+// ===========================================================================
+// Integration tests – misc endpoints
+// ===========================================================================
+
+describe("GET /viewpoints", () => {
+  it("returns a sorted array of viewpoint names", async () => {
+    const res = await request(app).get("/viewpoints");
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+    expect(res.body.length).toBeGreaterThan(0);
+    expect(typeof res.body[0]).toBe("string");
+  });
+});
+
+describe("GET /openapi.json", () => {
+  it("returns the OpenAPI spec object", async () => {
+    const res = await request(app).get("/openapi.json");
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty("openapi");
+    expect(res.body).toHaveProperty("paths");
+  });
+});
+
+describe("POST /save", () => {
+  it("returns saved true and a path string", async () => {
+    const res = await request(app).post("/save");
+    expect(res.status).toBe(200);
+    expect(res.body.saved).toBe(true);
+    expect(typeof res.body.path).toBe("string");
+  });
+});
+
+describe("GET /export", () => {
+  it("returns XML content-type", async () => {
+    const res = await request(app).get("/export");
+    expect(res.status).toBe(200);
+    expect(res.headers["content-type"]).toContain("application/xml");
+    expect(res.text).toContain("<?xml");
+  });
+});
+
+describe("POST /import", () => {
+  it("imports a valid Open Exchange XML body", async () => {
+    const xmlRes = await request(app).get("/export");
+    const xml = xmlRes.text;
+    const res = await request(app)
+      .post("/import")
+      .set("Content-Type", "text/xml")
+      .send(xml);
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty("name");
+  });
+
+  it("returns 422 for invalid XML body", async () => {
+    const res = await request(app)
+      .post("/import")
+      .set("Content-Type", "text/xml")
+      .send("not-xml-at-all");
+    expect(res.status).toBe(422);
+  });
+});
+
+// ===========================================================================
+// Integration tests – /roles CRUD
+// ===========================================================================
+
+describe("GET /roles", () => {
+  it("returns 200 and an array", async () => {
+    const res = await request(app).get("/roles");
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+  });
+});
+
+describe("GET /roles/catalog", () => {
+  it("returns layers and flags", async () => {
+    const res = await request(app).get("/roles/catalog");
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty("layers");
+    expect(res.body).toHaveProperty("flags");
+  });
+});
+
+describe("POST/GET/PUT/DELETE /roles lifecycle", () => {
+  let roleId: string;
+
+  it("creates a role (POST /roles)", async () => {
+    const res = await request(app).post("/roles").send({ name: "TestRole" });
+    expect(res.status).toBe(201);
+    expect(res.body.name).toBe("TestRole");
+    roleId = res.body.id as string;
+  });
+
+  it("reads the role (GET /roles/:id)", async () => {
+    const res = await request(app).get(`/roles/${roleId}`);
+    expect(res.status).toBe(200);
+    expect(res.body.id).toBe(roleId);
+  });
+
+  it("updates the role name (PUT /roles/:id)", async () => {
+    const res = await request(app).put(`/roles/${roleId}`).send({ name: "UpdatedRole" });
+    expect(res.status).toBe(200);
+    expect(res.body.name).toBe("UpdatedRole");
+  });
+
+  it("sets layer permissions (PUT /roles/:id/layers/:layer)", async () => {
+    const res = await request(app).put(`/roles/${roleId}/layers/Application`).send({ permissions: ["read", "create"] });
+    expect(res.status).toBe(200);
+    expect(res.body.permissions).toContain("read");
+  });
+
+  it("gets layer permission (GET /roles/:id/layers/:layer)", async () => {
+    const res = await request(app).get(`/roles/${roleId}/layers/Application`);
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty("layer");
+    expect(res.body).toHaveProperty("permission");
+  });
+
+  it("gets all layer permissions (GET /roles/:id/layers)", async () => {
+    const res = await request(app).get(`/roles/${roleId}/layers`);
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty("Application");
+  });
+
+  it("removes layer permission (DELETE /roles/:id/layers/:layer)", async () => {
+    const res = await request(app).delete(`/roles/${roleId}/layers/Application`);
+    expect(res.status).toBe(204);
+  });
+
+  it("deletes the role (DELETE /roles/:id)", async () => {
+    const res = await request(app).delete(`/roles/${roleId}`);
+    expect(res.status).toBe(204);
+    expect((await request(app).get(`/roles/${roleId}`)).status).toBe(404);
+  });
+});
+
+describe("POST /roles validation", () => {
+  it("returns 422 when name is missing", async () => {
+    const res = await request(app).post("/roles").send({});
+    expect(res.status).toBe(422);
+  });
+
+  it("returns 422 when permissions array is missing on layer PUT", async () => {
+    const createRes = await request(app).post("/roles").send({ name: "TmpRoleValidation" });
+    const id = createRes.body.id as string;
+    const res = await request(app).put(`/roles/${id}/layers/Application`).send({ permissions: "not-an-array" });
+    expect(res.status).toBe(422);
+    await request(app).delete(`/roles/${id}`);
+  });
+
+  it("sanitizes permissions with unknown layers and valid layers", async () => {
+    const createRes = await request(app).post("/roles").send({ name: "SanitizeTest" });
+    const id = createRes.body.id as string;
+    const res = await request(app).put(`/roles/${id}`).send({
+      name: "SanitizeTest2",
+      permissions: {
+        NotARealLayer: ["read"],
+        Business: ["read"],
+      },
+    });
+    expect(res.status).toBe(200);
+    await request(app).delete(`/roles/${id}`);
+  });
+});
+
+describe("GET /auth/providers", () => {
+  it("returns a list", async () => {
+    const res = await request(app).get("/auth/providers");
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+  });
+});
+
+describe("System role protection", () => {
+  it("returns 403 when trying to update a system role", async () => {
+    const roles = (await request(app).get("/roles")).body as Array<{ id: string; is_system: boolean }>;
+    const sysRole = roles.find((r) => r.is_system);
+    if (!sysRole) return;
+    const res = await request(app).put(`/roles/${sysRole.id}`).send({ name: "Hacked" });
+    expect(res.status).toBe(403);
+  });
+});
+
+describe("Role user assignment", () => {
+  let roleId: string;
+  let userId: string;
+
+  beforeAll(async () => {
+    const rRes = await request(app).post("/roles").send({ name: "AssignTestRole" });
+    roleId = rRes.body.id as string;
+    const uRes = await request(app).post("/users").send({ username: "assigntestuser", password: "test1234" });
+    userId = uRes.body.id as string;
+  });
+
+  it("assigns user to role (PUT /roles/:id/users/:userId)", async () => {
+    const res = await request(app).put(`/roles/${roleId}/users/${userId}`);
+    expect(res.status).toBe(204);
+  });
+
+  it("lists users in role (GET /roles/:id/users)", async () => {
+    const res = await request(app).get(`/roles/${roleId}/users`);
+    expect(res.status).toBe(200);
+    expect(res.body).toContain(userId);
+  });
+
+  it("lists roles for user (GET /users/:id/roles)", async () => {
+    const res = await request(app).get(`/users/${userId}/roles`);
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+  });
+
+  it("unassigns user from role (DELETE /roles/:id/users/:userId)", async () => {
+    const res = await request(app).delete(`/roles/${roleId}/users/${userId}`);
+    expect(res.status).toBe(204);
+  });
+
+  afterAll(async () => {
+    await request(app).delete(`/roles/${roleId}`);
+    await request(app).delete(`/users/${userId}`);
+  });
+});
+
+describe("GET /export/zip", () => {
+  it("returns a zip file", async () => {
+    const res = await request(app).get("/export/zip");
+    expect(res.status).toBe(200);
+    expect(res.headers["content-type"]).toContain("application/zip");
+  });
+});
+
+describe("updateViewConnection source/target update", () => {
+  it("successfully updates source and target nodes", async () => {
+    const vRes = await request(app).post("/views").send({ name: "ConnSrcTgtView" });
+    const viewId = (vRes.body as ViewDetailOut).identifier;
+    const e1 = await request(app).post("/elements").send({ name: "E1", type: "ApplicationComponent" });
+    const e2 = await request(app).post("/elements").send({ name: "E2", type: "ApplicationComponent" });
+    const e3 = await request(app).post("/elements").send({ name: "E3", type: "ApplicationComponent" });
+    const n1 = await request(app).post(`/views/${viewId}/nodes`).send({ element_id: e1.body.identifier });
+    const n2 = await request(app).post(`/views/${viewId}/nodes`).send({ element_id: e2.body.identifier });
+    const n3 = await request(app).post(`/views/${viewId}/nodes`).send({ element_id: e3.body.identifier });
+    const cRes = await request(app).post(`/views/${viewId}/connections`).send({ source: n1.body.identifier, target: n2.body.identifier });
+    const connId = cRes.body.identifier as string;
+    const putRes = await request(app)
+      .put(`/views/${viewId}/connections/${connId}`)
+      .send({ source: n1.body.identifier, target: n3.body.identifier });
+    expect(putRes.status).toBe(200);
+    expect(putRes.body.target).toBe(n3.body.identifier);
+    await request(app).delete(`/views/${viewId}`);
   });
 });

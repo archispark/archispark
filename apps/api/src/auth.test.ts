@@ -6,6 +6,7 @@ import { describe, it, expect, beforeAll } from "vitest";
 import _request from "supertest";
 import { app } from "../src/app.js";
 import { getAdminCookie, getUserCookie } from "../src/test-helper.js";
+import { parsePermissions, serializePermissions, permissionHasFlag } from "../src/auth.js";
 
 let adminCookie: string;
 let userCookie: string;
@@ -55,5 +56,104 @@ describe("GET /users", () => {
     expect(res.body.length).toBeGreaterThanOrEqual(1);
     expect(res.body[0]).toHaveProperty("username");
     expect(res.body[0]).toHaveProperty("role");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Unit tests – permission bit helpers
+// ---------------------------------------------------------------------------
+
+describe("parsePermissions", () => {
+  it("returns empty array for 0", () => {
+    expect(parsePermissions(0)).toEqual([]);
+  });
+
+  it("parses read-only (bit 1)", () => {
+    expect(parsePermissions(1)).toEqual(["read"]);
+  });
+
+  it("parses all flags (bit 15)", () => {
+    const perms = parsePermissions(15);
+    expect(perms).toContain("read");
+    expect(perms).toContain("create");
+    expect(perms).toContain("update");
+    expect(perms).toContain("delete");
+  });
+
+  it("parses create+delete (bits 2+8 = 10)", () => {
+    const perms = parsePermissions(10);
+    expect(perms).toContain("create");
+    expect(perms).toContain("delete");
+    expect(perms).not.toContain("read");
+  });
+});
+
+describe("serializePermissions", () => {
+  it("returns 0 for empty array", () => {
+    expect(serializePermissions([])).toBe(0);
+  });
+
+  it("returns 1 for [read]", () => {
+    expect(serializePermissions(["read"])).toBe(1);
+  });
+
+  it("returns 15 for all flags", () => {
+    expect(serializePermissions(["read", "create", "update", "delete"])).toBe(15);
+  });
+
+  it("deduplicates repeated flags", () => {
+    expect(serializePermissions(["read", "read"])).toBe(1);
+  });
+});
+
+describe("permissionHasFlag", () => {
+  it("returns true when flag bit is set", () => {
+    expect(permissionHasFlag(1, "read")).toBe(true);
+    expect(permissionHasFlag(15, "delete")).toBe(true);
+  });
+
+  it("returns false when flag bit is not set", () => {
+    expect(permissionHasFlag(0, "read")).toBe(false);
+    expect(permissionHasFlag(1, "create")).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Integration tests – /users CRUD
+// ---------------------------------------------------------------------------
+
+describe("POST/GET/PUT/DELETE /users lifecycle", () => {
+  let userId: string;
+
+  it("creates a user (POST /users)", async () => {
+    const res = await request(app).post("/users").send({ username: "testuser_ci", password: "password123", role: "user" });
+    expect(res.status).toBe(201);
+    expect(res.body.username).toBe("testuser_ci");
+    userId = res.body.id as string;
+  });
+
+  it("reads users list (GET /users) includes the new user", async () => {
+    const res = await request(app).get("/users");
+    expect(res.status).toBe(200);
+    const found = (res.body as Array<{ id: string }>).find((u) => u.id === userId);
+    expect(found).toBeDefined();
+  });
+
+  it("updates user role (PUT /users/:id)", async () => {
+    const res = await request(app).put(`/users/${userId}`).send({ role: "admin" });
+    expect(res.status).toBe(200);
+    expect(res.body.role).toBe("admin");
+  });
+
+  it("deletes the user (DELETE /users/:id)", async () => {
+    const res = await request(app).delete(`/users/${userId}`);
+    expect(res.status).toBe(204);
+  });
+});
+
+describe("POST /users validation", () => {
+  it("returns 422 when username or password is missing", async () => {
+    const res = await request(app).post("/users").send({ username: "x" });
+    expect(res.status).toBe(422);
   });
 });

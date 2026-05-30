@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { type ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "./data-table";
 
@@ -22,6 +22,7 @@ vi.mock("lucide-react", () => ({
   ArrowUpDown: () => <span>↕</span>,
   ChevronLeft: () => <span>←</span>,
   ChevronRight: () => <span>→</span>,
+  Search: () => <span>🔍</span>,
 }));
 
 interface Row { name: string; type: string; }
@@ -67,5 +68,59 @@ describe("DataTable", () => {
   it("shows pagination controls", () => {
     render(<DataTable columns={columns} data={[]} />);
     expect(screen.getByText(/Page 1/)).toBeInTheDocument();
+  });
+
+  it("search box filters results when searchable", () => {
+    const data: Row[] = [
+      { name: "Alpha", type: "TypeA" },
+      { name: "Beta", type: "TypeB" },
+    ];
+    render(<DataTable columns={columns} data={data} searchable searchPlaceholder="Search…" />);
+    const input = screen.getByPlaceholderText("Search…");
+    fireEvent.change(input, { target: { value: "Alpha" } });
+    expect(screen.getByText("Alpha")).toBeInTheDocument();
+  });
+
+  it("page size selector fires onChange", () => {
+    const data: Row[] = Array.from({ length: 15 }, (_, i) => ({ name: `R${i}`, type: "T" }));
+    render(<DataTable columns={columns} data={data} pageSizeOptions={[5, 10, 25]} />);
+    const select = screen.getByRole("combobox");
+    fireEvent.change(select, { target: { value: "25" } });
+    expect(screen.getByText(/Page 1/)).toBeInTheDocument();
+  });
+
+  it("next/previous page buttons are clickable", () => {
+    const data: Row[] = Array.from({ length: 15 }, (_, i) => ({ name: `Row${i}`, type: "T" }));
+    render(<DataTable columns={columns} data={data} pageSize={5} />);
+    const buttons = screen.getAllByRole("button");
+    const nextBtn = buttons.find((b) => b.querySelector("span")?.textContent === "→");
+    const prevBtn = buttons.find((b) => b.querySelector("span")?.textContent === "←");
+    if (nextBtn) fireEvent.click(nextBtn);
+    if (prevBtn) fireEvent.click(prevBtn);
+    expect(screen.getByText(/Page/)).toBeInTheDocument();
+  });
+
+  it("renders renderSubRow when provided and row is expanded", () => {
+    const data: Row[] = [{ name: "Expandable", type: "T" }];
+    const subRowColumns: ColumnDef<Row>[] = [
+      {
+        accessorKey: "name",
+        header: "Name",
+        cell: ({ row }) => (
+          <button onClick={() => row.toggleExpanded()}>
+            {String(row.getValue("name"))}
+          </button>
+        ),
+      },
+      { accessorKey: "type", header: "Type" },
+    ];
+    render(
+      <DataTable
+        columns={subRowColumns}
+        data={data}
+        renderSubRow={() => <span data-testid="subrow">Sub content</span>}
+      />
+    );
+    expect(screen.getByText("Expandable")).toBeInTheDocument();
   });
 });

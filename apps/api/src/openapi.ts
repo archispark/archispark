@@ -20,8 +20,8 @@ import {
   RoleCreateSchema, RoleUpdateSchema,
 } from "./validation.js";
 
-function toOpenApiSchema(zodSchema: Parameters<typeof zodToJsonSchema>[0]): unknown {
-  const s = zodToJsonSchema(zodSchema, { target: "openApi3" }) as Record<string, unknown>;
+function toOpenApiSchema(zodSchema: unknown): unknown {
+  const s = zodToJsonSchema(zodSchema as Parameters<typeof zodToJsonSchema>[0], { target: "openApi3" }) as Record<string, unknown>;
   // Remove $schema key which isn't needed inline
   const { $schema: _, ...rest } = s;
   return rest;

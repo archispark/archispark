@@ -1,5 +1,7 @@
 import { sqlite } from "@workspace/db";
 
+if (!sqlite) throw new Error("test-setup requires SQLite driver");
+
 // Create Better Auth tables + seed users for test environment (in-memory DB)
 sqlite.exec(`
   CREATE TABLE IF NOT EXISTS "user" (

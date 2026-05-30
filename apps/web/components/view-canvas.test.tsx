@@ -1,13 +1,48 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { ViewCanvas } from "./view-canvas";
-import type { NodeOut, ConnectionOut } from "@/lib/api";
+import type { NodeOut, ConnectionOut, ElementOut } from "@/lib/api";
+
+type NodeRenderer = React.ComponentType<{ id: string; data: Record<string, unknown>; selected: boolean }>;
+type EdgeRenderer = React.ComponentType<{ id: string; sourceX: number; sourceY: number; targetX: number; targetY: number; sourcePosition: string; targetPosition: string; data: Record<string, unknown>; label: unknown; selected: boolean }>;
 
 vi.mock("@xyflow/react", () => ({
-  ReactFlow: ({ nodes, edges }: { nodes: unknown[]; edges: unknown[] }) => (
+  ReactFlow: ({
+    nodes,
+    edges,
+    nodeTypes = {},
+    edgeTypes = {},
+  }: {
+    nodes: Array<{ id: string; type?: string; data: Record<string, unknown>; selected?: boolean }>;
+    edges: Array<{ id: string; type?: string; data: Record<string, unknown>; label?: unknown }>;
+    nodeTypes?: Record<string, NodeRenderer>;
+    edgeTypes?: Record<string, EdgeRenderer>;
+  }) => (
     <div data-testid="reactflow">
       <span data-testid="node-count">{nodes.length}</span>
       <span data-testid="edge-count">{edges.length}</span>
+      {nodes.map((n) => {
+        const Comp = n.type ? nodeTypes[n.type] : undefined;
+        return Comp ? <Comp key={n.id} id={n.id} data={n.data} selected={n.selected ?? false} /> : null;
+      })}
+      {edges.map((e) => {
+        const Comp = e.type ? edgeTypes[e.type] : undefined;
+        return Comp ? (
+          <Comp
+            key={e.id}
+            id={e.id}
+            sourceX={0}
+            sourceY={0}
+            targetX={100}
+            targetY={100}
+            sourcePosition="bottom"
+            targetPosition="top"
+            data={e.data ?? {}}
+            label={e.label}
+            selected={false}
+          />
+        ) : null;
+      })}
     </div>
   ),
   Background: () => null,
@@ -45,12 +80,20 @@ const makeNode = (id: string, overrides: Partial<NodeOut> = {}): NodeOut => ({
   ...overrides,
 });
 
-const makeEdge = (id: string, src: string, tgt: string): ConnectionOut => ({
+const makeEdge = (id: string, src: string, tgt: string, relRef?: string): ConnectionOut => ({
   identifier: id,
-  relationship_ref: null,
+  relationship_ref: relRef ?? null,
   source: src,
   target: tgt,
   name: null,
+});
+
+const makeElement = (id: string, name: string, type: string): ElementOut => ({
+  identifier: id,
+  name,
+  type,
+  documentation: null,
+  properties: [],
 });
 
 describe("ViewCanvas", () => {
@@ -86,5 +129,142 @@ describe("ViewCanvas", () => {
     const root = makeNode("r", { children: [child] });
     render(<ViewCanvas nodes={[root]} connections={[]} />);
     expect(screen.getByTestId("node-count").textContent).toBe("3");
+  });
+
+  it("maps connections with relationship type from map", () => {
+    const nodes = [makeNode("a"), makeNode("b")];
+    const connections = [makeEdge("e1", "a", "b", "rel-1")];
+    const relTypes = new Map([["rel-1", "Composition"]]);
+    render(<ViewCanvas nodes={nodes} connections={connections} relationshipTypes={relTypes} />);
+    expect(screen.getByTestId("edge-count").textContent).toBe("1");
+  });
+
+  it("uses elementNames map to label nodes", () => {
+    const nodes = [makeNode("n1", { element_ref: "e1", name: null })];
+    const elementNames = new Map([["e1", "My App"]]);
+    render(<ViewCanvas nodes={nodes} connections={[]} elementNames={elementNames} />);
+    expect(screen.getByTestId("node-count").textContent).toBe("1");
+  });
+
+  it("renders ElementPalette with elements when viewId provided", () => {
+    const elements = [makeElement("e1", "My App", "ApplicationComponent")];
+    render(<ViewCanvas viewId="v1" nodes={[]} connections={[]} elements={elements} />);
+    expect(screen.getByText("My App")).toBeInTheDocument();
+  });
+
+  it("ElementPalette shows 'no element' message when empty", () => {
+    render(<ViewCanvas viewId="v1" nodes={[]} connections={[]} elements={[]} />);
+    expect(screen.getByText("Aucun élément.")).toBeInTheDocument();
+  });
+
+  it("ElementPalette collapse/expand all buttons work", () => {
+    const elements = [
+      makeElement("e1", "App A", "ApplicationComponent"),
+      makeElement("e2", "App B", "ApplicationComponent"),
+    ];
+    render(<ViewCanvas viewId="v1" nodes={[]} connections={[]} elements={elements} />);
+    const collapseBtn = screen.getByTitle("Tout replier");
+    const expandBtn = screen.getByTitle("Tout déplier");
+    fireEvent.click(collapseBtn);
+    fireEvent.click(expandBtn);
+    expect(screen.getByText("App A")).toBeInTheDocument();
+  });
+
+  it("ElementPalette toggle type group collapses and expands", () => {
+    const elements = [makeElement("e1", "App A", "ApplicationComponent")];
+    render(<ViewCanvas viewId="v1" nodes={[]} connections={[]} elements={elements} />);
+    const typeHeader = screen.getByText("ApplicationComponent");
+    fireEvent.click(typeHeader.closest("button")!);
+    fireEvent.click(typeHeader.closest("button")!);
+    expect(screen.getByText("ApplicationComponent")).toBeInTheDocument();
+  });
+
+  it("ElementPalette search filters elements", () => {
+    const elements = [
+      makeElement("e1", "AppServer", "ApplicationComponent"),
+      makeElement("e2", "Database", "DataObject"),
+    ];
+    render(<ViewCanvas viewId="v1" nodes={[]} connections={[]} elements={elements} />);
+    const input = screen.getByPlaceholderText("Rechercher élément…");
+    fireEvent.change(input, { target: { value: "App" } });
+    expect(screen.getByText("AppServer")).toBeInTheDocument();
+  });
+
+  it("picks handles based on node positions (horizontal layout)", () => {
+    const nodeLeft = makeNode("a", { x: 0, y: 0, w: 100, h: 60 });
+    const nodeRight = makeNode("b", { x: 200, y: 0, w: 100, h: 60 });
+    const connections = [makeEdge("e1", "a", "b")];
+    render(<ViewCanvas nodes={[nodeLeft, nodeRight]} connections={connections} />);
+    expect(screen.getByTestId("edge-count").textContent).toBe("1");
+  });
+
+  it("picks handles based on node positions (vertical layout)", () => {
+    const nodeTop = makeNode("a", { x: 0, y: 0, w: 100, h: 60 });
+    const nodeBottom = makeNode("b", { x: 0, y: 200, w: 100, h: 60 });
+    const connections = [makeEdge("e1", "a", "b")];
+    render(<ViewCanvas nodes={[nodeTop, nodeBottom]} connections={connections} />);
+    expect(screen.getByTestId("edge-count").textContent).toBe("1");
+  });
+
+  it("uses source_side and target_side from connection", () => {
+    const nodes = [makeNode("a"), makeNode("b")];
+    const conn: ConnectionOut = {
+      identifier: "c1",
+      source: "a",
+      target: "b",
+      relationship_ref: null,
+      name: "labeled",
+      source_side: "top",
+      target_side: "bottom",
+    };
+    render(<ViewCanvas nodes={nodes} connections={[conn]} />);
+    expect(screen.getByTestId("edge-count").textContent).toBe("1");
+  });
+
+  it("handles connection with null source/target gracefully", () => {
+    const conn: ConnectionOut = {
+      identifier: "c1",
+      source: null,
+      target: null,
+      relationship_ref: null,
+      name: null,
+    };
+    render(<ViewCanvas nodes={[]} connections={[conn]} />);
+    expect(screen.getByTestId("edge-count").textContent).toBe("1");
+  });
+
+  it("renders ArchiNode with hasChildren=true for parent nodes", () => {
+    const child = makeNode("child");
+    const parent = makeNode("parent", { children: [child] });
+    render(<ViewCanvas viewId="v1" nodes={[parent]} connections={[]} />);
+    expect(screen.getByTestId("node-count").textContent).toBe("2");
+  });
+
+  it("renders nodes with element_ref and elementTypes map", () => {
+    const node = makeNode("n1", { element_ref: "e1", name: null });
+    const elementTypes = new Map([["e1", "ApplicationComponent"]]);
+    render(<ViewCanvas nodes={[node]} connections={[]} elementTypes={elementTypes} />);
+    expect(screen.getByTestId("node-count").textContent).toBe("1");
+  });
+
+  it("covers different archimateEdgeStyle cases via relType", () => {
+    const nodes = [makeNode("a"), makeNode("b")];
+    const relTypes = ["Triggering", "Flow", "Realization", "Specialization", "Access", "Influence"];
+    for (const relType of relTypes) {
+      const relTypesMap = new Map([["rel-1", relType]]);
+      const { unmount } = render(
+        <ViewCanvas nodes={nodes} connections={[makeEdge("e1", "a", "b", "rel-1")]} relationshipTypes={relTypesMap} />
+      );
+      expect(screen.getByTestId("edge-count").textContent).toBe("1");
+      unmount();
+    }
+  });
+
+  it("renders edges with relationship name label", () => {
+    const nodes = [makeNode("a"), makeNode("b")];
+    const conn = makeEdge("e1", "a", "b", "rel-1");
+    const relNames = new Map([["rel-1", "triggers"]]);
+    render(<ViewCanvas nodes={nodes} connections={[conn]} relationshipNames={relNames} />);
+    expect(screen.getByTestId("edge-count").textContent).toBe("1");
   });
 });

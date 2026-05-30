@@ -9,7 +9,7 @@ const MIGRATIONS_PG     = join(fileURLToPath(new URL("../drizzle-pg", import.met
 
 export async function runMigrations(): Promise<void> {
   if (dbDriver === "postgres") {
-    await pgMigrate(db as Parameters<typeof pgMigrate>[0], { migrationsFolder: MIGRATIONS_PG });
+    await pgMigrate(db as unknown as Parameters<typeof pgMigrate>[0], { migrationsFolder: MIGRATIONS_PG });
   } else {
     sqliteMigrate(db as Parameters<typeof sqliteMigrate>[0], { migrationsFolder: MIGRATIONS_SQLITE });
   }

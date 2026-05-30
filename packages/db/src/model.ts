@@ -61,6 +61,8 @@ export interface BendPoint {
   y: number;
 }
 
+export type EdgeSide = "top" | "right" | "bottom" | "left";
+
 export interface ArchiConnection {
   uuid: string;
   name: string | null;
@@ -73,6 +75,8 @@ export interface ArchiConnection {
   font_color: ArchiColor | null;
   line_width: number | null;
   bendpoints?: BendPoint[];
+  source_side?: EdgeSide | null;
+  target_side?: EdgeSide | null;
 }
 
 export interface ArchiView {

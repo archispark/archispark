@@ -20,15 +20,18 @@ const ICONS_DIR = join(_srcDir, "..", "public", "images", "archimate");
 // PNG icon loader (lazy, LRU-cached with max 200 entries)
 // ---------------------------------------------------------------------------
 
-const _iconCache = new LRUCache<string, string | null>({ max: 200 });
+const _iconCache = new LRUCache<string, string>({ max: 200 });
 
 function _typeToKebab(type: string): string {
   return type.replace(/([A-Z])/g, (m, _, i) => (i > 0 ? `-${m.toLowerCase()}` : m.toLowerCase()));
 }
 
 function loadIconDataUri(type: string): string | null {
-  if (_iconCache.has(type)) return _iconCache.get(type) ?? null;
-  let uri: string | null = null;
+  if (_iconCache.has(type)) {
+    const cached = _iconCache.get(type)!;
+    return cached === "" ? null : cached;
+  }
+  let uri = "";
   const file = join(ICONS_DIR, `${_typeToKebab(type)}.png`);
   try {
     if (existsSync(file)) {
@@ -36,7 +39,7 @@ function loadIconDataUri(type: string): string | null {
     }
   } catch { /* ignore */ }
   _iconCache.set(type, uri);
-  return uri;
+  return uri === "" ? null : uri;
 }
 
 // ---------------------------------------------------------------------------

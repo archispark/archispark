@@ -32,7 +32,8 @@ import { rateLimit } from "express-rate-limit";
 import { colord } from "colord";
 import multer from "multer";
 import { createRequire } from "module";
-const archiver = createRequire(import.meta.url)("archiver") as typeof import("archiver").default;
+import type * as ArchiverTypes from "archiver";
+const { ZipArchive } = createRequire(import.meta.url)("archiver") as { ZipArchive: new (opts?: ArchiverTypes.ZipOptions) => ArchiverTypes.Archiver };
 import { AppError, NotFoundError, ValidationError } from "./errors.js";
 
 /** xs:ID / NCName requires the first char to be a letter or underscore.
@@ -967,8 +968,8 @@ app.get("/export/zip", async (_req: Request, res: Response) => {
   const modelName = dataSource.model.name || "model";
     res.setHeader("Content-Type", "application/zip");
     res.setHeader("Content-Disposition", `attachment; filename="${modelName}.zip"`);
-    const archive = archiver("zip", { zlib: { level: 9 } });
-    archive.on("error", (err) => { res.status(500).json({ detail: err.message }); });
+    const archive = new ZipArchive({ zlib: { level: 9 } });
+    archive.on("error", (err: Error) => { res.status(500).json({ detail: err.message }); });
     archive.pipe(res);
     archive.append(serializeToOpenExchange(dataSource.model), { name: `${modelName}.xml` });
     for (const view of dataSource.model.views) {

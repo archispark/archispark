@@ -7,10 +7,16 @@ import {
   createElement, updateElement, deleteElement,
   createRelationship, updateRelationship, deleteRelationship,
   createView, updateView, deleteView,
+  createViewNode, updateViewNode, deleteViewNode,
+  createViewConnection, updateViewConnection, deleteViewConnection,
   saveModel, importModel,
-  fetchUsers, updateUserApi, deleteUserApi,
+  fetchUsers, updateUserApi, deleteUserApi, createUser,
   fetchPropertyDefinitions, createPropertyDefinition, updatePropertyDefinition, deletePropertyDefinition,
   fetchWorkspaces, createWorkspaceApi, updateWorkspaceApi, deleteWorkspaceApi, activateWorkspaceApi,
+  fetchRoleCatalog, fetchRoles, fetchRole, createRole, updateRole, deleteRole,
+  assignUserToRole, unassignUserFromRole, fetchUserRoles,
+  fetchRoleLayers, fetchRoleLayer, setRoleLayer, removeRoleLayer,
+  fetchViewpoints,
 } from "./api";
 
 describe("viewImageUrl", () => {
@@ -407,5 +413,225 @@ describe("workspace mutations", () => {
       expect.stringContaining("/workspaces/ws2/activate"),
       expect.any(Object)
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// View node mutations
+// ---------------------------------------------------------------------------
+
+describe("view node mutations", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("createViewNode posts to /views/:id/nodes", async () => {
+    mockFetchOk({ identifier: "n1", element_ref: "e1", x: 10, y: 20, w: 120, h: 60, name: null, children: [] });
+    const n = await createViewNode("v1", { element_id: "e1", x: 10, y: 20, w: 120, h: 60 });
+    expect(n.identifier).toBe("n1");
+    expect(vi.mocked(fetch)).toHaveBeenCalledWith(
+      expect.stringContaining("/views/v1/nodes"),
+      expect.objectContaining({ method: "POST" })
+    );
+  });
+
+  it("updateViewNode puts to /views/:id/nodes/:nid", async () => {
+    mockFetchOk({ identifier: "n1", element_ref: "e1", x: 50, y: 60, w: 120, h: 60, name: null, children: [] });
+    const n = await updateViewNode("v1", "n1", { x: 50, y: 60 });
+    expect(n.x).toBe(50);
+    expect(vi.mocked(fetch)).toHaveBeenCalledWith(
+      expect.stringContaining("/views/v1/nodes/n1"),
+      expect.objectContaining({ method: "PUT" })
+    );
+  });
+
+  it("deleteViewNode sends DELETE to /views/:id/nodes/:nid", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true }));
+    await deleteViewNode("v1", "n1");
+    expect(vi.mocked(fetch)).toHaveBeenCalledWith(
+      expect.stringContaining("/views/v1/nodes/n1"),
+      expect.objectContaining({ method: "DELETE" })
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// View connection mutations
+// ---------------------------------------------------------------------------
+
+describe("view connection mutations", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("createViewConnection posts to /views/:id/connections", async () => {
+    mockFetchOk({ identifier: "c1", source: "n1", target: "n2", name: null, relationship_ref: null });
+    const c = await createViewConnection("v1", { source: "n1", target: "n2" });
+    expect(c.identifier).toBe("c1");
+    expect(vi.mocked(fetch)).toHaveBeenCalledWith(
+      expect.stringContaining("/views/v1/connections"),
+      expect.objectContaining({ method: "POST" })
+    );
+  });
+
+  it("updateViewConnection puts to /views/:id/connections/:cid", async () => {
+    mockFetchOk({ identifier: "c1", source: "n1", target: "n2", name: "Flow", relationship_ref: null });
+    const c = await updateViewConnection("v1", "c1", { name: "Flow" });
+    expect(c.name).toBe("Flow");
+    expect(vi.mocked(fetch)).toHaveBeenCalledWith(
+      expect.stringContaining("/views/v1/connections/c1"),
+      expect.objectContaining({ method: "PUT" })
+    );
+  });
+
+  it("deleteViewConnection sends DELETE", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true }));
+    await deleteViewConnection("v1", "c1");
+    expect(vi.mocked(fetch)).toHaveBeenCalledWith(
+      expect.stringContaining("/views/v1/connections/c1"),
+      expect.objectContaining({ method: "DELETE" })
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Roles & permissions
+// ---------------------------------------------------------------------------
+
+describe("role queries", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("fetchRoleCatalog returns layers and flags", async () => {
+    mockFetchOk({ layers: ["Business"], flags: ["read"] });
+    const c = await fetchRoleCatalog();
+    expect(c.layers).toContain("Business");
+  });
+
+  it("fetchRoles returns role list", async () => {
+    mockFetchOk([{ id: "r1", name: "admin", is_system: true, permissions: {}, user_ids: [] }]);
+    const roles = await fetchRoles();
+    expect(roles[0]!.id).toBe("r1");
+  });
+
+  it("fetchRole returns a single role", async () => {
+    mockFetchOk({ id: "r1", name: "admin", is_system: true, permissions: {}, user_ids: [] });
+    const r = await fetchRole("r1");
+    expect(r.id).toBe("r1");
+  });
+});
+
+describe("role mutations", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("createRole posts", async () => {
+    mockFetchOk({ id: "r2", name: "editor", is_system: false, permissions: {}, user_ids: [] });
+    const r = await createRole({ name: "editor" });
+    expect(r.name).toBe("editor");
+    expect(vi.mocked(fetch)).toHaveBeenCalledWith(
+      expect.stringContaining("/roles"),
+      expect.objectContaining({ method: "POST" })
+    );
+  });
+
+  it("updateRole puts", async () => {
+    mockFetchOk({ id: "r2", name: "editor-v2", is_system: false, permissions: {}, user_ids: [] });
+    const r = await updateRole("r2", { name: "editor-v2" });
+    expect(r.name).toBe("editor-v2");
+  });
+
+  it("deleteRole sends DELETE", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true }));
+    await deleteRole("r2");
+    expect(vi.mocked(fetch)).toHaveBeenCalledWith(
+      expect.stringContaining("/roles/r2"),
+      expect.objectContaining({ method: "DELETE" })
+    );
+  });
+});
+
+describe("role-user assignment", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("assignUserToRole sends PUT", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true }));
+    await assignUserToRole("r1", "u1");
+    expect(vi.mocked(fetch)).toHaveBeenCalledWith(
+      expect.stringContaining("/roles/r1/users/u1"),
+      expect.objectContaining({ method: "PUT" })
+    );
+  });
+
+  it("assignUserToRole throws on error", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: false,
+      json: async () => ({ detail: "Not found" }),
+    }));
+    await expect(assignUserToRole("bad", "u1")).rejects.toThrow("Not found");
+  });
+
+  it("unassignUserFromRole sends DELETE", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true }));
+    await unassignUserFromRole("r1", "u1");
+    expect(vi.mocked(fetch)).toHaveBeenCalledWith(
+      expect.stringContaining("/roles/r1/users/u1"),
+      expect.objectContaining({ method: "DELETE" })
+    );
+  });
+
+  it("fetchUserRoles returns roles for user", async () => {
+    mockFetchOk([{ id: "r1", name: "admin", is_system: true, permissions: {}, user_ids: [] }]);
+    const roles = await fetchUserRoles("u1");
+    expect(roles[0]!.id).toBe("r1");
+  });
+});
+
+describe("role layer permissions", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("fetchRoleLayers returns permissions map", async () => {
+    mockFetchOk({ Business: ["read"], Application: [] });
+    const perms = await fetchRoleLayers("r1");
+    expect(perms.Business).toContain("read");
+  });
+
+  it("fetchRoleLayer returns a single layer permission", async () => {
+    mockFetchOk({ layer: "Business", permissions: ["read"] });
+    const p = await fetchRoleLayer("r1", "Business");
+    expect(p.layer).toBe("Business");
+  });
+
+  it("setRoleLayer puts layer permission", async () => {
+    mockFetchOk({ layer: "Business", permissions: ["read", "create"] });
+    const p = await setRoleLayer("r1", "Business", ["read", "create"]);
+    expect(p.permissions).toContain("read");
+  });
+
+  it("removeRoleLayer sends DELETE", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true }));
+    await removeRoleLayer("r1", "Business");
+    expect(vi.mocked(fetch)).toHaveBeenCalledWith(
+      expect.stringContaining("/roles/r1/layers/Business"),
+      expect.objectContaining({ method: "DELETE" })
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// User create & misc
+// ---------------------------------------------------------------------------
+
+describe("createUser and fetchViewpoints", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("createUser posts", async () => {
+    mockFetchOk({ id: "u3", username: "newuser", role: "user", created_at: "2024-01-01" });
+    const u = await createUser({ username: "newuser", password: "pass123" });
+    expect(u.username).toBe("newuser");
+    expect(vi.mocked(fetch)).toHaveBeenCalledWith(
+      expect.stringContaining("/users"),
+      expect.objectContaining({ method: "POST" })
+    );
+  });
+
+  it("fetchViewpoints returns array", async () => {
+    mockFetchOk(["Layered", "Application Usage"]);
+    const vps = await fetchViewpoints();
+    expect(vps).toContain("Layered");
   });
 });
