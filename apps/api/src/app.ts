@@ -31,7 +31,8 @@ import helmet from "helmet";
 import { rateLimit } from "express-rate-limit";
 import { colord } from "colord";
 import multer from "multer";
-import archiver from "archiver";
+import { createRequire } from "module";
+const archiver = createRequire(import.meta.url)("archiver") as typeof import("archiver").default;
 import { AppError, NotFoundError, ValidationError } from "./errors.js";
 
 /** xs:ID / NCName requires the first char to be a letter or underscore.

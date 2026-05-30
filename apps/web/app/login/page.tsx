@@ -65,9 +65,9 @@ export default function LoginPage() {
           <svg width="32" height="32" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
             <defs>
               <linearGradient id="login-spark" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
-                <stop offset="0%" stopColor="#ff1e56" />
-                <stop offset="50%" stopColor="#ff3d74" />
-                <stop offset="100%" stopColor="#0096ff" />
+                <stop offset="0%" stopColor="#FF1D5D" />
+                <stop offset="50%" stopColor="#892FE8" />
+                <stop offset="100%" stopColor="#1A87FF" />
               </linearGradient>
             </defs>
             <path

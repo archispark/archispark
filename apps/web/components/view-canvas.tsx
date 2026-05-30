@@ -228,7 +228,7 @@ function ArchiEdge({
   const relType = (data?.relationshipType as string | undefined) ?? undefined;
   const archi = archimateEdgeStyle(relType);
   const strokeStyle: React.CSSProperties = {
-    stroke: selected ? "#0096ff" : "#222",
+    stroke: selected ? "#1A87FF" : "#222",
     strokeWidth: selected ? 1.8 : 1.2,
     fill: "none",
     ...(archi.strokeDasharray ? { strokeDasharray: archi.strokeDasharray } : {}),
@@ -279,7 +279,7 @@ function ArchiEdge({
                 background: "#fff",
                 padding: "1px 4px",
                 fontSize: 10,
-                border: `1px solid ${selected ? "#0096ff" : "#ddd"}`,
+                border: `1px solid ${selected ? "#1A87FF" : "#ddd"}`,
                 borderRadius: 3,
               }}
             >
@@ -294,12 +294,12 @@ function ArchiEdge({
                 title="Renommer"
                 style={{
                   background: "#fff",
-                  border: "1px solid #0096ff",
+                  border: "1px solid #1A87FF",
                   borderRadius: 3,
                   fontSize: 9,
                   padding: "1px 4px",
                   cursor: "pointer",
-                  color: "#0096ff",
+                  color: "#1A87FF",
                 }}
               >
                 {relType ?? "Association"}
@@ -310,8 +310,8 @@ function ArchiEdge({
                 title="Retirer de la vue"
                 aria-label="Retirer de la vue"
                 style={{
-                  background: "#ff1e56",
-                  border: "1px solid #ff1e56",
+                  background: "#FF1D5D",
+                  border: "1px solid #FF1D5D",
                   color: "#fff",
                   borderRadius: 3,
                   width: 16,
