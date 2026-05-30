@@ -59,6 +59,9 @@ import { openApiSpec } from "./openapi.js";
 import { renderViewToSvg, renderViewToPng } from "./renderer.js";
 import {
   listUsers,
+  createUser as createUserFn,
+  updateUserById,
+  deleteUserById,
   listRoles,
   getRole,
   createRole,
@@ -753,6 +756,28 @@ app.get("/me", (req: AuthRequest, res: Response) => {
 
 app.get("/users", requireAdmin as express.RequestHandler, async (_req: Request, res: Response) => {
   res.json(await listUsers());
+});
+
+app.post("/users", requireAdmin as express.RequestHandler, async (req: Request, res: Response) => {
+  const { username, password, role } = req.body as { username?: unknown; password?: unknown; role?: unknown };
+  if (!username || typeof username !== "string" || !password || typeof password !== "string") {
+    res.status(422).json({ detail: "Les champs 'username' et 'password' sont requis." });
+    return;
+  }
+  res.status(201).json(await createUserFn(username, password, typeof role === "string" ? role : "user"));
+});
+
+app.put("/users/:id", requireAdmin as express.RequestHandler, async (req: Request, res: Response) => {
+  const { password, role } = req.body as { password?: unknown; role?: unknown };
+  res.json(await updateUserById(req.params["id"] as string, {
+    password: typeof password === "string" && password ? password : undefined,
+    role: typeof role === "string" ? role : undefined,
+  }));
+});
+
+app.delete("/users/:id", requireAdmin as express.RequestHandler, async (req: Request, res: Response) => {
+  await deleteUserById(req.params["id"] as string);
+  res.status(204).send();
 });
 
 // ---------------------------------------------------------------------------

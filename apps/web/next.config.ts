@@ -9,9 +9,9 @@ const nextConfig: NextConfig = {
   async rewrites() {
     const apiUrl = process.env.ARCHIMATE_API_URL;
 
-    // Production (Docker + Caddy) : ARCHIMATE_API_URL="" → aucun rewrite
-    // Caddy gère /api/* et /auth/* en amont de Next.js.
-    if (!apiUrl) return [];
+    // Production (Docker) : ARCHIMATE_API_URL="" → aucun rewrite,
+    // le reverse proxy (Caddy/Traefik) gère /api/* et /auth/* en amont de Next.js.
+    if (apiUrl === "") return [];
 
     // Développement (pnpm dev) : proxy local vers l'API Express sur :3000
     const target = apiUrl || "http://localhost:3000";

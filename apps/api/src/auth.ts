@@ -1,9 +1,11 @@
 import { randomUUID } from "crypto";
 import type { Request, Response, NextFunction } from "express";
 import { and, eq, inArray } from "drizzle-orm";
-import { db, dbDriver, sqlite, users as usersTable, roles as rolesTable, roleLayerPermissions as rolePermsTable, userRoles as userRolesTable } from "@workspace/db";
+import { db, dbDriver, sqlite, users as usersTable, accounts, roles as rolesTable, roleLayerPermissions as rolePermsTable, userRoles as userRolesTable } from "@workspace/db";
 import { auth } from "./better-auth.js";
 import { fromNodeHeaders } from "better-auth/node";
+import bcrypt from "bcryptjs";
+import { NotFoundError, ValidationError } from "./errors.js";
 
 // ---------------------------------------------------------------------------
 // ArchiMate layer/permission constants
@@ -220,6 +222,43 @@ function rowToOut(r: typeof usersTable.$inferSelect): UserOut {
 export async function listUsers(): Promise<UserOut[]> {
   const rows = await db.select().from(usersTable);
   return rows.map(rowToOut);
+}
+
+export async function createUser(username: string, password: string, role: string = "user"): Promise<UserOut> {
+  const [existing] = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.username, username));
+  if (existing) throw new ValidationError(`Le nom d'utilisateur '${username}' est déjà pris.`);
+  const res = await auth.api.signUpEmail({
+    body: { email: `${username}@archispark.internal`, password, name: username, username } as never,
+  }).catch(() => null);
+  if (!res?.user) throw new ValidationError("Impossible de créer l'utilisateur.");
+  const validRole: "admin" | "user" = role === "admin" ? "admin" : "user";
+  await db.update(usersTable).set({ username, role: validRole }).where(eq(usersTable.id, res.user.id));
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, res.user.id));
+  if (!user) throw new ValidationError("Utilisateur introuvable après création.");
+  return rowToOut(user);
+}
+
+export async function updateUserById(id: string, updates: { password?: string; role?: string }): Promise<UserOut> {
+  const [existing] = await db.select().from(usersTable).where(eq(usersTable.id, id));
+  if (!existing) throw new NotFoundError(`Utilisateur '${id}' introuvable.`);
+  const now = new Date();
+  if (updates.role !== undefined) {
+    const validRole: "admin" | "user" = updates.role === "admin" ? "admin" : "user";
+    await db.update(usersTable).set({ role: validRole, updatedAt: now }).where(eq(usersTable.id, id));
+  }
+  if (updates.password) {
+    const hash = await bcrypt.hash(updates.password, 10);
+    await db.update(accounts).set({ password: hash, updatedAt: now })
+      .where(and(eq(accounts.userId, id), eq(accounts.providerId, "credential")));
+  }
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, id));
+  return rowToOut(user!);
+}
+
+export async function deleteUserById(id: string): Promise<void> {
+  const [existing] = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.id, id));
+  if (!existing) throw new NotFoundError(`Utilisateur '${id}' introuvable.`);
+  await db.delete(usersTable).where(eq(usersTable.id, id));
 }
 
 // ---------------------------------------------------------------------------
