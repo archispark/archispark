@@ -1,25 +1,25 @@
 # ─────────────────────────────────────────────────────────────────────────────
-#  ArchiSpark — Docker Compose (Phase 3 — Production)
+#  ArchiSpark — Docker Compose (Production)
 #
-#  Architecture couplage faible :
-#    proxy      → Traefik v3 (reverse proxy, routage via labels Docker)
-#    api        → Express REST API
-#    mcp-server → MCP Server (Streamable HTTP / SSE)
-#    web        → Next.js (rendu UI uniquement)
-#    postgres   → PostgreSQL 17
+#  Reverse proxy interchangeable via COMPOSE_PROFILES dans .env :
+#    COMPOSE_PROFILES=traefik   → Traefik v3 (labels Docker)
+#    COMPOSE_PROFILES=caddy     → Caddy 2    (Caddyfile, TLS auto)
 #
 #  Usage :
-#    cp .env.example .env && vi .env   # configurer les secrets
+#    cp .env.example .env && vi .env
 #    docker compose up -d
 #
-#  Variables requises dans .env :
-#    DB_PASSWORD, BETTER_AUTH_SECRET
+#  Variables requises :
+#    COMPOSE_PROFILES, DB_PASSWORD, BETTER_AUTH_SECRET
 # ─────────────────────────────────────────────────────────────────────────────
 
 services:
 
-  # ── Reverse Proxy ──────────────────────────────────────────────────────────
-  proxy:
+  # ── Reverse Proxy — Traefik ────────────────────────────────────────────────
+  # Activé par : COMPOSE_PROFILES=traefik
+  # Routage via labels Docker sur chaque service backend
+  proxy-traefik:
+    profiles: [traefik]
     image: traefik:v3
     restart: unless-stopped
     ports:
@@ -29,6 +29,33 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./traefik.yml:/etc/traefik/traefik.yml:ro
       - traefik_certs:/letsencrypt
+    depends_on:
+      api:
+        condition: service_healthy
+      web:
+        condition: service_healthy
+      mcp-server:
+        condition: service_started
+    networks:
+      - archispark
+
+  # ── Reverse Proxy — Caddy ──────────────────────────────────────────────────
+  # Activé par : COMPOSE_PROFILES=caddy
+  # Routage via Caddyfile, TLS Let's Encrypt automatique
+  proxy-caddy:
+    profiles: [caddy]
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"   # HTTP/3
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    environment:
+      CADDY_HOST: ${ARCHISPARK_HOST:-localhost}
     depends_on:
       api:
         condition: service_healthy
@@ -81,6 +108,7 @@ services:
       timeout:  5s
       retries:  5
     labels:
+      # Labels Traefik (ignorés si COMPOSE_PROFILES=caddy)
       - "traefik.enable=true"
       # ── Middlewares globaux ─────────────────────────────────────────────────
       - "traefik.http.middlewares.strip-api.stripprefix.prefixes=/api"
@@ -90,7 +118,7 @@ services:
       - "traefik.http.middlewares.security-headers.headers.customFrameOptionsValue=SAMEORIGIN"
       - "traefik.http.middlewares.security-headers.headers.referrerPolicy=strict-origin-when-cross-origin"
       - "traefik.http.middlewares.security-headers.headers.customResponseHeaders.Server="
-      # ── Routeur /api/* → strip /api → api:3000 ──────────────────────────────
+      # ── Routeur /api/* → strip /api → api:3000 ─────────────────────────────
       - "traefik.http.routers.api.rule=PathPrefix(`/api`)"
       - "traefik.http.routers.api.entrypoints=web"
       - "traefik.http.routers.api.middlewares=strip-api,security-headers"
@@ -119,9 +147,10 @@ services:
       api:
         condition: service_healthy
     labels:
+      # Labels Traefik (ignorés si COMPOSE_PROFILES=caddy)
       - "traefik.enable=true"
       # ── Routeur /mcp/* → mcp-server:3001 ────────────────────────────────────
-      # Traefik ne bufférise pas les réponses par défaut → SSE/streaming natif
+      # Traefik ne bufférise pas par défaut → SSE natif
       - "traefik.http.routers.mcp.rule=PathPrefix(`/mcp`)"
       - "traefik.http.routers.mcp.entrypoints=web"
       - "traefik.http.routers.mcp.middlewares=security-headers"
@@ -131,8 +160,6 @@ services:
       - archispark
 
   # ── Next.js Web ────────────────────────────────────────────────────────────
-  # Responsabilité unique : rendu UI
-  # Traefik gère /api/* et /auth/* — aucun rewrite dans Next.js
   web:
     build:
       context:    .
@@ -142,7 +169,7 @@ services:
       NODE_ENV: production
       PORT:     "8000"
       HOSTNAME: "0.0.0.0"
-      # ARCHIMATE_API_URL vide → rewrites Next.js désactivés
+      # Vide → rewrites Next.js désactivés (proxy gère /api/* et /auth/*)
       ARCHIMATE_API_URL: ""
     depends_on:
       api:
@@ -153,9 +180,9 @@ services:
       timeout:  5s
       retries:  5
     labels:
+      # Labels Traefik (ignorés si COMPOSE_PROFILES=caddy)
       - "traefik.enable=true"
       # ── Routeur catch-all /* → web:8000 ─────────────────────────────────────
-      # PathPrefix('/') a la priorité la plus basse (règle la plus courte)
       - "traefik.http.routers.web.rule=PathPrefix(`/`)"
       - "traefik.http.routers.web.entrypoints=web"
       - "traefik.http.routers.web.middlewares=security-headers"
@@ -171,3 +198,5 @@ networks:
 volumes:
   postgres_data:
   traefik_certs:
+  caddy_data:
+  caddy_config:
