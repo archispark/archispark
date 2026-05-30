@@ -1,0 +1,89 @@
+# ─────────────────────────────────────────────────────────────────────────────
+#  ArchiSpark — Reverse proxy Traefik v3
+#
+#  Routage via labels Docker (aucune configuration centralisée) :
+#    /api/*   → strip /api → api:3000
+#    /auth/*  → api:3000
+#    /mcp/*   → mcp-server:3001  (SSE natif, pas de buffering)
+#    /*       → web:8000          (catch-all)
+#
+#  TLS : voir traefik.yml (section certificatesResolvers commentée)
+#
+#  À combiner avec docker-compose.yml + une base de données :
+#    docker compose -f docker-compose.yml -f docker-compose.postgres.yml \
+#                   -f docker-compose.traefik.yml up -d
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+
+  proxy-traefik:
+    image: traefik:v3
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik.yml:/etc/traefik/traefik.yml:ro
+      - traefik_certs:/letsencrypt
+    depends_on:
+      api:
+        condition: service_healthy
+      web:
+        condition: service_healthy
+      mcp-server:
+        condition: service_started
+    networks:
+      - archispark
+
+  # ── Labels Traefik sur les services backend ────────────────────────────────
+
+  api:
+    labels:
+      - "traefik.enable=true"
+      # Middlewares (définis une fois, réutilisés par tous les routeurs)
+      - "traefik.http.middlewares.strip-api.stripprefix.prefixes=/api"
+      - "traefik.http.middlewares.security-headers.headers.stsSeconds=31536000"
+      - "traefik.http.middlewares.security-headers.headers.stsIncludeSubdomains=true"
+      - "traefik.http.middlewares.security-headers.headers.contentTypeNosniff=true"
+      - "traefik.http.middlewares.security-headers.headers.customFrameOptionsValue=SAMEORIGIN"
+      - "traefik.http.middlewares.security-headers.headers.referrerPolicy=strict-origin-when-cross-origin"
+      - "traefik.http.middlewares.security-headers.headers.customResponseHeaders.Server="
+      # Routeur /api/* → strip /api → api:3000
+      - "traefik.http.routers.api.rule=PathPrefix(`/api`)"
+      - "traefik.http.routers.api.entrypoints=web"
+      - "traefik.http.routers.api.middlewares=strip-api,security-headers"
+      - "traefik.http.routers.api.service=api"
+      - "traefik.http.services.api.loadbalancer.server.port=3000"
+      # Routeur /auth/* → api:3000
+      - "traefik.http.routers.auth.rule=PathPrefix(`/auth`)"
+      - "traefik.http.routers.auth.entrypoints=web"
+      - "traefik.http.routers.auth.middlewares=security-headers"
+      - "traefik.http.routers.auth.service=api"
+
+  mcp-server:
+    labels:
+      - "traefik.enable=true"
+      # Routeur /mcp/* → mcp-server:3001
+      - "traefik.http.routers.mcp.rule=PathPrefix(`/mcp`)"
+      - "traefik.http.routers.mcp.entrypoints=web"
+      - "traefik.http.routers.mcp.middlewares=security-headers"
+      - "traefik.http.routers.mcp.service=mcp"
+      - "traefik.http.services.mcp.loadbalancer.server.port=3001"
+
+  web:
+    labels:
+      - "traefik.enable=true"
+      # Routeur catch-all /* → web:8000 (priorité la plus basse)
+      - "traefik.http.routers.web.rule=PathPrefix(`/`)"
+      - "traefik.http.routers.web.entrypoints=web"
+      - "traefik.http.routers.web.middlewares=security-headers"
+      - "traefik.http.routers.web.service=web"
+      - "traefik.http.services.web.loadbalancer.server.port=8000"
+
+networks:
+  archispark:
+    name: archispark
+
+volumes:
+  traefik_certs:

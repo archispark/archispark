@@ -1,0 +1,52 @@
+# ─────────────────────────────────────────────────────────────────────────────
+#  ArchiSpark — Reverse proxy Caddy 2
+#
+#  TLS Let's Encrypt automatique quand ARCHISPARK_HOST est un vrai domaine.
+#  En local (ARCHISPARK_HOST=localhost) : HTTP uniquement.
+#
+#  Routage via Caddyfile :
+#    /mcp/*   → mcp-server:3001  (flush_interval -1 pour SSE)
+#    /api/*   → api:3000          (préfixe /api retiré)
+#    /auth/*  → api:3000
+#    /*       → web:8000
+#
+#  À combiner avec docker-compose.yml + une base de données :
+#    docker compose -f docker-compose.yml -f docker-compose.postgres.yml \
+#                   -f docker-compose.caddy.yml up -d
+#
+#  Variable dans .env :
+#    ARCHISPARK_HOST=mondomaine.com   (ou localhost pour HTTP)
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+
+  proxy-caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"   # HTTP/3
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    environment:
+      CADDY_HOST: ${ARCHISPARK_HOST:-localhost}
+    depends_on:
+      api:
+        condition: service_healthy
+      web:
+        condition: service_healthy
+      mcp-server:
+        condition: service_started
+    networks:
+      - archispark
+
+networks:
+  archispark:
+    name: archispark
+
+volumes:
+  caddy_data:
+  caddy_config:

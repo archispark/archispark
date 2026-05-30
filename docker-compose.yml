@@ -1,88 +1,37 @@
 # ─────────────────────────────────────────────────────────────────────────────
-#  ArchiSpark — Docker Compose (Production)
+#  ArchiSpark — Docker Compose (base)
 #
-#  Reverse proxy interchangeable via COMPOSE_PROFILES dans .env :
-#    COMPOSE_PROFILES=traefik   → Traefik v3 (labels Docker)
-#    COMPOSE_PROFILES=caddy     → Caddy 2    (Caddyfile, TLS auto)
+#  Ce fichier définit les services applicatifs uniquement.
+#  Il doit toujours être combiné avec :
+#    • une base de données  : docker-compose.postgres.yml  |  docker-compose.sqlite.yml
+#    • un reverse proxy     : docker-compose.traefik.yml   |  docker-compose.caddy.yml
 #
-#  Usage :
-#    cp .env.example .env && vi .env
-#    docker compose up -d
+#  Exemples :
+#    # Traefik + PostgreSQL (production recommandée)
+#    docker compose -f docker-compose.yml \
+#                   -f docker-compose.postgres.yml \
+#                   -f docker-compose.traefik.yml up -d
 #
-#  Variables requises :
-#    COMPOSE_PROFILES, DB_PASSWORD, BETTER_AUTH_SECRET
+#    # Caddy + PostgreSQL
+#    docker compose -f docker-compose.yml \
+#                   -f docker-compose.postgres.yml \
+#                   -f docker-compose.caddy.yml up -d
+#
+#    # Traefik + SQLite (léger)
+#    docker compose -f docker-compose.yml \
+#                   -f docker-compose.sqlite.yml \
+#                   -f docker-compose.traefik.yml up -d
+#
+#    # Dev Docker (ports exposés, sans proxy)
+#    docker compose -f docker-compose.yml \
+#                   -f docker-compose.sqlite.yml \
+#                   -f docker-compose.dev.yml up -d
+#
+#    # Demo tout-en-un
+#    docker compose -f docker-compose.demo.yml up -d
 # ─────────────────────────────────────────────────────────────────────────────
 
 services:
-
-  # ── Reverse Proxy — Traefik ────────────────────────────────────────────────
-  # Activé par : COMPOSE_PROFILES=traefik
-  # Routage via labels Docker sur chaque service backend
-  proxy-traefik:
-    profiles: [traefik]
-    image: traefik:v3
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./traefik.yml:/etc/traefik/traefik.yml:ro
-      - traefik_certs:/letsencrypt
-    depends_on:
-      api:
-        condition: service_healthy
-      web:
-        condition: service_healthy
-      mcp-server:
-        condition: service_started
-    networks:
-      - archispark
-
-  # ── Reverse Proxy — Caddy ──────────────────────────────────────────────────
-  # Activé par : COMPOSE_PROFILES=caddy
-  # Routage via Caddyfile, TLS Let's Encrypt automatique
-  proxy-caddy:
-    profiles: [caddy]
-    image: caddy:2-alpine
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-      - "443:443/udp"   # HTTP/3
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
-      - caddy_config:/config
-    environment:
-      CADDY_HOST: ${ARCHISPARK_HOST:-localhost}
-    depends_on:
-      api:
-        condition: service_healthy
-      web:
-        condition: service_healthy
-      mcp-server:
-        condition: service_started
-    networks:
-      - archispark
-
-  # ── PostgreSQL ─────────────────────────────────────────────────────────────
-  postgres:
-    image: postgres:17-alpine
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER:     archispark
-      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
-      POSTGRES_DB:       archispark
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test:     ["CMD-SHELL", "pg_isready -U archispark -d archispark"]
-      interval: 5s
-      timeout:  5s
-      retries:  10
-    networks:
-      - archispark
 
   # ── REST API ───────────────────────────────────────────────────────────────
   api:
@@ -91,44 +40,19 @@ services:
       dockerfile: Dockerfile.api
     restart: unless-stopped
     environment:
-      NODE_ENV:             production
-      PORT:                 "3000"
-      HOST:                 "0.0.0.0"
-      DATABASE_URL:         postgresql://archispark:${DB_PASSWORD}@postgres:5432/archispark
-      BETTER_AUTH_SECRET:   ${BETTER_AUTH_SECRET:?Set BETTER_AUTH_SECRET in .env}
-      BETTER_AUTH_URL:      ${ARCHISPARK_URL:-http://localhost}
-      SEED_ADMIN_PASSWORD:  ${SEED_ADMIN_PASSWORD:-}
-      SEED_USER_PASSWORD:   ${SEED_USER_PASSWORD:-}
-    depends_on:
-      postgres:
-        condition: service_healthy
+      NODE_ENV:            production
+      PORT:                "3000"
+      HOST:                "0.0.0.0"
+      BETTER_AUTH_SECRET:  ${BETTER_AUTH_SECRET:?Set BETTER_AUTH_SECRET in .env}
+      BETTER_AUTH_URL:     ${ARCHISPARK_URL:-http://localhost}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-}
+      SEED_USER_PASSWORD:  ${SEED_USER_PASSWORD:-}
+      # DATABASE_URL : ajouté par docker-compose.postgres.yml ou docker-compose.sqlite.yml
     healthcheck:
       test:     ["CMD", "wget", "-qO-", "http://localhost:3000/"]
       interval: 10s
       timeout:  5s
       retries:  5
-    labels:
-      # Labels Traefik (ignorés si COMPOSE_PROFILES=caddy)
-      - "traefik.enable=true"
-      # ── Middlewares globaux ─────────────────────────────────────────────────
-      - "traefik.http.middlewares.strip-api.stripprefix.prefixes=/api"
-      - "traefik.http.middlewares.security-headers.headers.stsSeconds=31536000"
-      - "traefik.http.middlewares.security-headers.headers.stsIncludeSubdomains=true"
-      - "traefik.http.middlewares.security-headers.headers.contentTypeNosniff=true"
-      - "traefik.http.middlewares.security-headers.headers.customFrameOptionsValue=SAMEORIGIN"
-      - "traefik.http.middlewares.security-headers.headers.referrerPolicy=strict-origin-when-cross-origin"
-      - "traefik.http.middlewares.security-headers.headers.customResponseHeaders.Server="
-      # ── Routeur /api/* → strip /api → api:3000 ─────────────────────────────
-      - "traefik.http.routers.api.rule=PathPrefix(`/api`)"
-      - "traefik.http.routers.api.entrypoints=web"
-      - "traefik.http.routers.api.middlewares=strip-api,security-headers"
-      - "traefik.http.routers.api.service=api"
-      - "traefik.http.services.api.loadbalancer.server.port=3000"
-      # ── Routeur /auth/* → api:3000 (Better Auth, sans strip) ───────────────
-      - "traefik.http.routers.auth.rule=PathPrefix(`/auth`)"
-      - "traefik.http.routers.auth.entrypoints=web"
-      - "traefik.http.routers.auth.middlewares=security-headers"
-      - "traefik.http.routers.auth.service=api"
     networks:
       - archispark
 
@@ -139,23 +63,13 @@ services:
       dockerfile: Dockerfile.mcp-server
     restart: unless-stopped
     environment:
-      NODE_ENV:     production
-      MCP_PORT:     "3001"
-      HOST:         "0.0.0.0"
-      DATABASE_URL: postgresql://archispark:${DB_PASSWORD}@postgres:5432/archispark
+      NODE_ENV: production
+      MCP_PORT: "3001"
+      HOST:     "0.0.0.0"
+      # DATABASE_URL : ajouté par docker-compose.postgres.yml ou docker-compose.sqlite.yml
     depends_on:
       api:
         condition: service_healthy
-    labels:
-      # Labels Traefik (ignorés si COMPOSE_PROFILES=caddy)
-      - "traefik.enable=true"
-      # ── Routeur /mcp/* → mcp-server:3001 ────────────────────────────────────
-      # Traefik ne bufférise pas par défaut → SSE natif
-      - "traefik.http.routers.mcp.rule=PathPrefix(`/mcp`)"
-      - "traefik.http.routers.mcp.entrypoints=web"
-      - "traefik.http.routers.mcp.middlewares=security-headers"
-      - "traefik.http.routers.mcp.service=mcp"
-      - "traefik.http.services.mcp.loadbalancer.server.port=3001"
     networks:
       - archispark
 
@@ -166,10 +80,11 @@ services:
       dockerfile: Dockerfile.web
     restart: unless-stopped
     environment:
-      NODE_ENV: production
-      PORT:     "8000"
-      HOSTNAME: "0.0.0.0"
-      # Vide → rewrites Next.js désactivés (proxy gère /api/* et /auth/*)
+      NODE_ENV:          production
+      PORT:              "8000"
+      HOSTNAME:          "0.0.0.0"
+      # Vide en production : le proxy gère /api/* et /auth/*
+      # Défini dans docker-compose.dev.yml pour dev sans proxy
       ARCHIMATE_API_URL: ""
     depends_on:
       api:
@@ -179,24 +94,9 @@ services:
       interval: 10s
       timeout:  5s
       retries:  5
-    labels:
-      # Labels Traefik (ignorés si COMPOSE_PROFILES=caddy)
-      - "traefik.enable=true"
-      # ── Routeur catch-all /* → web:8000 ─────────────────────────────────────
-      - "traefik.http.routers.web.rule=PathPrefix(`/`)"
-      - "traefik.http.routers.web.entrypoints=web"
-      - "traefik.http.routers.web.middlewares=security-headers"
-      - "traefik.http.routers.web.service=web"
-      - "traefik.http.services.web.loadbalancer.server.port=8000"
     networks:
       - archispark
 
 networks:
   archispark:
     name: archispark
-
-volumes:
-  postgres_data:
-  traefik_certs:
-  caddy_data:
-  caddy_config:
