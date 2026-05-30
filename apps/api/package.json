@@ -5,7 +5,11 @@
   "type": "module",
   "exports": {
     "./package.json": "./package.json",
-    "./src/*.js": "./src/*.ts"
+    "./src/*.js": {
+      "source": "./src/*.ts",
+      "types": "./src/*.ts",
+      "default": "./dist/*.js"
+    }
   },
   "scripts": {
     "start": "tsx src/main.ts",

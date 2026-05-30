@@ -1,6 +1,12 @@
 import { defineConfig } from "vitest/config";
+import { resolve } from "path";
 
 export default defineConfig({
+  resolve: {
+    alias: {
+      "@workspace/db": resolve(__dirname, "../../packages/db/src/index.ts"),
+    },
+  },
   test: {
     pool: "forks",
     env: {
