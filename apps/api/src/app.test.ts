@@ -1589,11 +1589,9 @@ describe("POST /relationships – source and target field validation", () => {
 });
 
 describe("GET /docs", () => {
-  it("returns HTML swagger UI page", async () => {
+  it("returns 404 — Swagger UI is now served by the docs app", async () => {
     const res = await request(app).get("/docs");
-    expect(res.status).toBe(200);
-    expect(res.headers["content-type"]).toContain("text/html");
-    expect(res.text).toContain("swagger-ui");
+    expect(res.status).toBe(404);
   });
 });
 
