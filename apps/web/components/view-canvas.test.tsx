@@ -1,7 +1,12 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { ViewCanvas } from "./view-canvas";
+import { I18nProvider } from "@/lib/i18n";
 import type { NodeOut, ConnectionOut, ElementOut } from "@/lib/api";
+
+function renderWithI18n(ui: React.ReactElement) {
+  return render(<I18nProvider>{ui}</I18nProvider>);
+}
 
 type NodeRenderer = React.ComponentType<{ id: string; data: Record<string, unknown>; selected: boolean }>;
 type EdgeRenderer = React.ComponentType<{ id: string; sourceX: number; sourceY: number; targetX: number; targetY: number; sourcePosition: string; targetPosition: string; data: Record<string, unknown>; label: unknown; selected: boolean }>;
@@ -162,7 +167,7 @@ describe("ViewCanvas", () => {
       makeElement("e1", "App A", "ApplicationComponent"),
       makeElement("e2", "App B", "ApplicationComponent"),
     ];
-    render(<ViewCanvas viewId="v1" nodes={[]} connections={[]} elements={elements} />);
+    renderWithI18n(<ViewCanvas viewId="v1" nodes={[]} connections={[]} elements={elements} />);
     const collapseBtn = screen.getByTitle("Tout replier");
     const expandBtn = screen.getByTitle("Tout déplier");
     fireEvent.click(collapseBtn);
@@ -184,7 +189,7 @@ describe("ViewCanvas", () => {
       makeElement("e1", "AppServer", "ApplicationComponent"),
       makeElement("e2", "Database", "DataObject"),
     ];
-    render(<ViewCanvas viewId="v1" nodes={[]} connections={[]} elements={elements} />);
+    renderWithI18n(<ViewCanvas viewId="v1" nodes={[]} connections={[]} elements={elements} />);
     const input = screen.getByPlaceholderText("Rechercher élément…");
     fireEvent.change(input, { target: { value: "App" } });
     expect(screen.getByText("AppServer")).toBeInTheDocument();
