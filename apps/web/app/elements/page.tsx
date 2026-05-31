@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState, useMemo } from "react";
+import { Suspense, useState, useMemo, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { useDebounce } from "use-debounce";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -76,11 +76,13 @@ function ElementsPageInner() {
   const [editType, setEditType] = useState("");
   const [editDoc, setEditDoc] = useState("");
   const [editProps, setEditProps] = useState<Property[]>([]);
+  const [, setEditError] = useState<string | null>(null);
   const updateMutation = useUpdateElement();
 
   // Delete dialog
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<ElementOut | null>(null);
+  const [, setDeleteError] = useState<string | null>(null);
   const deleteMutation = useDeleteElement();
 
   const grouped = useMemo(() => {

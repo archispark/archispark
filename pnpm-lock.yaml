@@ -217,6 +217,9 @@ importers:
       use-debounce:
         specifier: ^10.1.1
         version: 10.1.1(react@19.2.6)
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
     devDependencies:
       '@tailwindcss/postcss':
         specifier: ^4.1.18

@@ -306,9 +306,10 @@ describe("saveModel", () => {
 describe("importModel", () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  it("posts XML and returns model info", async () => {
+  it("posts XML file and returns model info", async () => {
     mockFetchOk({ identifier: "m1", name: "Imported", element_count: 5, relationship_count: 2, view_count: 1, documentation: null, version: null, workspace_id: null, workspace_name: null });
-    const m = await importModel("<xml/>");
+    const file = new File(["<xml/>"], "model.xml", { type: "text/xml" });
+    const m = await importModel(file);
     expect(m.identifier).toBe("m1");
   });
 
@@ -317,7 +318,8 @@ describe("importModel", () => {
       ok: false,
       json: async () => ({ detail: "Invalid XML" }),
     }));
-    await expect(importModel("<bad")).rejects.toThrow("Invalid XML");
+    const file = new File(["<bad>"], "model.xml", { type: "text/xml" });
+    await expect(importModel(file)).rejects.toThrow("Invalid XML");
   });
 });
 

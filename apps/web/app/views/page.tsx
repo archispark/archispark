@@ -56,6 +56,11 @@ export default function ViewsPage() {
     editActions.openWith(view);
   }
 
+  function openDelete(view: ViewOut, e: React.MouseEvent) {
+    e.preventDefault(); e.stopPropagation();
+    deleteActions.openWith(view);
+  }
+
   function openCreate() {
     setName(""); setViewpoint(""); setDoc("");
     createActions.openNew();

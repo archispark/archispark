@@ -153,7 +153,7 @@ describe("allowedRelationships", () => {
   });
 
   it("returns only allowed types as a subset of all types", () => {
-    const all = new Set(ARCHIMATE_RELATIONSHIP_TYPES);
+    const all = new Set<string>(ARCHIMATE_RELATIONSHIP_TYPES);
     const rels = allowedRelationships("ApplicationComponent", "DataObject");
     for (const r of rels) expect(all.has(r)).toBe(true);
   });

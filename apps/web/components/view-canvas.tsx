@@ -91,7 +91,7 @@ const LAYER_COLOR: Record<string, { bg: string; border: string }> = {
 
 function colorFor(elementType?: string): { bg: string; border: string } {
   const layer = elementType ? ARCHIMATE_LAYER[elementType] : undefined;
-  return LAYER_COLOR[layer ?? "other"] ?? LAYER_COLOR.other;
+  return LAYER_COLOR[layer ?? "other"] ?? LAYER_COLOR["other"]!;
 }
 
 const ViewIdContext = createContext<string | undefined>(undefined);
