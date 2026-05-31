@@ -27,6 +27,19 @@ export const config = [
     },
   },
   {
+    // Contrôle de la taille des fichiers pour préserver les tokens IA et optimiser les tests
+    rules: {
+      "max-lines": [
+        "error",
+        {
+          max: 250,
+          skipBlankLines: true,
+          skipComments: true,
+        },
+      ],
+    },
+  },
+  {
     ignores: ["dist/**", ".next/**", "**/.turbo/**", "**/coverage/**"],
   },
 ]
