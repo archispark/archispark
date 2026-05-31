@@ -1,9 +1,7 @@
-import path from "path";
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: "standalone",
-  outputFileTracingRoot: path.join(__dirname, "../../"),
   transpilePackages: ["@workspace/ui"],
   // Better Auth produces complex inferred types (TS2883) that TypeScript
   // can't name without referencing internal better-auth .mjs paths.
