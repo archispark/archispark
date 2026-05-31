@@ -22,6 +22,8 @@ import {
   createProvider,
   updateProvider,
   deleteProvider,
+  fetchRedisStatus,
+  type RedisStatus,
   ARCHIMATE_LAYERS,
   PERMISSION_FLAGS,
   type UserOut,
@@ -55,11 +57,11 @@ import {
   DialogTrigger,
 } from "@workspace/ui/components/dialog";
 import { DataTable } from "@/components/data-table";
-import { Plus, Trash2, Pencil, Users as UsersIcon, Settings as SettingsIcon, Shield, Upload, Download, KeyRound, Eye, EyeOff } from "lucide-react";
+import { Plus, Trash2, Pencil, Users as UsersIcon, Settings as SettingsIcon, Shield, Upload, Download, KeyRound, Eye, EyeOff, Database, RefreshCw } from "lucide-react";
 import { exportModelUrl, importModel } from "@/lib/api";
 import { useDropzone } from "react-dropzone";
 
-type Tab = "members" | "roles" | "general" | "import-export" | "authentication";
+type Tab = "members" | "roles" | "general" | "import-export" | "authentication" | "redis";
 
 export default function SettingsPage() {
   const { t } = useT();
@@ -135,6 +137,18 @@ export default function SettingsPage() {
           <KeyRound className="size-3.5" />
           {t("settings.tab_authentication")}
         </button>
+        <button
+          type="button"
+          onClick={() => setTab("redis")}
+          className={`flex items-center gap-2 px-3 py-2 text-[13px] border-b-2 transition-colors ${
+            tab === "redis"
+              ? "border-primary text-foreground font-medium"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Database className="size-3.5" />
+          Redis
+        </button>
       </div>
 
       {tab === "members" && <MembersTab />}
@@ -142,6 +156,7 @@ export default function SettingsPage() {
       {tab === "general" && <GeneralTab />}
       {tab === "import-export" && <ImportExportTab />}
       {tab === "authentication" && <AuthenticationTab />}
+      {tab === "redis" && <RedisTab />}
     </div>
   );
 }
@@ -1333,6 +1348,116 @@ function AuthenticationTab() {
       <div className="rounded-lg border bg-muted/40 p-4 text-[12px] text-muted-foreground space-y-1">
         <p className="font-medium text-foreground">Variables d'environnement</p>
         <p>Les fournisseurs configurés via <code>GENERIC_OIDC_*</code>, <code>GOOGLE_*</code>, <code>GITHUB_*</code> ou <code>ENTRA_*</code> restent actifs et ne peuvent pas être gérés ici.</p>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Redis tab — read-only status (config via REDIS_URL env var)
+// ---------------------------------------------------------------------------
+
+function RedisTab() {
+  const [status, setStatus] = useState<RedisStatus | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(() => {
+    setLoading(true);
+    setError(null);
+    fetchRedisStatus()
+      .then(setStatus)
+      .catch((e) => setError((e as Error).message))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  return (
+    <div className="space-y-5 max-w-xl">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-sm font-semibold">Redis</h2>
+          <p className="text-[12px] text-muted-foreground mt-0.5">
+            Utilisé pour le rate limiting. Configuré via la variable d&apos;environnement <code>REDIS_URL</code>.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={load}
+          disabled={loading}
+          className="flex items-center gap-1.5 text-[12px] text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+          title="Rafraîchir"
+        >
+          <RefreshCw className={`size-3.5 ${loading ? "animate-spin" : ""}`} />
+          Actualiser
+        </button>
+      </div>
+
+      {error && (
+        <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">
+          {error}
+        </div>
+      )}
+
+      {!loading && status && (
+        <div className="rounded-lg border border-border bg-card p-5 space-y-4">
+          {/* Connection status */}
+          <div className="flex items-center gap-3">
+            <span
+              className={`size-3 rounded-full shrink-0 ${
+                !status.url_configured
+                  ? "bg-muted-foreground"
+                  : status.connected
+                  ? "bg-green-500"
+                  : "bg-destructive"
+              }`}
+            />
+            <div>
+              <div className="text-sm font-medium">
+                {!status.url_configured
+                  ? "Non configuré"
+                  : status.connected
+                  ? "Connecté"
+                  : "Déconnecté"}
+              </div>
+              <div className="text-[11px] text-muted-foreground">
+                {!status.url_configured
+                  ? "Aucune variable REDIS_URL définie — le rate limiting utilise la mémoire locale."
+                  : status.connected
+                  ? "La connexion Redis est active."
+                  : "Redis est configuré mais injoignable."}
+              </div>
+            </div>
+          </div>
+
+          {/* Host / Port */}
+          {status.url_configured && (
+            <div className="grid grid-cols-2 gap-3 pt-1">
+              <div className="flex flex-col gap-1">
+                <Label className="text-[11px]">Hôte</Label>
+                <div className="text-[13px] font-mono bg-muted rounded px-2 py-1">
+                  {status.host ?? "—"}
+                </div>
+              </div>
+              <div className="flex flex-col gap-1">
+                <Label className="text-[11px]">Port</Label>
+                <div className="text-[13px] font-mono bg-muted rounded px-2 py-1">
+                  {status.port ?? "—"}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="rounded-lg border bg-muted/40 p-4 text-[12px] text-muted-foreground space-y-1.5">
+        <p className="font-medium text-foreground">Configuration</p>
+        <p>Définir <code>REDIS_URL</code> dans l&apos;environnement de l&apos;API avant le démarrage :</p>
+        <pre className="bg-background border border-border rounded px-3 py-2 text-[11px] overflow-x-auto">
+          REDIS_URL=redis://localhost:6379
+        </pre>
+        <p>Un redémarrage de l&apos;API est nécessaire après tout changement.</p>
       </div>
     </div>
   );

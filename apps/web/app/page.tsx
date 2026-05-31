@@ -1,16 +1,17 @@
 "use client";
 
-import { useModel, useElements } from "@/lib/queries";
+import { useModel, useElements, useRelationships } from "@/lib/queries";
 import { getLayer, LAYER_HEX_COLORS as LAYER_COLORS } from "@/lib/archimate-helpers";
-import type { ElementOut } from "@/lib/api";
+import type { ElementOut, RelationshipOut } from "@/lib/api";
 import { useT } from "@/lib/i18n";
 
 export default function OverviewPage() {
   const { t } = useT();
   const { data: model, isLoading: modelLoading, error: modelError } = useModel();
   const { data: elements = [], isLoading: elementsLoading } = useElements();
+  const { data: relationships = [], isLoading: relsLoading } = useRelationships();
 
-  const loading = modelLoading || elementsLoading;
+  const loading = modelLoading || elementsLoading || relsLoading;
   const error = modelError;
 
   const layerCounts = elements.reduce<Record<string, number>>((acc, el) => {
@@ -73,6 +74,11 @@ export default function OverviewPage() {
         <StatCard label={t("overview.views")} value={model?.view_count ?? 0} />
       </div>
 
+      {/* Pie charts */}
+      <div className="grid grid-cols-1 gap-6">
+        {elements.length > 0 && <TypePieChart elements={elements} />}
+        {relationships.length > 0 && <RelPieChart relationships={relationships} />}
+      </div>
     </div>
   );
 }
@@ -83,6 +89,178 @@ function StatCard({ label, value, color }: { label: string; value: number; color
       <div className="text-[11px] text-muted-foreground uppercase tracking-wide mb-1.5">{label}</div>
       <div className="text-2xl font-bold" style={color ? { color } : undefined}>
         {value}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Donut pie chart — generic, no external dependency
+// ---------------------------------------------------------------------------
+
+const TOP_N = 14;
+
+const RELATIONSHIP_COLORS: Record<string, string> = {
+  Composition:    "#2563eb",
+  Aggregation:    "#7c3aed",
+  Assignment:     "#0891b2",
+  Realization:    "#0d9488",
+  Serving:        "#16a34a",
+  Access:         "#059669",
+  Influence:      "#d97706",
+  Triggering:     "#ea580c",
+  Flow:           "#dc2626",
+  Association:    "#64748b",
+  Specialization: "#db2777",
+};
+
+function polarXY(cx: number, cy: number, r: number, angleDeg: number) {
+  const rad = ((angleDeg - 90) * Math.PI) / 180;
+  return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
+}
+
+function donutSlicePath(
+  cx: number,
+  cy: number,
+  ro: number,
+  ri: number,
+  a0: number,
+  a1: number,
+) {
+  const sweep = a1 - a0;
+  const end = sweep >= 360 ? a0 + 359.999 : a1;
+  const os = polarXY(cx, cy, ro, a0);
+  const oe = polarXY(cx, cy, ro, end);
+  const is = polarXY(cx, cy, ri, end);
+  const ie = polarXY(cx, cy, ri, a0);
+  const large = sweep > 180 ? 1 : 0;
+  return (
+    `M${os.x},${os.y} A${ro},${ro} 0 ${large} 1 ${oe.x},${oe.y}` +
+    ` L${is.x},${is.y} A${ri},${ri} 0 ${large} 0 ${ie.x},${ie.y}Z`
+  );
+}
+
+interface SliceData {
+  label: string;
+  count: number;
+  color: string;
+}
+
+function DonutChart({
+  data,
+  total,
+  centerLabel,
+}: {
+  data: SliceData[];
+  total: number;
+  centerLabel: string;
+}) {
+  const cx = 90, cy = 90, ro = 82, ri = 50;
+  let angle = 0;
+
+  return (
+    <div className="flex flex-col sm:flex-row gap-6 items-center sm:items-start">
+      <svg width={180} height={180} viewBox="0 0 180 180" className="shrink-0" aria-hidden="true">
+        {data.map(({ label, count, color }) => {
+          const sweep = (count / total) * 360;
+          const a0 = angle;
+          angle += sweep;
+          return (
+            <path
+              key={label}
+              d={donutSlicePath(cx, cy, ro, ri, a0, angle)}
+              fill={color}
+              stroke="var(--card, #fff)"
+              strokeWidth={1.5}
+            >
+              <title>{label}: {count}</title>
+            </path>
+          );
+        })}
+        <text x={cx} y={cy - 8} textAnchor="middle" fontSize={26} fontWeight="700" fill="currentColor">
+          {total}
+        </text>
+        <text x={cx} y={cy + 11} textAnchor="middle" fontSize={9} fill="currentColor" opacity={0.45}>
+          {centerLabel}
+        </text>
+      </svg>
+
+      <div className="flex-1 grid grid-cols-2 gap-y-2 gap-x-4 self-center w-full">
+        {data.map(({ label, count, color }) => (
+          <div key={label} className="flex items-center gap-2 min-w-0">
+            <span className="size-2.5 rounded-full shrink-0" style={{ background: color }} />
+            <span className="text-[12px] text-muted-foreground truncate flex-1">{label}</span>
+            <span className="text-[12px] font-semibold tabular-nums">{count}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function TypePieChart({ elements }: { elements: ElementOut[] }) {
+  const { t } = useT();
+
+  const typeCounts = elements.reduce<Record<string, number>>((acc, el) => {
+    acc[el.type] = (acc[el.type] || 0) + 1;
+    return acc;
+  }, {});
+
+  const total = elements.length;
+  const sorted = Object.entries(typeCounts).sort(([, a], [, b]) => b - a);
+  const top = sorted.slice(0, TOP_N);
+  const restCount = sorted.slice(TOP_N).reduce((s, [, c]) => s + c, 0);
+
+  const data: SliceData[] = top.map(([type, count]) => ({
+    label: type,
+    count,
+    color: LAYER_COLORS[getLayer(type)] ?? "#94a3b8",
+  }));
+  if (restCount > 0) {
+    data.push({ label: t("overview.other"), count: restCount, color: "#94a3b8" });
+  }
+
+  return (
+    <div>
+      <div className="text-[11px] font-bold tracking-[0.6px] uppercase text-muted-foreground mb-3">
+        {t("overview.elements_by_type")}
+      </div>
+      <div className="bg-card border border-border rounded-lg p-5">
+        <DonutChart data={data} total={total} centerLabel={t("overview.total_elements")} />
+      </div>
+    </div>
+  );
+}
+
+function RelPieChart({ relationships }: { relationships: RelationshipOut[] }) {
+  const { t } = useT();
+
+  const typeCounts = relationships.reduce<Record<string, number>>((acc, r) => {
+    acc[r.type] = (acc[r.type] || 0) + 1;
+    return acc;
+  }, {});
+
+  const total = relationships.length;
+  const sorted = Object.entries(typeCounts).sort(([, a], [, b]) => b - a);
+  const top = sorted.slice(0, TOP_N);
+  const restCount = sorted.slice(TOP_N).reduce((s, [, c]) => s + c, 0);
+
+  const data: SliceData[] = top.map(([type, count]) => ({
+    label: type,
+    count,
+    color: RELATIONSHIP_COLORS[type] ?? "#94a3b8",
+  }));
+  if (restCount > 0) {
+    data.push({ label: t("overview.other"), count: restCount, color: "#94a3b8" });
+  }
+
+  return (
+    <div>
+      <div className="text-[11px] font-bold tracking-[0.6px] uppercase text-muted-foreground mb-3">
+        {t("overview.relationships_by_type")}
+      </div>
+      <div className="bg-card border border-border rounded-lg p-5">
+        <DonutChart data={data} total={total} centerLabel={t("overview.relationships")} />
       </div>
     </div>
   );

@@ -456,6 +456,17 @@ export const updateProvider = (id: string, body: OAuthProviderUpdateIn) =>
   put<OAuthProviderOut>(`/settings/providers/${encodeURIComponent(id)}`, body);
 export const deleteProvider = (id: string) => del(`/settings/providers/${encodeURIComponent(id)}`);
 
+// --- Redis ---
+
+export interface RedisStatus {
+  connected: boolean;
+  url_configured: boolean;
+  host: string | null;
+  port: number | null;
+}
+
+export const fetchRedisStatus = () => get<RedisStatus>("/settings/redis");
+
 // --- Workspaces ---
 
 export const fetchWorkspaces = () => get<WorkspaceInfo[]>("/workspaces");

@@ -243,5 +243,8 @@
   "layer.Motivation": "Motivation",
   "layer.Physical": "Physisch",
   "layer.Implementation": "Implementierung",
-  "layer.Composite": "Komposit"
+  "layer.Composite": "Komposit",
+  "overview.elements_by_type": "Elemente nach Typ",
+  "overview.relationships_by_type": "Beziehungen nach Typ",
+  "overview.other": "Andere"
 }

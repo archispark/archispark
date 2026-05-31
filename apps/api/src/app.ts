@@ -1007,6 +1007,35 @@ app.delete("/settings/providers/:id", requireAdmin as express.RequestHandler, as
 });
 
 // ---------------------------------------------------------------------------
+// Redis status (admin only — read-only, config via REDIS_URL env var)
+// ---------------------------------------------------------------------------
+
+app.get("/settings/redis", requireAdmin as express.RequestHandler, async (_req: Request, res: Response) => {
+  const redis = getRedis();
+  const url = process.env["REDIS_URL"] ?? null;
+
+  if (!redis || !url) {
+    res.json({ connected: false, url_configured: false, host: null, port: null });
+    return;
+  }
+
+  let host: string | null = null;
+  let port: number | null = null;
+  try {
+    const parsed = new URL(url);
+    host = parsed.hostname;
+    port = parsed.port ? parseInt(parsed.port, 10) : 6379;
+  } catch { /* malformed URL */ }
+
+  try {
+    await redis.ping();
+    res.json({ connected: true, url_configured: true, host, port });
+  } catch {
+    res.json({ connected: false, url_configured: true, host, port });
+  }
+});
+
+// ---------------------------------------------------------------------------
 // Workspace routes
 // ---------------------------------------------------------------------------
 
