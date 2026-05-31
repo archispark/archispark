@@ -1,4 +1,5 @@
 "use client";
+import { useT } from "@/lib/i18n";
 
 import { useEffect, useMemo, useState, useCallback } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -61,12 +62,13 @@ import { useDropzone } from "react-dropzone";
 type Tab = "members" | "roles" | "general" | "import-export" | "authentication";
 
 export default function SettingsPage() {
+  const { t } = useT();
   const [tab, setTab] = useState<Tab>("general");
 
   return (
     <div className="p-7 space-y-5">
       <div>
-        <h1 className="text-lg font-semibold">Paramètres</h1>
+        <h1 className="text-lg font-semibold">{t("settings.title")}</h1>
         <p className="text-muted-foreground text-[13px] mt-0.5">
           Gestion des membres et du workspace.
         </p>
@@ -83,7 +85,7 @@ export default function SettingsPage() {
           }`}
         >
           <SettingsIcon className="size-3.5" />
-          Général
+          {t("settings.tab_general")}
         </button>
         <button
           type="button"
@@ -95,7 +97,7 @@ export default function SettingsPage() {
           }`}
         >
           <UsersIcon className="size-3.5" />
-          Membres
+          {t("settings.tab_members")}
         </button>
         <button
           type="button"
@@ -107,7 +109,7 @@ export default function SettingsPage() {
           }`}
         >
           <Shield className="size-3.5" />
-          Rôles
+          {t("settings.tab_roles")}
         </button>
         <button
           type="button"
@@ -119,7 +121,7 @@ export default function SettingsPage() {
           }`}
         >
           <Upload className="size-3.5" />
-          Import / Export
+          {t("settings.tab_import_export")}
         </button>
         <button
           type="button"
@@ -131,7 +133,7 @@ export default function SettingsPage() {
           }`}
         >
           <KeyRound className="size-3.5" />
-          Authentification
+          {t("settings.tab_authentication")}
         </button>
       </div>
 
@@ -145,6 +147,7 @@ export default function SettingsPage() {
 }
 
 function MembersTab() {
+  const { t } = useT();
   const [users, setUsers] = useState<UserOut[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -276,7 +279,7 @@ function MembersTab() {
     },
     {
       id: "roles",
-      header: "Rôles",
+      header: t("settings.tab_roles"),
       accessorFn: (row) => userRolesMap.get(row.id)?.join(", ") ?? "—",
       cell: ({ row }) => {
         const names = userRolesMap.get(row.original.id) ?? [];
@@ -306,9 +309,9 @@ function MembersTab() {
       cell: ({ row }) => (
         <div className="flex items-center gap-1 justify-end">
           <Button variant="ghost" size="sm" onClick={() => openRoles(row.original)}>
-            Rôles
+            {t("settings.tab_roles")}
           </Button>
-          <Button variant="ghost" size="icon-xs" onClick={() => openDelete(row.original)} aria-label="Supprimer">
+          <Button variant="ghost" size="icon-xs" onClick={() => openDelete(row.original)} aria-label={t("common.delete")}>
             <Trash2 className="size-3.5 text-destructive" />
           </Button>
         </div>
@@ -375,7 +378,7 @@ function MembersTab() {
               <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">{createError}</div>
             )}
             <DialogFooter>
-              <DialogClose render={<Button variant="outline" />}>Annuler</DialogClose>
+              <DialogClose render={<Button variant="outline" />}>{t("common.cancel")}</DialogClose>
               <Button onClick={handleCreate} disabled={creating || !newUsername.trim() || !newPassword}>
                 {creating ? "Création…" : "Créer"}
               </Button>
@@ -398,7 +401,7 @@ function MembersTab() {
             <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">{deleteError}</div>
           )}
           <DialogFooter>
-            <DialogClose render={<Button variant="outline" />}>Annuler</DialogClose>
+            <DialogClose render={<Button variant="outline" />}>{t("common.cancel")}</DialogClose>
             <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
               {deleting ? "Suppression…" : "Supprimer"}
             </Button>
@@ -409,7 +412,7 @@ function MembersTab() {
       <Dialog open={rolesOpen} onOpenChange={setRolesOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Rôles — {rolesTarget?.username}</DialogTitle>
+            <DialogTitle>{t("settings.tab_roles")} — {rolesTarget?.username}</DialogTitle>
             <DialogDescription>Coche les rôles à assigner.</DialogDescription>
           </DialogHeader>
           {rolesLoading ? (
@@ -460,6 +463,7 @@ function emptyLayerPerms(): Record<ArchiLayer, LayerPermissions> {
 }
 
 function RolesTab() {
+  const { t } = useT();
   const [roles, setRoles] = useState<RoleOut[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -588,7 +592,7 @@ function RolesTab() {
     },
     {
       id: "users",
-      header: "Membres",
+      header: t("settings.tab_members"),
       accessorFn: (r) => r.user_ids.length,
       cell: ({ row }) => (
         <span className="text-[12px] text-muted-foreground">{row.original.user_ids.length}</span>
@@ -605,7 +609,7 @@ function RolesTab() {
           ) : (
             <>
               <Button variant="ghost" size="sm" onClick={() => openEdit(row.original)}>Modifier</Button>
-              <Button variant="ghost" size="icon-xs" onClick={() => openDelete(row.original)} aria-label="Supprimer">
+              <Button variant="ghost" size="icon-xs" onClick={() => openDelete(row.original)} aria-label={t("common.delete")}>
                 <Trash2 className="size-3.5 text-destructive" />
               </Button>
             </>
@@ -707,7 +711,7 @@ function RolesTab() {
               <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">{createError}</div>
             )}
             <DialogFooter>
-              <DialogClose render={<Button variant="outline" />}>Annuler</DialogClose>
+              <DialogClose render={<Button variant="outline" />}>{t("common.cancel")}</DialogClose>
               <Button onClick={handleCreate} disabled={creating || !newName.trim()}>
                 {creating ? "Création…" : "Créer"}
               </Button>
@@ -741,7 +745,7 @@ function RolesTab() {
             <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">{editError}</div>
           )}
           <DialogFooter>
-            <DialogClose render={<Button variant="outline" />}>Annuler</DialogClose>
+            <DialogClose render={<Button variant="outline" />}>{t("common.cancel")}</DialogClose>
             <Button onClick={handleEdit} disabled={saving || !editName.trim()}>
               {saving ? "Enregistrement…" : "Enregistrer"}
             </Button>
@@ -761,7 +765,7 @@ function RolesTab() {
             <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">{deleteError}</div>
           )}
           <DialogFooter>
-            <DialogClose render={<Button variant="outline" />}>Annuler</DialogClose>
+            <DialogClose render={<Button variant="outline" />}>{t("common.cancel")}</DialogClose>
             <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
               {deleting ? "Suppression…" : "Supprimer"}
             </Button>
@@ -773,6 +777,7 @@ function RolesTab() {
 }
 
 function ImportExportTab() {
+  const { t } = useT();
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
   const [importSuccess, setImportSuccess] = useState<string | null>(null);
@@ -867,6 +872,7 @@ function ImportExportTab() {
 }
 
 function GeneralTab() {
+  const { t } = useT();
   const router = useRouter();
   const [workspaces, setWorkspaces] = useState<WorkspaceInfo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -996,7 +1002,7 @@ function GeneralTab() {
               </DialogDescription>
             </DialogHeader>
             <DialogFooter>
-              <DialogClose render={<Button variant="outline" />}>Annuler</DialogClose>
+              <DialogClose render={<Button variant="outline" />}>{t("common.cancel")}</DialogClose>
               <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
                 {deleting ? "Suppression…" : "Supprimer"}
               </Button>
@@ -1080,6 +1086,7 @@ function ProviderFormFields({
 }
 
 function AuthenticationTab() {
+  const { t } = useT();
   const [providers, setProviders] = useState<OAuthProviderOut[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -1210,8 +1217,8 @@ function AuthenticationTab() {
                 <Select value={createType} onValueChange={(v) => setCreateType(v as OAuthProviderType)}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {(Object.keys(PROVIDER_TYPE_LABELS) as OAuthProviderType[]).map((t) => (
-                      <SelectItem key={t} value={t}>{PROVIDER_TYPE_LABELS[t]}</SelectItem>
+                    {(Object.keys(PROVIDER_TYPE_LABELS) as OAuthProviderType[]).map((pt) => (
+                      <SelectItem key={pt} value={pt}>{PROVIDER_TYPE_LABELS[t]}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -1228,7 +1235,7 @@ function AuthenticationTab() {
             </div>
             {createError && <p className="text-sm text-destructive">{createError}</p>}
             <DialogFooter>
-              <DialogClose render={<Button variant="outline" />}>Annuler</DialogClose>
+              <DialogClose render={<Button variant="outline" />}>{t("common.cancel")}</DialogClose>
               <Button
                 onClick={handleCreate}
                 disabled={creating || !createName.trim() || !createClientId.trim() || !createSecret.trim()}
@@ -1288,12 +1295,12 @@ function AuthenticationTab() {
                     </div>
                     {editError && <p className="text-sm text-destructive">{editError}</p>}
                     <DialogFooter>
-                      <DialogClose render={<Button variant="outline" />}>Annuler</DialogClose>
+                      <DialogClose render={<Button variant="outline" />}>{t("common.cancel")}</DialogClose>
                       <Button
                         onClick={handleEdit}
                         disabled={editing || !editName.trim() || !editClientId.trim()}
                       >
-                        {editing ? "Enregistrement…" : "Enregistrer"}
+                        {editing ? t("common.saving") : t("common.save")}
                       </Button>
                     </DialogFooter>
                   </DialogContent>
@@ -1310,7 +1317,7 @@ function AuthenticationTab() {
                       </DialogDescription>
                     </DialogHeader>
                     <DialogFooter>
-                      <DialogClose render={<Button variant="outline" />}>Annuler</DialogClose>
+                      <DialogClose render={<Button variant="outline" />}>{t("common.cancel")}</DialogClose>
                       <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
                         {deleting ? "Suppression…" : "Supprimer"}
                       </Button>

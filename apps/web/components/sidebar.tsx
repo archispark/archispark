@@ -7,6 +7,7 @@ import { LayoutDashboard, LayoutGrid, Tag, Users, Settings as SettingsIcon, GitB
 import { fetchModel, fetchElements, type ModelInfo } from "@/lib/api";
 import { useIsAdmin } from "@/hooks/use-current-user";
 import { getLayer, LAYER_HEX_COLORS, LAYER_LABELS } from "@/lib/archimate-helpers";
+import { useT } from "@/lib/i18n";
 
 interface LayerGroup {
   key: string;
@@ -31,6 +32,7 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
 function SidebarInner({ open, onClose }: { open: boolean; onClose: () => void }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const { t } = useT();
   const [model, setModel] = useState<ModelInfo | null>(null);
   const [layerCounts, setLayerCounts] = useState<Record<string, number>>({});
   const isAdmin = useIsAdmin();
@@ -72,7 +74,7 @@ function SidebarInner({ open, onClose }: { open: boolean; onClose: () => void })
               {model.name}
             </div>
             <div className="text-[11px] text-muted-foreground">
-              {model.element_count} éléments · {model.relationship_count} relations · {model.view_count} vues
+              {t("sidebar.model_summary", { n: model.element_count, r: model.relationship_count, v: model.view_count })}
             </div>
           </div>
         )}
@@ -89,7 +91,7 @@ function SidebarInner({ open, onClose }: { open: boolean; onClose: () => void })
             }`}
           >
             <LayoutDashboard className="size-4 shrink-0" />
-            Vue d&apos;ensemble
+            {t("sidebar.overview")}
           </Link>
 
           {/* Separator */}
@@ -98,7 +100,7 @@ function SidebarInner({ open, onClose }: { open: boolean; onClose: () => void })
           {/* Landscape views */}
           <div className="px-2 pt-2 pb-1">
             <div className="text-[10px] font-bold tracking-[0.8px] uppercase text-muted-foreground px-2 mb-1">
-              Paysages
+              {t("sidebar.landscapes")}
             </div>
             <Link
               href="/capabilities"
@@ -110,7 +112,7 @@ function SidebarInner({ open, onClose }: { open: boolean; onClose: () => void })
               }`}
             >
               <span className="size-1.5 rounded-full shrink-0" style={{ background: "#2563eb" }} />
-              App par Capability
+              {t("sidebar.capabilities")}
             </Link>
             <Link
               href="/strategy"
@@ -122,7 +124,7 @@ function SidebarInner({ open, onClose }: { open: boolean; onClose: () => void })
               }`}
             >
               <span className="size-1.5 rounded-full shrink-0" style={{ background: "#dc2626" }} />
-              Stratégie par Capability
+              {t("sidebar.strategy")}
             </Link>
             <Link
               href="/composition"
@@ -134,7 +136,7 @@ function SidebarInner({ open, onClose }: { open: boolean; onClose: () => void })
               }`}
             >
               <span className="size-1.5 rounded-full shrink-0" style={{ background: "#64748b" }} />
-              Composition
+              {t("sidebar.composition")}
             </Link>
           </div>
 
@@ -144,7 +146,7 @@ function SidebarInner({ open, onClose }: { open: boolean; onClose: () => void })
           {/* Layer sections */}
           <div className="px-2 pt-2 pb-1">
             <div className="text-[10px] font-bold tracking-[0.8px] uppercase text-muted-foreground px-2 mb-1">
-              Éléments
+              {t("sidebar.elements")}
             </div>
             {visibleLayers.map((group) => {
               const active = pathname === "/elements" && currentLayer === group.key;
@@ -164,7 +166,7 @@ function SidebarInner({ open, onClose }: { open: boolean; onClose: () => void })
                       className="size-1.5 rounded-full shrink-0"
                       style={{ background: group.dot }}
                     />
-                    {group.label}
+                    {t(`layer.${group.key}` as Parameters<typeof t>[0]) || group.label}
                   </span>
                   <span className="text-[11px] text-muted-foreground">
                     {layerCounts[group.key] || 0}
@@ -180,7 +182,7 @@ function SidebarInner({ open, onClose }: { open: boolean; onClose: () => void })
           {/* Relations group */}
           <div className="px-2 pt-2 pb-1">
             <div className="text-[10px] font-bold tracking-[0.8px] uppercase text-muted-foreground px-2 mb-1">
-              Relations
+              {t("sidebar.relationships")}
             </div>
             <Link
               href="/relationships"
@@ -193,7 +195,7 @@ function SidebarInner({ open, onClose }: { open: boolean; onClose: () => void })
             >
               <span className="flex items-center gap-2">
                 <GitBranch className="size-3.5 shrink-0" />
-                Liste
+                {t("sidebar.list")}
               </span>
               {model && (
                 <span className="text-[11px] text-muted-foreground">{model.relationship_count}</span>
@@ -207,7 +209,7 @@ function SidebarInner({ open, onClose }: { open: boolean; onClose: () => void })
           {/* Vues group */}
           <div className="px-2 pt-2 pb-1">
             <div className="text-[10px] font-bold tracking-[0.8px] uppercase text-muted-foreground px-2 mb-1">
-              Vues
+              {t("sidebar.views")}
             </div>
             <Link
               href="/views"
@@ -220,7 +222,7 @@ function SidebarInner({ open, onClose }: { open: boolean; onClose: () => void })
             >
               <span className="flex items-center gap-2">
                 <LayoutGrid className="size-3.5 shrink-0" />
-                Liste
+                {t("sidebar.list")}
               </span>
               {model && (
                 <span className="text-[11px] text-muted-foreground">{model.view_count}</span>
@@ -234,7 +236,7 @@ function SidebarInner({ open, onClose }: { open: boolean; onClose: () => void })
           {/* Propriétés group */}
           <div className="px-2 pt-2 pb-1">
             <div className="text-[10px] font-bold tracking-[0.8px] uppercase text-muted-foreground px-2 mb-1">
-              Propriétés
+              {t("sidebar.properties")}
             </div>
             <Link
               href="/properties"
@@ -247,7 +249,7 @@ function SidebarInner({ open, onClose }: { open: boolean; onClose: () => void })
             >
               <span className="flex items-center gap-2">
                 <Tag className="size-3.5 shrink-0" />
-                Liste
+                {t("sidebar.list")}
               </span>
               {model && (
                 <span className="text-[11px] text-muted-foreground">{model.property_definition_count}</span>
@@ -270,7 +272,7 @@ function SidebarInner({ open, onClose }: { open: boolean; onClose: () => void })
               }`}
             >
               <SettingsIcon className="size-4 shrink-0" />
-              Settings
+              {t("sidebar.settings")}
             </Link>
           </div>
         )}

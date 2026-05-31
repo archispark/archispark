@@ -1,4 +1,5 @@
 "use client";
+import { useT } from "@/lib/i18n";
 
 import { useEffect, useState, useMemo } from "react";
 import {
@@ -126,6 +127,7 @@ function TreeNodeRow({
 }
 
 export default function CompositionPage() {
+  const { t } = useT();
   const [elements, setElements] = useState<ElementOut[]>([]);
   const [relationships, setRelationships] = useState<RelationshipOut[]>([]);
   const [loading, setLoading] = useState(true);
@@ -177,7 +179,7 @@ export default function CompositionPage() {
     return (
       <div className="flex items-center gap-2 text-muted-foreground p-8">
         <div className="size-4 rounded-full border-2 border-border border-t-primary animate-spin shrink-0" />
-        Chargement…
+        {t("landscape.loading")}
       </div>
     );
   }
@@ -186,7 +188,7 @@ export default function CompositionPage() {
     return (
       <div className="p-7">
         <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">
-          Erreur : {error}
+          {t("landscape.error")} : {error}
         </div>
       </div>
     );
@@ -220,7 +222,7 @@ export default function CompositionPage() {
       {tree.length === 0 ? (
         <div className="text-center py-16 text-muted-foreground">
           <div className="text-[40px] mb-3.5">🔗</div>
-          <p className="text-sm">Aucune relation de Composition trouvée dans le modèle.</p>
+          <p className="text-sm">{t("landscape.no_composition")}</p>
         </div>
       ) : (
         <div className="border border-border rounded-xl bg-card overflow-hidden">

@@ -21,10 +21,12 @@ import {
 } from "@workspace/ui/components/dialog";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import { useIsAdmin } from "@/hooks/use-current-user";
+import { useT } from "@/lib/i18n";
 import type { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/components/data-table";
 
 export default function ViewsPage() {
+  const { t } = useT();
   const isAdmin = useIsAdmin();
   const { data: viewpoints = [] } = useViewpoints();
   const [views, setViews] = useState<ViewOut[]>([]);
@@ -93,13 +95,13 @@ export default function ViewsPage() {
   const viewColumns: ColumnDef<ViewOut>[] = useMemo(() => [
     {
       accessorKey: "name",
-      header: "Nom",
+      header: t("common.name"),
       cell: ({ row }) => (
         <Link
           href={`/views/${encodeURIComponent(row.original.identifier)}`}
           className="font-medium text-foreground hover:text-primary no-underline"
         >
-          {row.original.name || "Sans nom"}
+          {row.original.name || t("views.unnamed")}
         </Link>
       ),
     },
@@ -112,14 +114,14 @@ export default function ViewsPage() {
     },
     {
       accessorKey: "node_count",
-      header: "Nœuds",
+      header: t("views.nodes"),
       cell: ({ row }) => (
         <span className="text-[13px] text-muted-foreground">{row.original.node_count}</span>
       ),
     },
     {
       accessorKey: "connection_count",
-      header: "Connexions",
+      header: t("views.connections"),
       cell: ({ row }) => (
         <span className="text-[13px] text-muted-foreground">{row.original.connection_count}</span>
       ),
@@ -131,10 +133,10 @@ export default function ViewsPage() {
       cell: ({ row }) =>
         isAdmin ? (
           <div className="flex items-center gap-1 justify-end">
-            <Button variant="ghost" size="icon-xs" onClick={(e) => openEdit(row.original, e)} aria-label="Modifier">
+            <Button variant="ghost" size="icon-xs" onClick={(e) => openEdit(row.original, e)} aria-label={t("common.edit")}>
               <Pencil className="size-3.5" />
             </Button>
-            <Button variant="ghost" size="icon-xs" onClick={(e) => openDelete(row.original, e)} aria-label="Supprimer">
+            <Button variant="ghost" size="icon-xs" onClick={(e) => openDelete(row.original, e)} aria-label={t("common.delete")}>
               <Trash2 className="size-3.5 text-destructive" />
             </Button>
           </div>
@@ -146,7 +148,7 @@ export default function ViewsPage() {
     return (
       <div className="flex items-center gap-2 text-muted-foreground p-8">
         <div className="size-4 rounded-full border-2 border-border border-t-primary animate-spin shrink-0" />
-        Chargement…
+        {t("common.loading")}
       </div>
     );
   }
@@ -154,7 +156,7 @@ export default function ViewsPage() {
   if (error) {
     return (
       <div className="p-7">
-        <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">Erreur : {error}</div>
+        <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">{t("common.error")} : {error}</div>
       </div>
     );
   }
@@ -164,9 +166,9 @@ export default function ViewsPage() {
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-lg font-semibold">Vues</h1>
+          <h1 className="text-lg font-semibold">{t("views.title")}</h1>
           <p className="text-muted-foreground text-[13px] mt-0.5">
-            {views.length} diagramme{views.length !== 1 ? "s" : ""}
+            {t("views.count", { n: views.length, s: views.length !== 1 ? "s" : "" })}
           </p>
         </div>
         {isAdmin && (
@@ -176,33 +178,33 @@ export default function ViewsPage() {
             </DialogTrigger>
             <DialogContent className="sm:max-w-md">
               <DialogHeader>
-                <DialogTitle>Nouvelle vue</DialogTitle>
-                <DialogDescription>Créer une nouvelle vue dans le modèle.</DialogDescription>
+                <DialogTitle>{t("views.new_btn")}</DialogTitle>
+                <DialogDescription>{t("views.new_desc")}</DialogDescription>
               </DialogHeader>
               <div className="flex flex-col gap-4 py-2">
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="view-name">Nom *</Label>
-                  <Input id="view-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Ma vue" onKeyDown={(e) => e.key === "Enter" && handleCreate()} />
+                  <Input id="view-name" value={name} onChange={(e) => setName(e.target.value)} placeholder={t("views.unnamed")} onKeyDown={(e) => e.key === "Enter" && handleCreate()} />
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <Label>Viewpoint</Label>
+                  <Label>{t("views.viewpoint")}</Label>
                   <Select value={viewpoint} onValueChange={(v) => setViewpoint(v ?? "")}>
-                    <SelectTrigger><SelectValue placeholder="Aucun (vue libre)" /></SelectTrigger>
+                    <SelectTrigger><SelectValue placeholder={t("views.no_viewpoint")} /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Aucun</SelectItem>
+                      <SelectItem value="">{t("views.no_viewpoint_short")}</SelectItem>
                       {viewpoints.map((vp) => <SelectItem key={vp} value={vp}>{vp}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="view-doc">Documentation</Label>
-                  <textarea id="view-doc" value={doc} onChange={(e) => setDoc(e.target.value)} placeholder="Description optionnelle" className="bg-background border border-input rounded-md text-foreground text-sm px-3 py-2 outline-none focus:border-ring resize-vertical min-h-[72px]" />
+                  <textarea id="view-doc" value={doc} onChange={(e) => setDoc(e.target.value)} placeholder={t("common.optional_desc")} className="bg-background border border-input rounded-md text-foreground text-sm px-3 py-2 outline-none focus:border-ring resize-vertical min-h-[72px]" />
                 </div>
               </div>
               {createModal.error && <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">{createModal.error}</div>}
               <DialogFooter>
-                <DialogClose render={<Button variant="outline" />}>Annuler</DialogClose>
-                <Button onClick={handleCreate} disabled={createModal.isPending || !name.trim()}>{createModal.isPending ? "Création…" : "Créer"}</Button>
+                <DialogClose render={<Button variant="outline" />}>{t("common.cancel")}</DialogClose>
+                <Button onClick={handleCreate} disabled={createModal.isPending || !name.trim()}>{createModal.isPending ? t("common.creating") : t("common.create")}</Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
@@ -212,27 +214,27 @@ export default function ViewsPage() {
       {views.length === 0 ? (
         <div className="text-center py-16 text-muted-foreground">
           <div className="text-[40px] mb-3.5">📭</div>
-          <p className="text-sm">Aucune vue dans le modèle.</p>
+          <p className="text-sm">{t("views.empty")}</p>
         </div>
       ) : (
-        <DataTable columns={viewColumns} data={views} pageSize={10} searchable searchPlaceholder="Rechercher une vue…" />
+        <DataTable columns={viewColumns} data={views} pageSize={10} searchable searchPlaceholder={t("views.search")} />
       )}
 
       {/* Edit dialog */}
       <Dialog open={editModal.open} onOpenChange={(o) => !o && editActions.close()}>
         <DialogContent className="sm:max-w-md">
-          <DialogHeader><DialogTitle>Modifier la vue</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{t("views.edit_title")}</DialogTitle></DialogHeader>
           <div className="flex flex-col gap-4 py-2">
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="edit-view-name">Nom *</Label>
               <Input id="edit-view-name" value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleEdit()} />
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label>Viewpoint</Label>
+              <Label>{t("views.viewpoint")}</Label>
               <Select value={viewpoint} onValueChange={(v) => setViewpoint(v ?? "")}>
                 <SelectTrigger><SelectValue placeholder="Aucun" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Aucun</SelectItem>
+                  <SelectItem value="">{t("views.no_viewpoint_short")}</SelectItem>
                   {viewpoints.map((vp) => <SelectItem key={vp} value={vp}>{vp}</SelectItem>)}
                 </SelectContent>
               </Select>
@@ -244,8 +246,8 @@ export default function ViewsPage() {
           </div>
           {editModal.error && <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">{editModal.error}</div>}
           <DialogFooter>
-            <DialogClose render={<Button variant="outline" />}>Annuler</DialogClose>
-            <Button onClick={handleEdit} disabled={editModal.isPending || !name.trim()}>{editModal.isPending ? "Enregistrement…" : "Enregistrer"}</Button>
+            <DialogClose render={<Button variant="outline" />}>{t("common.cancel")}</DialogClose>
+            <Button onClick={handleEdit} disabled={editModal.isPending || !name.trim()}>{editModal.isPending ? t("common.saving") : t("common.save")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -254,15 +256,15 @@ export default function ViewsPage() {
       <Dialog open={deleteModal.open} onOpenChange={(o) => !o && deleteActions.close()}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>Supprimer la vue</DialogTitle>
+            <DialogTitle>{t("views.delete_title")}</DialogTitle>
             <DialogDescription>
               Supprimer <strong>{deleteModal.target?.name || "cette vue"}</strong> ? Cette action est irréversible.
             </DialogDescription>
           </DialogHeader>
           {deleteModal.error && <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">{deleteModal.error}</div>}
           <DialogFooter>
-            <DialogClose render={<Button variant="outline" />}>Annuler</DialogClose>
-            <Button variant="destructive" onClick={handleDelete} disabled={deleteModal.isPending}>{deleteModal.isPending ? "Suppression…" : "Supprimer"}</Button>
+            <DialogClose render={<Button variant="outline" />}>{t("common.cancel")}</DialogClose>
+            <Button variant="destructive" onClick={handleDelete} disabled={deleteModal.isPending}>{deleteModal.isPending ? t("common.deleting") : t("common.delete")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

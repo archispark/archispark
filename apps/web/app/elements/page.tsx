@@ -39,6 +39,7 @@ import { PropertiesEditor } from "@/components/properties-editor";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import type { Property } from "@/lib/api";
 import { useIsAdmin } from "@/hooks/use-current-user";
+import { useT } from "@/lib/i18n";
 const LAYER_COLORS = LAYER_BADGE_COLORS;
 
 export default function ElementsPage() {
@@ -50,6 +51,7 @@ export default function ElementsPage() {
 }
 
 function ElementsPageInner() {
+  const { t } = useT();
   const isAdmin = useIsAdmin();
   const searchParams = useSearchParams();
   const layerFilter = searchParams.get("layer");
@@ -87,9 +89,9 @@ function ElementsPageInner() {
 
   const grouped = useMemo(() => {
     const groups: Record<string, string[]> = {};
-    for (const t of types) {
-      const layer = getLayer(t);
-      (groups[layer] ??= []).push(t);
+    for (const typ of types) {
+      const layer = getLayer(typ);
+      (groups[layer] ??= []).push(typ);
     }
     return groups;
   }, [types]);
@@ -142,7 +144,7 @@ function ElementsPageInner() {
   const columns: ColumnDef<ElementOut>[] = useMemo(() => [
     {
       accessorKey: "name",
-      header: "Nom",
+      header: t("common.name"),
       cell: ({ row }) => <span className="font-medium">{row.getValue("name") || "—"}</span>,
     },
     {
@@ -167,7 +169,7 @@ function ElementsPageInner() {
     },
     {
       accessorKey: "documentation",
-      header: "Documentation",
+      header: t("common.documentation"),
       enableSorting: false,
       cell: ({ row }) => (
         <span className="max-w-xs truncate block text-muted-foreground">{row.getValue("documentation") || "—"}</span>
@@ -179,10 +181,10 @@ function ElementsPageInner() {
       enableSorting: false,
       cell: ({ row }: { row: { original: ElementOut } }) => (
         <div className="flex items-center gap-1 justify-end">
-          <Button variant="ghost" size="icon-xs" onClick={() => openEdit(row.original)} aria-label="Modifier">
+          <Button variant="ghost" size="icon-xs" onClick={() => openEdit(row.original)} aria-label={t("common.edit")}>
             <Pencil className="size-3.5" />
           </Button>
-          <Button variant="ghost" size="icon-xs" onClick={() => openDelete(row.original)} aria-label="Supprimer">
+          <Button variant="ghost" size="icon-xs" onClick={() => openDelete(row.original)} aria-label={t("common.delete")}>
             <Trash2 className="size-3.5 text-destructive" />
           </Button>
         </div>
@@ -195,19 +197,21 @@ function ElementsPageInner() {
     return elements.filter((el) => getLayer(el.type) === layerFilter);
   }, [elements, layerFilter]);
 
-  const pageTitle = layerFilter
-    ? `Éléments — ${LAYER_LABELS[layerFilter] || layerFilter}`
-    : "Éléments";
+  const layerLabel = layerFilter
+    ? t(`layer.${layerFilter}` as Parameters<typeof t>[0]) || LAYER_LABELS[layerFilter] || layerFilter
+    : "";
+
+  const pageTitle = layerFilter ? t("elements.title_layer", { layer: layerLabel }) : t("elements.title");
 
   const pageDesc = layerFilter
-    ? `${filteredElements.length} élément${filteredElements.length !== 1 ? "s" : ""} de la couche ${LAYER_LABELS[layerFilter] || layerFilter}`
-    : "Parcourir tous les éléments ArchiMate du modèle";
+    ? t("elements.layer_count", { n: filteredElements.length, s: filteredElements.length !== 1 ? "s" : "", layer: layerLabel })
+    : t("elements.browse_all");
 
   if (error) {
     return (
       <div className="p-7">
         <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">
-          Erreur : {(error as Error).message}
+          {t("common.error")} : {(error as Error).message}
         </div>
       </div>
     );
@@ -226,51 +230,51 @@ function ElementsPageInner() {
           </DialogTrigger>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
-              <DialogTitle>Nouvel élément</DialogTitle>
-              <DialogDescription>Créer un nouvel élément ArchiMate dans le modèle.</DialogDescription>
+              <DialogTitle>{t("elements.new_btn")}</DialogTitle>
+              <DialogDescription>{t("elements.new_desc")}</DialogDescription>
             </DialogHeader>
             <div className="flex flex-col gap-4 py-2">
               <div className="flex flex-col gap-1.5">
-                <Label htmlFor="el-name">Nom *</Label>
-                <Input id="el-name" value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Mon élément" onKeyDown={(e) => e.key === "Enter" && handleCreate()} />
+                <Label htmlFor="el-name">{t("common.name")} *</Label>
+                <Input id="el-name" value={newName} onChange={(e) => setNewName(e.target.value)} placeholder={t("elements.placeholder")} onKeyDown={(e) => e.key === "Enter" && handleCreate()} />
               </div>
               <div className="flex flex-col gap-1.5">
-                <Label>Type *</Label>
+                <Label>{t("common.type")} *</Label>
                 <Select value={newType} onValueChange={(v) => setNewType(v ?? "")}>
-                  <SelectTrigger><SelectValue placeholder="Choisir un type" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder={t("elements.choose_type")} /></SelectTrigger>
                   <SelectContent>
-                    {Object.values(grouped).flat().map((t) => (
-                      <SelectItem key={t} value={t}>{t}</SelectItem>
+                    {Object.values(grouped).flat().map((typ) => (
+                      <SelectItem key={typ} value={typ}>{typ}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
               <div className="flex flex-col gap-1.5">
-                <Label htmlFor="el-doc">Documentation</Label>
-                <textarea id="el-doc" value={newDoc} onChange={(e) => setNewDoc(e.target.value)} placeholder="Description optionnelle" className="bg-background border border-input rounded-md text-foreground text-sm px-3 py-2 outline-none focus:border-ring resize-vertical min-h-[72px]" />
+                <Label htmlFor="el-doc">{t("common.documentation")}</Label>
+                <textarea id="el-doc" value={newDoc} onChange={(e) => setNewDoc(e.target.value)} placeholder={t("common.optional_desc")} className="bg-background border border-input rounded-md text-foreground text-sm px-3 py-2 outline-none focus:border-ring resize-vertical min-h-[72px]" />
               </div>
               <div className="flex flex-col gap-1.5">
-                <Label>Propriétés</Label>
+                <Label>{t("common.properties")}</Label>
                 <PropertiesEditor value={newProps} onChange={setNewProps} />
               </div>
             </div>
             {createMutation.error && <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">{(createMutation.error as Error).message}</div>}
             <DialogFooter>
-              <DialogClose render={<Button variant="outline" />}>Annuler</DialogClose>
-              <Button onClick={handleCreate} disabled={createMutation.isPending || !newName.trim() || !newType}>{createMutation.isPending ? "Création…" : "Créer"}</Button>
+              <DialogClose render={<Button variant="outline" />}>{t("common.cancel")}</DialogClose>
+              <Button onClick={handleCreate} disabled={createMutation.isPending || !newName.trim() || !newType}>{createMutation.isPending ? t("common.creating") : t("common.create")}</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>}
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
-        <Input placeholder="Rechercher par nom..." className="max-w-xs" value={search} onChange={(e) => setSearch(e.target.value)} />
+        <Input placeholder={t("common.search_by_name")} className="max-w-xs" value={search} onChange={(e) => setSearch(e.target.value)} />
         <Select value={typeFilter ?? ""} onValueChange={(val) => setTypeFilter(val || null)}>
           <SelectTrigger className="min-w-[180px]"><SelectValue placeholder="Tous les types" /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="">Tous les types</SelectItem>
-            {(layerFilter ? (grouped[layerFilter] ?? []) : Object.values(grouped).flat()).map((t) => (
-              <SelectItem key={t} value={t}>{t}</SelectItem>
+            <SelectItem value="">{t("common.all_types")}</SelectItem>
+            {(layerFilter ? (grouped[layerFilter] ?? []) : Object.values(grouped).flat()).map((typ) => (
+                      <SelectItem key={typ} value={typ}>{typ}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -282,37 +286,37 @@ function ElementsPageInner() {
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Modifier l&apos;élément</DialogTitle>
+            <DialogTitle>{t("elements.edit_title")}</DialogTitle>
           </DialogHeader>
           <div className="flex flex-col gap-4 py-2">
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="edit-name">Nom *</Label>
+              <Label htmlFor="edit-name">{t("common.name")} *</Label>
               <Input id="edit-name" value={editName} onChange={(e) => setEditName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleEdit()} />
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label>Type *</Label>
+              <Label>{t("common.type")} *</Label>
               <Select value={editType} onValueChange={(v) => setEditType(v ?? "")}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {Object.values(grouped).flat().map((t) => (
-                    <SelectItem key={t} value={t}>{t}</SelectItem>
+                  {Object.values(grouped).flat().map((typ) => (
+                      <SelectItem key={typ} value={typ}>{typ}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="edit-doc">Documentation</Label>
+              <Label htmlFor="edit-doc">{t("common.documentation")}</Label>
               <textarea id="edit-doc" value={editDoc} onChange={(e) => setEditDoc(e.target.value)} className="bg-background border border-input rounded-md text-foreground text-sm px-3 py-2 outline-none focus:border-ring resize-vertical min-h-[72px]" />
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label>Propriétés</Label>
+              <Label>{t("common.properties")}</Label>
               <PropertiesEditor value={editProps} onChange={setEditProps} />
             </div>
           </div>
           {updateMutation.error && <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">{(updateMutation.error as Error).message}</div>}
           <DialogFooter>
-            <DialogClose render={<Button variant="outline" />}>Annuler</DialogClose>
-            <Button onClick={handleEdit} disabled={updateMutation.isPending || !editName.trim() || !editType}>{updateMutation.isPending ? "Enregistrement…" : "Enregistrer"}</Button>
+            <DialogClose render={<Button variant="outline" />}>{t("common.cancel")}</DialogClose>
+            <Button onClick={handleEdit} disabled={updateMutation.isPending || !editName.trim() || !editType}>{updateMutation.isPending ? t("common.saving") : t("common.save")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -321,15 +325,15 @@ function ElementsPageInner() {
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>Supprimer l&apos;élément</DialogTitle>
+            <DialogTitle>{t("elements.delete_title")}</DialogTitle>
             <DialogDescription>
-              Supprimer <strong>{deleteTarget?.name || "cet élément"}</strong> ? Les relations associées seront aussi supprimées. Cette action est irréversible.
+              {t("elements.delete_desc", { name: deleteTarget?.name || "?" })}
             </DialogDescription>
           </DialogHeader>
           {deleteMutation.error && <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">{(deleteMutation.error as Error).message}</div>}
           <DialogFooter>
-            <DialogClose render={<Button variant="outline" />}>Annuler</DialogClose>
-            <Button variant="destructive" onClick={handleDelete} disabled={deleteMutation.isPending}>{deleteMutation.isPending ? "Suppression…" : "Supprimer"}</Button>
+            <DialogClose render={<Button variant="outline" />}>{t("common.cancel")}</DialogClose>
+            <Button variant="destructive" onClick={handleDelete} disabled={deleteMutation.isPending}>{deleteMutation.isPending ? t("common.deleting") : t("common.delete")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

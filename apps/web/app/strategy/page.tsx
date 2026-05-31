@@ -1,4 +1,5 @@
 "use client";
+import { useT } from "@/lib/i18n";
 
 import { useEffect, useState, useMemo } from "react";
 import {
@@ -200,6 +201,7 @@ function getColors(type: string) {
 }
 
 export default function StrategyPage() {
+  const { t } = useT();
   const [elements, setElements] = useState<ElementOut[]>([]);
   const [relationships, setRelationships] = useState<RelationshipOut[]>([]);
   const [loading, setLoading] = useState(true);
@@ -247,7 +249,7 @@ export default function StrategyPage() {
     return (
       <div className="flex items-center gap-2 text-muted-foreground p-8">
         <div className="size-4 rounded-full border-2 border-border border-t-primary animate-spin shrink-0" />
-        Chargement…
+        {t("landscape.loading")}
       </div>
     );
   }
@@ -256,7 +258,7 @@ export default function StrategyPage() {
     return (
       <div className="p-7">
         <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">
-          Erreur : {error}
+          {t("landscape.error")} : {error}
         </div>
       </div>
     );
@@ -274,7 +276,7 @@ export default function StrategyPage() {
       {landscape.length === 0 ? (
         <div className="text-center py-16 text-muted-foreground">
           <div className="text-[40px] mb-3.5">🎯</div>
-          <p className="text-sm">Aucune Capability trouvée dans le modèle.</p>
+          <p className="text-sm">{t("landscape.no_capability")}</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -350,7 +352,7 @@ export default function StrategyPage() {
 
                     {/* Direct other linked elements */}
                     {cap.otherElements.length > 0 && (
-                      <Section label="Éléments liés">
+                      <Section label={t("landscape.related")}>
                         {cap.otherElements.map((el) => (
                           <Pill key={el.identifier} el={el} />
                         ))}
@@ -394,7 +396,7 @@ export default function StrategyPage() {
                               )}
                               {sub.otherElements.length > 0 && (
                                 <div>
-                                  <div className="text-[10px] font-bold tracking-[0.6px] uppercase text-muted-foreground mb-1.5">Éléments liés</div>
+                                  <div className="text-[10px] font-bold tracking-[0.6px] uppercase text-muted-foreground mb-1.5">{t("landscape.related")}</div>
                                   <div className="flex flex-wrap gap-1.5">
                                     {sub.otherElements.map((el) => <Pill key={el.identifier} el={el} />)}
                                   </div>
@@ -403,7 +405,7 @@ export default function StrategyPage() {
                             </div>
                           ) : (
                             <div className="ml-5 text-[11px] text-muted-foreground italic">
-                              Aucun élément stratégique lié
+                              {t("landscape.no_related")}
                             </div>
                           )}
                         </div>
@@ -412,7 +414,7 @@ export default function StrategyPage() {
 
                     {total === 0 && (
                       <div className="px-4 py-4 text-[11px] text-muted-foreground italic">
-                        Aucun élément stratégique lié
+                        {t("landscape.no_related")}
                       </div>
                     )}
                   </div>
@@ -441,7 +443,7 @@ function CourseRow({ course, indent }: { course: CourseGroup; indent?: boolean }
         </div>
       ) : (
         <div className="ml-5 text-[11px] text-muted-foreground italic">
-          Aucun élément lié
+          {t("landscape.no_linked")}
         </div>
       )}
     </div>

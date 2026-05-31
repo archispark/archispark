@@ -24,9 +24,11 @@ import { DataTable } from "@/components/data-table";
 import { PropertiesEditor } from "@/components/properties-editor";
 import { Plus, Pencil, Trash2, ChevronDown, ChevronRight } from "lucide-react";
 import { useIsAdmin } from "@/hooks/use-current-user";
+import { useT } from "@/lib/i18n";
 import { allowedRelationships } from "@/lib/archimate-rules";
 
 export default function RelationshipsPage() {
+  const { t } = useT();
   const isAdmin = useIsAdmin();
   const [search, setSearch] = useState("");
   const [debouncedSearch] = useDebounce(search, 300);
@@ -128,14 +130,14 @@ export default function RelationshipsPage() {
       cell: ({ row }) => (
         <button type="button" onClick={() => row.toggleExpanded()}
           className="text-muted-foreground hover:text-foreground transition-colors"
-          aria-label={row.getIsExpanded() ? "Replier" : "Déplier"}>
+          aria-label={row.getIsExpanded() ? t("common.collapse") : t("common.expand")}>
           {row.getIsExpanded() ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
         </button>
       ),
     },
     {
       id: "status",
-      header: "Statut",
+      header: t("relationships.status"),
       enableSorting: true,
       accessorFn: (rel) => {
         const src = byId.get(rel.source);
@@ -155,17 +157,17 @@ export default function RelationshipsPage() {
     },
     {
       accessorKey: "type",
-      header: "Type",
+      header: t("common.type"),
       cell: ({ row }) => <Badge variant="secondary" className="font-mono text-xs">{row.getValue("type")}</Badge>,
     },
     {
       accessorKey: "name",
-      header: "Nom",
+      header: t("common.name"),
       cell: ({ row }) => <span className="font-medium">{row.getValue("name") || "—"}</span>,
     },
     {
       accessorKey: "source",
-      header: "Source",
+      header: t("common.source"),
       cell: ({ row }) => {
         const el = byId.get(row.getValue("source"));
         return (
@@ -178,7 +180,7 @@ export default function RelationshipsPage() {
     },
     {
       accessorKey: "target",
-      header: "Cible",
+      header: t("common.target"),
       cell: ({ row }) => {
         const el = byId.get(row.getValue("target"));
         return (
@@ -195,10 +197,10 @@ export default function RelationshipsPage() {
       enableSorting: false,
       cell: ({ row }: { row: { original: RelationshipOut } }) => (
         <div className="flex items-center gap-1 justify-end">
-          <Button variant="ghost" size="icon-xs" onClick={() => openEdit(row.original)} aria-label="Modifier">
+          <Button variant="ghost" size="icon-xs" onClick={() => openEdit(row.original)} aria-label={t("common.edit")}>
             <Pencil className="size-3.5" />
           </Button>
-          <Button variant="ghost" size="icon-xs" onClick={() => deleteActions.openWith(row.original)} aria-label="Supprimer">
+          <Button variant="ghost" size="icon-xs" onClick={() => deleteActions.openWith(row.original)} aria-label={t("common.delete")}>
             <Trash2 className="size-3.5 text-destructive" />
           </Button>
         </div>
@@ -210,7 +212,7 @@ export default function RelationshipsPage() {
   if (error) {
     return (
       <div className="p-7">
-        <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">Erreur : {(error as Error).message}</div>
+        <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">{t("common.error")} : {(error as Error).message}</div>
       </div>
     );
   }
@@ -219,9 +221,9 @@ export default function RelationshipsPage() {
     <div className="p-7 space-y-5">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-lg font-semibold">Relations</h1>
+          <h1 className="text-lg font-semibold">{t("relationships.title")}</h1>
           <p className="text-muted-foreground text-[13px] mt-0.5">
-            {relationships.length} relation{relationships.length !== 1 ? "s" : ""}
+            ${relationships.length}
             {" · "}
             <span className="text-emerald-600">{validationStats.ok} OK</span>
             {validationStats.bad > 0 && <span className="text-destructive"> · {validationStats.bad} conflit{validationStats.bad > 1 ? "s" : ""}</span>}
@@ -234,22 +236,22 @@ export default function RelationshipsPage() {
             </DialogTrigger>
             <DialogContent className="sm:max-w-md">
               <DialogHeader>
-                <DialogTitle>Nouvelle relation</DialogTitle>
-                <DialogDescription>Créer une relation entre deux éléments du modèle.</DialogDescription>
+                <DialogTitle>{t("relationships.new_title")}</DialogTitle>
+                <DialogDescription>{t("relationships.new_desc")}</DialogDescription>
               </DialogHeader>
               <div className="flex flex-col gap-4 py-2">
                 <div className="flex flex-col gap-1.5">
                   <Label>Type *</Label>
                   <Select value={type} onValueChange={(v) => setType(v ?? "")}>
-                    <SelectTrigger><SelectValue placeholder="Choisir un type" /></SelectTrigger>
-                    <SelectContent>{types.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+                    <SelectTrigger><SelectValue placeholder={t("elements.choose_type")} /></SelectTrigger>
+                    <SelectContent>{types.map((rtype) => <SelectItem key={rtype} value={rtype}>{rtype}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
                 <div className="flex flex-col gap-1.5"><Label>Source *</Label>{elementSelect(source, setSource, "Élément source")}</div>
                 <div className="flex flex-col gap-1.5"><Label>Cible *</Label>{elementSelect(target, setTarget, "Élément cible")}</div>
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="rel-name">Nom</Label>
-                  <Input id="rel-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Nom optionnel" />
+                  <Input id="rel-name" value={name} onChange={(e) => setName(e.target.value)} placeholder={t("relationships.optional_name")} />
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="rel-doc">Documentation</Label>
@@ -259,8 +261,8 @@ export default function RelationshipsPage() {
               </div>
               {createModal.error && <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">{createModal.error}</div>}
               <DialogFooter>
-                <DialogClose render={<Button variant="outline" />}>Annuler</DialogClose>
-                <Button onClick={handleCreate} disabled={createModal.isPending || !type || !source || !target}>{createModal.isPending ? "Création…" : "Créer"}</Button>
+                <DialogClose render={<Button variant="outline" />}>{t("common.cancel")}</DialogClose>
+                <Button onClick={handleCreate} disabled={createModal.isPending || !type || !source || !target}>{createModal.isPending ? t("common.creating") : t("common.create")}</Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
@@ -268,19 +270,19 @@ export default function RelationshipsPage() {
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
-        <Input placeholder="Rechercher par nom..." className="max-w-xs" value={search} onChange={(e) => setSearch(e.target.value)} />
+        <Input placeholder={t("common.search_by_name")} className="max-w-xs" value={search} onChange={(e) => setSearch(e.target.value)} />
         <Select value={typeFilter ?? ""} onValueChange={(val) => setTypeFilter(val || null)}>
-          <SelectTrigger className="min-w-[180px]"><SelectValue placeholder="Tous les types" /></SelectTrigger>
+          <SelectTrigger className="min-w-[180px]"><SelectValue placeholder={t("common.all_types")} /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="">Tous les types</SelectItem>
-            {types.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+            <SelectItem value="">{t("common.all_types")}</SelectItem>
+            {types.map((rtype) => <SelectItem key={rtype} value={rtype}>{rtype}</SelectItem>)}
           </SelectContent>
         </Select>
         <div className="flex items-center gap-1">
           {(["all", "ok", "conflict"] as const).map((f) => (
             <button key={f} type="button" onClick={() => setStatusFilter(f)}
               className={`text-[12px] px-2.5 py-1 rounded-md border transition-colors ${statusFilter === f ? "bg-primary text-primary-foreground border-primary" : "bg-background text-foreground border-border hover:bg-muted"}`}>
-              {f === "all" ? "Toutes" : f === "ok" ? "OK" : "Conflits"}
+              {f === "all" ? t("common.all") : f === "ok" ? t("common.ok") : t("common.conflicts")}
             </button>
           ))}
         </div>
@@ -314,13 +316,13 @@ export default function RelationshipsPage() {
       {/* Edit dialog */}
       <Dialog open={editModal.open} onOpenChange={(o) => !o && editActions.close()}>
         <DialogContent className="sm:max-w-md">
-          <DialogHeader><DialogTitle>Modifier la relation</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{t("relationships.edit_title")}</DialogTitle></DialogHeader>
           <div className="flex flex-col gap-4 py-2">
             <div className="flex flex-col gap-1.5">
               <Label>Type *</Label>
               <Select value={type} onValueChange={(v) => setType(v ?? "")}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{types.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+                <SelectContent>{types.map((rtype) => <SelectItem key={rtype} value={rtype}>{rtype}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div className="flex flex-col gap-1.5"><Label>Source *</Label>{elementSelect(source, setSource, "Élément source")}</div>
@@ -337,8 +339,8 @@ export default function RelationshipsPage() {
           </div>
           {editModal.error && <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">{editModal.error}</div>}
           <DialogFooter>
-            <DialogClose render={<Button variant="outline" />}>Annuler</DialogClose>
-            <Button onClick={handleEdit} disabled={editModal.isPending || !type || !source || !target}>{editModal.isPending ? "Enregistrement…" : "Enregistrer"}</Button>
+            <DialogClose render={<Button variant="outline" />}>{t("common.cancel")}</DialogClose>
+            <Button onClick={handleEdit} disabled={editModal.isPending || !type || !source || !target}>{editModal.isPending ? t("common.saving") : t("common.save")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -347,15 +349,15 @@ export default function RelationshipsPage() {
       <Dialog open={deleteModal.open} onOpenChange={(o) => !o && deleteActions.close()}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>Supprimer la relation</DialogTitle>
+            <DialogTitle>{t("relationships.delete_title")}</DialogTitle>
             <DialogDescription>
-              Supprimer cette relation {deleteModal.target?.type} ? Cette action est irréversible.
+              {t("relationships.delete_desc", { type: deleteModal.target?.type ?? "" })}
             </DialogDescription>
           </DialogHeader>
           {deleteModal.error && <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">{deleteModal.error}</div>}
           <DialogFooter>
-            <DialogClose render={<Button variant="outline" />}>Annuler</DialogClose>
-            <Button variant="destructive" onClick={handleDelete} disabled={deleteModal.isPending}>{deleteModal.isPending ? "Suppression…" : "Supprimer"}</Button>
+            <DialogClose render={<Button variant="outline" />}>{t("common.cancel")}</DialogClose>
+            <Button variant="destructive" onClick={handleDelete} disabled={deleteModal.isPending}>{deleteModal.isPending ? t("common.deleting") : t("common.delete")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

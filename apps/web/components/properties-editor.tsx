@@ -1,4 +1,5 @@
 "use client";
+import { useT } from "@/lib/i18n";
 
 import { useEffect, useState } from "react";
 import { fetchPropertyDefinitions, type Property, type PropertyDefinitionOut } from "@/lib/api";
@@ -19,6 +20,7 @@ interface Props {
 }
 
 export function PropertiesEditor({ value, onChange }: Props) {
+  const { t } = useT();
   const [definitions, setDefinitions] = useState<PropertyDefinitionOut[]>([]);
   const [addRef, setAddRef] = useState("");
   const [addVal, setAddVal] = useState("");
@@ -66,7 +68,7 @@ export function PropertiesEditor({ value, onChange }: Props) {
                 variant="ghost"
                 size="icon-xs"
                 onClick={() => remove(p.property_definition_ref)}
-                aria-label="Supprimer"
+                aria-label={t("common.delete")}
               >
                 <Trash2 className="size-3 text-destructive" />
               </Button>
@@ -81,7 +83,7 @@ export function PropertiesEditor({ value, onChange }: Props) {
             <SelectTrigger className="h-7 text-[12px] flex-1">
               {addRef
                 ? <span className="flex flex-1 text-left truncate">{definitions.find((d) => d.identifier === addRef)?.name ?? addRef}</span>
-                : <SelectValue placeholder="Propriété…" />
+                : <SelectValue placeholder={t("properties.property_placeholder")} />
               }
             </SelectTrigger>
             <SelectContent>
@@ -95,7 +97,7 @@ export function PropertiesEditor({ value, onChange }: Props) {
           </Select>
           <Input
             className="h-7 text-[12px] flex-1"
-            placeholder="Valeur"
+            placeholder={t("properties.value_placeholder")}
             value={addVal}
             onChange={(e) => setAddVal(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && add()}

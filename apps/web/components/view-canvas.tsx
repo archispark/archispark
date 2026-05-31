@@ -1,4 +1,5 @@
 "use client";
+import { useT } from "@/lib/i18n";
 
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import type React from "react";
@@ -216,6 +217,7 @@ function ArchiEdge({
   selected,
 }: EdgeProps) {
   const viewId = useContext(ViewIdContext);
+  const { t } = useT();
   const { setEdges } = useReactFlow();
   const [path, labelX, labelY] = getSmoothStepPath({
     sourceX,
@@ -243,7 +245,7 @@ function ArchiEdge({
 
   const renameEdge = () => {
     if (!viewId) return;
-    const next = window.prompt("Étiquette de la liaison :", typeof label === "string" ? label : "");
+    const next = window.prompt(t("canvas.edge_label_prompt"), typeof label === "string" ? label : "");
     if (next === null) return;
     updateViewConnection(viewId, id, { name: next || null })
       .then(() => {
@@ -291,7 +293,7 @@ function ArchiEdge({
               <button
                 type="button"
                 onClick={renameEdge}
-                title="Renommer"
+                title={t("canvas.rename")}
                 style={{
                   background: "#fff",
                   border: "1px solid #1A87FF",
@@ -307,8 +309,8 @@ function ArchiEdge({
               <button
                 type="button"
                 onClick={removeEdge}
-                title="Retirer de la vue"
-                aria-label="Retirer de la vue"
+                title={t("canvas.remove_from_view")}
+                aria-label={t("canvas.remove_from_view")}
                 style={{
                   background: "#FF1D5D",
                   border: "1px solid #FF1D5D",
@@ -397,6 +399,7 @@ interface ViewCanvasProps {
 }
 
 function ElementPalette({ elements }: { elements: ElementOut[] }) {
+  const { t } = useT();
   const [query, setQuery] = useState("");
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
@@ -443,7 +446,7 @@ function ElementPalette({ elements }: { elements: ElementOut[] }) {
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Rechercher élément…"
+          placeholder={t("canvas.search_element")}
           style={{
             width: "100%",
             fontSize: 12,
@@ -458,7 +461,7 @@ function ElementPalette({ elements }: { elements: ElementOut[] }) {
           <button
             type="button"
             onClick={expandAll}
-            title="Tout déplier"
+            title={t("canvas.expand_all")}
             style={{
               flex: 1,
               fontSize: 10,
@@ -470,12 +473,12 @@ function ElementPalette({ elements }: { elements: ElementOut[] }) {
               cursor: "pointer",
             }}
           >
-            ▾ Tout déplier
+            ▾ {t("canvas.expand_all")}
           </button>
           <button
             type="button"
             onClick={collapseAll}
-            title="Tout replier"
+            title={t("canvas.collapse_all")}
             style={{
               flex: 1,
               fontSize: 10,
@@ -487,7 +490,7 @@ function ElementPalette({ elements }: { elements: ElementOut[] }) {
               cursor: "pointer",
             }}
           >
-            ▸ Tout replier
+            ▸ {t("canvas.collapse_all")}
           </button>
         </div>
       </div>
@@ -646,6 +649,7 @@ export function ViewCanvas(props: ViewCanvasProps) {
 }
 
 function ViewCanvasInner({ viewId, nodes, connections, elements = [], elementNames = new Map(), elementTypes = new Map(), relationshipTypes = new Map(), relationshipNames = new Map() }: ViewCanvasProps) {
+  const { t } = useT();
   const { screenToFlowPosition } = useReactFlow();
   const initialNodes = useMemo(() => flattenNodes(nodes, elementNames, elementTypes), [nodes, elementNames, elementTypes]);
 
@@ -836,7 +840,7 @@ function ViewCanvasInner({ viewId, nodes, connections, elements = [], elementNam
 
   const onEdgeDoubleClick = (_e: unknown, edge: Edge) => {
     if (!viewId) return;
-    const next = window.prompt("Étiquette de la liaison :", typeof edge.label === "string" ? edge.label : "");
+    const next = window.prompt(t("canvas.edge_label_prompt"), typeof edge.label === "string" ? edge.label : "");
     if (next === null) return;
     updateViewConnection(viewId, edge.id, { name: next || null })
       .then(() => {
@@ -848,7 +852,7 @@ function ViewCanvasInner({ viewId, nodes, connections, elements = [], elementNam
   const onNodeDoubleClick = (_e: unknown, node: Node) => {
     if (!viewId) return;
     const currentLabel = typeof node.data?.label === "string" ? (node.data.label as string) : "";
-    const next = window.prompt("Nom du nœud (override de la vue) :", currentLabel);
+    const next = window.prompt(t("canvas.node_label_prompt"), currentLabel);
     if (next === null) return;
     updateViewNode(viewId, node.id, { name: next || null })
       .then(() => {

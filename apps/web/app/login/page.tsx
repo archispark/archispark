@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { signIn } from "@/lib/auth-client";
 import { Input } from "@workspace/ui/components/input";
+import { useT } from "@/lib/i18n";
 import { Button } from "@workspace/ui/components/button";
 import { Label } from "@workspace/ui/components/label";
 
@@ -13,6 +14,7 @@ interface OAuthProvider {
 }
 
 export default function LoginPage() {
+  const { t } = useT();
   const router = useRouter();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -36,7 +38,7 @@ export default function LoginPage() {
     try {
       const result = await signIn.username({ username, password });
       if (result.error) {
-        setError(result.error.message ?? "Identifiants incorrects.");
+        setError(result.error.message ?? t("login.wrong_credentials"));
         return;
       }
       router.push("/");
@@ -82,12 +84,12 @@ export default function LoginPage() {
         </div>
 
         <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
-          <h1 className="text-base font-semibold mb-1">Connexion</h1>
-          <p className="text-[13px] text-muted-foreground mb-5">Entrez vos identifiants pour accéder au modèle.</p>
+          <h1 className="text-base font-semibold mb-1">{t("login.title")}</h1>
+          <p className="text-[13px] text-muted-foreground mb-5">{t("login.subtitle")}</p>
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="username">Nom d&apos;utilisateur</Label>
+              <Label htmlFor="username">{t("login.username")}</Label>
               <Input
                 id="username"
                 autoFocus
@@ -98,7 +100,7 @@ export default function LoginPage() {
               />
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="password">Mot de passe</Label>
+              <Label htmlFor="password">{t("login.password")}</Label>
               <Input
                 id="password"
                 type="password"
@@ -116,7 +118,7 @@ export default function LoginPage() {
             )}
 
             <Button type="submit" disabled={loading || !username || !password} className="w-full">
-              {loading ? "Connexion…" : "Se connecter"}
+              {loading ? t("login.submitting") : t("login.submit")}
             </Button>
           </form>
 
@@ -137,7 +139,7 @@ export default function LoginPage() {
                     disabled={ssoLoading !== null}
                     onClick={() => handleSso(p.id)}
                   >
-                    {ssoLoading === p.id ? "Redirection…" : `Continuer avec ${p.name}`}
+                    {ssoLoading === p.id ? t("login.redirecting") : t("login.continue_with", { name: p.name })}
                   </Button>
                 ))}
               </div>

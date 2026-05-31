@@ -6,6 +6,7 @@ import { fetchView, fetchElements, fetchRelationships, viewImageUrl, type ViewDe
 import { Button } from "@workspace/ui/components/button";
 import { ViewCanvas } from "@/components/view-canvas";
 import { ValidatorTable } from "@/components/validator-table";
+import { useT } from "@/lib/i18n";
 
 type Tab = "canvas" | "svg" | "png";
 
@@ -47,6 +48,7 @@ function useImageBlob(id: string, format: "svg" | "png" | null) {
 }
 
 export default function ViewDetailPage() {
+  const { t } = useT();
   const params = useParams<{ id: string }>();
   const id = decodeURIComponent(params.id);
   const [view, setView] = useState<ViewDetail | null>(null);
@@ -82,7 +84,7 @@ export default function ViewDetailPage() {
     return (
       <div className="flex items-center gap-2 text-muted-foreground p-8">
         <div className="size-4 rounded-full border-2 border-border border-t-primary animate-spin shrink-0" />
-        Chargement…
+        {t("common.loading")}
       </div>
     );
   }
@@ -91,7 +93,7 @@ export default function ViewDetailPage() {
     return (
       <div className="p-7">
         <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">
-          Erreur : {error}
+          {t("common.error")} : {error}
         </div>
       </div>
     );
@@ -101,12 +103,12 @@ export default function ViewDetailPage() {
     <div className="p-7 space-y-5">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-lg font-semibold">{view?.name || "Sans nom"}</h1>
+          <h1 className="text-lg font-semibold">{view?.name || t("views.unnamed")}</h1>
           {view?.documentation && (
             <p className="text-muted-foreground text-[13px] mt-0.5">{view.documentation}</p>
           )}
           <div className="text-muted-foreground text-[12px] mt-1">
-            {view?.nodes.length ?? 0} nœuds · {view?.connections.length ?? 0} connexions
+            {t("views.nodes_count", { n: view?.nodes.length ?? 0, c: view?.connections.length ?? 0 })}
           </div>
         </div>
         <div className="flex items-center gap-1.5">
@@ -144,7 +146,7 @@ export default function ViewDetailPage() {
           {tab === "svg" || tab === "png" ? (
             imgError ? (
               <div className="p-4 text-sm text-destructive bg-destructive/10 border-t border-destructive/30">
-                Erreur : {imgError}
+                {t("common.error")} : {imgError}
               </div>
             ) : blobUrl ? (
               <div className="overflow-auto p-4">
@@ -158,7 +160,7 @@ export default function ViewDetailPage() {
             ) : (
               <div className="flex items-center gap-2 text-muted-foreground p-8">
                 <div className="size-4 rounded-full border-2 border-border border-t-primary animate-spin shrink-0" />
-                Chargement de l&apos;image…
+                {t("views.loading_image")}
               </div>
             )
           ) : null}
@@ -167,7 +169,7 @@ export default function ViewDetailPage() {
         {view && tab === "canvas" && (
           <div className="border border-border rounded-lg bg-card overflow-hidden">
             <div className="px-4 pt-3 pb-1 text-[12px] font-medium text-muted-foreground uppercase tracking-wide">
-              Validateur des relations de la vue
+              {t("views.validator_section")}
             </div>
             <ValidatorTable
               elements={elementsList}

@@ -13,24 +13,13 @@ import {
   deleteWorkspaceApi,
   type WorkspaceInfo,
 } from "@/lib/api";
-
-const BREADCRUMBS: Record<string, string> = {
-  elements: "Éléments",
-  relationships: "Relations",
-  views: "Vues",
-  validator: "Validateur",
-  capabilities: "App par Capability",
-  strategy: "Stratégie par Capability",
-  composition: "Composition",
-  properties: "Propriétés",
-  users: "Utilisateurs",
-  settings: "Paramètres",
-  login: "Connexion",
-};
+import { useT } from "@/lib/i18n";
+import { LocaleSwitcher } from "@/components/locale-switcher";
 
 export function Nav({ onToggleSidebar }: { onToggleSidebar: () => void }) {
   const pathname = usePathname();
   const router = useRouter();
+  const { t } = useT();
   const { resolvedTheme, setTheme } = useTheme();
   const [themePref, setThemePref] = useState<"light" | "dark" | "auto">("dark");
 
@@ -108,7 +97,7 @@ export function Nav({ onToggleSidebar }: { onToggleSidebar: () => void }) {
 
   async function removeWorkspace(id: string, e: React.MouseEvent) {
     e.stopPropagation();
-    if (!confirm("Supprimer ce workspace ?")) return;
+    if (!confirm(t("common.delete") + " ?")) return;
     try {
       await deleteWorkspaceApi(id);
       setWsError(null);
@@ -179,12 +168,12 @@ export function Nav({ onToggleSidebar }: { onToggleSidebar: () => void }) {
                     className={`flex items-center justify-between px-3 py-2 text-[13px] cursor-pointer hover:bg-muted group ${ws.active ? "text-primary font-medium" : "text-foreground"}`}
                   >
                     <span className="truncate flex-1">{ws.name}</span>
-                    {ws.active && <span className="text-[10px] text-primary ml-2 shrink-0">actif</span>}
+                    {ws.active && <span className="text-[10px] text-primary ml-2 shrink-0">{t("nav.workspace_active")}</span>}
                     {!ws.active && (
                       <button
                         onClick={(e) => removeWorkspace(ws.id, e)}
                         className="opacity-0 group-hover:opacity-100 ml-2 text-muted-foreground hover:text-destructive shrink-0"
-                        title="Supprimer"
+                        title={t("common.delete")}
                       >
                         <Trash2 className="size-3" />
                       </button>
@@ -197,14 +186,14 @@ export function Nav({ onToggleSidebar }: { onToggleSidebar: () => void }) {
                     <div className="px-3 py-2 flex flex-col gap-1.5">
                       <input
                         autoFocus
-                        placeholder="Nom du workspace"
+                        placeholder={t("nav.workspace_name")}
                         value={newWsName}
                         onChange={(e) => setNewWsName(e.target.value)}
                         onKeyDown={(e) => { if (e.key === "Enter") addWorkspace(); if (e.key === "Escape") setShowNewForm(false); }}
                         className="text-[12px] px-2 py-1 border border-border rounded bg-background text-foreground outline-none focus:border-primary"
                       />
                       <input
-                        placeholder="Chemin XML (optionnel)"
+                        placeholder={t("nav.workspace_path")}
                         value={newWsPath}
                         onChange={(e) => setNewWsPath(e.target.value)}
                         onKeyDown={(e) => { if (e.key === "Enter") addWorkspace(); if (e.key === "Escape") setShowNewForm(false); }}
@@ -215,13 +204,13 @@ export function Nav({ onToggleSidebar }: { onToggleSidebar: () => void }) {
                           onClick={addWorkspace}
                           className="flex-1 text-[11px] bg-primary text-primary-foreground rounded px-2 py-1 hover:bg-primary/90"
                         >
-                          Créer
+                          {t("common.create")}
                         </button>
                         <button
                           onClick={() => setShowNewForm(false)}
                           className="flex-1 text-[11px] border border-border rounded px-2 py-1 hover:bg-muted text-foreground"
                         >
-                          Annuler
+                          {t("common.cancel")}
                         </button>
                       </div>
                     </div>
@@ -231,7 +220,7 @@ export function Nav({ onToggleSidebar }: { onToggleSidebar: () => void }) {
                       className="w-full flex items-center gap-2 px-3 py-2 text-[13px] text-muted-foreground hover:text-foreground hover:bg-muted"
                     >
                       <Plus className="size-3.5" />
-                      Nouveau workspace
+                      {t("nav.workspace_new")}
                     </button>
                   )}
                 </div>
@@ -245,15 +234,28 @@ export function Nav({ onToggleSidebar }: { onToggleSidebar: () => void }) {
 
       <div className="flex items-center gap-1.5 text-[13px] text-muted-foreground overflow-hidden">
         {segments.length === 0 ? (
-          <span className="text-muted-foreground">Vue d&apos;ensemble</span>
+          <span className="text-muted-foreground">{t("nav.overview")}</span>
         ) : (
           <>
             <Link href="/" className="text-muted-foreground hover:text-foreground no-underline whitespace-nowrap">
-              Accueil
+              {t("nav.home")}
             </Link>
             {segments.map((seg, i) => {
               const isLast = i === segments.length - 1;
-              const label = BREADCRUMBS[seg] || decodeURIComponent(seg);
+              const bcKeys: Record<string, Parameters<typeof t>[0]> = {
+                elements: "breadcrumb.elements",
+                relationships: "breadcrumb.relationships",
+                views: "breadcrumb.views",
+                validator: "breadcrumb.validator",
+                capabilities: "breadcrumb.capabilities",
+                strategy: "breadcrumb.strategy",
+                composition: "breadcrumb.composition",
+                properties: "breadcrumb.properties",
+                users: "breadcrumb.users",
+                settings: "breadcrumb.settings",
+                login: "breadcrumb.login",
+              };
+              const label = bcKeys[seg] ? t(bcKeys[seg]) : decodeURIComponent(seg);
               const href = "/" + segments.slice(0, i + 1).join("/");
               return (
                 <span key={seg} className="flex items-center gap-1.5">
@@ -274,18 +276,19 @@ export function Nav({ onToggleSidebar }: { onToggleSidebar: () => void }) {
 
       <div className="flex-1" />
 
+      <LocaleSwitcher />
       <Button
         variant="ghost"
         size="icon-sm"
         onClick={cycleTheme}
-        aria-label={themePref === "light" ? "Mode clair" : themePref === "dark" ? "Mode sombre" : "Mode auto"}
-        title={themePref === "light" ? "Mode clair (clic → sombre)" : themePref === "dark" ? "Mode sombre (clic → auto)" : "Mode auto par heure (clic → clair)"}
+        aria-label={themePref === "light" ? t("nav.theme_light") : themePref === "dark" ? t("nav.theme_dark") : t("nav.theme_auto")}
+        title={themePref === "light" ? t("nav.theme_light") : themePref === "dark" ? t("nav.theme_dark") : t("nav.theme_auto")}
       >
         {themePref === "auto"
           ? <Clock className="size-4" />
           : resolvedTheme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
       </Button>
-      <Button variant="ghost" size="icon-sm" onClick={logout} aria-label="Déconnexion">
+      <Button variant="ghost" size="icon-sm" onClick={logout} aria-label={t("nav.logout")}>
         <LogOut className="size-4" />
       </Button>
     </nav>

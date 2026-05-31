@@ -33,10 +33,12 @@ import {
 import { DataTable } from "@/components/data-table";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import { useIsAdmin } from "@/hooks/use-current-user";
+import { useT } from "@/lib/i18n";
 
 const PROPERTY_TYPES = ["string", "boolean", "integer", "double", "date", "object"];
 
 export default function PropertiesPage() {
+  const { t } = useT();
   const isAdmin = useIsAdmin();
   const [defs, setDefs] = useState<PropertyDefinitionOut[]>([]);
   const [loading, setLoading] = useState(true);
@@ -155,19 +157,19 @@ export default function PropertiesPage() {
   const columns: ColumnDef<PropertyDefinitionOut>[] = useMemo(() => [
     {
       accessorKey: "name",
-      header: "Nom",
+      header: t("common.name"),
       cell: ({ row }) => <span className="font-medium">{row.getValue("name") || "—"}</span>,
     },
     {
       accessorKey: "type",
-      header: "Type",
+      header: t("common.type"),
       cell: ({ row }) => (
         <Badge variant="secondary" className="font-mono text-xs">{row.getValue("type") || "string"}</Badge>
       ),
     },
     {
       accessorKey: "identifier",
-      header: "Identifiant",
+      header: t("common.identifier"),
       enableSorting: false,
       cell: ({ row }) => (
         <span className="text-[11px] text-muted-foreground font-mono truncate max-w-xs block">
@@ -181,10 +183,10 @@ export default function PropertiesPage() {
       enableSorting: false,
       cell: ({ row }: { row: { original: PropertyDefinitionOut } }) => (
         <div className="flex items-center gap-1 justify-end">
-          <Button variant="ghost" size="icon-xs" onClick={() => openEdit(row.original)} aria-label="Modifier">
+          <Button variant="ghost" size="icon-xs" onClick={() => openEdit(row.original)} aria-label={t("common.edit")}>
             <Pencil className="size-3.5" />
           </Button>
-          <Button variant="ghost" size="icon-xs" onClick={() => openDelete(row.original)} aria-label="Supprimer">
+          <Button variant="ghost" size="icon-xs" onClick={() => openDelete(row.original)} aria-label={t("common.delete")}>
             <Trash2 className="size-3.5 text-destructive" />
           </Button>
         </div>
@@ -196,7 +198,7 @@ export default function PropertiesPage() {
     return (
       <div className="p-7">
         <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">
-          Erreur : {error}
+          {t("common.error")} : {error}
         </div>
       </div>
     );
@@ -206,9 +208,9 @@ export default function PropertiesPage() {
     <div className="p-7 space-y-5">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-lg font-semibold">Définitions de propriétés</h1>
+          <h1 className="text-lg font-semibold">{t("properties.title")}</h1>
           <p className="text-muted-foreground text-[13px] mt-0.5">
-            {filtered.length} définition{filtered.length !== 1 ? "s" : ""}
+            {t("properties.count", { n: filtered.length, s: filtered.length !== 1 ? "s" : "" })}
           </p>
         </div>
 
@@ -218,27 +220,27 @@ export default function PropertiesPage() {
           </DialogTrigger>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
-              <DialogTitle>Nouvelle définition de propriété</DialogTitle>
-              <DialogDescription>Définit une propriété réutilisable sur les éléments et relations.</DialogDescription>
+              <DialogTitle>{t("properties.new_title")}</DialogTitle>
+              <DialogDescription>{t("properties.new_desc")}</DialogDescription>
             </DialogHeader>
             <div className="flex flex-col gap-4 py-2">
               <div className="flex flex-col gap-1.5">
-                <Label htmlFor="pd-name">Nom *</Label>
+                <Label htmlFor="pd-name">{t("common.name")} *</Label>
                 <Input
                   id="pd-name"
                   value={newName}
                   onChange={(e) => setNewName(e.target.value)}
-                  placeholder="ex: criticité"
+                  placeholder={t("properties.placeholder")}
                   onKeyDown={(e) => e.key === "Enter" && handleCreate()}
                 />
               </div>
               <div className="flex flex-col gap-1.5">
-                <Label>Type de valeur</Label>
+                <Label>{t("properties.value_type")}</Label>
                 <Select value={newType} onValueChange={(v) => setNewType(v ?? "string")}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {PROPERTY_TYPES.map((t) => (
-                      <SelectItem key={t} value={t}>{t}</SelectItem>
+                    {PROPERTY_TYPES.map((pt) => (
+                    <SelectItem key={pt} value={pt}>{pt}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -250,9 +252,9 @@ export default function PropertiesPage() {
               </div>
             )}
             <DialogFooter>
-              <DialogClose render={<Button variant="outline" />}>Annuler</DialogClose>
+              <DialogClose render={<Button variant="outline" />}>{t("common.cancel")}</DialogClose>
               <Button onClick={handleCreate} disabled={creating || !newName.trim()}>
-                {creating ? "Création…" : "Créer"}
+                {creating ? t("common.creating") : t("common.create")}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -260,7 +262,7 @@ export default function PropertiesPage() {
       </div>
 
       <Input
-        placeholder="Rechercher par nom ou type..."
+        placeholder={t("properties.search")}
         className="max-w-xs"
         value={search}
         onChange={(e) => setSearch(e.target.value)}
@@ -272,11 +274,11 @@ export default function PropertiesPage() {
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Modifier la définition</DialogTitle>
+            <DialogTitle>{t("properties.edit_title")}</DialogTitle>
           </DialogHeader>
           <div className="flex flex-col gap-4 py-2">
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="edit-pd-name">Nom *</Label>
+              <Label htmlFor="edit-pd-name">{t("common.name")} *</Label>
               <Input
                 id="edit-pd-name"
                 value={editName}
@@ -285,12 +287,12 @@ export default function PropertiesPage() {
               />
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label>Type de valeur</Label>
+              <Label>{t("properties.value_type")}</Label>
               <Select value={editType} onValueChange={(v) => setEditType(v ?? "string")}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {PROPERTY_TYPES.map((t) => (
-                    <SelectItem key={t} value={t}>{t}</SelectItem>
+                  {PROPERTY_TYPES.map((pt) => (
+                    <SelectItem key={pt} value={pt}>{pt}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -302,9 +304,9 @@ export default function PropertiesPage() {
             </div>
           )}
           <DialogFooter>
-            <DialogClose render={<Button variant="outline" />}>Annuler</DialogClose>
+            <DialogClose render={<Button variant="outline" />}>{t("common.cancel")}</DialogClose>
             <Button onClick={handleEdit} disabled={saving || !editName.trim()}>
-              {saving ? "Enregistrement…" : "Enregistrer"}
+              {saving ? t("common.saving") : t("common.save")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -314,9 +316,9 @@ export default function PropertiesPage() {
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>Supprimer la définition</DialogTitle>
+            <DialogTitle>{t("properties.delete_title")}</DialogTitle>
             <DialogDescription>
-              Supprimer <strong>{deleteTarget?.name || "cette définition"}</strong> ? Les propriétés existantes qui la référencent seront orphelines. Cette action est irréversible.
+              {t("properties.delete_desc", { name: deleteTarget?.name || "?" })}
             </DialogDescription>
           </DialogHeader>
           {deleteError && (
@@ -325,9 +327,9 @@ export default function PropertiesPage() {
             </div>
           )}
           <DialogFooter>
-            <DialogClose render={<Button variant="outline" />}>Annuler</DialogClose>
+            <DialogClose render={<Button variant="outline" />}>{t("common.cancel")}</DialogClose>
             <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
-              {deleting ? "Suppression…" : "Supprimer"}
+              {deleting ? t("common.deleting") : t("common.delete")}
             </Button>
           </DialogFooter>
         </DialogContent>

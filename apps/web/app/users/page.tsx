@@ -17,9 +17,11 @@ import {
   DialogFooter, DialogClose, DialogTrigger,
 } from "@workspace/ui/components/dialog";
 import { DataTable } from "@/components/data-table";
+import { useT } from "@/lib/i18n";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 
 export default function UsersPage() {
+  const { t } = useT();
   const { data: users = [], isLoading: loading, error } = useUsers();
   const createMutation = useCreateUser();
   const updateMutation = useUpdateUser();
@@ -67,12 +69,12 @@ export default function UsersPage() {
   const columns: ColumnDef<UserOut>[] = useMemo(() => [
     {
       accessorKey: "username",
-      header: "Nom d'utilisateur",
+      header: t("users.username"),
       cell: ({ row }) => <span className="font-medium">{row.getValue("username")}</span>,
     },
     {
       accessorKey: "role",
-      header: "Rôle",
+      header: t("common.role"),
       cell: ({ row }) => {
         const r = row.getValue<string>("role");
         return <Badge variant="secondary" className={r === "admin" ? "bg-primary/10 text-primary" : ""}>{r}</Badge>;
@@ -80,10 +82,10 @@ export default function UsersPage() {
     },
     {
       accessorKey: "created_at",
-      header: "Créé le",
+      header: t("users.created_at"),
       cell: ({ row }) => (
         <span className="text-[12px] text-muted-foreground">
-          {new Date(row.getValue("created_at")).toLocaleDateString("fr-FR")}
+          {new Date(row.getValue("created_at")).toLocaleDateString()}
         </span>
       ),
     },
@@ -93,10 +95,10 @@ export default function UsersPage() {
       enableSorting: false,
       cell: ({ row }) => (
         <div className="flex items-center gap-1 justify-end">
-          <Button variant="ghost" size="icon-xs" onClick={() => openEdit(row.original)} aria-label="Modifier">
+          <Button variant="ghost" size="icon-xs" onClick={() => openEdit(row.original)} aria-label={t("common.edit")}>
             <Pencil className="size-3.5" />
           </Button>
-          <Button variant="ghost" size="icon-xs" onClick={() => deleteActions.openWith(row.original)} aria-label="Supprimer">
+          <Button variant="ghost" size="icon-xs" onClick={() => deleteActions.openWith(row.original)} aria-label={t("common.delete")}>
             <Trash2 className="size-3.5 text-destructive" />
           </Button>
         </div>
@@ -109,7 +111,7 @@ export default function UsersPage() {
     return (
       <div className="p-7">
         <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">
-          Erreur : {(error as Error).message}
+          {t("common.error")} : {(error as Error).message}
         </div>
       </div>
     );
@@ -119,9 +121,9 @@ export default function UsersPage() {
     <div className="p-7 space-y-5">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-lg font-semibold">Utilisateurs</h1>
+          <h1 className="text-lg font-semibold">{t("users.title")}</h1>
           <p className="text-muted-foreground text-[13px] mt-0.5">
-            {users.length} utilisateur{users.length !== 1 ? "s" : ""}
+            {t("users.count", { n: users.length, s: users.length !== 1 ? "s" : "" })}
           </p>
         </div>
 
@@ -131,12 +133,12 @@ export default function UsersPage() {
           </DialogTrigger>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
-              <DialogTitle>Nouvel utilisateur</DialogTitle>
-              <DialogDescription>Créer un compte d&apos;accès à ArchiSpark.</DialogDescription>
+              <DialogTitle>{t("users.new_btn")}</DialogTitle>
+              <DialogDescription>{t("users.new_desc")}</DialogDescription>
             </DialogHeader>
             <div className="flex flex-col gap-4 py-2">
               <div className="flex flex-col gap-1.5">
-                <Label htmlFor="new-username">Nom d&apos;utilisateur *</Label>
+                <Label htmlFor="new-username">{t("users.username")} *</Label>
                 <Input id="new-username" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="ex: jean.dupont" autoComplete="off" />
               </div>
               <div className="flex flex-col gap-1.5">
@@ -156,9 +158,9 @@ export default function UsersPage() {
             </div>
             {createModal.error && <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">{createModal.error}</div>}
             <DialogFooter>
-              <DialogClose render={<Button variant="outline" />}>Annuler</DialogClose>
+              <DialogClose render={<Button variant="outline" />}>{t("common.cancel")}</DialogClose>
               <Button onClick={handleCreate} disabled={createModal.isPending || !username.trim() || !password}>
-                {createModal.isPending ? "Création…" : "Créer"}
+                {createModal.isPending ? t("common.creating") : t("common.create")}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -171,7 +173,7 @@ export default function UsersPage() {
       <Dialog open={editModal.open} onOpenChange={(o) => !o && editActions.close()}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Modifier — {editModal.target?.username}</DialogTitle>
+            <DialogTitle>{t("users.edit_title", { username: editModal.target?.username ?? "" })}</DialogTitle>
           </DialogHeader>
           <div className="flex flex-col gap-4 py-2">
             <div className="flex flex-col gap-1.5">
@@ -191,9 +193,9 @@ export default function UsersPage() {
           </div>
           {editModal.error && <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">{editModal.error}</div>}
           <DialogFooter>
-            <DialogClose render={<Button variant="outline" />}>Annuler</DialogClose>
+            <DialogClose render={<Button variant="outline" />}>{t("common.cancel")}</DialogClose>
             <Button onClick={handleEdit} disabled={editModal.isPending}>
-              {editModal.isPending ? "Enregistrement…" : "Enregistrer"}
+              {editModal.isPending ? t("common.saving") : t("common.save")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -203,16 +205,16 @@ export default function UsersPage() {
       <Dialog open={deleteModal.open} onOpenChange={(o) => !o && deleteActions.close()}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>Supprimer l&apos;utilisateur</DialogTitle>
+            <DialogTitle>{t("users.delete_title")}</DialogTitle>
             <DialogDescription>
-              Supprimer <strong>{deleteModal.target?.username}</strong> ? Cette action est irréversible.
+              {t("users.delete_desc", { username: deleteModal.target?.username ?? "" })}
             </DialogDescription>
           </DialogHeader>
           {deleteModal.error && <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">{deleteModal.error}</div>}
           <DialogFooter>
-            <DialogClose render={<Button variant="outline" />}>Annuler</DialogClose>
+            <DialogClose render={<Button variant="outline" />}>{t("common.cancel")}</DialogClose>
             <Button variant="destructive" onClick={handleDelete} disabled={deleteModal.isPending}>
-              {deleteModal.isPending ? "Suppression…" : "Supprimer"}
+              {deleteModal.isPending ? t("common.deleting") : t("common.delete")}
             </Button>
           </DialogFooter>
         </DialogContent>

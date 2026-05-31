@@ -1,17 +1,12 @@
 "use client";
 
-import Link from "next/link";
 import { useModel, useElements } from "@/lib/queries";
 import { getLayer, LAYER_HEX_COLORS as LAYER_COLORS } from "@/lib/archimate-helpers";
 import type { ElementOut } from "@/lib/api";
-
-const SECTIONS = [
-  { href: "/elements", label: "Éléments", desc: "Parcourir tous les éléments ArchiMate du modèle" },
-  { href: "/relationships", label: "Relations", desc: "Explorer les relations entre éléments" },
-  { href: "/views", label: "Vues", desc: "Visualiser les diagrammes du modèle" },
-];
+import { useT } from "@/lib/i18n";
 
 export default function OverviewPage() {
+  const { t } = useT();
   const { data: model, isLoading: modelLoading, error: modelError } = useModel();
   const { data: elements = [], isLoading: elementsLoading } = useElements();
 
@@ -28,7 +23,7 @@ export default function OverviewPage() {
     return (
       <div className="flex items-center gap-2 text-muted-foreground p-8">
         <div className="size-4 rounded-full border-2 border-border border-t-primary animate-spin shrink-0" />
-        Chargement…
+        {t("common.loading")}
       </div>
     );
   }
@@ -37,10 +32,10 @@ export default function OverviewPage() {
     return (
       <div className="p-8">
         <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">
-          Erreur : {(error as Error).message}
+          {t("common.error")} : {(error as Error).message}
         </div>
         <p className="text-muted-foreground text-xs mt-2">
-          Assurez-vous que l&apos;API ArchiMate tourne sur le port 8000.
+          {t("overview.api_hint")}
         </p>
       </div>
     );
@@ -52,7 +47,7 @@ export default function OverviewPage() {
         <div className="mb-6">
           <h1 className="text-lg font-semibold">{model.name}</h1>
           <p className="text-muted-foreground text-[13px] mt-0.5">
-            {model.documentation || "Modèle ArchiMate"}
+            {model.documentation || t("overview.archimate_model")}
             {model.version && <> · v{model.version}</>}
           </p>
         </div>
@@ -60,10 +55,10 @@ export default function OverviewPage() {
 
       {/* Stats cards */}
       <div className="text-[11px] font-bold tracking-[0.6px] uppercase text-muted-foreground mb-3">
-        Aperçu du modèle
+        {t("overview.model_apercu")}
       </div>
       <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-3 mb-7">
-        <StatCard label="Total éléments" value={model?.element_count ?? 0} />
+        <StatCard label={t("overview.total_elements")} value={model?.element_count ?? 0} />
         {Object.entries(layerCounts)
           .sort(([, a], [, b]) => b - a)
           .map(([layer, count]) => (
@@ -74,26 +69,10 @@ export default function OverviewPage() {
               color={LAYER_COLORS[layer]}
             />
           ))}
-        <StatCard label="Relations" value={model?.relationship_count ?? 0} />
-        <StatCard label="Vues" value={model?.view_count ?? 0} />
+        <StatCard label={t("overview.relationships")} value={model?.relationship_count ?? 0} />
+        <StatCard label={t("overview.views")} value={model?.view_count ?? 0} />
       </div>
 
-      {/* Navigation cards */}
-      <div className="text-[11px] font-bold tracking-[0.6px] uppercase text-muted-foreground mb-3 mt-2">
-        Explorer
-      </div>
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-2.5">
-        {SECTIONS.map((s) => (
-          <Link
-            key={s.href}
-            href={s.href}
-            className="bg-card border border-border rounded-lg px-4 py-3.5 no-underline transition-colors hover:border-primary"
-          >
-            <div className="text-[13px] font-semibold mb-0.5 text-foreground">{s.label}</div>
-            <div className="text-[12px] text-muted-foreground">{s.desc}</div>
-          </Link>
-        ))}
-      </div>
     </div>
   );
 }
