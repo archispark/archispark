@@ -297,3 +297,22 @@ export const userRoles = sqliteTable("user_roles", {
 }, (t) => [
   primaryKey({ columns: [t.roleId, t.userId] }),
 ]);
+
+// ---------------------------------------------------------------------------
+// OAuth / OIDC provider configurations (managed via admin UI)
+// ---------------------------------------------------------------------------
+
+export const oauthProviders = sqliteTable("oauth_providers", {
+  id:          text("id").primaryKey(),
+  providerId:  text("provider_id").notNull(),         // slug used in OAuth flow
+  type:        text("type", { enum: ["oidc", "google", "github", "microsoft-entra-id"] }).notNull(),
+  name:        text("name").notNull(),                // display name
+  clientId:    text("client_id").notNull(),
+  clientSecret: text("client_secret").notNull(),
+  issuerUrl:   text("issuer_url"),                   // OIDC only
+  tenantId:    text("tenant_id"),                    // Microsoft Entra only
+  enabled:     integer("enabled", { mode: "boolean" }).notNull().default(true),
+  createdAt:   integer("created_at").notNull().default(sql`(unixepoch())`),
+}, (t) => [
+  uniqueIndex("oauth_providers_provider_id_uniq").on(t.providerId),
+]);

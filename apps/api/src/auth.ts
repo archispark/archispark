@@ -2,7 +2,7 @@ import { randomUUID } from "crypto";
 import type { Request, Response, NextFunction } from "express";
 import { and, eq, inArray } from "drizzle-orm";
 import { db, dbDriver, sqlite, users as usersTable, accounts, roles as rolesTable, roleLayerPermissions as rolePermsTable, userRoles as userRolesTable } from "@workspace/db";
-import { auth } from "./better-auth.js";
+import { getAuth } from "./better-auth.js";
 import { fromNodeHeaders } from "better-auth/node";
 import bcrypt from "bcryptjs";
 import { NotFoundError, ValidationError } from "./errors.js";
@@ -181,9 +181,9 @@ export async function initUsers(): Promise<void> {
   // Seed default users
   const seedUser = async (username: string, password: string, role: "admin" | "user") => {
     const [existing] = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.username, username));
-    let userId = existing?.id ?? null;
+    let userId: string | null = existing?.id ?? null;
     if (!userId) {
-      const res = await auth.api.signUpEmail({
+      const res = await getAuth().api.signUpEmail({
         body: { email: `${username}@archispark.internal`, password, name: username, username } as never,
       }).catch(() => null);
       if (!res?.user) return;
@@ -191,7 +191,7 @@ export async function initUsers(): Promise<void> {
       userId = res.user.id;
     }
     const [rbacRole] = await db.select().from(rolesTable).where(eq(rolesTable.name, role));
-    if (rbacRole) {
+    if (rbacRole && userId) {
       await db.insert(userRolesTable).values({ roleId: rbacRole.id, userId }).onConflictDoNothing();
     }
   };
@@ -227,7 +227,7 @@ export async function listUsers(): Promise<UserOut[]> {
 export async function createUser(username: string, password: string, role: string = "user"): Promise<UserOut> {
   const [existing] = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.username, username));
   if (existing) throw new ValidationError(`Le nom d'utilisateur '${username}' est déjà pris.`);
-  const res = await auth.api.signUpEmail({
+  const res = await getAuth().api.signUpEmail({
     body: { email: `${username}@archispark.internal`, password, name: username, username } as never,
   }).catch(() => null);
   if (!res?.user) throw new ValidationError("Impossible de créer l'utilisateur.");
@@ -266,8 +266,8 @@ export async function deleteUserById(id: string): Promise<void> {
 // ---------------------------------------------------------------------------
 
 export function requireAuth(req: AuthRequest, res: Response, next: NextFunction): void {
-  auth.api.getSession({ headers: fromNodeHeaders(req.headers) })
-    .then((session) => {
+  getAuth().api.getSession({ headers: fromNodeHeaders(req.headers) })
+    .then((session: { user: { id: string; name: string; email?: string | null; [k: string]: unknown } } | null) => {
       if (!session?.user) {
         res.status(401).json({ detail: "Non authentifié." });
         return;

@@ -43,6 +43,8 @@ function newId(): string {
   return `id-${randomUUID()}`;
 }
 import type { ArchiElement, ArchiRelationship, ArchiNode, ArchiConnection, ArchiView, ArchiPropertyDefinition } from "@workspace/db";
+import { db, oauthProviders } from "@workspace/db";
+import { eq } from "drizzle-orm";
 import {
   dataSource,
   DataSource,
@@ -82,7 +84,7 @@ import {
   type AuthRequest,
   type LayerPermissions,
 } from "./auth.js";
-import { auth as baAuth, getConfiguredProviders } from "./better-auth.js";
+import { getAuth, getConfiguredProviders, reloadAuth } from "./better-auth.js";
 import { toNodeHandler } from "better-auth/node";
 import {
   VIEWPOINTS,
@@ -697,13 +699,13 @@ const importRateLimit = rateLimit({
 });
 
 // Returns configured OAuth/OIDC providers so the frontend can render SSO buttons
-app.get("/auth/providers", (_req, res) => {
-  res.json(getConfiguredProviders());
+app.get("/auth/providers", async (_req, res) => {
+  res.json(await getConfiguredProviders());
 });
 
 // Mount Better Auth at /auth — handles sign-in, sign-out, session, user CRUD
 // Must be BEFORE global auth middleware
-app.all("/auth/*path", authRateLimit, toNodeHandler(baAuth));
+app.all("/auth/*path", authRateLimit, (req, res) => toNodeHandler(getAuth())(req, res));
 
 // Global auth — exempt Better Auth routes and public paths
 app.use((req: AuthRequest, res, next) => {
@@ -877,6 +879,119 @@ app.put("/roles/:role_id/layers/:layer", requireAdmin as express.RequestHandler,
 app.delete("/roles/:role_id/layers/:layer", requireAdmin as express.RequestHandler, async (req: Request, res: Response) => {
   await removeRoleLayerPermission(req.params["role_id"] as string, req.params["layer"] as string);
     res.status(204).send();
+});
+
+// ---------------------------------------------------------------------------
+// OAuth provider CRUD (admin only — stored in DB, auth reloads on change)
+// ---------------------------------------------------------------------------
+
+const PROVIDER_TYPES = ["oidc", "google", "github", "microsoft-entra-id"] as const;
+type ProviderType = typeof PROVIDER_TYPES[number];
+
+interface ProviderOut {
+  id: string;
+  provider_id: string;
+  type: ProviderType;
+  name: string;
+  client_id: string;
+  issuer_url: string | null;
+  tenant_id: string | null;
+  enabled: boolean;
+  created_at: number;
+}
+
+function providerOut(row: typeof oauthProviders.$inferSelect): ProviderOut {
+  return {
+    id:          row.id,
+    provider_id: row.providerId,
+    type:        row.type as ProviderType,
+    name:        row.name,
+    client_id:   row.clientId,
+    issuer_url:  row.issuerUrl ?? null,
+    tenant_id:   row.tenantId ?? null,
+    enabled:     Boolean(row.enabled),
+    created_at:  row.createdAt,
+  };
+}
+
+app.get("/settings/providers", requireAdmin as express.RequestHandler, async (_req: Request, res: Response) => {
+  const rows = await db.select().from(oauthProviders);
+  res.json(rows.map(providerOut));
+});
+
+app.post("/settings/providers", requireAdmin as express.RequestHandler, async (req: Request, res: Response) => {
+  const { type, name, client_id, client_secret, issuer_url, tenant_id, enabled } =
+    req.body as Record<string, unknown>;
+  if (!type || !PROVIDER_TYPES.includes(type as ProviderType)) {
+    res.status(422).json({ detail: `type must be one of: ${PROVIDER_TYPES.join(", ")}` });
+    return;
+  }
+  if (!name || typeof name !== "string") {
+    res.status(422).json({ detail: "name is required" });
+    return;
+  }
+  if (!client_id || typeof client_id !== "string") {
+    res.status(422).json({ detail: "client_id is required" });
+    return;
+  }
+  if (!client_secret || typeof client_secret !== "string") {
+    res.status(422).json({ detail: "client_secret is required" });
+    return;
+  }
+  if ((type === "oidc") && (!issuer_url || typeof issuer_url !== "string")) {
+    res.status(422).json({ detail: "issuer_url is required for oidc type" });
+    return;
+  }
+  const providerId = (name as string).toLowerCase().replace(/[^a-z0-9]+/g, "-");
+  const [existing] = await db.select({ id: oauthProviders.id })
+    .from(oauthProviders).where(eq(oauthProviders.providerId, providerId));
+  if (existing) {
+    res.status(422).json({ detail: `Provider ID '${providerId}' already exists.` });
+    return;
+  }
+  const [row] = await db.insert(oauthProviders).values({
+    id:           randomUUID(),
+    providerId,
+    type:         type as ProviderType,
+    name:         name as string,
+    clientId:     client_id,
+    clientSecret: client_secret,
+    issuerUrl:    typeof issuer_url === "string" ? issuer_url : null,
+    tenantId:     typeof tenant_id === "string" ? tenant_id : null,
+    enabled:      enabled !== false,
+    createdAt:    Math.floor(Date.now() / 1000),
+  }).returning();
+  await reloadAuth();
+  res.status(201).json(providerOut(row!));
+});
+
+app.put("/settings/providers/:id", requireAdmin as express.RequestHandler, async (req: Request, res: Response) => {
+  const [existing] = await db.select().from(oauthProviders)
+    .where(eq(oauthProviders.id, req.params["id"] as string));
+  if (!existing) { res.status(404).json({ detail: "Provider not found." }); return; }
+  const { name, client_id, client_secret, issuer_url, tenant_id, enabled } =
+    req.body as Record<string, unknown>;
+  await db.update(oauthProviders).set({
+    ...(typeof name === "string" ? { name } : {}),
+    ...(typeof client_id === "string" ? { clientId: client_id } : {}),
+    ...(typeof client_secret === "string" ? { clientSecret: client_secret } : {}),
+    ...(issuer_url !== undefined ? { issuerUrl: issuer_url as string | null } : {}),
+    ...(tenant_id !== undefined ? { tenantId: tenant_id as string | null } : {}),
+    ...(enabled !== undefined ? { enabled: Boolean(enabled) } : {}),
+  }).where(eq(oauthProviders.id, req.params["id"] as string));
+  const [updated] = await db.select().from(oauthProviders)
+    .where(eq(oauthProviders.id, req.params["id"] as string));
+  await reloadAuth();
+  res.json(providerOut(updated!));
+});
+
+app.delete("/settings/providers/:id", requireAdmin as express.RequestHandler, async (req: Request, res: Response) => {
+  const [existing] = await db.select({ id: oauthProviders.id })
+    .from(oauthProviders).where(eq(oauthProviders.id, req.params["id"] as string));
+  if (!existing) { res.status(404).json({ detail: "Provider not found." }); return; }
+  await db.delete(oauthProviders).where(eq(oauthProviders.id, req.params["id"] as string));
+  await reloadAuth();
+  res.status(204).send();
 });
 
 // ---------------------------------------------------------------------------

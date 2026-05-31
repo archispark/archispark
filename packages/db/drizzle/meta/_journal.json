@@ -15,6 +15,13 @@
       "when": 1779966514858,
       "tag": "0001_broken_the_initiative",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1780221507069,
+      "tag": "0002_oauth_providers",
+      "breakpoints": true
     }
   ]
 }

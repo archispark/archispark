@@ -60,3 +60,20 @@ sqlite.exec(`
     updated_at INTEGER
   );
 `);
+
+// Create oauth_providers table for tests (created by migration in production)
+sqlite.exec(`
+  CREATE TABLE IF NOT EXISTS oauth_providers (
+    id TEXT PRIMARY KEY NOT NULL,
+    provider_id TEXT NOT NULL,
+    type TEXT NOT NULL,
+    name TEXT NOT NULL,
+    client_id TEXT NOT NULL,
+    client_secret TEXT NOT NULL,
+    issuer_url TEXT,
+    tenant_id TEXT,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    created_at INTEGER NOT NULL DEFAULT (unixepoch())
+  );
+  CREATE UNIQUE INDEX IF NOT EXISTS oauth_providers_provider_id_uniq ON oauth_providers (provider_id);
+`);

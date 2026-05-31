@@ -2,28 +2,11 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { username, admin, genericOAuth, microsoftEntraId } from "better-auth/plugins";
 import { eq, and } from "drizzle-orm";
-import { db, dbDriver, users, sessions, accounts, verifications, roles, userRoles } from "@workspace/db";
+import { db, dbDriver, users, sessions, accounts, verifications, roles, userRoles, oauthProviders } from "@workspace/db";
 
 export interface OAuthProvider {
   id: string;
   name: string;
-}
-
-export function getConfiguredProviders(): OAuthProvider[] {
-  const providers: OAuthProvider[] = [];
-  if (process.env.GENERIC_OIDC_CLIENT_ID) {
-    providers.push({ id: "generic-oidc", name: process.env.GENERIC_OIDC_NAME ?? "SSO" });
-  }
-  if (process.env.GOOGLE_CLIENT_ID) {
-    providers.push({ id: "google", name: "Google" });
-  }
-  if (process.env.GITHUB_CLIENT_ID) {
-    providers.push({ id: "github", name: "GitHub" });
-  }
-  if (process.env.ENTRA_CLIENT_ID) {
-    providers.push({ id: "microsoft-entra-id", name: "Microsoft" });
-  }
-  return providers;
 }
 
 async function assignDefaultRbacRole(userId: string): Promise<void> {
@@ -36,7 +19,8 @@ async function assignDefaultRbacRole(userId: string): Promise<void> {
   }
 }
 
-function buildOAuthConfig() {
+/** Build OAuth config from env vars (always available at startup). */
+function buildEnvOAuthConfig() {
   const config = [];
 
   if (process.env.GENERIC_OIDC_CLIENT_ID) {
@@ -82,69 +66,151 @@ function buildOAuthConfig() {
   return config;
 }
 
-const oauthConfig = buildOAuthConfig();
+/** Build OAuth config from DB-stored providers (loaded after DB init). */
+async function buildDbOAuthConfig() {
+  try {
+    const rows = await db.select().from(oauthProviders).where(eq(oauthProviders.enabled, true));
+    return rows.map((p) => {
+      if (p.type === "microsoft-entra-id") {
+        return microsoftEntraId({
+          clientId: p.clientId,
+          clientSecret: p.clientSecret,
+          tenantId: p.tenantId ?? "common",
+        });
+      }
+      const base = {
+        providerId: p.providerId,
+        clientId: p.clientId,
+        clientSecret: p.clientSecret,
+        scopes: ["openid", "profile", "email"],
+      };
+      if (p.type === "oidc") {
+        return { ...base, discoveryUrl: `${p.issuerUrl}/.well-known/openid-configuration` };
+      }
+      if (p.type === "google") {
+        return { ...base, discoveryUrl: "https://accounts.google.com/.well-known/openid-configuration" };
+      }
+      // github
+      return {
+        ...base,
+        scopes: ["read:user", "user:email"],
+        authorizationUrl: "https://github.com/login/oauth/authorize",
+        tokenUrl: "https://github.com/login/oauth/access_token",
+        userInfoUrl: "https://api.github.com/user",
+      };
+    });
+  } catch {
+    return [];
+  }
+}
 
-export const auth = betterAuth({
-  baseURL: process.env.API_URL ?? "http://localhost:3000",
-  basePath: "/auth",
+function createAuthInstance(oauthConfig: unknown[]) {
+  return betterAuth({
+    baseURL: process.env.API_URL ?? "http://localhost:3000",
+    basePath: "/auth",
 
-  database: drizzleAdapter(db, {
-    provider: dbDriver === "postgres" ? "pg" : "sqlite",
-    schema: {
-      user: users,
-      session: sessions,
-      account: accounts,
-      verification: verifications,
-    },
-  }),
-
-  emailAndPassword: {
-    enabled: true,
-    requireEmailVerification: false,
-    minPasswordLength: 3,
-  },
-
-  plugins: [
-    username(),
-    admin({
-      defaultRole: "user",
-      adminRole: "admin",
+    database: drizzleAdapter(db, {
+      provider: dbDriver === "postgres" ? "pg" : "sqlite",
+      schema: {
+        user: users,
+        session: sessions,
+        account: accounts,
+        verification: verifications,
+      },
     }),
-    ...(oauthConfig.length > 0 ? [genericOAuth({ config: oauthConfig })] : []),
-  ],
 
-  databaseHooks: {
-    user: {
-      create: {
-        after: async (user) => {
-          await assignDefaultRbacRole(user.id);
+    emailAndPassword: {
+      enabled: true,
+      requireEmailVerification: false,
+      minPasswordLength: 3,
+    },
+
+    plugins: [
+      username(),
+      admin({
+        defaultRole: "user",
+        adminRole: "admin",
+      }),
+      ...(oauthConfig.length > 0 ? [genericOAuth({ config: oauthConfig as Parameters<typeof genericOAuth>[0]["config"] })] : []),
+    ],
+
+    databaseHooks: {
+      user: {
+        create: {
+          after: async (user) => {
+            await assignDefaultRbacRole(user.id);
+          },
         },
       },
     },
-  },
 
-  user: {
-    additionalFields: {
-      role: {
-        type: "string",
-        required: false,
-        defaultValue: "user",
-        input: true,
+    user: {
+      additionalFields: {
+        role: {
+          type: "string",
+          required: false,
+          defaultValue: "user",
+          input: true,
+        },
       },
     },
-  },
 
-  session: {
-    expiresIn: 60 * 60 * 24,          // 24h
-    updateAge: 60 * 60,                 // refresh every 1h
-    cookieCache: { enabled: true, maxAge: 60 * 5 },
-  },
+    session: {
+      expiresIn: 60 * 60 * 24,
+      updateAge: 60 * 60,
+      cookieCache: { enabled: true, maxAge: 60 * 5 },
+    },
 
-  trustedOrigins: [
-    process.env.WEB_URL ?? "http://localhost:8000",
-  ],
+    trustedOrigins: [
+      process.env.WEB_URL ?? "http://localhost:8000",
+    ],
 
-  secret: process.env.JWT_SECRET ?? "archispark-dev-secret-change-in-prod",
-});
+    secret: process.env.JWT_SECRET ?? "archispark-dev-secret-change-in-prod",
+  });
+}
 
-export type Auth = typeof auth;
+let _auth = createAuthInstance(buildEnvOAuthConfig());
+
+export function getAuth() { return _auth; }
+
+/** Reload auth instance merging env + DB providers. Call after provider CRUD. */
+export async function reloadAuth(): Promise<void> {
+  const dbConfig = await buildDbOAuthConfig();
+  const envConfig = buildEnvOAuthConfig();
+  // Merge: env providers + DB providers, deduplicate by providerId
+  const seen = new Set<string>();
+  const merged: unknown[] = [];
+  for (const p of [...envConfig, ...dbConfig]) {
+    const id = (p as { providerId?: string }).providerId ?? "";
+    if (!seen.has(id)) { seen.add(id); merged.push(p); }
+  }
+  _auth = createAuthInstance(merged);
+}
+
+/** Returns currently active providers list (for public /auth/providers endpoint). */
+export async function getConfiguredProviders(): Promise<OAuthProvider[]> {
+  const providers: OAuthProvider[] = [];
+
+  // Env-based providers
+  if (process.env.GENERIC_OIDC_CLIENT_ID) {
+    providers.push({ id: "generic-oidc", name: process.env.GENERIC_OIDC_NAME ?? "SSO" });
+  }
+  if (process.env.GOOGLE_CLIENT_ID) providers.push({ id: "google", name: "Google" });
+  if (process.env.GITHUB_CLIENT_ID) providers.push({ id: "github", name: "GitHub" });
+  if (process.env.ENTRA_CLIENT_ID) providers.push({ id: "microsoft-entra-id", name: "Microsoft" });
+
+  // DB-based providers
+  try {
+    const rows = await db.select().from(oauthProviders).where(eq(oauthProviders.enabled, true));
+    const envIds = new Set(providers.map((p) => p.id));
+    for (const row of rows) {
+      if (!envIds.has(row.providerId)) {
+        providers.push({ id: row.providerId, name: row.name });
+      }
+    }
+  } catch { /* DB not yet initialised */ }
+
+  return providers;
+}
+
+export type Auth = typeof _auth;

@@ -2433,3 +2433,118 @@ describe("updateViewConnection source/target update", () => {
     await request(app).delete(`/views/${viewId}`);
   });
 });
+// ===========================================================================
+// Integration tests – /settings/providers CRUD
+// ===========================================================================
+
+describe("GET /settings/providers", () => {
+  it("returns 200 and empty array initially", async () => {
+    const res = await request(app).get("/settings/providers");
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+  });
+});
+
+describe("POST/GET/PUT/DELETE /settings/providers lifecycle", () => {
+  let providerId: string;
+
+  it("creates an OIDC provider (POST)", async () => {
+    const res = await request(app).post("/settings/providers").send({
+      type: "oidc",
+      name: "Test OIDC",
+      client_id: "client-123",
+      client_secret: "secret-abc",
+      issuer_url: "https://sso.example.com/realms/test",
+    });
+    expect(res.status).toBe(201);
+    expect(res.body.name).toBe("Test OIDC");
+    expect(res.body.type).toBe("oidc");
+    expect(res.body.issuer_url).toBe("https://sso.example.com/realms/test");
+    providerId = res.body.id as string;
+  });
+
+  it("lists the created provider (GET)", async () => {
+    const res = await request(app).get("/settings/providers");
+    expect(res.status).toBe(200);
+    const found = (res.body as Array<{ id: string }>).find((p) => p.id === providerId);
+    expect(found).toBeDefined();
+  });
+
+  it("updates the provider name (PUT)", async () => {
+    const res = await request(app).put(`/settings/providers/${providerId}`).send({ name: "Updated OIDC" });
+    expect(res.status).toBe(200);
+    expect(res.body.name).toBe("Updated OIDC");
+  });
+
+  it("disables the provider (PUT enabled=false)", async () => {
+    const res = await request(app).put(`/settings/providers/${providerId}`).send({ enabled: false });
+    expect(res.status).toBe(200);
+    expect(res.body.enabled).toBe(false);
+  });
+
+  it("deletes the provider (DELETE)", async () => {
+    const res = await request(app).delete(`/settings/providers/${providerId}`);
+    expect(res.status).toBe(204);
+  });
+
+  it("returns 404 after deletion (PUT)", async () => {
+    const res = await request(app).put(`/settings/providers/${providerId}`).send({ name: "X" });
+    expect(res.status).toBe(404);
+  });
+
+  it("returns 404 after deletion (DELETE)", async () => {
+    const res = await request(app).delete(`/settings/providers/${providerId}`);
+    expect(res.status).toBe(404);
+  });
+});
+
+describe("POST /settings/providers validation", () => {
+  it("returns 422 for invalid type", async () => {
+    const res = await request(app).post("/settings/providers").send({
+      type: "invalid-type", name: "X", client_id: "c", client_secret: "s",
+    });
+    expect(res.status).toBe(422);
+  });
+
+  it("returns 422 when name is missing", async () => {
+    const res = await request(app).post("/settings/providers").send({
+      type: "google", client_id: "c", client_secret: "s",
+    });
+    expect(res.status).toBe(422);
+  });
+
+  it("returns 422 when client_id is missing", async () => {
+    const res = await request(app).post("/settings/providers").send({
+      type: "google", name: "Google", client_secret: "s",
+    });
+    expect(res.status).toBe(422);
+  });
+
+  it("returns 422 when client_secret is missing", async () => {
+    const res = await request(app).post("/settings/providers").send({
+      type: "google", name: "Google", client_id: "c",
+    });
+    expect(res.status).toBe(422);
+  });
+
+  it("returns 422 when issuer_url missing for oidc type", async () => {
+    const res = await request(app).post("/settings/providers").send({
+      type: "oidc", name: "OIDC", client_id: "c", client_secret: "s",
+    });
+    expect(res.status).toBe(422);
+  });
+
+  it("returns 422 for duplicate provider_id", async () => {
+    await request(app).post("/settings/providers").send({
+      type: "google", name: "Google Test", client_id: "c", client_secret: "s",
+    });
+    const res = await request(app).post("/settings/providers").send({
+      type: "google", name: "Google Test", client_id: "c2", client_secret: "s2",
+    });
+    expect(res.status).toBe(422);
+    // cleanup
+    const list = (await request(app).get("/settings/providers")).body as Array<{ id: string; name: string }>;
+    const dup = list.find((p) => p.name === "Google Test");
+    if (dup) await request(app).delete(`/settings/providers/${dup.id}`);
+  });
+});
