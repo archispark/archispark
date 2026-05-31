@@ -64,7 +64,7 @@ export default function OverviewPage() {
           .map(([layer, count]) => (
             <StatCard
               key={layer}
-              label={layer}
+              label={t(`layer.${layer}` as Parameters<typeof t>[0]) || layer}
               value={count}
               color={LAYER_COLORS[layer]}
             />

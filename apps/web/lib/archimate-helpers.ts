@@ -43,6 +43,7 @@ export const LAYER_HEX_COLORS: Record<string, string> = {
   Strategy: "#dc2626",
   Physical: "#059669",
   Implementation: "#ea580c",
+  Composite: "#64748b",
 };
 
 export const LAYER_LABELS: Record<string, string> = {
