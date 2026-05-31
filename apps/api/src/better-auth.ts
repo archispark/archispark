@@ -118,6 +118,29 @@ function buildSecondaryStorage() {
   };
 }
 
+/**
+ * Compute the list of trusted origins for CSRF protection.
+ *
+ * Self-hosted deployments reach the app on a single origin (LAN IP, custom
+ * domain) that the web tier forwards to this API. We trust that origin only
+ * when its host matches the host actually being served (x-forwarded-host/host),
+ * which still blocks true cross-site CSRF (whose Origin host would not match).
+ */
+export function computeTrustedOrigins(request?: Request): string[] {
+  const list = [
+    process.env.WEB_URL ?? "http://localhost:8000",
+    ...(process.env.TRUSTED_ORIGINS?.split(",").map((s) => s.trim()).filter(Boolean) ?? []),
+  ];
+  const origin = request?.headers.get("origin");
+  const servedHost = request?.headers.get("x-forwarded-host") ?? request?.headers.get("host");
+  if (origin && servedHost) {
+    try {
+      if (new URL(origin).host === servedHost) list.push(origin);
+    } catch { /* malformed Origin header */ }
+  }
+  return list;
+}
+
 function createAuthInstance(oauthConfig: unknown[]) {
   const redis = getRedis();
   return betterAuth({
@@ -179,25 +202,7 @@ function createAuthInstance(oauthConfig: unknown[]) {
       cookieCache: redis ? undefined : { enabled: true, maxAge: 60 * 5 },
     },
 
-    trustedOrigins: (request?: Request) => {
-      const list = [
-        process.env.WEB_URL ?? "http://localhost:8000",
-        ...(process.env.TRUSTED_ORIGINS?.split(",").map((s) => s.trim()).filter(Boolean) ?? []),
-      ];
-      // Self-hosted: the browser reaches the app on a single origin (LAN IP,
-      // custom domain) which the web tier forwards to this API. Trust that
-      // origin only when its host matches the host actually being served
-      // (x-forwarded-host/host) — this still blocks true cross-site CSRF,
-      // whose Origin host would not match the served host.
-      const origin = request?.headers.get("origin");
-      const servedHost = request?.headers.get("x-forwarded-host") ?? request?.headers.get("host");
-      if (origin && servedHost) {
-        try {
-          if (new URL(origin).host === servedHost) list.push(origin);
-        } catch { /* malformed Origin header */ }
-      }
-      return list;
-    },
+    trustedOrigins: computeTrustedOrigins,
 
     secret: process.env.JWT_SECRET ?? "archispark-dev-secret-change-in-prod",
   });
