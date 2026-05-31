@@ -29,6 +29,8 @@ import { randomUUID } from "crypto";
 import cors from "cors";
 import helmet from "helmet";
 import { rateLimit } from "express-rate-limit";
+import { RedisStore } from "rate-limit-redis";
+import { getRedis } from "./redis.js";
 import { colord } from "colord";
 import multer from "multer";
 import { createRequire } from "module";
@@ -673,12 +675,22 @@ app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors({ origin: true, credentials: true, methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"] }));
 app.use(express.json());
 
+function redisStore(prefix: string) {
+  const redis = getRedis();
+  if (!redis) return undefined;
+  return new RedisStore({
+    prefix,
+    sendCommand: (...args: string[]) => redis.call(args[0]!, ...args.slice(1)) as Promise<number>,
+  });
+}
+
 const authRateLimit = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 50,
   standardHeaders: true,
   legacyHeaders: false,
   message: { detail: "Trop de tentatives, réessayez dans 15 minutes." },
+  store: redisStore("rl:auth:"),
 });
 
 const xmlUpload = multer({
@@ -696,6 +708,7 @@ const importRateLimit = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { detail: "Trop d'imports, réessayez dans 1 minute." },
+  store: redisStore("rl:import:"),
 });
 
 // Returns configured OAuth/OIDC providers so the frontend can render SSO buttons

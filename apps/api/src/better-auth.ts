@@ -3,6 +3,7 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { username, admin, genericOAuth, microsoftEntraId } from "better-auth/plugins";
 import { eq, and } from "drizzle-orm";
 import { db, dbDriver, users, sessions, accounts, verifications, roles, userRoles, oauthProviders } from "@workspace/db";
+import { getRedis } from "./redis.js";
 
 export interface OAuthProvider {
   id: string;
@@ -104,7 +105,21 @@ async function buildDbOAuthConfig() {
   }
 }
 
+function buildSecondaryStorage() {
+  const redis = getRedis();
+  if (!redis) return undefined;
+  return {
+    get: (key: string) => redis.get(key),
+    set: async (key: string, value: string, ttl?: number) => {
+      if (ttl) await redis.setex(key, ttl, value);
+      else await redis.set(key, value);
+    },
+    delete: async (key: string) => { await redis.del(key); },
+  };
+}
+
 function createAuthInstance(oauthConfig: unknown[]) {
+  const redis = getRedis();
   return betterAuth({
     baseURL: process.env.API_URL ?? "http://localhost:3000",
     basePath: "/auth",
@@ -118,6 +133,8 @@ function createAuthInstance(oauthConfig: unknown[]) {
         verification: verifications,
       },
     }),
+
+    secondaryStorage: buildSecondaryStorage(),
 
     emailAndPassword: {
       enabled: true,
@@ -158,7 +175,8 @@ function createAuthInstance(oauthConfig: unknown[]) {
     session: {
       expiresIn: 60 * 60 * 24,
       updateAge: 60 * 60,
-      cookieCache: { enabled: true, maxAge: 60 * 5 },
+      // Cookie cache when Redis absent; Redis covers the caching layer otherwise
+      cookieCache: redis ? undefined : { enabled: true, maxAge: 60 * 5 },
     },
 
     trustedOrigins: [
