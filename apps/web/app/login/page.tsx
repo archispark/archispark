@@ -16,8 +16,6 @@ interface OAuthProvider {
 export default function LoginPage() {
   const { t } = useT();
   const router = useRouter();
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [providers, setProviders] = useState<OAuthProvider[]>([]);
@@ -30,13 +28,16 @@ export default function LoginPage() {
       .catch(() => {});
   }, []);
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!username || !password) return;
+    const fd = new FormData(e.currentTarget);
+    const u = (fd.get("username") as string | null)?.trim() ?? "";
+    const p = (fd.get("password") as string | null) ?? "";
+    if (!u || !p) return;
     setLoading(true);
     setError(null);
     try {
-      const result = await signIn.username({ username, password });
+      const result = await signIn.username({ username: u, password: p });
       if (result.error) {
         setError(result.error.message ?? t("login.wrong_credentials"));
         return;
@@ -92,10 +93,10 @@ export default function LoginPage() {
               <Label htmlFor="username">{t("login.username")}</Label>
               <Input
                 id="username"
+                name="username"
+                required
                 autoFocus
                 autoComplete="username"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
                 placeholder="admin"
               />
             </div>
@@ -103,10 +104,10 @@ export default function LoginPage() {
               <Label htmlFor="password">{t("login.password")}</Label>
               <Input
                 id="password"
+                name="password"
                 type="password"
+                required
                 autoComplete="current-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
               />
             </div>
@@ -117,7 +118,7 @@ export default function LoginPage() {
               </div>
             )}
 
-            <Button type="submit" disabled={loading || !username || !password} className="w-full">
+            <Button type="submit" disabled={loading} className="w-full">
               {loading ? t("login.submitting") : t("login.submit")}
             </Button>
           </form>
