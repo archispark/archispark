@@ -9,6 +9,9 @@ export default defineConfig({
   },
   test: {
     pool: "forks",
+    // Only run tests in src/ — dist/ is compiled output and would otherwise
+    // be picked up after `pnpm build`, inflating test counts and diluting coverage.
+    include: ["src/**/*.test.ts"],
     setupFiles: ["./src/test-setup.ts"],
     env: {
       DB_PATH: ":memory:",
@@ -16,7 +19,7 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       reporter: ["text", "json-summary", "html"],
-      exclude: ["**/package.json"],
+      exclude: ["**/package.json", "dist/**"],
       thresholds: {
         statements: 80,
         branches: 80,
