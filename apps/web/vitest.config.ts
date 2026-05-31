@@ -11,7 +11,7 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       reporter: ["text", "json-summary"],
-      exclude: ["**/node_modules/**", "**/.next/**", "**/coverage/**", "**/*.config.*", "middleware.ts"],
+      exclude: ["**/node_modules/**", "**/.next/**", "**/coverage/**", "**/*.config.*", "proxy.ts"],
       thresholds: {
         statements: 60,
         branches: 60,
