@@ -1,5 +1,5 @@
 /**
- * Multi-workspace registry backed by SQLite or PostgreSQL (Drizzle ORM).
+ * Multi-workspace registry backed by PostgreSQL (Drizzle ORM).
  *
  * Architecture:
  *   - Workspaces listed in the `workspaces` DB table (replaces workspaces.json).

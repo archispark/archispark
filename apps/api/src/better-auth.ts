@@ -2,7 +2,7 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { username, admin, genericOAuth, microsoftEntraId } from "better-auth/plugins";
 import { eq, and } from "drizzle-orm";
-import { db, dbDriver, users, sessions, accounts, verifications, roles, userRoles, oauthProviders } from "@workspace/db";
+import { db, users, sessions, accounts, verifications, roles, userRoles, oauthProviders } from "@workspace/db";
 import { getRedis } from "./redis.js";
 
 export interface OAuthProvider {
@@ -148,7 +148,7 @@ function createAuthInstance(oauthConfig: unknown[]) {
     basePath: "/auth",
 
     database: drizzleAdapter(db, {
-      provider: dbDriver === "postgres" ? "pg" : "sqlite",
+      provider: "pg",
       schema: {
         user: users,
         session: sessions,

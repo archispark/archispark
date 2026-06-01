@@ -588,9 +588,9 @@ describe("GET /views/:view_id/image", () => {
     expect(res.body).toHaveProperty("detail");
   });
 
-  it("returns 200 with PNG image when sharp is installed", async () => {
+  it("returns 422 for png (server-side PNG removed; export is client-side)", async () => {
     const res = await request(app).get(`/views/${knownView.identifier}/image?format=png`);
-    expect(res.status).toBe(200);
-    expect(res.headers["content-type"]).toMatch(/image\/png/);
+    expect(res.status).toBe(422);
+    expect(res.body).toHaveProperty("detail");
   });
 });

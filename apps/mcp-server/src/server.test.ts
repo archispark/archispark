@@ -63,7 +63,6 @@ vi.mock("api/src/app.js", () => ({
 
 vi.mock("api/src/renderer.js", () => ({
   renderViewToSvg: vi.fn().mockReturnValue("<svg/>"),
-  renderViewToPng: vi.fn().mockResolvedValue(Buffer.from("png")),
 }));
 
 vi.mock("api/src/schemas.js", () => ({
@@ -114,7 +113,7 @@ import {
   saveModel, listPropertyDefinitions, getPropertyDefinitionById,
   createPropertyDefinition, updatePropertyDefinition, deletePropertyDefinition,
 } from "api/src/app.js";
-import { renderViewToSvg, renderViewToPng } from "api/src/renderer.js";
+import { renderViewToSvg } from "api/src/renderer.js";
 import { dataSource } from "api/src/registry.js";
 
 // ---------------------------------------------------------------------------
@@ -482,13 +481,6 @@ describe("MCP tool: render_view", () => {
     const result = await callTool("render_view", { view_id: "v1" });
     expect(vi.mocked(renderViewToSvg)).toHaveBeenCalled();
     expect(result.content[0].mimeType).toBe("image/svg+xml");
-  });
-
-  it("returns PNG when format=png", async () => {
-    vi.mocked(dataSource as { model: { views: { uuid: string }[] } }).model.views = [{ uuid: "v2" } as never];
-    const result = await callTool("render_view", { view_id: "v2", format: "png" });
-    expect(vi.mocked(renderViewToPng)).toHaveBeenCalled();
-    expect(result.content[0].mimeType).toBe("image/png");
   });
 
   it("throws when view not found", async () => {

@@ -129,8 +129,8 @@ export async function fetchRelationships(
 export const fetchViews = () => get<ViewOut[]>("/views");
 export const fetchView = (id: string) => get<ViewDetail>(`/views/${encodeURIComponent(id)}`);
 
-export function viewImageUrl(id: string, format: "svg" | "png" = "svg"): string {
-  return `${BASE}/views/${encodeURIComponent(id)}/image?format=${format}`;
+export function viewImageUrl(id: string): string {
+  return `${BASE}/views/${encodeURIComponent(id)}/image?format=svg`;
 }
 
 // --- Mutations ---

@@ -6,7 +6,7 @@ ArchiMate 3.1 modeling tool — REST API, MCP server, and web UI.
 
 | Layer | Tech |
 |-------|------|
-| API | Express + TypeScript ESM, SQLite (Drizzle ORM), JWT auth |
+| API | Express + TypeScript ESM, PostgreSQL (Drizzle ORM), JWT auth |
 | MCP | `@modelcontextprotocol/sdk` — Streamable HTTP transport |
 | Web | Next.js 16, React, shadcn/ui |
 
@@ -18,20 +18,27 @@ pnpm dev          # API :3000 · Web :8000 · MCP :3001 · all bound to 0.0.0.0
 ```
 
 On first run the API:
-1. Applies pending SQLite migrations (`packages/db/drizzle/`)
+1. Applies pending PostgreSQL migrations (`packages/db/drizzle-pg/`)
 2. Seeds default users (`admin/admin` and `user/user`) if the `users` table is empty
 3. Seeds workspaces from `workspaces.json` or `config.json` + XML files if present
 
+Set the database connection with `DATABASE_URL` (the Supabase/Vercel
+`POSTGRES_URL_NON_POOLING` / `POSTGRES_URL` vars are also picked up as
+fallbacks). It defaults to `postgresql://archispark:archispark@localhost:5432/archispark`.
+
 ## Persistence
 
-All data lives in `data/archispark.db` at the repo root (SQLite, WAL mode), shared between the API and MCP server.  
+All data lives in PostgreSQL, shared between the API and MCP server.  
 Schema follows ArchiMate 3 Open Exchange XSDs (`apps/api/models/xsd/`).
+
+The test suite runs against [PGlite](https://pglite.dev) (Postgres compiled to
+WASM, in-memory) — full Postgres fidelity, no Docker required.
 
 To generate a migration after a schema change:
 
 ```bash
 cd packages/db
-npx drizzle-kit generate
+DB_DRIVER=postgres npx drizzle-kit generate   # writes to drizzle-pg/
 ```
 
 ## Authentication
@@ -106,7 +113,7 @@ Default credentials: `admin` / `admin` (admin), `user` / `user` (read-only).
 | `PUT` | `/views/:id` | Update (partial) |
 | `DELETE` | `/views/:id` | Delete |
 | `POST` | `/views/:id/nodes` | Add node — `{ element_id, x?, y?, w?, h? }` |
-| `GET` | `/views/:id/image` | Render view (`?format=svg` or `?format=png`) |
+| `GET` | `/views/:id/image` | Render view as SVG (`?format=svg`; PNG export is client-side) |
 
 ## Property definitions
 
@@ -149,7 +156,6 @@ bash apps/api/scripts/setup-vercel-env.sh
 Le script configure :
 
 Variable	Projet	Valeur
-DB_DRIVER	api	postgres
 JWT_SECRET	api	(générée)
 WEB_URL	api	https://demo.archispark.cloud
 API_URL	api	https://demo.archispark.cloud

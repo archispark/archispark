@@ -1,8 +1,10 @@
 /**
- * SVG (and optionally PNG) renderer for ArchiMate views.
+ * SVG renderer for ArchiMate views.
  *
- * renderViewToSvg  – pure string generation, no runtime dependencies
- * renderViewToPng  – requires the optional "sharp" package
+ * renderViewToSvg  – pure string generation, no runtime dependencies.
+ *
+ * PNG export is handled client-side in the web app (React Flow + html-to-image);
+ * the server no longer rasterizes to PNG, so there is no native image dependency.
  */
 
 import { readFileSync, existsSync } from "fs";
@@ -850,22 +852,4 @@ export function renderViewToSvg(view: ArchiView, model: ArchiModel): string {
 
   out.push("</svg>");
   return out.join("\n");
-}
-
-// ---------------------------------------------------------------------------
-// PNG export (requires optional "sharp" package)
-// ---------------------------------------------------------------------------
-
-export async function renderViewToPng(view: ArchiView, model: ArchiModel): Promise<Buffer> {
-  let sharpFn: (input: Buffer) => { png(): { toBuffer(): Promise<Buffer> } };
-  try {
-    const mod = await import("sharp");
-    sharpFn = mod.default as typeof sharpFn;
-  } catch {
-    throw new Error(
-      "PNG generation requires the 'sharp' package. Install it with: npm install sharp"
-    );
-  }
-  const svg = renderViewToSvg(view, model);
-  return sharpFn(Buffer.from(svg)).png().toBuffer();
 }

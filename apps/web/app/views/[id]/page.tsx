@@ -8,9 +8,9 @@ import { ViewCanvas } from "@/components/view-canvas";
 import { ValidatorTable } from "@/components/validator-table";
 import { useT } from "@/lib/i18n";
 
-type Tab = "canvas" | "svg" | "png";
+type Tab = "canvas" | "svg";
 
-function useImageBlob(id: string, format: "svg" | "png" | null) {
+function useImageBlob(id: string, format: "svg" | null) {
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
   const [imgError, setImgError] = useState<string | null>(null);
 
@@ -20,7 +20,7 @@ function useImageBlob(id: string, format: "svg" | "png" | null) {
     setBlobUrl(null);
     setImgError(null);
 
-    fetch(viewImageUrl(id, format), {
+    fetch(viewImageUrl(id), {
       credentials: "include",
     })
       .then((res) => {
@@ -62,7 +62,7 @@ export default function ViewDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("canvas");
 
-  const imageFormat = tab === "svg" || tab === "png" ? tab : null;
+  const imageFormat = tab === "svg" ? tab : null;
   const { blobUrl, imgError } = useImageBlob(id, imageFormat);
 
   useEffect(() => {
@@ -126,13 +126,6 @@ export default function ViewDetailPage() {
           >
             SVG
           </Button>
-          <Button
-            variant={tab === "png" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setTab("png")}
-          >
-            PNG
-          </Button>
         </div>
       </div>
 
@@ -143,7 +136,7 @@ export default function ViewDetailPage() {
               <ViewCanvas viewId={id} nodes={view.nodes} connections={view.connections} elements={elementsList} elementNames={elementNames} elementTypes={elementTypes} relationshipTypes={relationshipTypes} relationshipNames={relationshipNames} />
             </div>
           ) : null}
-          {tab === "svg" || tab === "png" ? (
+          {tab === "svg" ? (
             imgError ? (
               <div className="p-4 text-sm text-destructive bg-destructive/10 border-t border-destructive/30">
                 {t("common.error")} : {imgError}

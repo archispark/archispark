@@ -26,11 +26,6 @@ describe("viewImageUrl", () => {
     expect(url).toContain("format=svg");
   });
 
-  it("generates PNG URL when requested", () => {
-    const url = viewImageUrl("view-1", "png");
-    expect(url).toContain("format=png");
-  });
-
   it("encodes special characters in id", () => {
     const url = viewImageUrl("view/with spaces");
     expect(url).not.toContain(" ");

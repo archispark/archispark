@@ -2,7 +2,7 @@
  * MCP server.
  *
  * Exposes the same 25 ArchiMate MCP tools via streamable-HTTP transport.
- * Reads from (and writes to) the same SQLite DB as the REST API.
+ * Reads from (and writes to) the same PostgreSQL database as the REST API.
  */
 
 import { randomUUID } from "crypto";
@@ -39,7 +39,7 @@ import {
   updatePropertyDefinition,
   deletePropertyDefinition,
 } from "api/src/app.js";
-import { renderViewToSvg, renderViewToPng } from "api/src/renderer.js";
+import { renderViewToSvg } from "api/src/renderer.js";
 import {
   ELEMENT_TYPES,
   RELATIONSHIP_TYPES,
@@ -417,27 +417,14 @@ mcpServer.registerTool(
 mcpServer.registerTool(
   "render_view",
   {
-    description:
-      "Génère une image SVG ou PNG d'une vue ArchiMate. " +
-      "SVG est retourné directement (toujours disponible). " +
-      "PNG nécessite le paquet optionnel 'sharp' (npm install sharp).",
+    description: "Génère une image SVG d'une vue ArchiMate.",
     inputSchema: {
       view_id: z.string().describe("Identifiant de la vue à rendre"),
-      format: z
-        .enum(["svg", "png"])
-        .optional()
-        .describe("Format de sortie: 'svg' (défaut) ou 'png'"),
     },
   },
-  async ({ view_id, format = "svg" }) => {
+  async ({ view_id }) => {
     const view = dataSource.model.views.find((v) => v.uuid === view_id);
     if (!view) throw new Error(`Vue '${view_id}' introuvable.`);
-    if (format === "png") {
-      const buf = await renderViewToPng(view, dataSource.model);
-      return {
-        content: [{ type: "image" as const, data: buf.toString("base64"), mimeType: "image/png" }],
-      };
-    }
     const svg = renderViewToSvg(view, dataSource.model);
     return {
       content: [{ type: "image" as const, data: Buffer.from(svg).toString("base64"), mimeType: "image/svg+xml" }],

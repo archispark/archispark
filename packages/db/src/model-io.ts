@@ -6,7 +6,7 @@
  */
 
 import { eq } from "drizzle-orm";
-import { db, dbDriver } from "./connection.js";
+import { db } from "./connection.js";
 import {
   workspaces,
   elements,
@@ -241,107 +241,8 @@ export async function modelFromDb(workspaceId: number): Promise<ArchiModel> {
 // Save: ArchiModel → DB  (replaces all rows for the workspace, atomic)
 // ---------------------------------------------------------------------------
 
+// Replaces all rows for the workspace atomically (PostgreSQL async transaction).
 export async function modelToDb(workspaceId: number, model: ArchiModel): Promise<void> {
-  if (dbDriver === "postgres") {
-    await modelToDbPg(workspaceId, model);
-  } else {
-    modelToDbSqlite(workspaceId, model);
-  }
-}
-
-// SQLite path — uses synchronous Drizzle + better-sqlite3 transaction
-function modelToDbSqlite(workspaceId: number, model: ArchiModel): void {
-  (db as any).transaction((tx: any) => {
-    tx.update(workspaces).set({
-      uuid: model.uuid,
-      description: model.desc ?? null,
-      version: model.version ?? null,
-      updatedAt: Math.floor(Date.now() / 1000),
-    }).where(eq(workspaces.id, workspaceId)).run();
-
-    tx.delete(elements).where(eq(elements.workspaceId, workspaceId)).run();
-    tx.delete(relationships).where(eq(relationships.workspaceId, workspaceId)).run();
-    tx.delete(propertyDefinitions).where(eq(propertyDefinitions.workspaceId, workspaceId)).run();
-    tx.delete(views).where(eq(views.workspaceId, workspaceId)).run();
-
-    for (const pd of model.propertyDefinitions) {
-      tx.insert(propertyDefinitions).values({
-        workspaceId, uuid: pd.uuid, name: pd.name, type: pd.type,
-      }).run();
-    }
-
-    for (const e of model.elements) {
-      const res = tx.insert(elements).values({
-        workspaceId, uuid: e.uuid, type: e.type, name: e.name, description: e.desc ?? null,
-      }).returning({ id: elements.id }).get();
-      // v8 ignore next
-      if (!res) continue;
-      for (const [defUuid, value] of Object.entries(e.props)) {
-        tx.insert(elementProperties).values({ elementId: res.id, propertyDefUuid: defUuid, value }).run();
-      }
-    }
-
-    for (const r of model.relationships) {
-      const srcUuid = typeof r.source === "string" ? r.source : r.source.uuid;
-      const tgtUuid = typeof r.target === "string" ? r.target : r.target.uuid;
-      const res = tx.insert(relationships).values({
-        workspaceId, uuid: r.uuid, type: r.type, name: r.name ?? null,
-        description: r.desc ?? null, sourceUuid: srcUuid, targetUuid: tgtUuid,
-        accessType: r.access_type ?? null,
-        isDirected: r.is_directed ?? null,
-        influenceModifier: r.influence_strength ?? null,
-      }).returning({ id: relationships.id }).get();
-      // v8 ignore next
-      if (!res) continue;
-      for (const [defUuid, value] of Object.entries(r.props)) {
-        tx.insert(relationshipProperties).values({ relationshipId: res.id, propertyDefUuid: defUuid, value }).run();
-      }
-    }
-
-    for (const v of model.views) {
-      const vRes = tx.insert(views).values({
-        workspaceId, uuid: v.uuid, name: v.name,
-        description: v.desc ?? null, viewpoint: v.primary_viewpoint ?? null,
-      }).returning({ id: views.id }).get();
-      // v8 ignore next
-      if (!vRes) continue;
-      const viewId = vRes.id;
-
-      const flatNodes: Parameters<typeof flattenNodes>[2] = [];
-      flattenNodes(v.nodes, null, flatNodes, { i: 0 });
-      for (const n of flatNodes) {
-        tx.insert(nodes).values({ viewId, ...n }).run();
-      }
-
-      for (const c of v.conns) {
-        const lineC = colorToRow(c.line_color);
-        const fontC2 = colorToRow(c.font_color);
-        const cRes = tx.insert(connections).values({
-          viewId, uuid: c.uuid, name: c.name ?? null,
-          relationshipUuid: c.ref ?? null,
-          sourceNodeUuid: c.source ?? null,
-          targetNodeUuid: c.target ?? null,
-          lineColorR: lineC.r, lineColorG: lineC.g, lineColorB: lineC.b, lineColorA: lineC.a,
-          lineWidth: c.line_width ?? null,
-          fontName: c.font_name ?? null,
-          fontSize: c.font_size ?? null,
-          fontColorR: fontC2.r, fontColorG: fontC2.g, fontColorB: fontC2.b, fontColorA: fontC2.a,
-        }).returning({ id: connections.id }).get();
-        // v8 ignore next
-        if (!cRes) continue;
-        if (c.bendpoints?.length) {
-          for (let i = 0; i < c.bendpoints.length; i++) {
-            const bp = c.bendpoints[i]!;
-            tx.insert(bendpoints).values({ connectionId: cRes.id, x: bp.x, y: bp.y, sortOrder: i }).run();
-          }
-        }
-      }
-    }
-  });
-}
-
-// PostgreSQL path — uses Drizzle async transaction
-async function modelToDbPg(workspaceId: number, model: ArchiModel): Promise<void> {
   await (db as any).transaction(async (tx: any) => {
     await tx.update(workspaces).set({
       uuid: model.uuid,

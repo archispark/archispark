@@ -1,8 +1,8 @@
 /**
- * Drizzle ORM schema for ArchiMate 3.1 — normalized SQLite tables.
+ * Drizzle ORM schema for ArchiMate 3.1 — normalized PostgreSQL tables.
  *
  * Design:
- *   - One database file (archispark.db) for all workspaces.
+ *   - One database for all workspaces.
  *   - Every entity table has a workspace_id FK → workspaces.id.
  *   - UUIDs kept as TEXT to match the Open Exchange xs:ID format ("id-" prefix).
  *   - Colors stored as RGBA integers (0-255 / 0-100 alpha), NULL when not set.
@@ -12,21 +12,24 @@
  *   - Bendpoints for connection routing stored in a child table.
  */
 
-import { sqliteTable, text, integer, real, index, uniqueIndex, primaryKey } from "drizzle-orm/sqlite-core";
+import {
+  pgTable, text, integer, serial, boolean, real,
+  timestamp, index, uniqueIndex, primaryKey,
+} from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
 // ---------------------------------------------------------------------------
 // Workspaces (replaces workspaces.json)
 // ---------------------------------------------------------------------------
 
-export const workspaces = sqliteTable("workspaces", {
-  id:          integer("id").primaryKey({ autoIncrement: true }),
+export const workspaces = pgTable("workspaces", {
+  id:          serial("id").primaryKey(),
   uuid:        text("uuid").notNull(),          // ArchiMate model identifier (xs:ID)
   name:        text("name").notNull(),           // workspace / model display name
   description: text("description"),
   version:     text("version"),
-  createdAt:   integer("created_at").notNull().default(sql`(unixepoch())`),
-  updatedAt:   integer("updated_at").notNull().default(sql`(unixepoch())`),
+  createdAt:   integer("created_at").notNull().default(sql`extract(epoch from now())::int`),
+  updatedAt:   integer("updated_at").notNull().default(sql`extract(epoch from now())::int`),
 }, (t) => [
   uniqueIndex("workspaces_name_uniq").on(t.name),
 ]);
@@ -35,8 +38,8 @@ export const workspaces = sqliteTable("workspaces", {
 // Elements  (ArchiMate 3.1 — all layers)
 // ---------------------------------------------------------------------------
 
-export const elements = sqliteTable("elements", {
-  id:          integer("id").primaryKey({ autoIncrement: true }),
+export const elements = pgTable("elements", {
+  id:          serial("id").primaryKey(),
   workspaceId: integer("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
   uuid:        text("uuid").notNull(),
   type:        text("type").notNull(),           // ArchiMate element type (ApplicationComponent, etc.)
@@ -52,8 +55,8 @@ export const elements = sqliteTable("elements", {
 // Relationships  (ArchiMate 3.1 — 11 structural + junction types)
 // ---------------------------------------------------------------------------
 
-export const relationships = sqliteTable("relationships", {
-  id:                integer("id").primaryKey({ autoIncrement: true }),
+export const relationships = pgTable("relationships", {
+  id:                serial("id").primaryKey(),
   workspaceId:       integer("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
   uuid:              text("uuid").notNull(),
   type:              text("type").notNull(),      // Composition, Aggregation, Assignment, …
@@ -62,7 +65,7 @@ export const relationships = sqliteTable("relationships", {
   sourceUuid:        text("source_uuid").notNull(),
   targetUuid:        text("target_uuid").notNull(),
   accessType:        text("access_type"),         // Access: Read, Write, ReadWrite, Access
-  isDirected:        integer("is_directed", { mode: "boolean" }),  // Association
+  isDirected:        boolean("is_directed"),       // Association
   influenceModifier: text("influence_modifier"),  // Influence: +, ++, -, …
 }, (t) => [
   uniqueIndex("relationships_uuid_ws_uniq").on(t.workspaceId, t.uuid),
@@ -75,8 +78,8 @@ export const relationships = sqliteTable("relationships", {
 // Property definitions  (schema for custom metadata)
 // ---------------------------------------------------------------------------
 
-export const propertyDefinitions = sqliteTable("property_definitions", {
-  id:          integer("id").primaryKey({ autoIncrement: true }),
+export const propertyDefinitions = pgTable("property_definitions", {
+  id:          serial("id").primaryKey(),
   workspaceId: integer("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
   uuid:        text("uuid").notNull(),
   name:        text("name").notNull(),
@@ -90,8 +93,8 @@ export const propertyDefinitions = sqliteTable("property_definitions", {
 // Properties (key-value metadata on elements and relationships, split tables)
 // ---------------------------------------------------------------------------
 
-export const elementProperties = sqliteTable("element_properties", {
-  id:              integer("id").primaryKey({ autoIncrement: true }),
+export const elementProperties = pgTable("element_properties", {
+  id:              serial("id").primaryKey(),
   elementId:       integer("element_id").notNull().references(() => elements.id, { onDelete: "cascade" }),
   propertyDefUuid: text("property_def_uuid").notNull(),
   value:           text("value").notNull().default(""),
@@ -100,8 +103,8 @@ export const elementProperties = sqliteTable("element_properties", {
   index("elem_props_def_idx").on(t.propertyDefUuid),
 ]);
 
-export const relationshipProperties = sqliteTable("relationship_properties", {
-  id:              integer("id").primaryKey({ autoIncrement: true }),
+export const relationshipProperties = pgTable("relationship_properties", {
+  id:              serial("id").primaryKey(),
   relationshipId:  integer("relationship_id").notNull().references(() => relationships.id, { onDelete: "cascade" }),
   propertyDefUuid: text("property_def_uuid").notNull(),
   value:           text("value").notNull().default(""),
@@ -114,8 +117,8 @@ export const relationshipProperties = sqliteTable("relationship_properties", {
 // Views  (ArchiMate diagrams)
 // ---------------------------------------------------------------------------
 
-export const views = sqliteTable("views", {
-  id:          integer("id").primaryKey({ autoIncrement: true }),
+export const views = pgTable("views", {
+  id:          serial("id").primaryKey(),
   workspaceId: integer("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
   uuid:        text("uuid").notNull(),
   name:        text("name").notNull().default(""),
@@ -130,8 +133,8 @@ export const views = sqliteTable("views", {
 // Nodes  (visual shapes in a view)
 // ---------------------------------------------------------------------------
 
-export const nodes = sqliteTable("nodes", {
-  id:             integer("id").primaryKey({ autoIncrement: true }),
+export const nodes = pgTable("nodes", {
+  id:             serial("id").primaryKey(),
   viewId:         integer("view_id").notNull().references(() => views.id, { onDelete: "cascade" }),
   uuid:           text("uuid").notNull(),
   name:           text("name"),
@@ -171,8 +174,8 @@ export const nodes = sqliteTable("nodes", {
 // Connections  (visual connectors in a view)
 // ---------------------------------------------------------------------------
 
-export const connections = sqliteTable("connections", {
-  id:               integer("id").primaryKey({ autoIncrement: true }),
+export const connections = pgTable("connections", {
+  id:               serial("id").primaryKey(),
   viewId:           integer("view_id").notNull().references(() => views.id, { onDelete: "cascade" }),
   uuid:             text("uuid").notNull(),
   name:             text("name"),
@@ -202,8 +205,8 @@ export const connections = sqliteTable("connections", {
 // Bendpoints  (waypoints for connection routing)
 // ---------------------------------------------------------------------------
 
-export const bendpoints = sqliteTable("bendpoints", {
-  id:           integer("id").primaryKey({ autoIncrement: true }),
+export const bendpoints = pgTable("bendpoints", {
+  id:           serial("id").primaryKey(),
   connectionId: integer("connection_id").notNull().references(() => connections.id, { onDelete: "cascade" }),
   x:            integer("x").notNull(),
   y:            integer("y").notNull(),
@@ -216,38 +219,38 @@ export const bendpoints = sqliteTable("bendpoints", {
 // Better Auth tables
 // ---------------------------------------------------------------------------
 
-export const users = sqliteTable("user", {
+export const users = pgTable("user", {
   id:            text("id").primaryKey(),
   name:          text("name").notNull(),
   email:         text("email"),
-  emailVerified: integer("email_verified", { mode: "boolean" }).notNull().default(false),
+  emailVerified: boolean("email_verified").notNull().default(false),
   image:         text("image"),
-  createdAt:     integer("created_at", { mode: "timestamp" }).notNull(),
-  updatedAt:     integer("updated_at", { mode: "timestamp" }).notNull(),
+  createdAt:     timestamp("created_at").notNull(),
+  updatedAt:     timestamp("updated_at").notNull(),
   username:        text("username").notNull(),
   displayUsername: text("display_username"),
-  role:            text("role", { enum: ["admin", "user"] }).notNull().default("user"),
-  banned:          integer("banned", { mode: "boolean" }),
+  role:            text("role").notNull().default("user"),
+  banned:          boolean("banned"),
   banReason:       text("ban_reason"),
   banExpires:      integer("ban_expires"),
 }, (t) => [
   uniqueIndex("user_username_uniq").on(t.username),
 ]);
 
-export const sessions = sqliteTable("session", {
+export const sessions = pgTable("session", {
   id:           text("id").primaryKey(),
   userId:       text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   token:        text("token").notNull(),
-  expiresAt:    integer("expires_at", { mode: "timestamp" }).notNull(),
+  expiresAt:    timestamp("expires_at").notNull(),
   ipAddress:    text("ip_address"),
   userAgent:    text("user_agent"),
-  createdAt:    integer("created_at", { mode: "timestamp" }).notNull(),
-  updatedAt:    integer("updated_at", { mode: "timestamp" }).notNull(),
+  createdAt:    timestamp("created_at").notNull(),
+  updatedAt:    timestamp("updated_at").notNull(),
 }, (t) => [
   uniqueIndex("session_token_uniq").on(t.token),
 ]);
 
-export const accounts = sqliteTable("account", {
+export const accounts = pgTable("account", {
   id:                  text("id").primaryKey(),
   userId:              text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   accountId:           text("account_id").notNull(),
@@ -255,35 +258,35 @@ export const accounts = sqliteTable("account", {
   accessToken:         text("access_token"),
   refreshToken:        text("refresh_token"),
   idToken:             text("id_token"),
-  accessTokenExpiresAt: integer("access_token_expires_at", { mode: "timestamp" }),
-  refreshTokenExpiresAt: integer("refresh_token_expires_at", { mode: "timestamp" }),
+  accessTokenExpiresAt:  timestamp("access_token_expires_at"),
+  refreshTokenExpiresAt: timestamp("refresh_token_expires_at"),
   scope:               text("scope"),
   password:            text("password"),
-  createdAt:           integer("created_at", { mode: "timestamp" }).notNull(),
-  updatedAt:           integer("updated_at", { mode: "timestamp" }).notNull(),
+  createdAt:           timestamp("created_at").notNull(),
+  updatedAt:           timestamp("updated_at").notNull(),
 });
 
-export const verifications = sqliteTable("verification", {
+export const verifications = pgTable("verification", {
   id:         text("id").primaryKey(),
   identifier: text("identifier").notNull(),
   value:      text("value").notNull(),
-  expiresAt:  integer("expires_at", { mode: "timestamp" }).notNull(),
-  createdAt:  integer("created_at", { mode: "timestamp" }),
-  updatedAt:  integer("updated_at", { mode: "timestamp" }),
+  expiresAt:  timestamp("expires_at").notNull(),
+  createdAt:  timestamp("created_at"),
+  updatedAt:  timestamp("updated_at"),
 });
 
-export const roles = sqliteTable("roles", {
+export const roles = pgTable("roles", {
   id:          text("id").primaryKey(),
   name:        text("name").notNull(),
   description: text("description"),
-  isSystem:    integer("is_system", { mode: "boolean" }).notNull().default(false),
-  createdAt:   integer("created_at").notNull().default(sql`(unixepoch())`),
+  isSystem:    boolean("is_system").notNull().default(false),
+  createdAt:   integer("created_at").notNull().default(sql`extract(epoch from now())::int`),
 }, (t) => [
   uniqueIndex("roles_name_uniq").on(t.name),
 ]);
 
 // permission stored as bit flags: read=1, create=2, update=4, delete=8
-export const roleLayerPermissions = sqliteTable("role_layer_permissions", {
+export const roleLayerPermissions = pgTable("role_layer_permissions", {
   roleId:     text("role_id").notNull().references(() => roles.id, { onDelete: "cascade" }),
   layer:      text("layer").notNull(),
   permission: integer("permission").notNull().default(0),
@@ -291,7 +294,7 @@ export const roleLayerPermissions = sqliteTable("role_layer_permissions", {
   primaryKey({ columns: [t.roleId, t.layer] }),
 ]);
 
-export const userRoles = sqliteTable("user_roles", {
+export const userRoles = pgTable("user_roles", {
   roleId: text("role_id").notNull().references(() => roles.id, { onDelete: "cascade" }),
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
 }, (t) => [
@@ -302,7 +305,7 @@ export const userRoles = sqliteTable("user_roles", {
 // OAuth / OIDC provider configurations (managed via admin UI)
 // ---------------------------------------------------------------------------
 
-export const oauthProviders = sqliteTable("oauth_providers", {
+export const oauthProviders = pgTable("oauth_providers", {
   id:          text("id").primaryKey(),
   providerId:  text("provider_id").notNull(),         // slug used in OAuth flow
   type:        text("type", { enum: ["oidc", "google", "github", "microsoft-entra-id"] }).notNull(),
@@ -311,8 +314,8 @@ export const oauthProviders = sqliteTable("oauth_providers", {
   clientSecret: text("client_secret").notNull(),
   issuerUrl:   text("issuer_url"),                   // OIDC only
   tenantId:    text("tenant_id"),                    // Microsoft Entra only
-  enabled:     integer("enabled", { mode: "boolean" }).notNull().default(true),
-  createdAt:   integer("created_at").notNull().default(sql`(unixepoch())`),
+  enabled:     boolean("enabled").notNull().default(true),
+  createdAt:   integer("created_at").notNull().default(sql`extract(epoch from now())::int`),
 }, (t) => [
   uniqueIndex("oauth_providers_provider_id_uniq").on(t.providerId),
 ]);

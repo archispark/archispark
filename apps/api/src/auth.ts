@@ -1,7 +1,7 @@
 import { randomUUID } from "crypto";
 import type { Request, Response, NextFunction } from "express";
 import { and, eq, inArray } from "drizzle-orm";
-import { db, dbDriver, sqlite, users as usersTable, accounts, roles as rolesTable, roleLayerPermissions as rolePermsTable, userRoles as userRolesTable } from "@workspace/db";
+import { db, users as usersTable, accounts, roles as rolesTable, roleLayerPermissions as rolePermsTable, userRoles as userRolesTable } from "@workspace/db";
 import { getAuth } from "./better-auth.js";
 import { fromNodeHeaders } from "better-auth/node";
 import bcrypt from "bcryptjs";
@@ -69,94 +69,8 @@ export interface AuthRequest extends Request {
 // ---------------------------------------------------------------------------
 
 export async function initUsers(): Promise<void> {
-  if (dbDriver === "sqlite") {
-    // SQLite: tables not in migrations, create at runtime
-    sqlite!.exec(`
-      CREATE TABLE IF NOT EXISTS "user" (
-        id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        email TEXT,
-        email_verified INTEGER NOT NULL DEFAULT 0,
-        image TEXT,
-        created_at INTEGER NOT NULL,
-        updated_at INTEGER NOT NULL,
-        username TEXT NOT NULL,
-        display_username TEXT,
-        role TEXT NOT NULL DEFAULT 'user',
-        banned INTEGER,
-        ban_reason TEXT,
-        ban_expires INTEGER
-      );
-      CREATE UNIQUE INDEX IF NOT EXISTS user_username_uniq ON "user"(username);
-
-      CREATE TABLE IF NOT EXISTS session (
-        id TEXT PRIMARY KEY,
-        user_id TEXT NOT NULL,
-        token TEXT NOT NULL,
-        expires_at INTEGER NOT NULL,
-        ip_address TEXT,
-        user_agent TEXT,
-        created_at INTEGER NOT NULL,
-        updated_at INTEGER NOT NULL,
-        FOREIGN KEY (user_id) REFERENCES "user"(id) ON DELETE CASCADE
-      );
-      CREATE UNIQUE INDEX IF NOT EXISTS session_token_uniq ON session(token);
-
-      CREATE TABLE IF NOT EXISTS account (
-        id TEXT PRIMARY KEY,
-        user_id TEXT NOT NULL,
-        account_id TEXT NOT NULL,
-        provider_id TEXT NOT NULL,
-        access_token TEXT,
-        refresh_token TEXT,
-        id_token TEXT,
-        access_token_expires_at INTEGER,
-        refresh_token_expires_at INTEGER,
-        scope TEXT,
-        password TEXT,
-        created_at INTEGER NOT NULL,
-        updated_at INTEGER NOT NULL,
-        FOREIGN KEY (user_id) REFERENCES "user"(id) ON DELETE CASCADE
-      );
-
-      CREATE TABLE IF NOT EXISTS verification (
-        id TEXT PRIMARY KEY,
-        identifier TEXT NOT NULL,
-        value TEXT NOT NULL,
-        expires_at INTEGER NOT NULL,
-        created_at INTEGER,
-        updated_at INTEGER
-      );
-    `);
-
-    sqlite!.exec(`
-      CREATE TABLE IF NOT EXISTS roles (
-        id          TEXT PRIMARY KEY,
-        name        TEXT NOT NULL,
-        description TEXT,
-        is_system   INTEGER NOT NULL DEFAULT 0,
-        created_at  INTEGER NOT NULL DEFAULT (unixepoch())
-      );
-      CREATE UNIQUE INDEX IF NOT EXISTS roles_name_uniq ON roles(name);
-      CREATE TABLE IF NOT EXISTS role_layer_permissions (
-        role_id    TEXT NOT NULL,
-        layer      TEXT NOT NULL,
-        permission INTEGER NOT NULL DEFAULT 0,
-        PRIMARY KEY (role_id, layer),
-        FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE
-      );
-      CREATE TABLE IF NOT EXISTS user_roles (
-        role_id TEXT NOT NULL,
-        user_id TEXT NOT NULL,
-        PRIMARY KEY (role_id, user_id),
-        FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE,
-        FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE
-      );
-    `);
-    try { sqlite!.exec(`ALTER TABLE roles ADD COLUMN is_system INTEGER NOT NULL DEFAULT 0`); } catch { /* already exists */ }
-  }
-  // PostgreSQL: all tables created by runMigrations() (drizzle-pg/ folder)
-
+  // All tables (model, RBAC, Better Auth) are created by runMigrations()
+  // from the drizzle-pg/ folder before this runs.
   const now = Math.floor(Date.now() / 1000);
 
   // Seed system RBAC roles (idempotent via onConflictDoNothing)

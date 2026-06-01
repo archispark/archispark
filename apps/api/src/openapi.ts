@@ -647,7 +647,7 @@ export const openApiSpec = {
     "/views/{view_id}/image": {
       get: {
         tags: ["Views"],
-        summary: "Rendu SVG ou PNG d'une vue",
+        summary: "Rendu SVG d'une vue",
         operationId: "renderView",
         parameters: [
           {
@@ -661,24 +661,19 @@ export const openApiSpec = {
             name: "format",
             in: "query",
             required: false,
-            schema: { type: "string", enum: ["svg", "png"], default: "svg" },
-            description: "Format de sortie (svg par défaut, png nécessite le paquet sharp)",
+            schema: { type: "string", enum: ["svg"], default: "svg" },
+            description: "Format de sortie (svg uniquement ; l'export PNG se fait côté client)",
           },
         ],
         responses: {
           "200": {
-            description: "Image de la vue",
+            description: "Image SVG de la vue",
             content: {
               "image/svg+xml": { schema: { type: "string", format: "binary" } },
-              "image/png":     { schema: { type: "string", format: "binary" } },
             },
           },
           "404": { $ref: "#/components/responses/NotFound" },
           "422": { $ref: "#/components/responses/UnprocessableType" },
-          "500": {
-            description: "Erreur de rendu (ex: paquet sharp manquant pour PNG)",
-            content: { "application/json": { schema: { $ref: "#/components/schemas/ErrorDetail" } } },
-          },
         },
       },
     },

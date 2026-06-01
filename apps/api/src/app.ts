@@ -61,7 +61,7 @@ import {
 import { serializeToOpenExchange } from "./oxf-serializer.js";
 import { parseOpenExchange } from "./oxf-parser.js";
 import { openApiSpec } from "./openapi.js";
-import { renderViewToSvg, renderViewToPng } from "./renderer.js";
+import { renderViewToSvg } from "./renderer.js";
 import {
   listUsers,
   createUser as createUserFn,
@@ -641,7 +641,7 @@ export function deleteRelationship(ds: DataSource, relationship_id: string): voi
 
 export async function saveModel(ds: DataSource): Promise<SaveResult> {
   await saveDataSource(ds);
-  return { saved: true, path: ds.path || "archispark.db" };
+  return { saved: true, path: ds.path || "postgres" };
 }
 
 // ---------------------------------------------------------------------------
@@ -1297,10 +1297,10 @@ app.delete("/views/:view_id/connections/:conn_id", requirePermission("Views", "u
     res.status(204).send();
 });
 
-app.get("/views/:view_id/image", async (req: Request, res: Response) => {
+app.get("/views/:view_id/image", (req: Request, res: Response) => {
   const format = (req.query["format"] as string) || "svg";
-  if (format !== "svg" && format !== "png") {
-    res.status(422).json({ detail: "Format invalide. Valeurs acceptées: 'svg', 'png'." });
+  if (format !== "svg") {
+    res.status(422).json({ detail: "Format invalide. Seul 'svg' est supporté côté serveur (l'export PNG se fait côté client)." });
     return;
   }
   const view = dataSource.model.views.find((v) => v.uuid === req.params["view_id"]);
@@ -1308,15 +1308,9 @@ app.get("/views/:view_id/image", async (req: Request, res: Response) => {
     res.status(404).json({ detail: `Vue '${req.params["view_id"]}' introuvable.` });
     return;
   }
-  if (format === "png") {
-      const buf = await renderViewToPng(view, dataSource.model);
-      res.setHeader("Content-Type", "image/png");
-      res.send(buf);
-    } else {
-      const svg = renderViewToSvg(view, dataSource.model);
-      res.setHeader("Content-Type", "image/svg+xml; charset=utf-8");
-      res.send(svg);
-    }
+  const svg = renderViewToSvg(view, dataSource.model);
+  res.setHeader("Content-Type", "image/svg+xml; charset=utf-8");
+  res.send(svg);
 });
 
 // PropertyDefinitions

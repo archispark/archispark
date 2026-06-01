@@ -1,52 +1,38 @@
-import Database from "better-sqlite3";
-import { drizzle as sqliteDrizzle } from "drizzle-orm/better-sqlite3";
 import { Pool } from "pg";
 import { drizzle as pgDrizzle } from "drizzle-orm/node-postgres";
-import { join, dirname } from "path";
-import { fileURLToPath } from "url";
-import { mkdirSync } from "fs";
-import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
+import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import * as schema from "./schema.js";
-import * as schemaPg from "./schema-pg.js";
 
-export type DbDriver = "sqlite" | "postgres";
-
+/**
+ * Single database driver: PostgreSQL.
+ *
+ * Production / dev use node-postgres against a real Postgres (Supabase, local,
+ * etc.). The test suite uses PGlite — Postgres compiled to WASM, in-memory and
+ * in-process — so tests keep full Postgres fidelity without Docker. Both share
+ * the same `schema` and the same `drizzle-pg` migrations (identical SQL dialect).
+ */
 // v8 ignore next
-export const dbDriver: DbDriver =
-  (process.env["DB_DRIVER"] as DbDriver | undefined) === "postgres" ? "postgres" : "sqlite";
+export const USE_PGLITE = Boolean(process.env["VITEST"]) || process.env["DB_CLIENT"] === "pglite";
 
-function createDb(): BetterSQLite3Database<typeof schema> {
-  if (dbDriver === "postgres") {
-    // Priority: explicit DATABASE_URL → Supabase non-pooling (safer for drizzle
-    // migrations) → Supabase pooled → default dev connection.
-    const connectionString =
-      process.env["DATABASE_URL"] ??
-      process.env["POSTGRES_URL_NON_POOLING"] ??
-      process.env["POSTGRES_URL"] ??
-      "postgresql://archispark:archispark@localhost:5432/archispark";
-    const pool = new Pool({ connectionString });
-    // Cast: PG and SQLite Drizzle share the same query API; the cast lets existing
-    // code compile unchanged while the runtime uses the correct PG dialect.
-    return pgDrizzle(pool, { schema: schemaPg }) as unknown as BetterSQLite3Database<typeof schema>;
+async function createDb(): Promise<NodePgDatabase<typeof schema>> {
+  // v8 ignore start
+  if (USE_PGLITE) {
+    const { PGlite } = await import("@electric-sql/pglite");
+    const { drizzle: pgliteDrizzle } = await import("drizzle-orm/pglite");
+    // Cast: PGlite and node-postgres share the same Drizzle query API + pg
+    // dialect; the cast lets callers type against a single db shape.
+    return pgliteDrizzle(new PGlite(), { schema }) as unknown as NodePgDatabase<typeof schema>;
   }
+  // v8 ignore stop
 
-  const DEFAULT_DB_PATH = join(
-    fileURLToPath(new URL("../../../data/archispark.db", import.meta.url)),
-  );
-  // v8 ignore next
-  const dbPath = process.env["DB_PATH"] ?? DEFAULT_DB_PATH;
-  mkdirSync(dirname(dbPath), { recursive: true });
-
-  const raw = new Database(dbPath);
-  raw.pragma("journal_mode = WAL");
-  raw.pragma("foreign_keys = ON");
-  // also export the raw sqlite handle for callers that need it (e.g. better-auth)
-  _sqlite = raw;
-  return sqliteDrizzle(raw, { schema });
+  // Priority: explicit DATABASE_URL → Supabase non-pooling (safer for drizzle
+  // migrations) → Supabase pooled → default dev connection.
+  const connectionString =
+    process.env["DATABASE_URL"] ??
+    process.env["POSTGRES_URL_NON_POOLING"] ??
+    process.env["POSTGRES_URL"] ??
+    "postgresql://archispark:archispark@localhost:5432/archispark";
+  return pgDrizzle(new Pool({ connectionString }), { schema });
 }
 
-let _sqlite: InstanceType<typeof Database> | undefined;
-
-export const db = createDb();
-// Exposed for SQLite-only consumers (undefined in postgres mode)
-export { _sqlite as sqlite };
+export const db: NodePgDatabase<typeof schema> = await createDb();
