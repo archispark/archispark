@@ -133,3 +133,26 @@ Interactive docs: `GET /docs` — OpenAPI spec: `GET /openapi.json`.
 pnpm run -w test            # 425 tests across all packages
 pnpm run -w test:coverage   # ≥80% coverage required
 ```
+
+## Vercel
+
+1. Lier Supabase aux projets (dashboard Vercel)
+Dans Vercel → Storage : lier supabase-celeste-compass à archispark-api et archispark-web. Cela injecte automatiquement POSTGRES_URL, POSTGRES_URL_NON_POOLING, etc.
+
+2. Configurer les variables d'environnement
+Récupère ton token Vercel dans Account Settings → Tokens, puis :
+
+VERCEL_TOKEN=xxx \
+SEED_ADMIN_PASSWORD=un-mot-de-passe-fort \
+SEED_USER_PASSWORD=un-autre-mdp \
+bash apps/api/scripts/setup-vercel-env.sh
+Le script configure :
+
+Variable	Projet	Valeur
+DB_DRIVER	api	postgres
+JWT_SECRET	api	(générée)
+WEB_URL	api	https://demo.archispark.cloud
+API_URL	api	https://demo.archispark.cloud
+TRUSTED_ORIGINS	api	https://demo.archispark.cloud
+SEED_ADMIN_PASSWORD	api	(ton choix)
+ARCHIMATE_API_URL	web	https://archispark-api-lacrifs-projects.vercel.app

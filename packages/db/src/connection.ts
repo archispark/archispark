@@ -17,8 +17,13 @@ export const dbDriver: DbDriver =
 
 function createDb(): BetterSQLite3Database<typeof schema> {
   if (dbDriver === "postgres") {
+    // Priority: explicit DATABASE_URL → Supabase non-pooling (safer for drizzle
+    // migrations) → Supabase pooled → default dev connection.
     const connectionString =
-      process.env["DATABASE_URL"] ?? "postgresql://archispark:archispark@localhost:5432/archispark";
+      process.env["DATABASE_URL"] ??
+      process.env["POSTGRES_URL_NON_POOLING"] ??
+      process.env["POSTGRES_URL"] ??
+      "postgresql://archispark:archispark@localhost:5432/archispark";
     const pool = new Pool({ connectionString });
     // Cast: PG and SQLite Drizzle share the same query API; the cast lets existing
     // code compile unchanged while the runtime uses the correct PG dialect.
