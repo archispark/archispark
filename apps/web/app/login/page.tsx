@@ -7,6 +7,8 @@ import { Input } from "@workspace/ui/components/input";
 import { useT } from "@/lib/i18n";
 import { Button } from "@workspace/ui/components/button";
 import { Label } from "@workspace/ui/components/label";
+import { LocaleSwitcher } from "@/components/locale-switcher";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 interface OAuthProvider {
   id: string;
@@ -63,6 +65,10 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background px-4">
+      <div className="absolute top-3 right-3 flex items-center gap-1">
+        <LocaleSwitcher />
+        <ThemeToggle />
+      </div>
       <div className="w-full max-w-sm">
         <div className="flex items-center gap-2.5 justify-center mb-8">
           <svg width="32" height="32" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">

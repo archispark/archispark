@@ -2,9 +2,8 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useTheme } from "next-themes";
 import { useEffect, useState, useCallback } from "react";
-import { Menu, Moon, Sun, Clock, LogOut, ChevronDown, FolderOpen, Plus, Trash2 } from "lucide-react";
+import { Menu, LogOut, ChevronDown, FolderOpen, Plus, Trash2 } from "lucide-react";
 import { Button } from "@workspace/ui/components/button";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -17,38 +16,12 @@ import {
 } from "@/lib/api";
 import { useT } from "@/lib/i18n";
 import { LocaleSwitcher } from "@/components/locale-switcher";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 export function Nav({ onToggleSidebar }: { onToggleSidebar: () => void }) {
   const pathname = usePathname();
   const router = useRouter();
   const { t } = useT();
-  const { resolvedTheme, setTheme } = useTheme();
-  const [themePref, setThemePref] = useState<"light" | "dark" | "auto">("dark");
-
-  // Load pref from localStorage
-  useEffect(() => {
-    const saved = (localStorage.getItem("theme-pref") as "light" | "dark" | "auto") ?? "dark";
-    setThemePref(saved);
-  }, []);
-
-  // Auto mode: apply light/dark based on hour, update every minute
-  useEffect(() => {
-    if (themePref !== "auto") return;
-    const apply = () => {
-      const h = new Date().getHours();
-      setTheme(h >= 7 && h < 20 ? "light" : "dark");
-    };
-    apply();
-    const id = setInterval(apply, 60_000);
-    return () => clearInterval(id);
-  }, [themePref, setTheme]);
-
-  function cycleTheme() {
-    const next = themePref === "light" ? "dark" : themePref === "dark" ? "auto" : "light";
-    localStorage.setItem("theme-pref", next);
-    setThemePref(next);
-    if (next !== "auto") setTheme(next);
-  }
 
   const [workspaces, setWorkspaces] = useState<WorkspaceInfo[]>([]);
   const [wsMenuOpen, setWsMenuOpen] = useState(false);
@@ -292,17 +265,7 @@ export function Nav({ onToggleSidebar }: { onToggleSidebar: () => void }) {
       <div className="flex-1" />
 
       <LocaleSwitcher />
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        onClick={cycleTheme}
-        aria-label={themePref === "light" ? t("nav.theme_light") : themePref === "dark" ? t("nav.theme_dark") : t("nav.theme_auto")}
-        title={themePref === "light" ? t("nav.theme_light") : themePref === "dark" ? t("nav.theme_dark") : t("nav.theme_auto")}
-      >
-        {themePref === "auto"
-          ? <Clock className="size-4" />
-          : resolvedTheme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
-      </Button>
+      <ThemeToggle />
       <Button variant="ghost" size="icon-sm" onClick={logout} aria-label={t("nav.logout")}>
         <LogOut className="size-4" />
       </Button>
