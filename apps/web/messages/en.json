@@ -29,7 +29,6 @@
   "common.none": "none",
   "common.optional": "(optional)",
   "common.required": "*",
-
   "nav.home": "Home",
   "nav.overview": "Overview",
   "nav.logout": "Sign out",
@@ -40,7 +39,6 @@
   "nav.workspace_new": "New workspace",
   "nav.workspace_name": "Workspace name",
   "nav.workspace_path": "XML path (optional)",
-
   "breadcrumb.elements": "Elements",
   "breadcrumb.relationships": "Relationships",
   "breadcrumb.views": "Views",
@@ -52,7 +50,6 @@
   "breadcrumb.users": "Users",
   "breadcrumb.settings": "Settings",
   "breadcrumb.login": "Login",
-
   "sidebar.overview": "Overview",
   "sidebar.landscapes": "Landscapes",
   "sidebar.capabilities": "App by Capability",
@@ -65,14 +62,12 @@
   "sidebar.list": "List",
   "sidebar.settings": "Settings",
   "sidebar.model_summary": "{n} elements · {r} relationships · {v} views",
-
   "overview.archimate_model": "ArchiMate Model",
   "overview.model_apercu": "Model overview",
   "overview.total_elements": "Total elements",
   "overview.relationships": "Relationships",
   "overview.views": "Views",
   "overview.api_hint": "Make sure the ArchiMate API is running on port 8000.",
-
   "elements.title": "Elements",
   "elements.title_layer": "Elements — {layer}",
   "elements.new_btn": "New element",
@@ -86,7 +81,6 @@
   "elements.layer_count": "{n} element{s} in the {layer} layer",
   "elements.count": "{n} element{s}",
   "elements.choose_type": "Choose a type",
-
   "relationships.title": "Relationships",
   "relationships.new_btn": "New relationship",
   "relationships.new_title": "New relationship",
@@ -105,7 +99,6 @@
   "relationships.choose_type": "Choose a type",
   "relationships.optional_name": "Optional name",
   "relationships.status": "Status",
-
   "views.title": "Views",
   "views.new_btn": "New view",
   "views.new_title": "New view",
@@ -124,7 +117,6 @@
   "views.validator_section": "View relationship validator",
   "views.loading_image": "Loading image…",
   "views.nodes_count": "{n} node{s} · {c} connection{s}",
-
   "properties.title": "Property definitions",
   "properties.new_btn": "New definition",
   "properties.new_title": "New property definition",
@@ -138,7 +130,6 @@
   "properties.search": "Search by name or type...",
   "properties.property_placeholder": "Property…",
   "properties.value_placeholder": "Value",
-
   "users.title": "Users",
   "users.new_btn": "New user",
   "users.new_title": "New user",
@@ -154,7 +145,6 @@
   "users.count": "{n} user{s}",
   "users.created_at": "Created on",
   "users.example_username": "e.g. john.doe",
-
   "settings.title": "Settings",
   "settings.desc": "Members and workspace management.",
   "settings.tab_general": "General",
@@ -194,7 +184,6 @@
   "settings.auth.disable": "Disable",
   "settings.auth.new_btn": "New provider",
   "settings.auth.oidc_required": "Issuer URL is required for OIDC.",
-
   "login.title": "Sign in",
   "login.subtitle": "Enter your credentials to access the model.",
   "login.username": "Username",
@@ -205,7 +194,6 @@
   "login.or": "or",
   "login.continue_with": "Continue with {name}",
   "login.redirecting": "Redirecting…",
-
   "canvas.search_element": "Search element…",
   "canvas.expand_all": "Expand all",
   "canvas.collapse_all": "Collapse all",
@@ -213,7 +201,6 @@
   "canvas.remove_from_view": "Remove from view",
   "canvas.edge_label_prompt": "Connection label:",
   "canvas.node_label_prompt": "Node name (view override):",
-
   "validator.search": "Search…",
   "validator.status": "Status",
   "validator.source": "Source",
@@ -225,7 +212,6 @@
   "validator.all": "All",
   "validator.ok": "OK",
   "validator.conflicts": "Conflicts",
-
   "landscape.loading": "Loading…",
   "landscape.error": "Error",
   "landscape.no_capability": "No Capability found in the model.",
@@ -235,7 +221,6 @@
   "landscape.related": "Related elements",
   "landscape.no_related": "No related strategic elements",
   "landscape.no_linked": "No linked elements",
-
   "layer.Strategy": "Strategy",
   "layer.Business": "Business",
   "layer.Application": "Application",
@@ -246,5 +231,14 @@
   "layer.Composite": "Composite",
   "overview.elements_by_type": "Elements by type",
   "overview.relationships_by_type": "Relationships by type",
-  "overview.other": "Other"
+  "overview.other": "Other",
+  "elements.tab_properties": "Properties",
+  "elements.tab_relations": "Relations",
+  "elements.specialization": "Specializes",
+  "elements.prop_definition": "Definition",
+  "elements.prop_value": "Value",
+  "elements.no_documentation": "No description.",
+  "elements.in_views": "In views",
+  "elements.not_in_views": "Not in views",
+  "elements.not_in_views_hint": "This element does not appear in any view."
 }

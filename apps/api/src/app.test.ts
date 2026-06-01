@@ -638,6 +638,59 @@ describe("GET /elements/:id", () => {
 });
 
 // ===========================================================================
+// Integration tests – GET /elements/in-views
+// ===========================================================================
+
+describe("GET /elements/in-views", () => {
+  it("returns 200", async () => {
+    expect((await request(app).get("/elements/in-views")).status).toBe(200);
+  });
+
+  it("returns an array of strings", async () => {
+    const data = (await request(app).get("/elements/in-views")).body;
+    expect(Array.isArray(data)).toBe(true);
+    for (const id of data) expect(typeof id).toBe("string");
+  });
+
+  it("every id exists in the elements list", async () => {
+    const [inViews, elements] = await Promise.all([
+      request(app).get("/elements/in-views").then((r) => r.body as string[]),
+      request(app).get("/elements").then((r) => r.body as ElementOut[]),
+    ]);
+    const elementIds = new Set(elements.map((e) => e.identifier));
+    for (const id of inViews) expect(elementIds.has(id)).toBe(true);
+  });
+});
+
+// ===========================================================================
+// Integration tests – GET /elements/:id/relationships
+// ===========================================================================
+
+describe("GET /elements/:id/relationships", () => {
+  it("returns 200 for known element", async () => {
+    const res = await request(app).get(`/elements/${knownElement.identifier}/relationships`);
+    expect(res.status).toBe(200);
+  });
+
+  it("returns an array", async () => {
+    const data = (await request(app).get(`/elements/${knownElement.identifier}/relationships`)).body;
+    expect(Array.isArray(data)).toBe(true);
+  });
+
+  it("each result involves the element as source or target", async () => {
+    const data = (await request(app).get(`/elements/${knownElement.identifier}/relationships`)).body as RelationshipOut[];
+    for (const r of data) {
+      expect(r.source === knownElement.identifier || r.target === knownElement.identifier).toBe(true);
+    }
+  });
+
+  it("returns 401 when unauthenticated", async () => {
+    const res = await _request(app).get(`/elements/${knownElement.identifier}/relationships`);
+    expect(res.status).toBe(401);
+  });
+});
+
+// ===========================================================================
 // Integration tests – GET /relationships/types
 // ===========================================================================
 

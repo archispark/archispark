@@ -29,7 +29,6 @@
   "common.none": "aucune",
   "common.optional": "(optionnel)",
   "common.required": "*",
-
   "nav.home": "Accueil",
   "nav.overview": "Vue d'ensemble",
   "nav.logout": "Déconnexion",
@@ -40,7 +39,6 @@
   "nav.workspace_new": "Nouveau workspace",
   "nav.workspace_name": "Nom du workspace",
   "nav.workspace_path": "Chemin XML (optionnel)",
-
   "breadcrumb.elements": "Éléments",
   "breadcrumb.relationships": "Relations",
   "breadcrumb.views": "Vues",
@@ -52,7 +50,6 @@
   "breadcrumb.users": "Utilisateurs",
   "breadcrumb.settings": "Paramètres",
   "breadcrumb.login": "Connexion",
-
   "sidebar.overview": "Vue d'ensemble",
   "sidebar.landscapes": "Paysages",
   "sidebar.capabilities": "App par Capability",
@@ -65,14 +62,12 @@
   "sidebar.list": "Liste",
   "sidebar.settings": "Paramètres",
   "sidebar.model_summary": "{n} éléments · {r} relations · {v} vues",
-
   "overview.archimate_model": "Modèle ArchiMate",
   "overview.model_apercu": "Aperçu du modèle",
   "overview.total_elements": "Total éléments",
   "overview.relationships": "Relations",
   "overview.views": "Vues",
   "overview.api_hint": "Assurez-vous que l'API ArchiMate tourne sur le port 8000.",
-
   "elements.title": "Éléments",
   "elements.title_layer": "Éléments — {layer}",
   "elements.new_btn": "Nouvel élément",
@@ -86,7 +81,6 @@
   "elements.layer_count": "{n} élément{s} de la couche {layer}",
   "elements.count": "{n} élément{s}",
   "elements.choose_type": "Choisir un type",
-
   "relationships.title": "Relations",
   "relationships.new_btn": "Nouvelle relation",
   "relationships.new_title": "Nouvelle relation",
@@ -105,7 +99,6 @@
   "relationships.choose_type": "Choisir un type",
   "relationships.optional_name": "Nom optionnel",
   "relationships.status": "Statut",
-
   "views.title": "Vues",
   "views.new_btn": "Nouvelle vue",
   "views.new_title": "Nouvelle vue",
@@ -124,7 +117,6 @@
   "views.validator_section": "Validateur des relations de la vue",
   "views.loading_image": "Chargement de l'image…",
   "views.nodes_count": "{n} nœud{s} · {c} connexion{s}",
-
   "properties.title": "Définitions de propriétés",
   "properties.new_btn": "Nouvelle définition",
   "properties.new_title": "Nouvelle définition de propriété",
@@ -138,7 +130,6 @@
   "properties.search": "Rechercher par nom ou type...",
   "properties.property_placeholder": "Propriété…",
   "properties.value_placeholder": "Valeur",
-
   "users.title": "Utilisateurs",
   "users.new_btn": "Nouvel utilisateur",
   "users.new_title": "Nouvel utilisateur",
@@ -154,7 +145,6 @@
   "users.count": "{n} utilisateur{s}",
   "users.created_at": "Créé le",
   "users.example_username": "ex: jean.dupont",
-
   "settings.title": "Paramètres",
   "settings.desc": "Gestion des membres et du workspace.",
   "settings.tab_general": "Général",
@@ -194,7 +184,6 @@
   "settings.auth.disable": "Désactiver",
   "settings.auth.new_btn": "Nouveau fournisseur",
   "settings.auth.oidc_required": "Issuer URL requis pour OIDC.",
-
   "login.title": "Connexion",
   "login.subtitle": "Entrez vos identifiants pour accéder au modèle.",
   "login.username": "Nom d'utilisateur",
@@ -205,7 +194,6 @@
   "login.or": "ou",
   "login.continue_with": "Continuer avec {name}",
   "login.redirecting": "Redirection…",
-
   "canvas.search_element": "Rechercher élément…",
   "canvas.expand_all": "Tout déplier",
   "canvas.collapse_all": "Tout replier",
@@ -213,7 +201,6 @@
   "canvas.remove_from_view": "Retirer de la vue",
   "canvas.edge_label_prompt": "Étiquette de la liaison :",
   "canvas.node_label_prompt": "Nom du nœud (override de la vue) :",
-
   "validator.search": "Rechercher…",
   "validator.status": "Statut",
   "validator.source": "Source",
@@ -225,7 +212,6 @@
   "validator.all": "Toutes",
   "validator.ok": "OK",
   "validator.conflicts": "Conflits",
-
   "landscape.loading": "Chargement…",
   "landscape.error": "Erreur",
   "landscape.no_capability": "Aucune Capability trouvée dans le modèle.",
@@ -235,7 +221,6 @@
   "landscape.related": "Éléments liés",
   "landscape.no_related": "Aucun élément stratégique lié",
   "landscape.no_linked": "Aucun élément lié",
-
   "layer.Strategy": "Stratégie",
   "layer.Business": "Métier",
   "layer.Application": "Application",
@@ -246,5 +231,14 @@
   "layer.Composite": "Composite",
   "overview.elements_by_type": "Éléments par type",
   "overview.relationships_by_type": "Relations par type",
-  "overview.other": "Autres"
+  "overview.other": "Autres",
+  "elements.tab_properties": "Propriétés",
+  "elements.tab_relations": "Relations",
+  "elements.specialization": "Spécialise",
+  "elements.prop_definition": "Définition",
+  "elements.prop_value": "Valeur",
+  "elements.no_documentation": "Aucune description.",
+  "elements.in_views": "Dans les vues",
+  "elements.not_in_views": "Absent des vues",
+  "elements.not_in_views_hint": "Cet élément n'apparaît dans aucune vue du modèle."
 }

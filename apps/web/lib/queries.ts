@@ -2,7 +2,10 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   fetchModel,
   fetchElements,
+  fetchElement,
   fetchElementTypes,
+  fetchElementRelationships,
+  fetchElementsInViews,
   fetchRelationships,
   fetchRelationshipTypes,
   fetchViews,
@@ -60,6 +63,9 @@ import {
 export const queryKeys = {
   model: () => ["model"] as const,
   elements: (type?: string | null, name?: string | null) => ["elements", type, name] as const,
+  element: (id: string) => ["element", id] as const,
+  elementRelationships: (id: string) => ["elementRelationships", id] as const,
+  elementsInViews: () => ["elementsInViews"] as const,
   elementTypes: () => ["elementTypes"] as const,
   relationships: (type?: string | null, name?: string | null) => ["relationships", type, name] as const,
   relationshipTypes: () => ["relationshipTypes"] as const,
@@ -86,6 +92,18 @@ export function useElements(type?: string | null, name?: string | null) {
     queryKey: queryKeys.elements(type, name),
     queryFn: () => fetchElements(type, name),
   });
+}
+
+export function useElement(id: string) {
+  return useQuery({ queryKey: queryKeys.element(id), queryFn: () => fetchElement(id), enabled: !!id });
+}
+
+export function useElementRelationships(id: string) {
+  return useQuery({ queryKey: queryKeys.elementRelationships(id), queryFn: () => fetchElementRelationships(id), enabled: !!id });
+}
+
+export function useElementsInViews() {
+  return useQuery({ queryKey: queryKeys.elementsInViews(), queryFn: fetchElementsInViews });
 }
 
 export function useElementTypes() {
@@ -151,7 +169,10 @@ export function useUpdateElement() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, body }: { id: string; body: ElementUpdateIn }) => updateElement(id, body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["elements"] }),
+    onSuccess: (_, { id }) => {
+      qc.invalidateQueries({ queryKey: ["elements"] });
+      qc.invalidateQueries({ queryKey: queryKeys.element(id) });
+    },
   });
 }
 
@@ -170,7 +191,10 @@ export function useCreateRelationship() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: RelationshipCreateIn) => createRelationship(body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["relationships"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["relationships"] });
+      qc.invalidateQueries({ queryKey: ["elementRelationships"] });
+    },
   });
 }
 
@@ -178,7 +202,10 @@ export function useUpdateRelationship() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, body }: { id: string; body: RelationshipUpdateIn }) => updateRelationship(id, body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["relationships"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["relationships"] });
+      qc.invalidateQueries({ queryKey: ["elementRelationships"] });
+    },
   });
 }
 
@@ -188,6 +215,7 @@ export function useDeleteRelationship() {
     mutationFn: (id: string) => deleteRelationship(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["relationships"] });
+      qc.invalidateQueries({ queryKey: ["elementRelationships"] });
       qc.invalidateQueries({ queryKey: queryKeys.model() });
     },
   });

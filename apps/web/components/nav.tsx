@@ -6,12 +6,14 @@ import { useTheme } from "next-themes";
 import { useEffect, useState, useCallback } from "react";
 import { Menu, Moon, Sun, Clock, LogOut, ChevronDown, FolderOpen, Plus, Trash2 } from "lucide-react";
 import { Button } from "@workspace/ui/components/button";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   fetchWorkspaces,
   activateWorkspaceApi,
   createWorkspaceApi,
   deleteWorkspaceApi,
   type WorkspaceInfo,
+  type ElementOut,
 } from "@/lib/api";
 import { useT } from "@/lib/i18n";
 import { LocaleSwitcher } from "@/components/locale-switcher";
@@ -107,8 +109,34 @@ export function Nav({ onToggleSidebar }: { onToggleSidebar: () => void }) {
     }
   }
 
+  const qc = useQueryClient();
+
   const activeWs = workspaces.find((w) => w.active);
   const segments = pathname.split("/").filter(Boolean);
+
+  // For /elements/[id], show the element name from the React Query cache.
+  function segmentLabel(seg: string, index: number): string {
+    const bcKeys: Record<string, Parameters<typeof t>[0]> = {
+      elements: "breadcrumb.elements",
+      relationships: "breadcrumb.relationships",
+      views: "breadcrumb.views",
+      validator: "breadcrumb.validator",
+      capabilities: "breadcrumb.capabilities",
+      strategy: "breadcrumb.strategy",
+      composition: "breadcrumb.composition",
+      properties: "breadcrumb.properties",
+      users: "breadcrumb.users",
+      settings: "breadcrumb.settings",
+      login: "breadcrumb.login",
+    };
+    if (bcKeys[seg]) return t(bcKeys[seg]);
+    if (segments[index - 1] === "elements") {
+      const id = decodeURIComponent(seg);
+      const cached = qc.getQueryData<ElementOut>(["element", id]);
+      if (cached?.name) return cached.name;
+    }
+    return decodeURIComponent(seg);
+  }
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 flex items-center gap-3 border-b border-border bg-secondary px-5 h-[var(--nav-h)]">
@@ -242,20 +270,7 @@ export function Nav({ onToggleSidebar }: { onToggleSidebar: () => void }) {
             </Link>
             {segments.map((seg, i) => {
               const isLast = i === segments.length - 1;
-              const bcKeys: Record<string, Parameters<typeof t>[0]> = {
-                elements: "breadcrumb.elements",
-                relationships: "breadcrumb.relationships",
-                views: "breadcrumb.views",
-                validator: "breadcrumb.validator",
-                capabilities: "breadcrumb.capabilities",
-                strategy: "breadcrumb.strategy",
-                composition: "breadcrumb.composition",
-                properties: "breadcrumb.properties",
-                users: "breadcrumb.users",
-                settings: "breadcrumb.settings",
-                login: "breadcrumb.login",
-              };
-              const label = bcKeys[seg] ? t(bcKeys[seg]) : decodeURIComponent(seg);
+              const label = segmentLabel(seg, i);
               const href = "/" + segments.slice(0, i + 1).join("/");
               return (
                 <span key={seg} className="flex items-center gap-1.5">

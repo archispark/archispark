@@ -316,6 +316,15 @@ export function getElementById(ds: DataSource, element_id: string): ElementOut {
   return elementOut(match);
 }
 
+export function getElementRelationships(ds: DataSource, element_id: string): RelationshipOut[] {
+  const rels = ds.model.relationships.filter((r) => {
+    const srcId = typeof r.source === "string" ? r.source : r.source.uuid;
+    const tgtId = typeof r.target === "string" ? r.target : r.target.uuid;
+    return srcId === element_id || tgtId === element_id;
+  });
+  return rels.map(relOut);
+}
+
 export function listRelationshipTypes(ds: DataSource): string[] {
   return ds.relationshipTypes;
 }
@@ -351,6 +360,20 @@ export function getRelationshipById(ds: DataSource, relationship_id: string): Re
 
 export function listViews(ds: DataSource): ViewOut[] {
   return ds.model.views.map((v) => viewOut(v));
+}
+
+export function listElementsInViews(ds: DataSource): string[] {
+  const ids = new Set<string>();
+  function collectRefs(nodes: ArchiNode[]): void {
+    for (const node of nodes) {
+      if (node.ref) {
+        ids.add(typeof node.ref === "string" ? node.ref : node.ref.uuid);
+      }
+      collectRefs(node.nodes);
+    }
+  }
+  for (const view of ds.model.views) collectRefs(view.nodes);
+  return [...ids];
 }
 
 export function getViewById(ds: DataSource, view_id: string): ViewDetailOut {
@@ -1153,8 +1176,16 @@ app.get("/elements", (req: Request, res: Response) => {
   res.json(listElements(dataSource, q.type ?? null, q.name ?? null));
 });
 
+app.get("/elements/in-views", (_req: Request, res: Response) => {
+  res.json(listElementsInViews(dataSource));
+});
+
 app.get("/elements/:element_id", (req: Request, res: Response) => {
   res.json(getElementById(dataSource, req.params["element_id"] as string));
+});
+
+app.get("/elements/:element_id/relationships", requirePermission("Relations", "read"), (req: Request, res: Response) => {
+  res.json(getElementRelationships(dataSource, req.params["element_id"] as string));
 });
 
 app.post("/elements", (req: Request, res: Response) => {

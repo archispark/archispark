@@ -109,6 +109,10 @@ export async function fetchElements(
   return get(`/elements${qs ? `?${qs}` : ""}`);
 }
 
+export const fetchElement = (id: string) => get<ElementOut>(`/elements/${encodeURIComponent(id)}`);
+export const fetchElementRelationships = (id: string) => get<RelationshipOut[]>(`/elements/${encodeURIComponent(id)}/relationships`);
+export const fetchElementsInViews = () => get<string[]>("/elements/in-views");
+
 export const fetchRelationshipTypes = () => get<string[]>("/relationships/types");
 
 export async function fetchRelationships(

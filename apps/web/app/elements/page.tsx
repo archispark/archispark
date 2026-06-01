@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useState, useMemo, useEffect } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useDebounce } from "use-debounce";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -10,8 +11,7 @@ import {
   useElements,
   useElementTypes,
   useCreateElement,
-  useUpdateElement,
-  useDeleteElement,
+  useElementsInViews,
 } from "@/lib/queries";
 import { Input } from "@workspace/ui/components/input";
 import { Badge } from "@workspace/ui/components/badge";
@@ -36,7 +36,7 @@ import {
 } from "@workspace/ui/components/dialog";
 import { DataTable } from "@/components/data-table";
 import { PropertiesEditor } from "@/components/properties-editor";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus } from "lucide-react";
 import type { Property } from "@/lib/api";
 import { useIsAdmin } from "@/hooks/use-current-user";
 import { useT } from "@/lib/i18n";
@@ -62,6 +62,8 @@ function ElementsPageInner() {
 
   const { data: types = [] } = useElementTypes();
   const { data: elements = [], isLoading: loading, error } = useElements(typeFilter, debouncedSearch || null);
+  const { data: inViews = [] } = useElementsInViews();
+  const inViewsSet = useMemo(() => new Set(inViews), [inViews]);
 
   // Create dialog
   const [createOpen, setCreateOpen] = useState(false);
@@ -70,22 +72,6 @@ function ElementsPageInner() {
   const [newDoc, setNewDoc] = useState("");
   const [newProps, setNewProps] = useState<Property[]>([]);
   const createMutation = useCreateElement();
-
-  // Edit dialog
-  const [editOpen, setEditOpen] = useState(false);
-  const [editTarget, setEditTarget] = useState<ElementOut | null>(null);
-  const [editName, setEditName] = useState("");
-  const [editType, setEditType] = useState("");
-  const [editDoc, setEditDoc] = useState("");
-  const [editProps, setEditProps] = useState<Property[]>([]);
-  const [, setEditError] = useState<string | null>(null);
-  const updateMutation = useUpdateElement();
-
-  // Delete dialog
-  const [deleteOpen, setDeleteOpen] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<ElementOut | null>(null);
-  const [, setDeleteError] = useState<string | null>(null);
-  const deleteMutation = useDeleteElement();
 
   const grouped = useMemo(() => {
     const groups: Record<string, string[]> = {};
@@ -102,22 +88,6 @@ function ElementsPageInner() {
     }
   }, [layerFilter, typeFilter, grouped]);
 
-  function openEdit(el: ElementOut) {
-    setEditTarget(el);
-    setEditName(el.name);
-    setEditType(el.type);
-    setEditDoc(el.documentation ?? "");
-    setEditProps(el.properties ?? []);
-    setEditError(null);
-    setEditOpen(true);
-  }
-
-  function openDelete(el: ElementOut) {
-    setDeleteTarget(el);
-    setDeleteError(null);
-    setDeleteOpen(true);
-  }
-
   async function handleCreate() {
     if (!newName.trim() || !newType) return;
     await createMutation.mutateAsync(
@@ -128,24 +98,18 @@ function ElementsPageInner() {
     );
   }
 
-  async function handleEdit() {
-    if (!editTarget || !editName.trim() || !editType) return;
-    await updateMutation.mutateAsync(
-      { id: editTarget.identifier, body: { name: editName.trim(), type: editType, documentation: editDoc.trim() || null, properties: editProps } },
-      { onSuccess: () => setEditOpen(false) }
-    );
-  }
-
-  async function handleDelete() {
-    if (!deleteTarget) return;
-    await deleteMutation.mutateAsync(deleteTarget.identifier, { onSuccess: () => setDeleteOpen(false) });
-  }
-
   const columns: ColumnDef<ElementOut>[] = useMemo(() => [
     {
       accessorKey: "name",
       header: t("common.name"),
-      cell: ({ row }) => <span className="font-medium">{row.getValue("name") || "—"}</span>,
+      cell: ({ row }) => (
+        <Link
+          href={`/elements/${encodeURIComponent(row.original.identifier)}`}
+          className="font-medium hover:underline text-foreground"
+        >
+          {row.getValue("name") || "—"}
+        </Link>
+      ),
     },
     {
       accessorKey: "type",
@@ -168,29 +132,27 @@ function ElementsPageInner() {
       },
     },
     {
-      accessorKey: "documentation",
-      header: t("common.documentation"),
-      enableSorting: false,
-      cell: ({ row }) => (
-        <span className="max-w-xs truncate block text-muted-foreground">{row.getValue("documentation") || "—"}</span>
-      ),
+      id: "in_views",
+      header: t("elements.in_views"),
+      enableSorting: true,
+      accessorFn: (row) => inViewsSet.has(row.identifier) ? "ok" : "warning",
+      cell: ({ row }) => {
+        const ok = inViewsSet.has(row.original.identifier);
+        return ok ? (
+          <span
+            className="inline-flex items-center justify-center size-5 rounded-full bg-emerald-500/15 text-emerald-700 text-[11px]"
+            title={t("elements.in_views")}
+          >✓</span>
+        ) : (
+          <span
+            className="inline-flex items-center justify-center size-5 rounded-full bg-amber-500/15 text-amber-600 text-[11px]"
+            title={t("elements.not_in_views")}
+          >⚠</span>
+        );
+      },
     },
-    ...(isAdmin ? [{
-      id: "actions",
-      header: "",
-      enableSorting: false,
-      cell: ({ row }: { row: { original: ElementOut } }) => (
-        <div className="flex items-center gap-1 justify-end">
-          <Button variant="ghost" size="icon-xs" onClick={() => openEdit(row.original)} aria-label={t("common.edit")}>
-            <Pencil className="size-3.5" />
-          </Button>
-          <Button variant="ghost" size="icon-xs" onClick={() => openDelete(row.original)} aria-label={t("common.delete")}>
-            <Trash2 className="size-3.5 text-destructive" />
-          </Button>
-        </div>
-      ),
-    }] : []),
-  ], [isAdmin]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  ], [inViewsSet]);
 
   const filteredElements = useMemo(() => {
     if (!layerFilter) return elements;
@@ -281,62 +243,6 @@ function ElementsPageInner() {
       </div>
 
       <DataTable columns={columns} data={filteredElements} loading={loading} />
-
-      {/* Edit dialog */}
-      <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>{t("elements.edit_title")}</DialogTitle>
-          </DialogHeader>
-          <div className="flex flex-col gap-4 py-2">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="edit-name">{t("common.name")} *</Label>
-              <Input id="edit-name" value={editName} onChange={(e) => setEditName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleEdit()} />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label>{t("common.type")} *</Label>
-              <Select value={editType} onValueChange={(v) => setEditType(v ?? "")}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {Object.values(grouped).flat().map((typ) => (
-                      <SelectItem key={typ} value={typ}>{typ}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="edit-doc">{t("common.documentation")}</Label>
-              <textarea id="edit-doc" value={editDoc} onChange={(e) => setEditDoc(e.target.value)} className="bg-background border border-input rounded-md text-foreground text-sm px-3 py-2 outline-none focus:border-ring resize-vertical min-h-[72px]" />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label>{t("common.properties")}</Label>
-              <PropertiesEditor value={editProps} onChange={setEditProps} />
-            </div>
-          </div>
-          {updateMutation.error && <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">{(updateMutation.error as Error).message}</div>}
-          <DialogFooter>
-            <DialogClose render={<Button variant="outline" />}>{t("common.cancel")}</DialogClose>
-            <Button onClick={handleEdit} disabled={updateMutation.isPending || !editName.trim() || !editType}>{updateMutation.isPending ? t("common.saving") : t("common.save")}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Delete dialog */}
-      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle>{t("elements.delete_title")}</DialogTitle>
-            <DialogDescription>
-              {t("elements.delete_desc", { name: deleteTarget?.name || "?" })}
-            </DialogDescription>
-          </DialogHeader>
-          {deleteMutation.error && <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">{(deleteMutation.error as Error).message}</div>}
-          <DialogFooter>
-            <DialogClose render={<Button variant="outline" />}>{t("common.cancel")}</DialogClose>
-            <Button variant="destructive" onClick={handleDelete} disabled={deleteMutation.isPending}>{deleteMutation.isPending ? t("common.deleting") : t("common.delete")}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
