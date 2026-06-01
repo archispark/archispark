@@ -56,6 +56,7 @@ export default function RelationshipsPage() {
   const [deleteModal, deleteActions] = useFormModal<RelationshipOut>();
 
   const byId = useMemo(() => new Map<string, ElementOut>(allElements.map((e) => [e.identifier, e])), [allElements]);
+  const byRelId = useMemo(() => new Map<string, RelationshipOut>(relationships.map((r) => [r.identifier, r])), [relationships]);
 
   function openCreate() {
     setName(""); setType(""); setSource(""); setTarget(""); setDoc(""); setProps([]);
@@ -169,11 +170,15 @@ export default function RelationshipsPage() {
       accessorKey: "source",
       header: t("common.source"),
       cell: ({ row }) => {
-        const el = byId.get(row.getValue("source"));
+        const rel = row.original;
+        const el = byId.get(rel.source);
+        const refRel = !el ? byRelId.get(rel.source) : undefined;
+        const label = rel.source_name || el?.name || refRel?.name || refRel?.type || rel.source;
+        const sub = el?.type ?? (refRel ? t("relationships.title") : undefined);
         return (
           <div className="text-xs max-w-[150px]">
-            <div className="truncate">{el?.name || row.getValue("source")}</div>
-            {el && <div className="text-muted-foreground">{el.type}</div>}
+            <div className="truncate">{label}</div>
+            {sub && <div className="text-muted-foreground">{sub}</div>}
           </div>
         );
       },
@@ -182,11 +187,15 @@ export default function RelationshipsPage() {
       accessorKey: "target",
       header: t("common.target"),
       cell: ({ row }) => {
-        const el = byId.get(row.getValue("target"));
+        const rel = row.original;
+        const el = byId.get(rel.target);
+        const refRel = !el ? byRelId.get(rel.target) : undefined;
+        const label = rel.target_name || el?.name || refRel?.name || refRel?.type || rel.target;
+        const sub = el?.type ?? (refRel ? t("relationships.title") : undefined);
         return (
           <div className="text-xs max-w-[150px]">
-            <div className="truncate">{el?.name || row.getValue("target")}</div>
-            {el && <div className="text-muted-foreground">{el.type}</div>}
+            <div className="truncate">{label}</div>
+            {sub && <div className="text-muted-foreground">{sub}</div>}
           </div>
         );
       },
@@ -207,7 +216,7 @@ export default function RelationshipsPage() {
       ),
     }] : []),
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  ], [isAdmin, byId, openEdit, deleteActions]);
+  ], [isAdmin, byId, byRelId, openEdit, deleteActions]);
 
   if (error) {
     return (

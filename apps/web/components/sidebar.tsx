@@ -35,7 +35,10 @@ function SidebarInner({ open, onClose }: { open: boolean; onClose: () => void })
   const { t } = useT();
   const [model, setModel] = useState<ModelInfo | null>(null);
   const [layerCounts, setLayerCounts] = useState<Record<string, number>>({});
+  const [mounted, setMounted] = useState(false);
   const isAdmin = useIsAdmin();
+
+  useEffect(() => { setMounted(true); }, []);
 
   useEffect(() => {
     Promise.all([fetchModel(), fetchElements()]).then(([m, elements]) => {
@@ -260,7 +263,7 @@ function SidebarInner({ open, onClose }: { open: boolean; onClose: () => void })
         </div>
 
         {/* Settings — bottom */}
-        {isAdmin && (
+        {mounted && isAdmin && (
           <div className="border-t border-border px-2 py-2">
             <Link
               href="/settings"

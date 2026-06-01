@@ -33,10 +33,12 @@ export interface ElementOut {
 
 export interface RelationshipOut {
   identifier: string;
-  name: string;
+  name: string | null;
   type: string;
   source: string;
+  source_name: string | null;
   target: string;
+  target_name: string | null;
   documentation: string | null;
   properties: Property[];
 }
