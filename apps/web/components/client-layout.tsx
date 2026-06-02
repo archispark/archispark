@@ -11,13 +11,16 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const pathname = usePathname();
   const isLogin = pathname === "/login";
+  // The workspaces overview is a full-width chrome-light page (no model context),
+  // so it hides the sidebar — only the top nav stays.
+  const hideSidebar = isLogin || pathname === "/workspaces";
 
   return (
     <QueryProvider>
       <ThemeProvider>
         {!isLogin && <Nav onToggleSidebar={() => setSidebarOpen((v) => !v)} />}
-        {!isLogin && <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />}
-        <main className={isLogin ? "" : "mt-[var(--nav-h)] md:ml-[var(--sidebar-w)] min-h-[calc(100vh-var(--nav-h))]"}>
+        {!hideSidebar && <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />}
+        <main className={isLogin ? "" : `mt-[var(--nav-h)] min-h-[calc(100vh-var(--nav-h))] ${hideSidebar ? "" : "md:ml-[var(--sidebar-w)]"}`}>
           {children}
         </main>
       </ThemeProvider>
