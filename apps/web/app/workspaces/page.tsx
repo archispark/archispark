@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { FolderOpen, Plus, Trash2, Check } from "lucide-react";
 import {
   useWorkspaces,
@@ -12,6 +13,7 @@ import { useT } from "@/lib/i18n";
 
 export default function WorkspacesPage() {
   const { t } = useT();
+  const router = useRouter();
   const { data: workspaces = [], isLoading } = useWorkspaces();
   const createWs = useCreateWorkspace();
   const deleteWs = useDeleteWorkspace();
@@ -25,11 +27,15 @@ export default function WorkspacesPage() {
   async function create() {
     if (!name.trim()) return;
     try {
-      await createWs.mutateAsync({ name: name.trim(), path: path.trim() || undefined });
+      const ws = await createWs.mutateAsync({ name: name.trim(), path: path.trim() || undefined });
+      // Enter the freshly created workspace: activate it (unless the backend
+      // already did, when it was the first one) and go to its overview.
+      if (!ws.active) await activateWs.mutateAsync(ws.id);
       setName("");
       setPath("");
       setShowForm(false);
       setError(null);
+      router.push("/");
     } catch (err) {
       setError((err as Error).message);
     }

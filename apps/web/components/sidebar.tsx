@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
-import { LayoutDashboard, LayoutGrid, Tag, Users, Settings as SettingsIcon, GitBranch, FolderOpen } from "lucide-react";
+import { LayoutDashboard, LayoutGrid, Tag, Users, Settings as SettingsIcon, GitBranch, FolderOpen, List } from "lucide-react";
 import { fetchModel, fetchElements, type ModelInfo } from "@/lib/api";
 import { useIsAdmin } from "@/hooks/use-current-user";
 import { getLayer, LAYER_HEX_COLORS, LAYER_LABELS } from "@/lib/archimate-helpers";
@@ -165,6 +165,25 @@ function SidebarInner({ open, onClose }: { open: boolean; onClose: () => void })
             <div className="text-[10px] font-bold tracking-[0.8px] uppercase text-muted-foreground px-2 mb-1">
               {t("sidebar.elements")}
             </div>
+            {/* Always-available entry to the elements list (and its create dialog),
+                even for an empty model where no layer link would otherwise show. */}
+            <Link
+              href="/elements"
+              onClick={onClose}
+              className={`flex items-center justify-between gap-2 px-2 py-1.5 rounded-md text-sm no-underline transition-colors ${
+                pathname === "/elements" && !currentLayer
+                  ? "bg-card text-foreground font-medium shadow-sm"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              }`}
+            >
+              <span className="flex items-center gap-2">
+                <List className="size-3.5 shrink-0" />
+                {t("sidebar.list")}
+              </span>
+              {model && (
+                <span className="text-[11px] text-muted-foreground">{model.element_count}</span>
+              )}
+            </Link>
             {visibleLayers.map((group) => {
               const active = pathname === "/elements" && currentLayer === group.key;
               return (

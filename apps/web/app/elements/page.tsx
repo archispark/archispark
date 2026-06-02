@@ -6,7 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { useDebounce } from "use-debounce";
 import type { ColumnDef } from "@tanstack/react-table";
 import { type ElementOut } from "@/lib/api";
-import { getLayer, LAYER_BADGE_COLORS, LAYER_LABELS } from "@/lib/archimate-helpers";
+import { getLayer, LAYER_BADGE_COLORS, LAYER_LABELS, ALL_ELEMENT_TYPES } from "@/lib/archimate-helpers";
 import {
   useElements,
   useElementTypes,
@@ -205,7 +205,7 @@ function ElementsPageInner() {
                 <Select value={newType} onValueChange={(v) => setNewType(v ?? "")}>
                   <SelectTrigger><SelectValue placeholder={t("elements.choose_type")} /></SelectTrigger>
                   <SelectContent>
-                    {Object.values(grouped).flat().map((typ) => (
+                    {ALL_ELEMENT_TYPES.map((typ) => (
                       <SelectItem key={typ} value={typ}>{typ}</SelectItem>
                     ))}
                   </SelectContent>

@@ -61,11 +61,16 @@ export function Nav({ onToggleSidebar }: { onToggleSidebar: () => void }) {
   async function addWorkspace() {
     if (!newWsName.trim()) return;
     try {
-      await createWs.mutateAsync({ name: newWsName.trim(), path: newWsPath.trim() || undefined });
+      const ws = await createWs.mutateAsync({ name: newWsName.trim(), path: newWsPath.trim() || undefined });
+      // Switch into the new workspace and open its overview.
+      if (!ws.active) await activateWs.mutateAsync(ws.id);
       setNewWsName("");
       setNewWsPath("");
       setShowNewForm(false);
+      setWsMenuOpen(false);
       setWsError(null);
+      router.push("/");
+      router.refresh();
     } catch (err) {
       setWsError((err as Error).message);
     }

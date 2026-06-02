@@ -56,3 +56,37 @@ export const LAYER_LABELS: Record<string, string> = {
   Implementation: "Implémentation",
   Composite: "Composite",
 };
+
+/**
+ * Full ArchiMate 3.1 element-type catalogue (mirrors `ELEMENT_TYPES` in
+ * apps/api/src/schemas.ts — the API's validation source of truth). Used to
+ * populate the "new element" type picker, which must offer every type even in
+ * an empty workspace — unlike `/elements/types`, which only returns the types
+ * already present in the model. Junctions are connectors, not palette elements,
+ * so they are intentionally excluded.
+ */
+export const ALL_ELEMENT_TYPES: readonly string[] = [
+  // Business
+  "BusinessActor", "BusinessRole", "BusinessCollaboration", "BusinessInterface",
+  "BusinessProcess", "BusinessFunction", "BusinessInteraction", "BusinessEvent",
+  "BusinessService", "BusinessObject", "Contract", "Representation", "Product",
+  // Application
+  "ApplicationComponent", "ApplicationCollaboration", "ApplicationInterface",
+  "ApplicationFunction", "ApplicationInteraction", "ApplicationProcess",
+  "ApplicationEvent", "ApplicationService", "DataObject",
+  // Technology
+  "Node", "Device", "SystemSoftware", "TechnologyCollaboration", "TechnologyInterface",
+  "Path", "CommunicationNetwork", "TechnologyFunction", "TechnologyProcess",
+  "TechnologyInteraction", "TechnologyEvent", "TechnologyService", "Artifact",
+  // Physical
+  "Equipment", "Facility", "DistributionNetwork", "Material",
+  // Motivation
+  "Stakeholder", "Driver", "Assessment", "Goal", "Outcome", "Principle",
+  "Requirement", "Constraint", "Meaning", "Value",
+  // Strategy
+  "Resource", "Capability", "CourseOfAction", "ValueStream",
+  // Implementation & Migration
+  "WorkPackage", "Deliverable", "ImplementationEvent", "Plateau", "Gap",
+  // Composite
+  "Grouping", "Location",
+];
