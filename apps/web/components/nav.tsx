@@ -7,7 +7,7 @@ import { Menu, LogOut, FolderOpen } from "lucide-react";
 import { Button } from "@workspace/ui/components/button";
 import { useQueryClient } from "@tanstack/react-query";
 import { type ElementOut } from "@/lib/api";
-import { useWorkspaces } from "@/lib/queries";
+import { useWorkspaces, useElement } from "@/lib/queries";
 import { useT } from "@/lib/i18n";
 import { LocaleSwitcher } from "@/components/locale-switcher";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -39,7 +39,13 @@ export function Nav({ onToggleSidebar }: { onToggleSidebar: () => void }) {
   const activeWs = workspaces.find((w) => w.active);
   const segments = pathname.split("/").filter(Boolean);
 
-  // For /elements/[id], show the element name from the React Query cache.
+  // On /elements/[id], resolve the element so the breadcrumb shows its name, not
+  // the raw id. useElement is reactive (unlike qc.getQueryData), so the breadcrumb
+  // updates as soon as it loads — fixing the intermittent id display.
+  const elementId = segments[0] === "elements" && segments.length === 2 ? decodeURIComponent(segments[1]!) : "";
+  const { data: breadcrumbElement } = useElement(elementId);
+
+  // For /elements/[id], show the element name instead of its id.
   function segmentLabel(seg: string, index: number): string {
     const bcKeys: Record<string, Parameters<typeof t>[0]> = {
       elements: "breadcrumb.elements",
@@ -58,8 +64,12 @@ export function Nav({ onToggleSidebar }: { onToggleSidebar: () => void }) {
     if (bcKeys[seg]) return t(bcKeys[seg]);
     if (segments[index - 1] === "elements") {
       const id = decodeURIComponent(seg);
-      const cached = qc.getQueryData<ElementOut>(["element", id]);
-      if (cached?.name) return cached.name;
+      const name = (breadcrumbElement?.identifier === id ? breadcrumbElement?.name : undefined)
+        ?? qc.getQueryData<ElementOut>(["element", id])?.name;
+      if (name) return name;
+      // On the element page, show a placeholder rather than flashing the raw id
+      // while the name resolves.
+      if (id === elementId) return "…";
     }
     return decodeURIComponent(seg);
   }
