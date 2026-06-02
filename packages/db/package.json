@@ -14,7 +14,8 @@
     "build": "tsc -p tsconfig.build.json",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "seed:demo": "tsx scripts/seed-demo.ts"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.2",

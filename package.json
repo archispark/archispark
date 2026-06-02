@@ -9,7 +9,8 @@
     "format": "turbo format",
     "typecheck": "turbo typecheck",
     "test": "turbo run test --filter=api --filter=mcp-server --filter=web --filter=@workspace/db",
-    "test:coverage": "turbo run test:coverage --filter=api --filter=mcp-server --filter=web --filter=@workspace/db"
+    "test:coverage": "turbo run test:coverage --filter=api --filter=mcp-server --filter=web --filter=@workspace/db",
+    "seed:demo": "pnpm --filter @workspace/db seed:demo"
   },
   "devDependencies": {
     "@workspace/eslint-config": "workspace:*",

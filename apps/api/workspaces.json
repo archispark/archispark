@@ -1,3 +1,4 @@
 [
-  { "id": "ws-archisurance", "name": "ArchiSurance", "path": "../../data/archisurance.ref.xml" }
+  { "id": "ws-archimetal",   "name": "ArchiMetal",   "path": "../../data/ArchiMetal.xml" },
+  { "id": "ws-archisurance", "name": "ArchiSurance", "path": "../../data/ArchiSurance.xml" }
 ]
