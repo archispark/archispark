@@ -2,11 +2,11 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useState, useMemo } from "react";
 import { LayoutDashboard, LayoutGrid, Tag, Users, Settings as SettingsIcon, GitBranch, List, ChevronDown } from "lucide-react";
-import { fetchModel, fetchElements, type ModelInfo } from "@/lib/api";
 import { useIsAdmin } from "@/hooks/use-current-user";
 import { getLayer, LAYER_HEX_COLORS, LAYER_LABELS } from "@/lib/archimate-helpers";
+import { useModel, useElements } from "@/lib/queries";
 import { useT } from "@/lib/i18n";
 
 interface LayerGroup {
@@ -51,24 +51,23 @@ function SidebarInner({ open, onClose }: { open: boolean; onClose: () => void })
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { t } = useT();
-  const [model, setModel] = useState<ModelInfo | null>(null);
-  const [layerCounts, setLayerCounts] = useState<Record<string, number>>({});
+  // React Query so the sidebar reflects mutations (e.g. a newly created element
+  // bumps the counts) as soon as their queries are invalidated.
+  const { data: model } = useModel();
+  const { data: elements = [] } = useElements();
   const [mounted, setMounted] = useState(false);
   const isAdmin = useIsAdmin();
 
   useEffect(() => { setMounted(true); }, []);
 
-  useEffect(() => {
-    Promise.all([fetchModel(), fetchElements()]).then(([m, elements]) => {
-      setModel(m);
-      const counts: Record<string, number> = {};
-      for (const el of elements) {
-        const layer = getLayer(el.type);
-        counts[layer] = (counts[layer] || 0) + 1;
-      }
-      setLayerCounts(counts);
-    }).catch(() => {});
-  }, []);
+  const layerCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const el of elements) {
+      const layer = getLayer(el.type);
+      counts[layer] = (counts[layer] || 0) + 1;
+    }
+    return counts;
+  }, [elements]);
 
   const currentLayer = pathname === "/elements" ? searchParams.get("layer") : null;
 

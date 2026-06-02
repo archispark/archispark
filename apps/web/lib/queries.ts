@@ -161,7 +161,10 @@ export function useCreateElement() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: ElementCreateIn) => createElement(body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["elements"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["elements"] });
+      qc.invalidateQueries({ queryKey: queryKeys.model() });
+    },
   });
 }
 
