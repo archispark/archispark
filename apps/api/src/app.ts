@@ -32,9 +32,15 @@ import { rateLimit } from "express-rate-limit";
 import { RedisStore } from "rate-limit-redis";
 import { getRedis } from "./redis.js";
 import multer from "multer";
-import { createRequire } from "module";
-import type * as ArchiverTypes from "archiver";
-const { ZipArchive } = createRequire(import.meta.url)("archiver") as { ZipArchive: new (opts?: ArchiverTypes.ZipOptions) => ArchiverTypes.Archiver };
+// archiver@8 is a pure-ESM package whose runtime exports a named `ZipArchive`
+// class. A static namespace import is statically analyzable, so the bundler
+// (Vercel) includes archiver in the function — unlike the old createRequire()
+// form which crashed at load with "Cannot find module 'archiver'". The cast
+// bridges the @types/archiver typings (which still describe the old CJS API and
+// don't declare ZipArchive).
+import type { Archiver, ZipOptions } from "archiver";
+import * as archiverNs from "archiver";
+const ZipArchive = (archiverNs as unknown as { ZipArchive: new (opts?: ZipOptions) => Archiver }).ZipArchive;
 import { AppError, ValidationError } from "./errors.js";
 import { db, oauthProviders, modelFromDb, modelToDb } from "@workspace/db";
 import { eq } from "drizzle-orm";

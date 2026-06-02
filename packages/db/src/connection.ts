@@ -40,8 +40,10 @@ async function createDb(): Promise<NodePgDatabase<typeof schema>> {
     process.env["POSTGRES_URL"] ??
     process.env["POSTGRES_URL_NON_POOLING"] ??
     "postgresql://archispark:archispark@localhost:5432/archispark";
-  // Supabase poolers require TLS; allow the self-signed pooler cert.
-  const ssl = /supabase\.(co|com|net)/.test(connectionString) ? { rejectUnauthorized: false } : undefined;
+  // Remote managed Postgres (Supabase, etc.) serves TLS with a self-signed /
+  // private-CA certificate; accept it. Local/dev connections use no TLS.
+  const isLocal = /@(localhost|127\.0\.0\.1|\[::1\])/.test(connectionString) || /@postgres[:/]/.test(connectionString);
+  const ssl = isLocal ? undefined : { rejectUnauthorized: false };
   return pgDrizzle(new Pool({ connectionString, ssl }), { schema });
 }
 
