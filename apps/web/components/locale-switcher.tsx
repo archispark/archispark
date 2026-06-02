@@ -1,13 +1,15 @@
 "use client";
 
 import { useT, type Locale } from "@/lib/i18n";
+import { Flag } from "@/components/flags";
 
-const LOCALES: { value: Locale; label: string; flag: string }[] = [
-  { value: "fr", label: "Français", flag: "🇫🇷" },
-  { value: "en", label: "English",  flag: "🇬🇧" },
-  { value: "es", label: "Español",  flag: "🇪🇸" },
-  { value: "de", label: "Deutsch",  flag: "🇩🇪" },
-  { value: "it", label: "Italiano", flag: "🇮🇹" },
+// `cc` is the ISO country code for the flag (en → gb).
+const LOCALES: { value: Locale; label: string; cc: string }[] = [
+  { value: "fr", label: "Français", cc: "fr" },
+  { value: "en", label: "English",  cc: "gb" },
+  { value: "es", label: "Español",  cc: "es" },
+  { value: "de", label: "Deutsch",  cc: "de" },
+  { value: "it", label: "Italiano", cc: "it" },
 ];
 
 export function LocaleSwitcher() {
@@ -20,7 +22,7 @@ export function LocaleSwitcher() {
         className="flex items-center gap-1 px-2 h-8 rounded-md text-[12px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
         title={current.label}
       >
-        <span>{current.flag}</span>
+        <Flag code={current.cc} />
         <span className="uppercase tracking-wide">{current.value}</span>
       </button>
       <div className="absolute right-0 top-full mt-1 z-50 hidden group-hover:block bg-popover border border-border rounded-lg shadow-lg py-1 min-w-[130px]">
@@ -32,7 +34,7 @@ export function LocaleSwitcher() {
               l.value === locale ? "text-primary font-semibold" : "text-foreground"
             }`}
           >
-            <span>{l.flag}</span>
+            <Flag code={l.cc} />
             <span>{l.label}</span>
           </button>
         ))}
