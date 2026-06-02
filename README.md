@@ -26,6 +26,21 @@ Set the database connection with `DATABASE_URL` (the Supabase/Vercel
 `POSTGRES_URL_NON_POOLING` / `POSTGRES_URL` vars are also picked up as
 fallbacks). It defaults to `postgresql://archispark:archispark@localhost:5432/archispark`.
 
+## Demo seed
+
+Two sample ArchiMate models are available for demo or local testing: **ArchiMetal** (294 elements, 476 relationships, 33 views) and **ArchiSurance** (257 elements, 402 relationships, 40 views).
+
+The seed is **idempotent** — each workspace is skipped if one with the same name already exists.
+
+```bash
+# Requires DATABASE_URL (or POSTGRES_URL) pointing to a running Postgres instance.
+pnpm seed:demo
+
+# Equivalent alternatives:
+pnpm --filter @workspace/db seed:demo
+psql $DATABASE_URL -f packages/db/seeds/demo.sql
+```
+
 ## Persistence
 
 All data lives in PostgreSQL, shared between the API and MCP server.  
