@@ -129,6 +129,12 @@ import {
 
 export const app: ReturnType<typeof express> = express();
 
+// Behind a reverse proxy (Vercel, Traefik, Caddy) the client IP arrives via
+// X-Forwarded-For. Trust one proxy hop so req.ip is correct and express-rate-limit
+// doesn't throw ERR_ERL_UNEXPECTED_X_FORWARDED_FOR. `1` (not `true`) keeps it from
+// blindly trusting a spoofable client-supplied header.
+app.set("trust proxy", 1);
+
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors({ origin: true, credentials: true, methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"] }));
 app.use(express.json());
