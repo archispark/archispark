@@ -35,12 +35,12 @@ import type {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function rowToColor(r: number | null, g: number | null, b: number | null, a: number | null): ArchiColor | null {
+export function rowToColor(r: number | null, g: number | null, b: number | null, a: number | null): ArchiColor | null {
   if (r == null && g == null && b == null) return null;
   return { r: r ?? 0, g: g ?? 0, b: b ?? 0, a };
 }
 
-function buildNodeTree(
+export function buildNodeTree(
   flat: (typeof nodes.$inferSelect)[],
   parentUuid: string | null,
   elementMap: Map<string, ArchiElement>
@@ -72,12 +72,12 @@ function buildNodeTree(
     });
 }
 
-function colorToRow(c: ArchiColor | null): { r: number | null; g: number | null; b: number | null; a: number | null } {
+export function colorToRow(c: ArchiColor | null): { r: number | null; g: number | null; b: number | null; a: number | null } {
   if (!c) return { r: null, g: null, b: null, a: null };
   return { r: c.r, g: c.g, b: c.b, a: c.a ?? null };
 }
 
-function flattenNodes(
+export function flattenNodes(
   nodeList: ArchiNode[],
   parentUuid: string | null,
   acc: Array<{
