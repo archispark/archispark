@@ -11,6 +11,17 @@ let adminCookie: string;
 
 beforeAll(async () => {
   adminCookie = await getAdminCookie();
+  // _init() no longer seeds a default workspace (demo data is on-demand).
+  // Ensure at least one workspace exists so all tests have a baseline.
+  const list = await _request(app)
+    .get("/workspaces")
+    .set("Cookie", adminCookie);
+  if ((list.body as unknown[]).length === 0) {
+    await _request(app)
+      .post("/workspaces")
+      .set("Cookie", adminCookie)
+      .send({ name: "Default" });
+  }
 });
 
 function request(appArg: Parameters<typeof _request>[0]) {

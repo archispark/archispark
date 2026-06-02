@@ -15,6 +15,11 @@ let adminCookie: string;
 
 beforeAll(async () => {
   adminCookie = await getAdminCookie();
+  // _init() no longer seeds a default workspace; create one if the DB is empty.
+  const list = await _request(app).get("/workspaces").set("Cookie", adminCookie);
+  if ((list.body as unknown[]).length === 0) {
+    await _request(app).post("/workspaces").set("Cookie", adminCookie).send({ name: "Default" });
+  }
 });
 
 function request(appArg: Parameters<typeof _request>[0]) {
