@@ -21,7 +21,7 @@ export default function WorkspacesPage() {
 
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState("");
-  const [path, setPath] = useState("");
+  const [path] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   async function create() {
@@ -97,13 +97,6 @@ export default function WorkspacesPage() {
             placeholder={t("nav.workspace_name")}
             value={name}
             onChange={(e) => setName(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") create(); if (e.key === "Escape") setShowForm(false); }}
-            className="text-[13px] px-3 py-2 border border-border rounded-md bg-background text-foreground outline-none focus:border-primary"
-          />
-          <input
-            placeholder={t("nav.workspace_path")}
-            value={path}
-            onChange={(e) => setPath(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") create(); if (e.key === "Escape") setShowForm(false); }}
             className="text-[13px] px-3 py-2 border border-border rounded-md bg-background text-foreground outline-none focus:border-primary"
           />
