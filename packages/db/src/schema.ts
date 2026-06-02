@@ -28,6 +28,9 @@ export const workspaces = pgTable("workspaces", {
   name:        text("name").notNull(),           // workspace / model display name
   description: text("description"),
   version:     text("version"),
+  // Exactly one workspace is active at a time (enforced in code, not a constraint).
+  // Persisted here so the active workspace is shared across API instances.
+  isActive:    boolean("is_active").notNull().default(false),
   createdAt:   integer("created_at").notNull().default(sql`extract(epoch from now())::int`),
   updatedAt:   integer("updated_at").notNull().default(sql`extract(epoch from now())::int`),
 }, (t) => [

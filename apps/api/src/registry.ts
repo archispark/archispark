@@ -96,10 +96,17 @@ async function _init(): Promise<void> {
     }
   }
 
-  const finalRows = await db.select({ id: wsTable.id }).from(wsTable);
+  const finalRows = await db.select().from(wsTable);
   if (finalRows.length === 0) throw new Error("No workspaces in DB after init");
+  const sorted = [...finalRows].sort((a, b) => a.id - b.id);
 
-  _activeId = finalRows[0]!.id;
+  // Ensure exactly one workspace is active (persisted in DB → shared across instances).
+  let active = sorted.find((r) => r.isActive)?.id ?? null;
+  if (active == null) {
+    active = sorted[0]!.id;
+    await db.update(wsTable).set({ isActive: true }).where(eq(wsTable.id, active));
+  }
+  _activeId = active;
   const ds = await buildRuntimeDs(_activeId);
   _loaded.set(_activeId, ds);
   dataSource = ds;
@@ -141,12 +148,18 @@ export async function getWorkspaces(): Promise<WorkspaceOut[]> {
   return rows.map((r) => ({
     id: dbIdToStrId(r.id),
     name: r.name,
-    active: r.id === _activeId,
+    active: r.isActive,
   }));
 }
 
-export function getActiveWorkspaceId(): string {
-  return dbIdToStrId(_activeId);
+/** Numeric id of the active workspace, read from the DB (source of truth). */
+export async function getActiveWorkspaceId(): Promise<number> {
+  const rows = await db.select().from(wsTable);
+  const active = rows.find((r) => r.isActive);
+  if (active) return active.id;
+  const sorted = [...rows].sort((a, b) => a.id - b.id);
+  if (!sorted[0]) throw new Error("No workspaces in DB");
+  return sorted[0].id;
 }
 
 // ---------------------------------------------------------------------------
@@ -160,6 +173,11 @@ export async function activateWorkspace(id: string): Promise<WorkspaceOut> {
   if (!_loaded.has(dbId)) {
     _loaded.set(dbId, await buildRuntimeDs(dbId));
   }
+  // Persist the active workspace in the DB (single active, shared across instances).
+  await db.transaction(async (tx) => {
+    await tx.update(wsTable).set({ isActive: false }).where(eq(wsTable.isActive, true));
+    await tx.update(wsTable).set({ isActive: true }).where(eq(wsTable.id, dbId));
+  });
   _activeId = dbId;
   dataSource = _loaded.get(dbId)!;
   return { id, name: row.name, active: true };
