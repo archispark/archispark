@@ -128,7 +128,7 @@ export function Nav({ onToggleSidebar }: { onToggleSidebar: () => void }) {
         <Menu className="size-[18px]" />
       </button>
 
-      <Link href="/" className="flex items-center gap-2.5 no-underline shrink-0">
+      <Link href="/workspaces" className="flex items-center gap-2.5 no-underline shrink-0">
         <svg width="22" height="22" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
           <defs>
             <linearGradient id="turbo-spark" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
