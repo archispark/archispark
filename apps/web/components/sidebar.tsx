@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
-import { LayoutDashboard, LayoutGrid, Tag, Users, Settings as SettingsIcon, GitBranch, List } from "lucide-react";
+import { LayoutDashboard, LayoutGrid, Tag, Users, Settings as SettingsIcon, GitBranch, List, ChevronDown } from "lucide-react";
 import { fetchModel, fetchElements, type ModelInfo } from "@/lib/api";
 import { useIsAdmin } from "@/hooks/use-current-user";
 import { getLayer, LAYER_HEX_COLORS, LAYER_LABELS } from "@/lib/archimate-helpers";
@@ -20,6 +20,24 @@ const LAYER_GROUPS: LayerGroup[] = Object.entries(LAYER_HEX_COLORS).map(([key, d
   dot,
   label: LAYER_LABELS[key] ?? key,
 }));
+
+/** Collapsible sidebar section with a clickable header (open by default). */
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  const [open, setOpen] = useState(true);
+  return (
+    <div className="px-2 pt-2 pb-1">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center justify-between gap-2 text-[10px] font-bold tracking-[0.8px] uppercase text-muted-foreground px-2 mb-1 hover:text-foreground transition-colors"
+      >
+        <span>{title}</span>
+        <ChevronDown className={`size-3 shrink-0 transition-transform ${open ? "" : "-rotate-90"}`} />
+      </button>
+      {open && children}
+    </div>
+  );
+}
 
 export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
   return (
@@ -53,8 +71,6 @@ function SidebarInner({ open, onClose }: { open: boolean; onClose: () => void })
   }, []);
 
   const currentLayer = pathname === "/elements" ? searchParams.get("layer") : null;
-
-  const visibleLayers = LAYER_GROUPS.filter((g) => (layerCounts[g.key] || 0) > 0);
 
   return (
     <>
@@ -101,10 +117,7 @@ function SidebarInner({ open, onClose }: { open: boolean; onClose: () => void })
           <div className="mx-4 mt-3 mb-1 border-t border-border" />
 
           {/* Landscape views */}
-          <div className="px-2 pt-2 pb-1">
-            <div className="text-[10px] font-bold tracking-[0.8px] uppercase text-muted-foreground px-2 mb-1">
-              {t("sidebar.landscapes")}
-            </div>
+          <Section title={t("sidebar.landscapes")}>
             <Link
               href="/capabilities"
               onClick={onClose}
@@ -141,16 +154,13 @@ function SidebarInner({ open, onClose }: { open: boolean; onClose: () => void })
               <span className="size-1.5 rounded-full shrink-0" style={{ background: "#64748b" }} />
               {t("sidebar.composition")}
             </Link>
-          </div>
+          </Section>
 
           {/* Separator */}
           <div className="mx-4 mt-2 mb-1 border-t border-border" />
 
           {/* Layer sections */}
-          <div className="px-2 pt-2 pb-1">
-            <div className="text-[10px] font-bold tracking-[0.8px] uppercase text-muted-foreground px-2 mb-1">
-              {t("sidebar.elements")}
-            </div>
+          <Section title={t("sidebar.elements")}>
             {/* Always-available entry to the elements list (and its create dialog),
                 even for an empty model where no layer link would otherwise show. */}
             <Link
@@ -170,7 +180,7 @@ function SidebarInner({ open, onClose }: { open: boolean; onClose: () => void })
                 <span className="text-[11px] text-muted-foreground">{model.element_count}</span>
               )}
             </Link>
-            {visibleLayers.map((group) => {
+            {LAYER_GROUPS.map((group) => {
               const active = pathname === "/elements" && currentLayer === group.key;
               return (
                 <Link
@@ -196,16 +206,13 @@ function SidebarInner({ open, onClose }: { open: boolean; onClose: () => void })
                 </Link>
               );
             })}
-          </div>
+          </Section>
 
           {/* Separator */}
           <div className="mx-4 mt-2 mb-1 border-t border-border" />
 
           {/* Relations group */}
-          <div className="px-2 pt-2 pb-1">
-            <div className="text-[10px] font-bold tracking-[0.8px] uppercase text-muted-foreground px-2 mb-1">
-              {t("sidebar.relationships")}
-            </div>
+          <Section title={t("sidebar.relationships")}>
             <Link
               href="/relationships"
               onClick={onClose}
@@ -223,16 +230,13 @@ function SidebarInner({ open, onClose }: { open: boolean; onClose: () => void })
                 <span className="text-[11px] text-muted-foreground">{model.relationship_count}</span>
               )}
             </Link>
-          </div>
+          </Section>
 
           {/* Separator */}
           <div className="mx-4 mt-2 mb-1 border-t border-border" />
 
           {/* Vues group */}
-          <div className="px-2 pt-2 pb-1">
-            <div className="text-[10px] font-bold tracking-[0.8px] uppercase text-muted-foreground px-2 mb-1">
-              {t("sidebar.views")}
-            </div>
+          <Section title={t("sidebar.views")}>
             <Link
               href="/views"
               onClick={onClose}
@@ -250,16 +254,13 @@ function SidebarInner({ open, onClose }: { open: boolean; onClose: () => void })
                 <span className="text-[11px] text-muted-foreground">{model.view_count}</span>
               )}
             </Link>
-          </div>
+          </Section>
 
           {/* Separator */}
           <div className="mx-4 mt-2 mb-1 border-t border-border" />
 
           {/* Propriétés group */}
-          <div className="px-2 pt-2 pb-1">
-            <div className="text-[10px] font-bold tracking-[0.8px] uppercase text-muted-foreground px-2 mb-1">
-              {t("sidebar.properties")}
-            </div>
+          <Section title={t("sidebar.properties")}>
             <Link
               href="/properties"
               onClick={onClose}
@@ -277,7 +278,7 @@ function SidebarInner({ open, onClose }: { open: boolean; onClose: () => void })
                 <span className="text-[11px] text-muted-foreground">{model.property_definition_count}</span>
               )}
             </Link>
-          </div>
+          </Section>
 
         </div>
 
