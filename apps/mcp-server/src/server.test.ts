@@ -28,37 +28,33 @@ const shared = vi.hoisted(() => {
 vi.mock("api/package.json", () => ({ default: { version: "0.0.0-test" } }));
 
 vi.mock("api/src/registry.js", () => ({
-  dataSource: {
-    model: { uuid: "m1", name: "Test", desc: null, version: null, views: [], elements: [], relationships: [], propertyDefinitions: [] },
-    db: null,
-    workspaceDbId: 1,
-  },
+  getActiveWorkspaceId: vi.fn().mockResolvedValue(1),
 }));
 
-vi.mock("api/src/app.js", () => ({
-  getModelInfo: vi.fn().mockReturnValue({ identifier: "m1", name: "Test" }),
-  listElementTypes: vi.fn().mockReturnValue(["ApplicationComponent"]),
-  listElements: vi.fn().mockReturnValue([]),
-  getElementById: vi.fn().mockReturnValue(null),
-  listRelationshipTypes: vi.fn().mockReturnValue(["Association"]),
-  listRelationships: vi.fn().mockReturnValue([]),
-  getRelationshipById: vi.fn().mockReturnValue(null),
-  listViews: vi.fn().mockReturnValue([]),
-  getViewById: vi.fn().mockReturnValue(null),
-  createView: vi.fn().mockReturnValue({ identifier: "v1" }),
-  createNode: vi.fn().mockReturnValue({ identifier: "n1" }),
-  createElement: vi.fn().mockReturnValue({ identifier: "e1" }),
-  updateElement: vi.fn().mockReturnValue({ identifier: "e1" }),
-  deleteElement: vi.fn(),
-  createRelationship: vi.fn().mockReturnValue({ identifier: "r1" }),
-  updateRelationship: vi.fn().mockReturnValue({ identifier: "r1" }),
-  deleteRelationship: vi.fn(),
-  saveModel: vi.fn().mockReturnValue({ saved: true, path: "/data/test.xml" }),
-  listPropertyDefinitions: vi.fn().mockReturnValue([]),
-  getPropertyDefinitionById: vi.fn().mockReturnValue(null),
-  createPropertyDefinition: vi.fn().mockReturnValue({ identifier: "pd1" }),
-  updatePropertyDefinition: vi.fn().mockReturnValue({ identifier: "pd1" }),
-  deletePropertyDefinition: vi.fn(),
+vi.mock("api/src/store.js", () => ({
+  getModelInfo: vi.fn().mockResolvedValue({ identifier: "m1", name: "Test" }),
+  listElementTypes: vi.fn().mockResolvedValue(["ApplicationComponent"]),
+  listElements: vi.fn().mockResolvedValue([]),
+  getElementById: vi.fn().mockResolvedValue(null),
+  listRelationshipTypes: vi.fn().mockResolvedValue(["Association"]),
+  listRelationships: vi.fn().mockResolvedValue([]),
+  getRelationshipById: vi.fn().mockResolvedValue(null),
+  listViews: vi.fn().mockResolvedValue([]),
+  getViewById: vi.fn().mockResolvedValue(null),
+  createView: vi.fn().mockResolvedValue({ identifier: "v1" }),
+  createNode: vi.fn().mockResolvedValue({ identifier: "n1" }),
+  createElement: vi.fn().mockResolvedValue({ identifier: "e1" }),
+  updateElement: vi.fn().mockResolvedValue({ identifier: "e1" }),
+  deleteElement: vi.fn().mockResolvedValue(undefined),
+  createRelationship: vi.fn().mockResolvedValue({ identifier: "r1" }),
+  updateRelationship: vi.fn().mockResolvedValue({ identifier: "r1" }),
+  deleteRelationship: vi.fn().mockResolvedValue(undefined),
+  listPropertyDefinitions: vi.fn().mockResolvedValue([]),
+  getPropertyDefinitionById: vi.fn().mockResolvedValue(null),
+  createPropertyDefinition: vi.fn().mockResolvedValue({ identifier: "pd1" }),
+  updatePropertyDefinition: vi.fn().mockResolvedValue({ identifier: "pd1" }),
+  deletePropertyDefinition: vi.fn().mockResolvedValue(undefined),
+  loadModel: vi.fn().mockResolvedValue({ uuid: "m1", name: "Test", desc: null, version: null, views: [], elements: [], relationships: [], propertyDefinitions: [] }),
 }));
 
 vi.mock("api/src/renderer.js", () => ({
@@ -110,11 +106,11 @@ import {
   listViews, getViewById, createView, createNode,
   createElement, updateElement, deleteElement,
   createRelationship, updateRelationship, deleteRelationship,
-  saveModel, listPropertyDefinitions, getPropertyDefinitionById,
+  listPropertyDefinitions, getPropertyDefinitionById,
   createPropertyDefinition, updatePropertyDefinition, deletePropertyDefinition,
-} from "api/src/app.js";
+  loadModel,
+} from "api/src/store.js";
 import { renderViewToSvg } from "api/src/renderer.js";
-import { dataSource } from "api/src/registry.js";
 
 // ---------------------------------------------------------------------------
 // Helper: POST initialize to create a session
@@ -259,7 +255,7 @@ describe("DELETE /mcp/", () => {
 describe("MCP tool: get_model_info", () => {
   it("returns model info wrapped in content", async () => {
     const result = await callTool("get_model_info");
-    expect(vi.mocked(getModelInfo)).toHaveBeenCalledWith(dataSource);
+    expect(vi.mocked(getModelInfo)).toHaveBeenCalledWith(1);
     expect(result.content[0].text).toContain("m1");
   });
 });
@@ -267,7 +263,7 @@ describe("MCP tool: get_model_info", () => {
 describe("MCP tool: list_element_types", () => {
   it("returns element types", async () => {
     const result = await callTool("list_element_types");
-    expect(vi.mocked(listElementTypes)).toHaveBeenCalledWith(dataSource);
+    expect(vi.mocked(listElementTypes)).toHaveBeenCalledWith(1);
     expect(result.content[0].text).toContain("ApplicationComponent");
   });
 });
@@ -281,7 +277,7 @@ describe("MCP tool: list_elements", () => {
 
   it("lists elements with valid type filter", async () => {
     await callTool("list_elements", { element_type: "ApplicationComponent" });
-    expect(vi.mocked(listElements)).toHaveBeenCalledWith(dataSource, "ApplicationComponent", undefined);
+    expect(vi.mocked(listElements)).toHaveBeenCalledWith(1, "ApplicationComponent", undefined);
   });
 
   it("throws on invalid element_type", async () => {
@@ -293,14 +289,14 @@ describe("MCP tool: list_elements", () => {
 describe("MCP tool: get_element", () => {
   it("calls getElementById", async () => {
     await callTool("get_element", { element_id: "e1" });
-    expect(vi.mocked(getElementById)).toHaveBeenCalledWith(dataSource, "e1");
+    expect(vi.mocked(getElementById)).toHaveBeenCalledWith(1, "e1");
   });
 });
 
 describe("MCP tool: list_relationship_types", () => {
   it("returns relationship types", async () => {
     const result = await callTool("list_relationship_types");
-    expect(vi.mocked(listRelationshipTypes)).toHaveBeenCalledWith(dataSource);
+    expect(vi.mocked(listRelationshipTypes)).toHaveBeenCalledWith(1);
     expect(result.content[0].text).toContain("Association");
   });
 });
@@ -320,35 +316,35 @@ describe("MCP tool: list_relationships", () => {
 describe("MCP tool: get_relationship", () => {
   it("calls getRelationshipById", async () => {
     await callTool("get_relationship", { relationship_id: "r1" });
-    expect(vi.mocked(getRelationshipById)).toHaveBeenCalledWith(dataSource, "r1");
+    expect(vi.mocked(getRelationshipById)).toHaveBeenCalledWith(1, "r1");
   });
 });
 
 describe("MCP tool: list_views", () => {
   it("returns views", async () => {
     await callTool("list_views");
-    expect(vi.mocked(listViews)).toHaveBeenCalledWith(dataSource);
+    expect(vi.mocked(listViews)).toHaveBeenCalledWith(1);
   });
 });
 
 describe("MCP tool: get_view", () => {
   it("calls getViewById", async () => {
     await callTool("get_view", { view_id: "v1" });
-    expect(vi.mocked(getViewById)).toHaveBeenCalledWith(dataSource, "v1");
+    expect(vi.mocked(getViewById)).toHaveBeenCalledWith(1, "v1");
   });
 });
 
 describe("MCP tool: create_view", () => {
   it("calls createView", async () => {
     await callTool("create_view", { name: "My View" });
-    expect(vi.mocked(createView)).toHaveBeenCalledWith(dataSource, { name: "My View", viewpoint: undefined, documentation: undefined });
+    expect(vi.mocked(createView)).toHaveBeenCalledWith(1, { name: "My View", viewpoint: undefined, documentation: undefined });
   });
 });
 
 describe("MCP tool: create_node", () => {
   it("calls createNode", async () => {
     await callTool("create_node", { view_id: "v1", element_id: "e1" });
-    expect(vi.mocked(createNode)).toHaveBeenCalledWith(dataSource, "v1", { element_id: "e1", x: undefined, y: undefined, w: undefined, h: undefined });
+    expect(vi.mocked(createNode)).toHaveBeenCalledWith(1, "v1", { element_id: "e1", x: undefined, y: undefined, w: undefined, h: undefined });
   });
 });
 
@@ -367,7 +363,7 @@ describe("MCP tool: create_element", () => {
 describe("MCP tool: update_element", () => {
   it("updates element name", async () => {
     await callTool("update_element", { element_id: "e1", name: "NewName" });
-    expect(vi.mocked(updateElement)).toHaveBeenCalledWith(dataSource, "e1", { name: "NewName" });
+    expect(vi.mocked(updateElement)).toHaveBeenCalledWith(1, "e1", { name: "NewName" });
   });
 
   it("throws on invalid type", async () => {
@@ -379,7 +375,7 @@ describe("MCP tool: update_element", () => {
 describe("MCP tool: delete_element", () => {
   it("deletes element and returns confirmation", async () => {
     const result = await callTool("delete_element", { element_id: "e1" });
-    expect(vi.mocked(deleteElement)).toHaveBeenCalledWith(dataSource, "e1");
+    expect(vi.mocked(deleteElement)).toHaveBeenCalledWith(1, "e1");
     expect(JSON.parse(result.content[0].text)).toMatchObject({ deleted: true, identifier: "e1" });
   });
 });
@@ -399,7 +395,7 @@ describe("MCP tool: create_relationship", () => {
 describe("MCP tool: update_relationship", () => {
   it("updates relationship name", async () => {
     await callTool("update_relationship", { relationship_id: "r1", name: "NewName" });
-    expect(vi.mocked(updateRelationship)).toHaveBeenCalledWith(dataSource, "r1", { name: "NewName" });
+    expect(vi.mocked(updateRelationship)).toHaveBeenCalledWith(1, "r1", { name: "NewName" });
   });
 
   it("throws on invalid type", async () => {
@@ -411,7 +407,7 @@ describe("MCP tool: update_relationship", () => {
 describe("MCP tool: delete_relationship", () => {
   it("deletes relationship and returns confirmation", async () => {
     const result = await callTool("delete_relationship", { relationship_id: "r1" });
-    expect(vi.mocked(deleteRelationship)).toHaveBeenCalledWith(dataSource, "r1");
+    expect(vi.mocked(deleteRelationship)).toHaveBeenCalledWith(1, "r1");
     expect(JSON.parse(result.content[0].text)).toMatchObject({ deleted: true, identifier: "r1" });
   });
 });
@@ -419,14 +415,14 @@ describe("MCP tool: delete_relationship", () => {
 describe("MCP tool: list_property_definitions", () => {
   it("returns property definitions", async () => {
     await callTool("list_property_definitions");
-    expect(vi.mocked(listPropertyDefinitions)).toHaveBeenCalledWith(dataSource);
+    expect(vi.mocked(listPropertyDefinitions)).toHaveBeenCalledWith(1);
   });
 });
 
 describe("MCP tool: get_property_definition", () => {
   it("calls getPropertyDefinitionById", async () => {
     await callTool("get_property_definition", { id: "pd1" });
-    expect(vi.mocked(getPropertyDefinitionById)).toHaveBeenCalledWith(dataSource, "pd1");
+    expect(vi.mocked(getPropertyDefinitionById)).toHaveBeenCalledWith(1, "pd1");
   });
 });
 
@@ -443,14 +439,14 @@ describe("MCP tool: create_property_definition", () => {
 
   it("creates without type (defaults to string)", async () => {
     await callTool("create_property_definition", { name: "Note" });
-    expect(vi.mocked(createPropertyDefinition)).toHaveBeenCalledWith(dataSource, { name: "Note", type: undefined });
+    expect(vi.mocked(createPropertyDefinition)).toHaveBeenCalledWith(1, { name: "Note", type: undefined });
   });
 });
 
 describe("MCP tool: update_property_definition", () => {
   it("updates property definition name", async () => {
     await callTool("update_property_definition", { id: "pd1", name: "NewName" });
-    expect(vi.mocked(updatePropertyDefinition)).toHaveBeenCalledWith(dataSource, "pd1", { name: "NewName" });
+    expect(vi.mocked(updatePropertyDefinition)).toHaveBeenCalledWith(1, "pd1", { name: "NewName" });
   });
 
   it("throws on invalid type", async () => {
@@ -462,29 +458,33 @@ describe("MCP tool: update_property_definition", () => {
 describe("MCP tool: delete_property_definition", () => {
   it("deletes and returns confirmation", async () => {
     const result = await callTool("delete_property_definition", { id: "pd1" });
-    expect(vi.mocked(deletePropertyDefinition)).toHaveBeenCalledWith(dataSource, "pd1");
+    expect(vi.mocked(deletePropertyDefinition)).toHaveBeenCalledWith(1, "pd1");
     expect(JSON.parse(result.content[0].text)).toMatchObject({ deleted: true, identifier: "pd1" });
   });
 });
 
 describe("MCP tool: save_model", () => {
-  it("calls saveModel", async () => {
+  it("returns saved:true (no-op — persistence is immediate)", async () => {
     const result = await callTool("save_model");
-    expect(vi.mocked(saveModel)).toHaveBeenCalledWith(dataSource);
     expect(JSON.parse(result.content[0].text)).toMatchObject({ saved: true });
   });
 });
 
+const modelWithViews = (views: { uuid: string }[]) => ({
+  uuid: "m1", name: "Test", desc: null, version: null,
+  views, elements: [], relationships: [], propertyDefinitions: [],
+});
+
 describe("MCP tool: render_view", () => {
   it("returns SVG by default when view exists", async () => {
-    vi.mocked(dataSource as { model: { views: { uuid: string }[] } }).model.views = [{ uuid: "v1" } as never];
+    vi.mocked(loadModel).mockResolvedValueOnce(modelWithViews([{ uuid: "v1" }]) as never);
     const result = await callTool("render_view", { view_id: "v1" });
     expect(vi.mocked(renderViewToSvg)).toHaveBeenCalled();
     expect(result.content[0].mimeType).toBe("image/svg+xml");
   });
 
   it("throws when view not found", async () => {
-    vi.mocked(dataSource as { model: { views: unknown[] } }).model.views = [];
+    vi.mocked(loadModel).mockResolvedValueOnce(modelWithViews([]) as never);
     await expect(callTool("render_view", { view_id: "missing" }))
       .rejects.toThrow(/introuvable/i);
   });

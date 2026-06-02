@@ -6,7 +6,6 @@ import { describe, it, expect } from "vitest";
 import { serializeToOpenExchange } from "../src/oxf-serializer.js";
 import { parseOpenExchange } from "../src/oxf-parser.js";
 import type { ArchiElement, ArchiRelationship, ArchiNode, ArchiConnection, ArchiView } from "../src/model.js";
-import type { DataSource } from "../src/registry.js";
 import type { ArchiModel } from "../src/model.js";
 
 // ---------------------------------------------------------------------------
@@ -91,7 +90,7 @@ function makeView(overrides: Partial<ArchiView> = {}): ArchiView {
   };
 }
 
-function makeDataSource(overrides: Partial<ArchiModel> = {}): DataSource {
+function makeDataSource(overrides: Partial<ArchiModel> = {}): { model: ArchiModel } {
   const model: ArchiModel = {
     uuid: "model-001",
     name: "Test Model",
@@ -103,7 +102,7 @@ function makeDataSource(overrides: Partial<ArchiModel> = {}): DataSource {
     views: [],
     ...overrides,
   };
-  return { workspaceDbId: 1, path: "data/test.xml", model, elementTypes: [], relationshipTypes: [] };
+  return { model };
 }
 
 // OEF_FIXTURE is needed for round-trip tests

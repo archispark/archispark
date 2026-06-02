@@ -28,32 +28,10 @@ import {
   nodeOut,
   connectionOut,
   viewOut,
-  createElement,
-  updateElement,
-  deleteElement,
-  createRelationship,
-  updateRelationship,
-  deleteRelationship,
-  createView,
-  updateView,
-  deleteView,
-  createNode,
-  updateViewNode,
-  deleteViewNode,
-  createViewConnection,
-  updateViewConnection,
-  deleteViewConnection,
-  saveModel,
   pdOut,
-  listPropertyDefinitions,
-  getPropertyDefinitionById,
-  createPropertyDefinition,
-  updatePropertyDefinition,
-  deletePropertyDefinition,
 } from "../src/app.js";
-import { dataSource } from "../src/registry.js";
-import type { DataSource } from "../src/registry.js";
-import type { ArchiModel } from "../src/model.js";
+import * as store from "../src/store.js";
+import { getActiveWorkspaceId } from "../src/registry.js";
 import {
   ACCESS_TYPES,
   ELEMENT_TYPES,
@@ -154,7 +132,6 @@ function makeView(overrides: Partial<ArchiView> = {}): ArchiView {
 // Shared fixtures (loaded once)
 // ---------------------------------------------------------------------------
 
-let ds: DataSource;
 let elementsData: ElementOut[];
 let knownElement: ElementOut;
 let knownElementType: string;
@@ -165,8 +142,6 @@ let knownRelationshipType: string;
 let knownView: ViewOut;
 
 beforeAll(async () => {
-  ds = dataSource;
-
   // Seed minimal fixtures when running against an empty DB
   const seedEls = (await request(app).get(`/elements`)).body as ElementOut[];
   if (seedEls.length === 0) {
@@ -542,7 +517,7 @@ describe("GET /elements", () => {
 
   it("returns all elements", async () => {
     const data = (await request(app).get(`/elements`)).body as ElementOut[];
-    expect(data.length).toBe(ds.model.elements.length);
+    expect(data.length).toBe((await store.listElements(await getActiveWorkspaceId())).length);
   });
 
   it("element has required shape", async () => {
@@ -728,7 +703,7 @@ describe("GET /relationships", () => {
 
   it("returns all relationships", async () => {
     const data = (await request(app).get(`/relationships`)).body as RelationshipOut[];
-    expect(data.length).toBe(ds.model.relationships.length);
+    expect(data.length).toBe((await store.listRelationships(await getActiveWorkspaceId())).length);
   });
 
   it("relationship has required shape", async () => {
@@ -830,7 +805,7 @@ describe("GET /views", () => {
 
   it("returns all views", async () => {
     const data = (await request(app).get(`/views`)).body as ViewOut[];
-    expect(data.length).toBe(ds.model.views.length);
+    expect(data.length).toBe((await store.listViews(await getActiveWorkspaceId())).length);
   });
 
   it("view has required shape", async () => {
@@ -976,8 +951,7 @@ describe("POST /views", () => {
   const createdViewIds: string[] = [];
   afterEach(async () => {
     for (const id of createdViewIds.splice(0)) {
-      const idx = dataSource.model.views.findIndex((v) => v.uuid === id);
-      if (idx !== -1) dataSource.model.views.splice(idx, 1);
+      await request(app).delete(`/views/${id}`);
     }
   });
 
@@ -1024,8 +998,10 @@ describe("POST /views/:view_id/nodes", () => {
   });
 
   afterEach(async () => {
-    const view = dataSource.model.views.find((v) => v.uuid === testViewId);
-    if (view) view.nodes = [];
+    const detail = (await request(app).get(`/views/${testViewId}`)).body as ViewDetailOut;
+    for (const n of detail.nodes ?? []) {
+      await request(app).delete(`/views/${testViewId}/nodes/${n.identifier}`);
+    }
   });
 
   it("returns 201 with Node shape", async () => {
@@ -1058,270 +1034,6 @@ describe("POST /views/:view_id/nodes", () => {
 
   it("returns 422 when element_id is missing", async () => {
     expect((await request(app).post(`/views/${testViewId}/nodes`).send({})).status).toBe(422);
-  });
-});
-
-// ===========================================================================
-// Unit tests – mutation helpers (makeDataSource factory)
-// ===========================================================================
-
-function makeDataSource(overrides: Partial<ArchiModel> = {}): DataSource {
-  const model: ArchiModel = {
-    uuid: "model-001",
-    name: "Test Model",
-    desc: null,
-    version: null,
-    elements: [],
-    relationships: [],
-    propertyDefinitions: [],
-    views: [],
-    ...overrides,
-  };
-  return { workspaceDbId: 1, path: "data/test.xml", model, elementTypes: [], relationshipTypes: [] };
-}
-
-describe("createElement", () => {
-  it("adds element to model and returns ElementOut", () => {
-    const ds = makeDataSource();
-    const result = createElement(ds, { name: "My App", type: "ApplicationComponent" });
-    expect(ds.model.elements).toHaveLength(1);
-    expect(result.name).toBe("My App");
-    expect(result.type).toBe("ApplicationComponent");
-    expect(result.identifier).toBeTruthy();
-  });
-
-  it("updates elementTypes after creation", () => {
-    const ds = makeDataSource();
-    createElement(ds, { name: "App", type: "ApplicationComponent" });
-    expect(ds.elementTypes).toContain("ApplicationComponent");
-  });
-
-  it("sets documentation and properties", () => {
-    const ds = makeDataSource();
-    const result = createElement(ds, {
-      name: "Goal1",
-      type: "Goal",
-      documentation: "A test goal",
-      properties: [{ property_definition_ref: "status", value: "active" }],
-    });
-    expect(result.documentation).toBe("A test goal");
-    expect(result.properties).toHaveLength(1);
-    expect(result.properties[0]!.property_definition_ref).toBe("status");
-  });
-
-  it("documentation defaults to null when omitted", () => {
-    const ds = makeDataSource();
-    const result = createElement(ds, { name: "Test", type: "Goal" });
-    expect(result.documentation).toBeNull();
-  });
-});
-
-describe("updateElement", () => {
-  it("updates name", () => {
-    const ds = makeDataSource({ elements: [makeElement()] });
-    const result = updateElement(ds, "elem-001", { name: "New Name" });
-    expect(result.name).toBe("New Name");
-  });
-
-  it("updates type and recomputes elementTypes", () => {
-    const ds = makeDataSource({ elements: [makeElement()] });
-    ds.elementTypes = ["ApplicationComponent"];
-    updateElement(ds, "elem-001", { type: "BusinessActor" });
-    expect(ds.elementTypes).toContain("BusinessActor");
-    expect(ds.elementTypes).not.toContain("ApplicationComponent");
-  });
-
-  it("updates documentation", () => {
-    const ds = makeDataSource({ elements: [makeElement({ desc: "old" })] });
-    updateElement(ds, "elem-001", { documentation: "new doc" });
-    expect(ds.model.elements[0]!.desc).toBe("new doc");
-  });
-
-  it("clears documentation when null passed", () => {
-    const ds = makeDataSource({ elements: [makeElement({ desc: "something" })] });
-    updateElement(ds, "elem-001", { documentation: null });
-    expect(ds.model.elements[0]!.desc).toBeNull();
-  });
-
-  it("does not touch documentation when key absent", () => {
-    const ds = makeDataSource({ elements: [makeElement({ desc: "kept" })] });
-    updateElement(ds, "elem-001", { name: "New Name" });
-    expect(ds.model.elements[0]!.desc).toBe("kept");
-  });
-
-  it("updates properties", () => {
-    const ds = makeDataSource({ elements: [makeElement()] });
-    const result = updateElement(ds, "elem-001", {
-      properties: [{ property_definition_ref: "key", value: "val" }],
-    });
-    expect(result.properties).toHaveLength(1);
-    expect(result.properties[0]!.value).toBe("val");
-  });
-
-  it("throws for unknown id", () => {
-    const ds = makeDataSource();
-    expect(() => updateElement(ds, "unknown", {})).toThrow("introuvable");
-  });
-});
-
-describe("deleteElement", () => {
-  it("removes element from model", () => {
-    const ds = makeDataSource({ elements: [makeElement()] });
-    deleteElement(ds, "elem-001");
-    expect(ds.model.elements).toHaveLength(0);
-  });
-
-  it("updates elementTypes after deletion", () => {
-    const ds = makeDataSource({ elements: [makeElement()] });
-    ds.elementTypes = ["ApplicationComponent"];
-    deleteElement(ds, "elem-001");
-    expect(ds.elementTypes).toHaveLength(0);
-  });
-
-  it("throws for unknown id", () => {
-    const ds = makeDataSource();
-    expect(() => deleteElement(ds, "unknown")).toThrow("introuvable");
-  });
-
-  it("cascades: removes relationships that reference the deleted element", () => {
-    const elem = makeElement({ uuid: "e1" });
-    const other = makeElement({ uuid: "e2", name: "Other", type: "BusinessActor" });
-    const rel = makeRelationship({ uuid: "r1", source: elem, target: other });
-    const ds = makeDataSource({ elements: [elem, other], relationships: [rel] });
-    deleteElement(ds, "e1");
-    expect(ds.model.relationships).toHaveLength(0);
-  });
-
-  it("cascades when element is the target", () => {
-    const e1 = makeElement({ uuid: "e1" });
-    const e2 = makeElement({ uuid: "e2" });
-    const rel = makeRelationship({ uuid: "r1", source: e1, target: e2 });
-    const ds = makeDataSource({ elements: [e1, e2], relationships: [rel] });
-    deleteElement(ds, "e2");
-    expect(ds.model.relationships).toHaveLength(0);
-  });
-
-  it("does not remove unrelated relationships", () => {
-    const e1 = makeElement({ uuid: "e1" });
-    const e2 = makeElement({ uuid: "e2" });
-    const e3 = makeElement({ uuid: "e3" });
-    const rel = makeRelationship({ uuid: "r1", source: e2, target: e3 });
-    const ds = makeDataSource({ elements: [e1, e2, e3], relationships: [rel] });
-    deleteElement(ds, "e1");
-    expect(ds.model.relationships).toHaveLength(1);
-  });
-});
-
-describe("createRelationship", () => {
-  it("adds relationship to model and returns RelationshipOut", () => {
-    const e1 = makeElement({ uuid: "e1" });
-    const e2 = makeElement({ uuid: "e2" });
-    const ds = makeDataSource({ elements: [e1, e2] });
-    const result = createRelationship(ds, { type: "Association", source: "e1", target: "e2" });
-    expect(ds.model.relationships).toHaveLength(1);
-    expect(result.type).toBe("Association");
-    expect(result.source).toBe("e1");
-    expect(result.target).toBe("e2");
-    expect(result.identifier).toBeTruthy();
-  });
-
-  it("sets name and documentation", () => {
-    const e1 = makeElement({ uuid: "e1" });
-    const e2 = makeElement({ uuid: "e2" });
-    const ds = makeDataSource({ elements: [e1, e2] });
-    const result = createRelationship(ds, { type: "Flow", source: "e1", target: "e2", name: "My Flow", documentation: "doc" });
-    expect(result.name).toBe("My Flow");
-    expect(result.documentation).toBe("doc");
-  });
-
-  it("sets access_type for Access relationship", () => {
-    const e1 = makeElement({ uuid: "e1" });
-    const e2 = makeElement({ uuid: "e2" });
-    const ds = makeDataSource({ elements: [e1, e2] });
-    const result = createRelationship(ds, { type: "Access", source: "e1", target: "e2", access_type: "Write" });
-    expect(result.access_type).toBe("Write");
-  });
-
-  it("throws for unknown source", () => {
-    const e2 = makeElement({ uuid: "e2" });
-    const ds = makeDataSource({ elements: [e2] });
-    expect(() => createRelationship(ds, { type: "Association", source: "unknown", target: "e2" })).toThrow("source");
-  });
-
-  it("throws for unknown target", () => {
-    const e1 = makeElement({ uuid: "e1" });
-    const ds = makeDataSource({ elements: [e1] });
-    expect(() => createRelationship(ds, { type: "Association", source: "e1", target: "unknown" })).toThrow("cible");
-  });
-
-  it("updates relationshipTypes", () => {
-    const e1 = makeElement({ uuid: "e1" });
-    const e2 = makeElement({ uuid: "e2" });
-    const ds = makeDataSource({ elements: [e1, e2] });
-    createRelationship(ds, { type: "Composition", source: "e1", target: "e2" });
-    expect(ds.relationshipTypes).toContain("Composition");
-  });
-});
-
-describe("updateRelationship", () => {
-  it("updates name", () => {
-    const e1 = makeElement({ uuid: "src-001" });
-    const e2 = makeElement({ uuid: "tgt-001" });
-    const ds = makeDataSource({ elements: [e1, e2], relationships: [makeRelationship()] });
-    const result = updateRelationship(ds, "rel-001", { name: "New Name" });
-    expect(result.name).toBe("New Name");
-  });
-
-  it("updates documentation", () => {
-    const e1 = makeElement({ uuid: "src-001" });
-    const e2 = makeElement({ uuid: "tgt-001" });
-    const ds = makeDataSource({ elements: [e1, e2], relationships: [makeRelationship()] });
-    updateRelationship(ds, "rel-001", { documentation: "doc updated" });
-    expect(ds.model.relationships[0]!.desc).toBe("doc updated");
-  });
-
-  it("does not touch fields not provided", () => {
-    const e1 = makeElement({ uuid: "src-001" });
-    const e2 = makeElement({ uuid: "tgt-001" });
-    const ds = makeDataSource({ elements: [e1, e2], relationships: [makeRelationship({ desc: "original" })] });
-    updateRelationship(ds, "rel-001", { name: "X" });
-    expect(ds.model.relationships[0]!.desc).toBe("original");
-  });
-
-  it("throws for unknown relationship id", () => {
-    const ds = makeDataSource();
-    expect(() => updateRelationship(ds, "unknown", {})).toThrow("introuvable");
-  });
-
-  it("throws when new source element does not exist", () => {
-    const e1 = makeElement({ uuid: "src-001" });
-    const e2 = makeElement({ uuid: "tgt-001" });
-    const ds = makeDataSource({ elements: [e1, e2], relationships: [makeRelationship()] });
-    expect(() => updateRelationship(ds, "rel-001", { source: "no-such-id" })).toThrow("source");
-  });
-});
-
-describe("deleteRelationship", () => {
-  it("removes relationship from model", () => {
-    const e1 = makeElement({ uuid: "src-001" });
-    const e2 = makeElement({ uuid: "tgt-001" });
-    const ds = makeDataSource({ elements: [e1, e2], relationships: [makeRelationship()] });
-    deleteRelationship(ds, "rel-001");
-    expect(ds.model.relationships).toHaveLength(0);
-  });
-
-  it("throws for unknown id", () => {
-    const ds = makeDataSource();
-    expect(() => deleteRelationship(ds, "unknown")).toThrow("introuvable");
-  });
-
-  it("updates relationshipTypes after deletion", () => {
-    const e1 = makeElement({ uuid: "src-001" });
-    const e2 = makeElement({ uuid: "tgt-001" });
-    const ds = makeDataSource({ elements: [e1, e2], relationships: [makeRelationship({ type: "Flow" })] });
-    ds.relationshipTypes = ["Flow"];
-    deleteRelationship(ds, "rel-001");
-    expect(ds.relationshipTypes).toHaveLength(0);
   });
 });
 
@@ -1502,114 +1214,6 @@ describe("Mutation - relations POST/PUT/DELETE", () => {
 });
 
 // ===========================================================================
-// Unit tests – createView / createNode
-// ===========================================================================
-
-describe("createView", () => {
-  it("adds a view to the model", () => {
-    const ds = makeDataSource();
-    const before = ds.model.views.length;
-    createView(ds, { name: "My View" });
-    expect(ds.model.views.length).toBe(before + 1);
-  });
-
-  it("returns ViewDetailOut with correct name", () => {
-    const ds = makeDataSource();
-    const out = createView(ds, { name: "My View", viewpoint: "Layered", documentation: "doc" });
-    expect(out.name).toBe("My View");
-    expect(out.viewpoint).toBe("Layered");
-    expect(out.nodes).toEqual([]);
-    expect(out.connections).toEqual([]);
-  });
-
-  it("assigns a unique identifier", () => {
-    const ds = makeDataSource();
-    const a = createView(ds, { name: "A" });
-    const b = createView(ds, { name: "B" });
-    expect(a.identifier).not.toBe(b.identifier);
-  });
-});
-
-describe("createNode", () => {
-  it("adds a node to the view", () => {
-    const elem = makeElement();
-    const ds = makeDataSource({ elements: [elem] });
-    const view = createView(ds, { name: "V" });
-    createNode(ds, view.identifier, { element_id: elem.uuid });
-    expect(ds.model.views[0]!.nodes.length).toBe(1);
-  });
-
-  it("returns NodeOut with element_ref and coordinates", () => {
-    const elem = makeElement();
-    const ds = makeDataSource({ elements: [elem] });
-    const view = createView(ds, { name: "V" });
-    const node = createNode(ds, view.identifier, { element_id: elem.uuid, x: 10, y: 20, w: 120, h: 55 });
-    expect(node.element_ref).toBe(elem.uuid);
-    expect(node.x).toBe(10);
-    expect(node.y).toBe(20);
-    expect(node.w).toBe(120);
-    expect(node.h).toBe(55);
-  });
-
-  it("throws when view_id is unknown", () => {
-    const elem = makeElement();
-    const ds = makeDataSource({ elements: [elem] });
-    expect(() => createNode(ds, "no-such-view", { element_id: elem.uuid })).toThrow();
-  });
-
-  it("throws when element_id is unknown", () => {
-    const ds = makeDataSource();
-    const view = createView(ds, { name: "V" });
-    expect(() => createNode(ds, view.identifier, { element_id: "no-such-elem" })).toThrow();
-  });
-});
-
-// ===========================================================================
-// Unit tests – saveModel
-// ===========================================================================
-
-describe("saveModel", () => {
-  it("returns { saved: true, path }", async () => {
-    const ds = makeDataSource({ name: "Save Test" });
-    const result = await saveModel(ds);
-    expect(result.saved).toBe(true);
-    expect(typeof result.path).toBe("string");
-  });
-});
-
-
-// ===========================================================================
-// Unit tests – updateRelationship source and target
-// ===========================================================================
-
-describe("updateRelationship – source and target update", () => {
-  it("successfully updates source element", () => {
-    const e1 = makeElement({ uuid: "src-001" });
-    const e2 = makeElement({ uuid: "tgt-001" });
-    const e3 = makeElement({ uuid: "new-src-999" });
-    const ds = makeDataSource({ elements: [e1, e2, e3], relationships: [makeRelationship()] });
-    const result = updateRelationship(ds, "rel-001", { source: "new-src-999" });
-    expect(result.source).toBe("new-src-999");
-  });
-
-  it("successfully updates target element", () => {
-    const e1 = makeElement({ uuid: "src-001" });
-    const e2 = makeElement({ uuid: "tgt-001" });
-    const e3 = makeElement({ uuid: "new-tgt-999" });
-    const ds = makeDataSource({ elements: [e1, e2, e3], relationships: [makeRelationship()] });
-    const result = updateRelationship(ds, "rel-001", { target: "new-tgt-999" });
-    expect(result.target).toBe("new-tgt-999");
-  });
-
-  it("throws when new target element does not exist", () => {
-    const e1 = makeElement({ uuid: "src-001" });
-    const e2 = makeElement({ uuid: "tgt-001" });
-    const ds = makeDataSource({ elements: [e1, e2], relationships: [makeRelationship()] });
-    expect(() => updateRelationship(ds, "rel-001", { target: "no-such-tgt" })).toThrow("cible");
-  });
-});
-
-// ===========================================================================
 // Integration tests – REST validation gaps
 // ===========================================================================
 
@@ -1665,119 +1269,6 @@ describe("pdOut", () => {
   });
 });
 
-describe("listPropertyDefinitions", () => {
-  it("returns all property definitions", () => {
-    const pd = makePropertyDefinition();
-    const ds = makeDataSource({ propertyDefinitions: [pd] });
-    expect(listPropertyDefinitions(ds)).toHaveLength(1);
-    expect(listPropertyDefinitions(ds)[0]!.identifier).toBe("propid-1");
-  });
-
-  it("returns empty array when no definitions", () => {
-    const ds = makeDataSource();
-    expect(listPropertyDefinitions(ds)).toEqual([]);
-  });
-});
-
-describe("getPropertyDefinitionById", () => {
-  it("returns matching definition", () => {
-    const pd = makePropertyDefinition();
-    const ds = makeDataSource({ propertyDefinitions: [pd] });
-    expect(getPropertyDefinitionById(ds, "propid-1").name).toBe("Phase");
-  });
-
-  it("throws when not found", () => {
-    const ds = makeDataSource();
-    expect(() => getPropertyDefinitionById(ds, "no-such-id")).toThrow();
-  });
-});
-
-describe("createPropertyDefinition", () => {
-  it("adds definition to model and returns PropertyDefinitionOut", () => {
-    const ds = makeDataSource();
-    const result = createPropertyDefinition(ds, { name: "Status" });
-    expect(ds.model.propertyDefinitions).toHaveLength(1);
-    expect(result.name).toBe("Status");
-    expect(result.type).toBe("string");
-    expect(result.identifier).toBeTruthy();
-  });
-
-  it("defaults type to string", () => {
-    const ds = makeDataSource();
-    const result = createPropertyDefinition(ds, { name: "Flag" });
-    expect(result.type).toBe("string");
-  });
-
-  it("accepts explicit type", () => {
-    const ds = makeDataSource();
-    const result = createPropertyDefinition(ds, { name: "Active", type: "boolean" });
-    expect(result.type).toBe("boolean");
-  });
-
-  it("assigns unique identifiers", () => {
-    const ds = makeDataSource();
-    const a = createPropertyDefinition(ds, { name: "A" });
-    const b = createPropertyDefinition(ds, { name: "B" });
-    expect(a.identifier).not.toBe(b.identifier);
-  });
-});
-
-describe("updatePropertyDefinition", () => {
-  it("updates name only when type omitted", () => {
-    const pd = makePropertyDefinition({ uuid: "pd-x", name: "Old", type: "string" });
-    const ds = makeDataSource({ propertyDefinitions: [pd] });
-    const result = updatePropertyDefinition(ds, "pd-x", { name: "New" });
-    expect(result.name).toBe("New");
-    expect(result.type).toBe("string");
-  });
-
-  it("updates type only when name omitted", () => {
-    const pd = makePropertyDefinition({ uuid: "pd-x", name: "Phase", type: "string" });
-    const ds = makeDataSource({ propertyDefinitions: [pd] });
-    const result = updatePropertyDefinition(ds, "pd-x", { type: "number" });
-    expect(result.name).toBe("Phase");
-    expect(result.type).toBe("number");
-  });
-
-  it("throws when not found", () => {
-    const ds = makeDataSource();
-    expect(() => updatePropertyDefinition(ds, "no-such", { name: "x" })).toThrow();
-  });
-});
-
-describe("deletePropertyDefinition", () => {
-  it("removes the definition", () => {
-    const pd = makePropertyDefinition({ uuid: "pd-del" });
-    const ds = makeDataSource({ propertyDefinitions: [pd] });
-    deletePropertyDefinition(ds, "pd-del");
-    expect(ds.model.propertyDefinitions).toHaveLength(0);
-  });
-
-  it("cascades: removes props referencing definition from elements", () => {
-    const pd = makePropertyDefinition({ uuid: "pd-del" });
-    const elem = makeElement({ props: { "pd-del": "v1", "other": "v2" } });
-    const ds = makeDataSource({ propertyDefinitions: [pd], elements: [elem] });
-    deletePropertyDefinition(ds, "pd-del");
-    expect(ds.model.elements[0]!.props).not.toHaveProperty("pd-del");
-    expect(ds.model.elements[0]!.props["other"]).toBe("v2");
-  });
-
-  it("cascades: removes props referencing definition from relationships", () => {
-    const pd = makePropertyDefinition({ uuid: "pd-del" });
-    const e1 = makeElement({ uuid: "src-001" });
-    const e2 = makeElement({ uuid: "tgt-001" });
-    const rel = makeRelationship({ props: { "pd-del": "val" } });
-    const ds = makeDataSource({ propertyDefinitions: [pd], elements: [e1, e2], relationships: [rel] });
-    deletePropertyDefinition(ds, "pd-del");
-    expect(ds.model.relationships[0]!.props).not.toHaveProperty("pd-del");
-  });
-
-  it("throws when not found", () => {
-    const ds = makeDataSource();
-    expect(() => deletePropertyDefinition(ds, "no-such")).toThrow();
-  });
-});
-
 // ===========================================================================
 // Integration tests – GET /property-definitions
 // ===========================================================================
@@ -1802,7 +1293,7 @@ describe("GET /property-definitions", () => {
 
   it("count matches model", async () => {
     const data = (await request(app).get("/property-definitions")).body as PropertyDefinitionOut[];
-    expect(data.length).toBe(ds.model.propertyDefinitions.length);
+    expect(data.length).toBe((await store.listPropertyDefinitions(await getActiveWorkspaceId())).length);
   });
 });
 
@@ -1868,215 +1359,6 @@ describe("POST/GET/PUT/DELETE /property-definitions", () => {
 
   it("DELETE 404 for unknown id", async () => {
     expect((await request(app).delete(`/property-definitions/${UNKNOWN_ID}`)).status).toBe(404);
-  });
-});
-
-// ===========================================================================
-// Unit tests – updateView / deleteView
-// ===========================================================================
-
-describe("updateView", () => {
-  it("updates view name", () => {
-    const ds = makeDataSource({ views: [makeView()] });
-    const out = updateView(ds, "view-001", { name: "Renamed" });
-    expect(out.name).toBe("Renamed");
-  });
-
-  it("updates viewpoint and documentation", () => {
-    const ds = makeDataSource({ views: [makeView()] });
-    const out = updateView(ds, "view-001", { viewpoint: "Layered", documentation: "desc" });
-    expect(out.viewpoint).toBe("Layered");
-    expect(out.documentation).toBe("desc");
-  });
-
-  it("clears viewpoint when null passed", () => {
-    const ds = makeDataSource({ views: [makeView({ primary_viewpoint: "Layered" })] });
-    const out = updateView(ds, "view-001", { viewpoint: null });
-    expect(out.viewpoint).toBeNull();
-  });
-
-  it("throws when view not found", () => {
-    const ds = makeDataSource();
-    expect(() => updateView(ds, "no-such-view", { name: "X" })).toThrow();
-  });
-});
-
-describe("deleteView", () => {
-  it("removes the view from the model", () => {
-    const ds = makeDataSource({ views: [makeView()] });
-    deleteView(ds, "view-001");
-    expect(ds.model.views).toHaveLength(0);
-  });
-
-  it("throws when view not found", () => {
-    const ds = makeDataSource();
-    expect(() => deleteView(ds, "no-such-view")).toThrow();
-  });
-});
-
-// ===========================================================================
-// Unit tests – updateViewNode / deleteViewNode
-// ===========================================================================
-
-describe("updateViewNode", () => {
-  it("updates node position", () => {
-    const node = makeNode({ uuid: "node-x" });
-    const ds = makeDataSource({ views: [makeView({ nodes: [node] })] });
-    const out = updateViewNode(ds, "view-001", "node-x", { x: 99, y: 88, w: 200, h: 100 });
-    expect(out.x).toBe(99);
-    expect(out.y).toBe(88);
-    expect(out.w).toBe(200);
-    expect(out.h).toBe(100);
-  });
-
-  it("updates node name", () => {
-    const node = makeNode({ uuid: "node-x" });
-    const ds = makeDataSource({ views: [makeView({ nodes: [node] })] });
-    const out = updateViewNode(ds, "view-001", "node-x", { name: "Label" });
-    expect(out.name).toBe("Label");
-  });
-
-  it("throws when view not found", () => {
-    const ds = makeDataSource();
-    expect(() => updateViewNode(ds, "no-view", "node-x", {})).toThrow();
-  });
-
-  it("throws when node not found", () => {
-    const ds = makeDataSource({ views: [makeView()] });
-    expect(() => updateViewNode(ds, "view-001", "no-node", {})).toThrow();
-  });
-});
-
-describe("deleteViewNode", () => {
-  it("removes node from view", () => {
-    const node = makeNode({ uuid: "node-x" });
-    const ds = makeDataSource({ views: [makeView({ nodes: [node] })] });
-    deleteViewNode(ds, "view-001", "node-x");
-    expect(ds.model.views[0]!.nodes).toHaveLength(0);
-  });
-
-  it("also removes connections referencing the deleted node", () => {
-    const node = makeNode({ uuid: "node-x" });
-    const conn = makeConnection({ uuid: "conn-x", source: "node-x", target: "node-other" });
-    const ds = makeDataSource({ views: [makeView({ nodes: [node], conns: [conn] })] });
-    deleteViewNode(ds, "view-001", "node-x");
-    expect(ds.model.views[0]!.conns).toHaveLength(0);
-  });
-
-  it("throws when view not found", () => {
-    const ds = makeDataSource();
-    expect(() => deleteViewNode(ds, "no-view", "node-x")).toThrow();
-  });
-
-  it("throws when node not found", () => {
-    const ds = makeDataSource({ views: [makeView()] });
-    expect(() => deleteViewNode(ds, "view-001", "no-node")).toThrow();
-  });
-});
-
-// ===========================================================================
-// Unit tests – createViewConnection / updateViewConnection / deleteViewConnection
-// ===========================================================================
-
-function makeViewWithNodes() {
-  const nodeA = makeNode({ uuid: "node-a" });
-  const nodeB = makeNode({ uuid: "node-b" });
-  return makeView({ nodes: [nodeA, nodeB] });
-}
-
-describe("createViewConnection", () => {
-  it("adds a connection to the view", () => {
-    const ds = makeDataSource({ views: [makeViewWithNodes()] });
-    createViewConnection(ds, "view-001", { source: "node-a", target: "node-b" });
-    expect(ds.model.views[0]!.conns).toHaveLength(1);
-  });
-
-  it("returns ConnectionOut with correct fields", () => {
-    const ds = makeDataSource({ views: [makeViewWithNodes()] });
-    const out = createViewConnection(ds, "view-001", { source: "node-a", target: "node-b", source_side: "top", target_side: "bottom" });
-    expect(out.source).toBe("node-a");
-    expect(out.target).toBe("node-b");
-    expect(out.source_side).toBe("top");
-    expect(out.target_side).toBe("bottom");
-  });
-
-  it("throws when view not found", () => {
-    const ds = makeDataSource();
-    expect(() => createViewConnection(ds, "no-view", { source: "a", target: "b" })).toThrow();
-  });
-
-  it("throws when source node not found", () => {
-    const ds = makeDataSource({ views: [makeView()] });
-    expect(() => createViewConnection(ds, "view-001", { source: "no-node", target: "b" })).toThrow();
-  });
-
-  it("throws when target node not found", () => {
-    const nodeA = makeNode({ uuid: "node-a" });
-    const ds = makeDataSource({ views: [makeView({ nodes: [nodeA] })] });
-    expect(() => createViewConnection(ds, "view-001", { source: "node-a", target: "no-node" })).toThrow();
-  });
-
-  it("throws when relationship_id does not exist in model", () => {
-    const ds = makeDataSource({ views: [makeViewWithNodes()] });
-    expect(() => createViewConnection(ds, "view-001", { source: "node-a", target: "node-b", relationship_id: "no-rel" })).toThrow();
-  });
-});
-
-describe("updateViewConnection", () => {
-  it("updates connection name", () => {
-    const conn = makeConnection({ uuid: "conn-x", source: "node-a", target: "node-b" });
-    const nodeA = makeNode({ uuid: "node-a" });
-    const nodeB = makeNode({ uuid: "node-b" });
-    const ds = makeDataSource({ views: [makeView({ nodes: [nodeA, nodeB], conns: [conn] })] });
-    const out = updateViewConnection(ds, "view-001", "conn-x", { name: "Flow" });
-    expect(out.name).toBe("Flow");
-  });
-
-  it("updates source_side and target_side", () => {
-    const conn = makeConnection({ uuid: "conn-x", source: "node-a", target: "node-b" });
-    const nodeA = makeNode({ uuid: "node-a" });
-    const nodeB = makeNode({ uuid: "node-b" });
-    const ds = makeDataSource({ views: [makeView({ nodes: [nodeA, nodeB], conns: [conn] })] });
-    const out = updateViewConnection(ds, "view-001", "conn-x", { source_side: "right", target_side: "left" });
-    expect(out.source_side).toBe("right");
-    expect(out.target_side).toBe("left");
-  });
-
-  it("throws when view not found", () => {
-    const ds = makeDataSource();
-    expect(() => updateViewConnection(ds, "no-view", "conn-x", {})).toThrow();
-  });
-
-  it("throws when connection not found", () => {
-    const ds = makeDataSource({ views: [makeView()] });
-    expect(() => updateViewConnection(ds, "view-001", "no-conn", {})).toThrow();
-  });
-
-  it("throws when updated source node not found", () => {
-    const conn = makeConnection({ uuid: "conn-x", source: "node-a", target: "node-b" });
-    const nodeA = makeNode({ uuid: "node-a" });
-    const nodeB = makeNode({ uuid: "node-b" });
-    const ds = makeDataSource({ views: [makeView({ nodes: [nodeA, nodeB], conns: [conn] })] });
-    expect(() => updateViewConnection(ds, "view-001", "conn-x", { source: "no-node" })).toThrow();
-  });
-});
-
-describe("deleteViewConnection", () => {
-  it("removes connection from view", () => {
-    const conn = makeConnection({ uuid: "conn-x" });
-    const ds = makeDataSource({ views: [makeView({ conns: [conn] })] });
-    deleteViewConnection(ds, "view-001", "conn-x");
-    expect(ds.model.views[0]!.conns).toHaveLength(0);
-  });
-
-  it("throws when view not found", () => {
-    const ds = makeDataSource();
-    expect(() => deleteViewConnection(ds, "no-view", "conn-x")).toThrow();
-  });
-
-  it("throws when connection not found", () => {
-    const ds = makeDataSource({ views: [makeView()] });
-    expect(() => deleteViewConnection(ds, "view-001", "no-conn")).toThrow();
   });
 });
 

@@ -6,7 +6,6 @@ import { describe, it, expect, beforeAll } from "vitest";
 import _request from "supertest";
 import { renderViewToSvg } from "../src/renderer.js";
 import { app } from "../src/app.js";
-import { dataSource as _dataSource } from "../src/registry.js";
 import type { ArchiElement, ArchiRelationship, ArchiNode, ArchiConnection, ArchiView } from "../src/model.js";
 import type { ArchiModel } from "../src/model.js";
 import type { ViewOut } from "../src/schemas.js";

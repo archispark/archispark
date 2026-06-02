@@ -9,6 +9,7 @@ export default defineConfig({
   },
   test: {
     pool: "forks",
+    include: ["src/**/*.test.ts"],
     coverage: {
       provider: "v8",
       reporter: ["text", "json-summary"],

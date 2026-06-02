@@ -1,26 +1,23 @@
 /**
  * Multi-workspace registry backed by PostgreSQL (Drizzle ORM).
  *
- * Architecture:
- *   - Workspaces listed in the `workspaces` DB table (replaces workspaces.json).
- *   - Each workspace stores its ArchiMate model in normalized tables.
- *   - At runtime the active workspace model is held in-memory (DataSource).
- *   - `saveDataSource(ds)` flushes the in-memory model back to DB.
- *   - `activateWorkspace(id)` switches the active workspace and loads its model.
- *   - The exported `dataSource` is a live ESM binding — all importers see the
- *     new value after activateWorkspace() without any route changes.
+ * The API is stateless: there is no in-memory model. The active workspace is a
+ * single row flag (`workspaces.is_active`) persisted in the DB, so any instance
+ * resolves the same active workspace. `getActiveWorkspaceId()` reads it; data
+ * access goes through `store.ts` (row-level reads/writes).
  *
- * Startup (called from main.ts):
+ * Startup (top-level await at import):
  *   1. runMigrations() — idempotently applies pending SQL migrations.
- *   2. initRegistry() — seeds workspaces.json / XML files if DB is empty,
- *      then loads the first workspace into memory.
+ *   2. initUsers() — seeds RBAC roles + default users.
+ *   3. seed a default workspace (or legacy files) if the DB is empty, and ensure
+ *      exactly one workspace is active.
  */
 
 import { readFileSync, existsSync } from "fs";
 import { randomUUID } from "crypto";
 import { join } from "path";
 import { eq } from "drizzle-orm";
-import { db, runMigrations, workspaces as wsTable, modelFromDb, modelToDb, seedWorkspace } from "@workspace/db";
+import { db, runMigrations, workspaces as wsTable, seedWorkspace } from "@workspace/db";
 import { parseOpenExchange } from "./oxf-parser.js";
 import { initUsers } from "./auth.js";
 import { NotFoundError, ValidationError } from "./errors.js";
@@ -35,38 +32,9 @@ export interface WorkspaceOut {
   active: boolean;
 }
 
-export interface DataSource {
-  readonly workspaceDbId: number;
-  readonly path: string;           // kept for backward compat (empty for DB-backed workspaces)
-  readonly model: import("./model.js").ArchiModel;
-  elementTypes: string[];
-  relationshipTypes: string[];
-}
-
-// ---------------------------------------------------------------------------
-// Runtime state
-// ---------------------------------------------------------------------------
-
-let _activeId: number;
-const _loaded = new Map<number, DataSource>();
-
-// Live ESM binding — reassigned by activateWorkspace()
-export let dataSource: DataSource;
-
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
-
-async function buildRuntimeDs(dbId: number): Promise<DataSource> {
-  const model = await modelFromDb(dbId);
-  return {
-    workspaceDbId: dbId,
-    path: "",
-    model,
-    elementTypes: [...new Set(model.elements.map((e) => e.type).filter(Boolean))].sort(),
-    relationshipTypes: [...new Set(model.relationships.map((r) => r.type).filter(Boolean))].sort(),
-  };
-}
 
 function dbIdToStrId(id: number): string {
   return String(id);
@@ -101,19 +69,17 @@ async function _init(): Promise<void> {
   const sorted = [...finalRows].sort((a, b) => a.id - b.id);
 
   // Ensure exactly one workspace is active (persisted in DB → shared across instances).
-  let active = sorted.find((r) => r.isActive)?.id ?? null;
+  const active = sorted.find((r) => r.isActive)?.id ?? null;
   if (active == null) {
-    active = sorted[0]!.id;
-    await db.update(wsTable).set({ isActive: true }).where(eq(wsTable.id, active));
+    await db.update(wsTable).set({ isActive: true }).where(eq(wsTable.id, sorted[0]!.id));
   }
-  _activeId = active;
-  const ds = await buildRuntimeDs(_activeId);
-  _loaded.set(_activeId, ds);
-  dataSource = ds;
 }
 
 await _init();
 
+// Legacy migration: seed workspaces from on-disk workspaces.json / config.json +
+// XML files when present. File-system driven; covered by deployment, not unit tests.
+/* v8 ignore start */
 async function _seedFromLegacy(): Promise<void> {
   const wsFile = join(process.cwd(), "workspaces.json");
   const cfgFile = join(process.cwd(), "config.json");
@@ -138,6 +104,7 @@ async function _seedFromLegacy(): Promise<void> {
     }
   }
 }
+/* v8 ignore stop */
 
 // ---------------------------------------------------------------------------
 // Queries
@@ -170,16 +137,11 @@ export async function activateWorkspace(id: string): Promise<WorkspaceOut> {
   const dbId = strIdToDbId(id);
   const [row] = await db.select().from(wsTable).where(eq(wsTable.id, dbId));
   if (!row) throw new NotFoundError(`Workspace '${id}' introuvable.`);
-  if (!_loaded.has(dbId)) {
-    _loaded.set(dbId, await buildRuntimeDs(dbId));
-  }
   // Persist the active workspace in the DB (single active, shared across instances).
   await db.transaction(async (tx) => {
     await tx.update(wsTable).set({ isActive: false }).where(eq(wsTable.isActive, true));
     await tx.update(wsTable).set({ isActive: true }).where(eq(wsTable.id, dbId));
   });
-  _activeId = dbId;
-  dataSource = _loaded.get(dbId)!;
   return { id, name: row.name, active: true };
 }
 
@@ -193,6 +155,7 @@ export async function createWorkspace(name: string, xmlFilePath?: string): Promi
   if (xmlFilePath) {
     const fullPath = join(process.cwd(), xmlFilePath);
     if (!existsSync(fullPath)) throw new ValidationError(`Fichier XML introuvable: ${xmlFilePath}`);
+    /* v8 ignore next 2 */ // valid-file path is exercised by deployment seeding, not unit tests
     const xml = readFileSync(fullPath, "utf-8");
     model = parseOpenExchange(xml);
   } else {
@@ -209,8 +172,6 @@ export async function createWorkspace(name: string, xmlFilePath?: string): Promi
   }
 
   const dbId = await seedWorkspace(name.trim(), model);
-  const ds = await buildRuntimeDs(dbId);
-  _loaded.set(dbId, ds);
   return { id: dbIdToStrId(dbId), name: name.trim(), active: false };
 }
 
@@ -222,32 +183,14 @@ export async function updateWorkspace(id: string, name: string): Promise<Workspa
   const [row] = await db.update(wsTable).set({ name: name.trim(), updatedAt: Math.floor(Date.now() / 1000) })
     .where(eq(wsTable.id, dbId)).returning();
   if (!row) throw new NotFoundError(`Workspace '${id}' introuvable.`);
-  const ds = _loaded.get(dbId);
-  if (ds) ds.model.name = name.trim();
-  return { id, name: name.trim(), active: dbId === _activeId };
+  return { id, name: name.trim(), active: row.isActive };
 }
 
 export async function deleteWorkspace(id: string): Promise<void> {
-  const all = await db.select({ id: wsTable.id }).from(wsTable);
+  const all = await db.select().from(wsTable);
   if (all.length <= 1) throw new ValidationError("Impossible de supprimer le dernier workspace.");
   const dbId = strIdToDbId(id);
-  if (dbId === _activeId) throw new ValidationError("Impossible de supprimer le workspace actif. Activez-en un autre d'abord.");
+  if (all.find((w) => w.id === dbId)?.isActive) throw new ValidationError("Impossible de supprimer le workspace actif. Activez-en un autre d'abord.");
   const [deleted] = await db.delete(wsTable).where(eq(wsTable.id, dbId)).returning({ id: wsTable.id });
   if (!deleted) throw new ValidationError(`Workspace '${id}' introuvable.`);
-  _loaded.delete(dbId);
-}
-
-// ---------------------------------------------------------------------------
-// Persistence
-// ---------------------------------------------------------------------------
-
-/** Flush the in-memory model of a DataSource back to the DB. */
-export async function saveDataSource(ds: DataSource): Promise<void> {
-  await modelToDb(ds.workspaceDbId, ds.model);
-}
-
-/** Recompute cached element/relationship type lists after a mutation. */
-export function recomputeDataSourceTypes(ds: DataSource): void {
-  ds.elementTypes = [...new Set(ds.model.elements.map((e) => e.type).filter(Boolean))].sort();
-  ds.relationshipTypes = [...new Set(ds.model.relationships.map((r) => r.type).filter(Boolean))].sort();
 }

@@ -13,32 +13,8 @@ import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 
 import packageJson from "api/package.json" with { type: "json" };
-import { dataSource } from "api/src/registry.js";
-import {
-  getModelInfo,
-  listElementTypes,
-  listElements,
-  getElementById,
-  listRelationshipTypes,
-  listRelationships,
-  getRelationshipById,
-  listViews,
-  getViewById,
-  createView,
-  createNode,
-  createElement,
-  updateElement,
-  deleteElement,
-  createRelationship,
-  updateRelationship,
-  deleteRelationship,
-  saveModel,
-  listPropertyDefinitions,
-  getPropertyDefinitionById,
-  createPropertyDefinition,
-  updatePropertyDefinition,
-  deletePropertyDefinition,
-} from "api/src/app.js";
+import { getActiveWorkspaceId } from "api/src/registry.js";
+import * as store from "api/src/store.js";
 import { renderViewToSvg } from "api/src/renderer.js";
 import {
   ELEMENT_TYPES,
@@ -49,8 +25,6 @@ import {
   type PropertyDefinitionUpdateIn,
 } from "api/src/schemas.js";
 
-// Re-export dataSource so main.ts can trigger init
-export { dataSource };
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -79,13 +53,13 @@ const mcpServer = new McpServer({ name: "ArchiMate MCP", version });
 mcpServer.registerTool(
   "get_model_info",
   { description: "Retourne les métadonnées globales du modèle ArchiMate chargé (identifiant, nom, version, compteurs).", inputSchema: {} },
-  async () => toContent(getModelInfo(dataSource))
+  async () => toContent(await store.getModelInfo(await getActiveWorkspaceId()))
 );
 
 mcpServer.registerTool(
   "list_element_types",
   { description: "Retourne la liste triée des types d'éléments ArchiMate 3.1 présents dans le modèle.", inputSchema: {} },
-  async () => toContent(listElementTypes(dataSource))
+  async () => toContent(await store.listElementTypes(await getActiveWorkspaceId()))
 );
 
 mcpServer.registerTool(
@@ -101,20 +75,20 @@ mcpServer.registerTool(
     if (element_type && !ELEMENT_TYPES.has(element_type)) {
       throw new Error(`Type d'élément invalide: '${element_type}'. Types valides: ${_ELEMENT_TYPES_STR}`);
     }
-    return toContent(listElements(dataSource, element_type, name));
+    return toContent(await store.listElements(await getActiveWorkspaceId(), element_type, name));
   }
 );
 
 mcpServer.registerTool(
   "get_element",
   { description: "Retourne le détail d'un élément ArchiMate par son identifiant (champ 'identifier').", inputSchema: { element_id: z.string().describe("Identifiant de l'élément") } },
-  async ({ element_id }) => toContent(getElementById(dataSource, element_id))
+  async ({ element_id }) => toContent(await store.getElementById(await getActiveWorkspaceId(), element_id))
 );
 
 mcpServer.registerTool(
   "list_relationship_types",
   { description: "Retourne la liste triée des types de relations ArchiMate 3.1 présents dans le modèle.", inputSchema: {} },
-  async () => toContent(listRelationshipTypes(dataSource))
+  async () => toContent(await store.listRelationshipTypes(await getActiveWorkspaceId()))
 );
 
 mcpServer.registerTool(
@@ -131,26 +105,26 @@ mcpServer.registerTool(
     if (rel_type && !RELATIONSHIP_TYPES.has(rel_type)) {
       throw new Error(`Type de relation invalide: '${rel_type}'. Types valides: ${_RELATIONSHIP_TYPES_STR}`);
     }
-    return toContent(listRelationships(dataSource, rel_type, source_id_filter, target_id));
+    return toContent(await store.listRelationships(await getActiveWorkspaceId(), rel_type, source_id_filter, target_id));
   }
 );
 
 mcpServer.registerTool(
   "get_relationship",
   { description: "Retourne le détail d'une relation ArchiMate par son identifiant.", inputSchema: { relationship_id: z.string().describe("Identifiant de la relation") } },
-  async ({ relationship_id }) => toContent(getRelationshipById(dataSource, relationship_id))
+  async ({ relationship_id }) => toContent(await store.getRelationshipById(await getActiveWorkspaceId(), relationship_id))
 );
 
 mcpServer.registerTool(
   "list_views",
   { description: "Liste toutes les vues du modèle avec leur nombre de nœuds et de connexions.", inputSchema: {} },
-  async () => toContent(listViews(dataSource))
+  async () => toContent(await store.listViews(await getActiveWorkspaceId()))
 );
 
 mcpServer.registerTool(
   "get_view",
   { description: "Retourne le détail d'une vue ArchiMate par son identifiant.", inputSchema: { view_id: z.string().describe("Identifiant de la vue") } },
-  async ({ view_id }) => toContent(getViewById(dataSource, view_id))
+  async ({ view_id }) => toContent(await store.getViewById(await getActiveWorkspaceId(), view_id))
 );
 
 // ---------------------------------------------------------------------------
@@ -168,7 +142,7 @@ mcpServer.registerTool(
     },
   },
   async ({ name, viewpoint, documentation }) =>
-    toContent(createView(dataSource, { name, viewpoint, documentation }))
+    toContent(await store.createView(await getActiveWorkspaceId(), { name, viewpoint, documentation }))
 );
 
 mcpServer.registerTool(
@@ -185,7 +159,7 @@ mcpServer.registerTool(
     },
   },
   async ({ view_id, element_id, x, y, w, h }) =>
-    toContent(createNode(dataSource, view_id, { element_id, x, y, w, h }))
+    toContent(await store.createNode(await getActiveWorkspaceId(), view_id, { element_id, x, y, w, h }))
 );
 
 // ---------------------------------------------------------------------------
@@ -212,7 +186,7 @@ mcpServer.registerTool(
     if (!ELEMENT_TYPES.has(type)) {
       throw new Error(`Type d'élément invalide: '${type}'. Types valides: ${_ELEMENT_TYPES_STR}`);
     }
-    return toContent(createElement(dataSource, { name, type, documentation, properties }));
+    return toContent(await store.createElement(await getActiveWorkspaceId(), { name, type, documentation, properties }));
   }
 );
 
@@ -237,7 +211,7 @@ mcpServer.registerTool(
     if (type !== undefined) input.type = type;
     if (documentation !== undefined) input.documentation = documentation;
     if (properties !== undefined) input.properties = properties;
-    return toContent(updateElement(dataSource, element_id, input));
+    return toContent(await store.updateElement(await getActiveWorkspaceId(), element_id, input));
   }
 );
 
@@ -250,7 +224,7 @@ mcpServer.registerTool(
     },
   },
   async ({ element_id }) => {
-    deleteElement(dataSource, element_id);
+    await store.deleteElement(await getActiveWorkspaceId(), element_id);
     return toContent({ deleted: true, identifier: element_id });
   }
 );
@@ -279,7 +253,7 @@ mcpServer.registerTool(
     if (!RELATIONSHIP_TYPES.has(type)) {
       throw new Error(`Type de relation invalide: '${type}'. Types valides: ${_RELATIONSHIP_TYPES_STR}`);
     }
-    return toContent(createRelationship(dataSource, { type, source, target, name, documentation, properties, access_type, is_directed, influence_strength }));
+    return toContent(await store.createRelationship(await getActiveWorkspaceId(), { type, source, target, name, documentation, properties, access_type, is_directed, influence_strength }));
   }
 );
 
@@ -314,7 +288,7 @@ mcpServer.registerTool(
     if (access_type !== undefined) input.access_type = access_type;
     if (is_directed !== undefined) input.is_directed = is_directed;
     if (influence_strength !== undefined) input.influence_strength = influence_strength;
-    return toContent(updateRelationship(dataSource, relationship_id, input));
+    return toContent(await store.updateRelationship(await getActiveWorkspaceId(), relationship_id, input));
   }
 );
 
@@ -327,7 +301,7 @@ mcpServer.registerTool(
     },
   },
   async ({ relationship_id }) => {
-    deleteRelationship(dataSource, relationship_id);
+    await store.deleteRelationship(await getActiveWorkspaceId(), relationship_id);
     return toContent({ deleted: true, identifier: relationship_id });
   }
 );
@@ -339,7 +313,7 @@ mcpServer.registerTool(
 mcpServer.registerTool(
   "list_property_definitions",
   { description: "Liste toutes les définitions de propriétés du modèle ArchiMate.", inputSchema: {} },
-  async () => toContent(listPropertyDefinitions(dataSource))
+  async () => toContent(await store.listPropertyDefinitions(await getActiveWorkspaceId()))
 );
 
 mcpServer.registerTool(
@@ -348,7 +322,7 @@ mcpServer.registerTool(
     description: "Retourne le détail d'une définition de propriété par son identifiant.",
     inputSchema: { id: z.string().describe("Identifiant de la définition de propriété") },
   },
-  async ({ id }) => toContent(getPropertyDefinitionById(dataSource, id))
+  async ({ id }) => toContent(await store.getPropertyDefinitionById(await getActiveWorkspaceId(), id))
 );
 
 mcpServer.registerTool(
@@ -364,7 +338,7 @@ mcpServer.registerTool(
     if (type && !PROPERTY_DEFINITION_TYPES.has(type)) {
       throw new Error(`Type invalide: '${type}'. Types valides: ${_PROPERTY_DEFINITION_TYPES_STR}`);
     }
-    return toContent(createPropertyDefinition(dataSource, { name, type }));
+    return toContent(await store.createPropertyDefinition(await getActiveWorkspaceId(), { name, type }));
   }
 );
 
@@ -385,7 +359,7 @@ mcpServer.registerTool(
     const input: PropertyDefinitionUpdateIn = {};
     if (name !== undefined) input.name = name;
     if (type !== undefined) input.type = type;
-    return toContent(updatePropertyDefinition(dataSource, id, input));
+    return toContent(await store.updatePropertyDefinition(await getActiveWorkspaceId(), id, input));
   }
 );
 
@@ -396,7 +370,7 @@ mcpServer.registerTool(
     inputSchema: { id: z.string().describe("Identifiant de la définition à supprimer") },
   },
   async ({ id }) => {
-    deletePropertyDefinition(dataSource, id);
+    await store.deletePropertyDefinition(await getActiveWorkspaceId(), id);
     return toContent({ deleted: true, identifier: id });
   }
 );
@@ -408,10 +382,10 @@ mcpServer.registerTool(
 mcpServer.registerTool(
   "save_model",
   {
-    description: "Saves the current in-memory model to its source file on disk (Open Exchange XML).",
+    description: "No-op kept for compatibility: every change is persisted to PostgreSQL immediately.",
     inputSchema: {},
   },
-  async () => toContent(saveModel(dataSource))
+  async () => toContent({ saved: true, path: "postgres" })
 );
 
 mcpServer.registerTool(
@@ -423,9 +397,10 @@ mcpServer.registerTool(
     },
   },
   async ({ view_id }) => {
-    const view = dataSource.model.views.find((v) => v.uuid === view_id);
+    const model = await store.loadModel(await getActiveWorkspaceId());
+    const view = model.views.find((v) => v.uuid === view_id);
     if (!view) throw new Error(`Vue '${view_id}' introuvable.`);
-    const svg = renderViewToSvg(view, dataSource.model);
+    const svg = renderViewToSvg(view, model);
     return {
       content: [{ type: "image" as const, data: Buffer.from(svg).toString("base64"), mimeType: "image/svg+xml" }],
     };

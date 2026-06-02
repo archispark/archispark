@@ -16,8 +16,14 @@ import {
   db,
   workspaces, elements, relationships, propertyDefinitions,
   elementProperties, relationshipProperties, views, nodes, connections,
-  buildNodeTree,
+  buildNodeTree, modelFromDb,
 } from "@workspace/db";
+import type { ArchiModel } from "@workspace/db";
+
+/** Load the full workspace model (object graph) — for render/export consumers. */
+export async function loadModel(wsId: number): Promise<ArchiModel> {
+  return modelFromDb(wsId);
+}
 import type {
   ArchiElement, ArchiRelationship, ArchiNode, ArchiConnection, ArchiView,
 } from "@workspace/db";
