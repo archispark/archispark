@@ -35,16 +35,32 @@ async function createDb(): Promise<NodePgDatabase<typeof schema>> {
   // serverless/Vercel) → Supabase direct (IPv6 — only reachable locally/in a
   // container) → default dev connection. Serverless functions must use the
   // pooled connection: the direct host is IPv6-only and unreachable from Lambdas.
-  const connectionString =
+  const rawConnectionString =
     process.env["DATABASE_URL"] ??
     process.env["POSTGRES_URL"] ??
     process.env["POSTGRES_URL_NON_POOLING"] ??
     "postgresql://archispark:archispark@localhost:5432/archispark";
-  // Remote managed Postgres (Supabase, etc.) serves TLS with a self-signed /
-  // private-CA certificate; accept it. Local/dev connections use no TLS.
-  const isLocal = /@(localhost|127\.0\.0\.1|\[::1\])/.test(connectionString) || /@postgres[:/]/.test(connectionString);
+
+  const isLocal = /@(localhost|127\.0\.0\.1|\[::1\]|postgres)[:/]/.test(rawConnectionString);
+
+  // Managed Postgres (Supabase, etc.) serves TLS with a private-CA certificate.
+  // node-postgres treats the URL's `sslmode=require` as verify-full and rejects
+  // that cert, overriding the ssl option — so strip sslmode from the URL and
+  // accept the cert via `ssl: { rejectUnauthorized: false }` instead. Local/dev
+  // connections use no TLS.
+  const connectionString = isLocal ? rawConnectionString : stripSslmode(rawConnectionString);
   const ssl = isLocal ? undefined : { rejectUnauthorized: false };
   return pgDrizzle(new Pool({ connectionString, ssl }), { schema });
+}
+
+function stripSslmode(cs: string): string {
+  try {
+    const u = new URL(cs);
+    u.searchParams.delete("sslmode");
+    return u.toString();
+  } catch {
+    return cs.replace(/([?&])sslmode=[^&]*/i, (_m, sep) => (sep === "?" ? "?" : "")).replace(/\?&/, "?").replace(/[?&]$/, "");
+  }
 }
 
 export const db: NodePgDatabase<typeof schema> = await createDb();
