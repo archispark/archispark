@@ -107,12 +107,16 @@ describe("POST /workspaces/:id/activate", () => {
 });
 
 describe("DELETE /workspaces/:id", () => {
-  it("returns 422 when deleting last workspace", async () => {
-    const wsRes = await request(app).get("/workspaces");
-    if (wsRes.body.length > 1) return;
-    const id = wsRes.body[0].id;
-    const res = await request(app).delete(`/workspaces/${id}`);
-    expect(res.status).toBe(422);
+  it("deleting the last workspace recreates a fresh Default", async () => {
+    // Remove every workspace; the final deletion must recreate an empty Default.
+    const list = (await request(app).get("/workspaces")).body as { id: string }[];
+    for (const w of list) {
+      expect((await request(app).delete(`/workspaces/${w.id}`)).status).toBe(204);
+    }
+    const after = (await request(app).get("/workspaces")).body as { id: string; name: string; active: boolean }[];
+    expect(after).toHaveLength(1);
+    expect(after[0]!.name).toBe("Default");
+    expect(after[0]!.active).toBe(true);
   });
 
   it("deletes the active workspace and activates another", async () => {

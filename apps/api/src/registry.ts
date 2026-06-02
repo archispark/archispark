@@ -191,15 +191,23 @@ export async function updateWorkspace(id: string, name: string): Promise<Workspa
 
 export async function deleteWorkspace(id: string): Promise<void> {
   const all = await db.select().from(wsTable);
-  if (all.length <= 1) throw new ValidationError("Impossible de supprimer le dernier workspace.");
   const dbId = strIdToDbId(id);
   const target = all.find((w) => w.id === dbId);
   if (!target) throw new ValidationError(`Workspace '${id}' introuvable.`);
   await db.delete(wsTable).where(eq(wsTable.id, dbId));
-  // Deleting the active workspace is allowed: fall back to the lowest-id
-  // remaining workspace so there is always exactly one active.
-  if (target.isActive) {
-    const next = all.filter((w) => w.id !== dbId).sort((a, b) => a.id - b.id)[0];
-    if (next) await db.update(wsTable).set({ isActive: true }).where(eq(wsTable.id, next.id));
+
+  const remaining = all.filter((w) => w.id !== dbId);
+  if (remaining.length === 0) {
+    // The app always needs one workspace: deleting the last one resets it to a
+    // fresh empty "Default".
+    const newDbId = await seedWorkspace("Default", {
+      uuid: `id-${randomUUID()}`, name: "Default", desc: null, version: null,
+      elements: [], relationships: [], propertyDefinitions: [], views: [],
+    });
+    await db.update(wsTable).set({ isActive: true }).where(eq(wsTable.id, newDbId));
+  } else if (target.isActive) {
+    // Deleting the active workspace falls back to the lowest-id remaining one.
+    const next = [...remaining].sort((a, b) => a.id - b.id)[0]!;
+    await db.update(wsTable).set({ isActive: true }).where(eq(wsTable.id, next.id));
   }
 }

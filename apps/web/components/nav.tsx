@@ -172,15 +172,13 @@ export function Nav({ onToggleSidebar }: { onToggleSidebar: () => void }) {
                     <span className="truncate flex-1">{ws.name}</span>
                     <span className="flex items-center gap-1.5 ml-2 shrink-0">
                       {ws.active && <span className="text-[10px] text-primary">{t("nav.workspace_active")}</span>}
-                      {workspaces.length > 1 && (
-                        <button
-                          onClick={(e) => removeWorkspace(ws.id, e)}
-                          className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive"
-                          title={t("common.delete")}
-                        >
-                          <Trash2 className="size-3" />
-                        </button>
-                      )}
+                      <button
+                        onClick={(e) => removeWorkspace(ws.id, e)}
+                        className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive"
+                        title={t("common.delete")}
+                      >
+                        <Trash2 className="size-3" />
+                      </button>
                     </span>
                   </div>
                 ))}
