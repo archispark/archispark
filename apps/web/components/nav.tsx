@@ -160,6 +160,10 @@ export function Nav({ onToggleSidebar }: { onToggleSidebar: () => void }) {
             <FolderOpen className="size-3.5 text-primary shrink-0" />
             {t("breadcrumb.workspaces")}
           </Link>
+          {/* At the /workspaces root, omit the active-workspace name: we are not
+              inside a specific workspace's context. */}
+          {pathname !== "/workspaces" && (
+          <>
           <span className="text-border">/</span>
           <div className="relative">
           <button
@@ -244,6 +248,8 @@ export function Nav({ onToggleSidebar }: { onToggleSidebar: () => void }) {
             </>
           )}
           </div>
+          </>
+          )}
         </div>
       )}
 

@@ -51,10 +51,13 @@ export default function WorkspacesPage() {
     }
   }
 
-  async function activate(id: string) {
+  // Click a workspace to enter it: activate it (unless already active) and open
+  // its overview.
+  async function enter(id: string, active: boolean) {
     try {
-      await activateWs.mutateAsync(id);
+      if (!active) await activateWs.mutateAsync(id);
       setError(null);
+      router.push("/");
     } catch (err) {
       setError((err as Error).message);
     }
@@ -138,7 +141,11 @@ export default function WorkspacesPage() {
           {workspaces.map((ws) => (
             <div
               key={ws.id}
-              className={`flex items-center gap-3 px-4 py-3 bg-card border rounded-lg ${
+              role="button"
+              tabIndex={0}
+              onClick={() => enter(ws.id, ws.active)}
+              onKeyDown={(e) => { if (e.key === "Enter") enter(ws.id, ws.active); }}
+              className={`flex items-center gap-3 px-4 py-3 bg-card border rounded-lg cursor-pointer transition-colors hover:border-primary/50 ${
                 ws.active ? "border-primary/50" : "border-border"
               }`}
             >
@@ -146,21 +153,14 @@ export default function WorkspacesPage() {
               <span className={`flex-1 truncate text-[14px] ${ws.active ? "font-medium text-foreground" : "text-foreground"}`}>
                 {ws.name}
               </span>
-              {ws.active ? (
+              {ws.active && (
                 <span className="flex items-center gap-1 text-[11px] text-primary font-medium">
                   <Check className="size-3.5" />
                   {t("nav.workspace_active")}
                 </span>
-              ) : (
-                <button
-                  onClick={() => activate(ws.id)}
-                  className="text-[12px] border border-border rounded-md px-2.5 py-1 hover:bg-muted text-foreground"
-                >
-                  {t("workspaces.activate")}
-                </button>
               )}
               <button
-                onClick={() => remove(ws.id)}
+                onClick={(e) => { e.stopPropagation(); remove(ws.id); }}
                 className="text-muted-foreground hover:text-destructive"
                 title={t("common.delete")}
               >
