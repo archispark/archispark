@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
-import { LayoutDashboard, LayoutGrid, Tag, Users, Settings as SettingsIcon, GitBranch } from "lucide-react";
+import { LayoutDashboard, LayoutGrid, Tag, Users, Settings as SettingsIcon, GitBranch, FolderOpen } from "lucide-react";
 import { fetchModel, fetchElements, type ModelInfo } from "@/lib/api";
 import { useIsAdmin } from "@/hooks/use-current-user";
 import { getLayer, LAYER_HEX_COLORS, LAYER_LABELS } from "@/lib/archimate-helpers";
@@ -95,6 +95,20 @@ function SidebarInner({ open, onClose }: { open: boolean; onClose: () => void })
           >
             <LayoutDashboard className="size-4 shrink-0" />
             {t("sidebar.overview")}
+          </Link>
+
+          {/* Workspaces */}
+          <Link
+            href="/workspaces"
+            onClick={onClose}
+            className={`flex items-center gap-2.5 px-3 py-2 mx-2 rounded-md text-sm no-underline transition-colors ${
+              pathname === "/workspaces"
+                ? "bg-card text-foreground font-medium shadow-sm"
+                : "text-muted-foreground hover:bg-muted hover:text-foreground"
+            }`}
+          >
+            <FolderOpen className="size-4 shrink-0" />
+            {t("sidebar.workspaces")}
           </Link>
 
           {/* Separator */}

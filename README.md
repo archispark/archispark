@@ -69,7 +69,7 @@ Default credentials: `admin` / `admin` (admin), `user` / `user` (read-only).
 | `GET` | `/workspaces` | List workspaces |
 | `POST` | `/workspaces` | Create workspace — body: `{ name, path? }` (`path` = XML file to import) |
 | `PUT` | `/workspaces/:id` | Rename workspace |
-| `DELETE` | `/workspaces/:id` | Delete workspace (deleting the active one switches to another; deleting the last one resets to a fresh empty Default) |
+| `DELETE` | `/workspaces/:id` | Delete workspace (deleting the active one switches to another; deleting the last one is allowed and leaves zero — the web UI then redirects to its `/workspaces` page to create a new one) |
 | `POST` | `/workspaces/:id/activate` | Switch active workspace |
 
 ## Model routes
@@ -137,7 +137,7 @@ Interactive docs: `GET /docs` — OpenAPI spec: `GET /openapi.json`.
 ## Tests
 
 ```bash
-pnpm run -w test            # 425 tests across all packages
+pnpm run -w test            # 624 tests across all packages
 pnpm run -w test:coverage   # ≥80% coverage required
 ```
 

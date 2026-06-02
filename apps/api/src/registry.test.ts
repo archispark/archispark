@@ -107,18 +107,6 @@ describe("POST /workspaces/:id/activate", () => {
 });
 
 describe("DELETE /workspaces/:id", () => {
-  it("deleting the last workspace recreates a fresh Default", async () => {
-    // Remove every workspace; the final deletion must recreate an empty Default.
-    const list = (await request(app).get("/workspaces")).body as { id: string }[];
-    for (const w of list) {
-      expect((await request(app).delete(`/workspaces/${w.id}`)).status).toBe(204);
-    }
-    const after = (await request(app).get("/workspaces")).body as { id: string; name: string; active: boolean }[];
-    expect(after).toHaveLength(1);
-    expect(after[0]!.name).toBe("Default");
-    expect(after[0]!.active).toBe(true);
-  });
-
   it("deletes the active workspace and activates another", async () => {
     await request(app).post("/workspaces").send({ name: "Extra WS for active-delete" });
     const before = (await request(app).get("/workspaces")).body as { id: string; active: boolean }[];
@@ -141,5 +129,21 @@ describe("DELETE /workspaces/:id", () => {
     await request(app).post("/workspaces").send({ name: "Extra WS for unknown delete" });
     const res = await request(app).delete("/workspaces/99999");
     expect(res.status).toBe(422);
+  });
+
+  // Keep this last: it empties the workspace table for the rest of the file.
+  it("allows deleting the last workspace, leaving zero", async () => {
+    const list = (await request(app).get("/workspaces")).body as { id: string }[];
+    for (const w of list) {
+      expect((await request(app).delete(`/workspaces/${w.id}`)).status).toBe(204);
+    }
+    const after = (await request(app).get("/workspaces")).body as unknown[];
+    expect(after).toHaveLength(0);
+  });
+
+  it("re-activates the first workspace created after the table was emptied", async () => {
+    const res = await request(app).post("/workspaces").send({ name: "First after empty" });
+    expect(res.status).toBe(201);
+    expect(res.body.active).toBe(true);
   });
 });

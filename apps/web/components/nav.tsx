@@ -2,18 +2,17 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { Menu, LogOut, ChevronDown, FolderOpen, Plus, Trash2 } from "lucide-react";
 import { Button } from "@workspace/ui/components/button";
 import { useQueryClient } from "@tanstack/react-query";
+import { type ElementOut } from "@/lib/api";
 import {
-  fetchWorkspaces,
-  activateWorkspaceApi,
-  createWorkspaceApi,
-  deleteWorkspaceApi,
-  type WorkspaceInfo,
-  type ElementOut,
-} from "@/lib/api";
+  useWorkspaces,
+  useCreateWorkspace,
+  useDeleteWorkspace,
+  useActivateWorkspace,
+} from "@/lib/queries";
 import { useT } from "@/lib/i18n";
 import { LocaleSwitcher } from "@/components/locale-switcher";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -23,20 +22,24 @@ export function Nav({ onToggleSidebar }: { onToggleSidebar: () => void }) {
   const router = useRouter();
   const { t } = useT();
 
-  const [workspaces, setWorkspaces] = useState<WorkspaceInfo[]>([]);
+  const { data: workspaces = [], isSuccess: wsLoaded } = useWorkspaces();
+  const createWs = useCreateWorkspace();
+  const deleteWs = useDeleteWorkspace();
+  const activateWs = useActivateWorkspace();
+
   const [wsMenuOpen, setWsMenuOpen] = useState(false);
   const [newWsName, setNewWsName] = useState("");
   const [newWsPath, setNewWsPath] = useState("");
   const [showNewForm, setShowNewForm] = useState(false);
   const [wsError, setWsError] = useState<string | null>(null);
 
-  const loadWorkspaces = useCallback(() => {
-    fetchWorkspaces()
-      .then(setWorkspaces)
-      .catch(() => {});
-  }, []);
-
-  useEffect(() => { loadWorkspaces(); }, [loadWorkspaces]);
+  // No workspace exists (the user deleted them all) → redirect to the overview
+  // page where one can be created.
+  useEffect(() => {
+    if (wsLoaded && workspaces.length === 0 && pathname !== "/workspaces") {
+      router.push("/workspaces");
+    }
+  }, [wsLoaded, workspaces.length, pathname, router]);
 
   async function logout() {
     const { signOut } = await import("@/lib/auth-client");
@@ -47,9 +50,8 @@ export function Nav({ onToggleSidebar }: { onToggleSidebar: () => void }) {
 
   async function activate(id: string) {
     try {
-      await activateWorkspaceApi(id);
+      await activateWs.mutateAsync(id);
       setWsMenuOpen(false);
-      loadWorkspaces();
       router.refresh();
     } catch (err) {
       setWsError((err as Error).message);
@@ -59,12 +61,11 @@ export function Nav({ onToggleSidebar }: { onToggleSidebar: () => void }) {
   async function addWorkspace() {
     if (!newWsName.trim()) return;
     try {
-      await createWorkspaceApi({ name: newWsName.trim(), path: newWsPath.trim() || undefined });
+      await createWs.mutateAsync({ name: newWsName.trim(), path: newWsPath.trim() || undefined });
       setNewWsName("");
       setNewWsPath("");
       setShowNewForm(false);
       setWsError(null);
-      loadWorkspaces();
     } catch (err) {
       setWsError((err as Error).message);
     }
@@ -74,9 +75,8 @@ export function Nav({ onToggleSidebar }: { onToggleSidebar: () => void }) {
     e.stopPropagation();
     if (!confirm(t("common.delete") + " ?")) return;
     try {
-      await deleteWorkspaceApi(id);
+      await deleteWs.mutateAsync(id);
       setWsError(null);
-      loadWorkspaces();
       router.refresh();
     } catch (err) {
       setWsError((err as Error).message);
@@ -101,6 +101,7 @@ export function Nav({ onToggleSidebar }: { onToggleSidebar: () => void }) {
       properties: "breadcrumb.properties",
       users: "breadcrumb.users",
       settings: "breadcrumb.settings",
+      workspaces: "breadcrumb.workspaces",
       login: "breadcrumb.login",
     };
     if (bcKeys[seg]) return t(bcKeys[seg]);

@@ -17,7 +17,7 @@ import { readFileSync, existsSync } from "fs";
 import { randomUUID } from "crypto";
 import { join } from "path";
 import { eq } from "drizzle-orm";
-import { db, runMigrations, workspaces as wsTable, seedWorkspace } from "@workspace/db";
+import { db, runMigrations, workspaces as wsTable, users as usersTable, seedWorkspace } from "@workspace/db";
 import { parseOpenExchange } from "./oxf-parser.js";
 import { initUsers } from "./auth.js";
 import { NotFoundError, ValidationError } from "./errors.js";
@@ -53,10 +53,17 @@ function strIdToDbId(id: string): number {
 
 async function _init(): Promise<void> {
   await runMigrations();
+
+  // Distinguish a brand-new database (first run → seed a "Default" workspace)
+  // from one the user has intentionally emptied by deleting every workspace
+  // (→ stay at zero so the web UI redirects to /workspaces). The presence of any
+  // user *before* initUsers() runs means the DB was already set up at least once.
+  const usersExisted = (await db.select({ id: usersTable.id }).from(usersTable)).length > 0;
+
   await initUsers();
 
   const rows = await db.select({ id: wsTable.id }).from(wsTable);
-  if (rows.length === 0) {
+  if (rows.length === 0 && !usersExisted) {
     await _seedFromLegacy();
     const afterSeed = await db.select({ id: wsTable.id }).from(wsTable);
     if (afterSeed.length === 0) {
@@ -64,14 +71,15 @@ async function _init(): Promise<void> {
     }
   }
 
+  // Ensure exactly one workspace is active when any exist. Zero is a valid state
+  // (the user deleted them all); the web app then redirects to /workspaces.
   const finalRows = await db.select().from(wsTable);
-  if (finalRows.length === 0) throw new Error("No workspaces in DB after init");
-  const sorted = [...finalRows].sort((a, b) => a.id - b.id);
-
-  // Ensure exactly one workspace is active (persisted in DB → shared across instances).
-  const active = sorted.find((r) => r.isActive)?.id ?? null;
-  if (active == null) {
-    await db.update(wsTable).set({ isActive: true }).where(eq(wsTable.id, sorted[0]!.id));
+  if (finalRows.length > 0) {
+    const sorted = [...finalRows].sort((a, b) => a.id - b.id);
+    const active = sorted.find((r) => r.isActive)?.id ?? null;
+    if (active == null) {
+      await db.update(wsTable).set({ isActive: true }).where(eq(wsTable.id, sorted[0]!.id));
+    }
   }
 }
 
@@ -175,7 +183,12 @@ export async function createWorkspace(name: string, xmlFilePath?: string): Promi
   }
 
   const dbId = await seedWorkspace(name.trim(), model);
-  return { id: dbIdToStrId(dbId), name: name.trim(), active: false };
+  // When no workspace is active (e.g. the user had deleted them all), the new
+  // one becomes active so the app always resolves a workspace once any exists.
+  const [anyActive] = await db.select({ id: wsTable.id }).from(wsTable).where(eq(wsTable.isActive, true));
+  const active = !anyActive;
+  if (active) await db.update(wsTable).set({ isActive: true }).where(eq(wsTable.id, dbId));
+  return { id: dbIdToStrId(dbId), name: name.trim(), active };
 }
 
 export async function updateWorkspace(id: string, name: string): Promise<WorkspaceOut> {
@@ -196,17 +209,11 @@ export async function deleteWorkspace(id: string): Promise<void> {
   if (!target) throw new ValidationError(`Workspace '${id}' introuvable.`);
   await db.delete(wsTable).where(eq(wsTable.id, dbId));
 
+  // Deleting the active workspace promotes the lowest-id remaining one. Deleting
+  // the last workspace is allowed and leaves zero — the web UI then redirects to
+  // /workspaces where the user can create a new one.
   const remaining = all.filter((w) => w.id !== dbId);
-  if (remaining.length === 0) {
-    // The app always needs one workspace: deleting the last one resets it to a
-    // fresh empty "Default".
-    const newDbId = await seedWorkspace("Default", {
-      uuid: `id-${randomUUID()}`, name: "Default", desc: null, version: null,
-      elements: [], relationships: [], propertyDefinitions: [], views: [],
-    });
-    await db.update(wsTable).set({ isActive: true }).where(eq(wsTable.id, newDbId));
-  } else if (target.isActive) {
-    // Deleting the active workspace falls back to the lowest-id remaining one.
+  if (target.isActive && remaining.length > 0) {
     const next = [...remaining].sort((a, b) => a.id - b.id)[0]!;
     await db.update(wsTable).set({ isActive: true }).where(eq(wsTable.id, next.id));
   }
