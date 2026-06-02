@@ -115,12 +115,15 @@ describe("DELETE /workspaces/:id", () => {
     expect(res.status).toBe(422);
   });
 
-  it("returns 422 when deleting active workspace", async () => {
-    await request(app).post("/workspaces").send({ name: "Extra WS for delete test" });
-    const wsRes = await request(app).get("/workspaces");
-    const active = wsRes.body.find((w: { active: boolean }) => w.active);
+  it("deletes the active workspace and activates another", async () => {
+    await request(app).post("/workspaces").send({ name: "Extra WS for active-delete" });
+    const before = (await request(app).get("/workspaces")).body as { id: string; active: boolean }[];
+    const active = before.find((w) => w.active)!;
     const res = await request(app).delete(`/workspaces/${active.id}`);
-    expect(res.status).toBe(422);
+    expect(res.status).toBe(204);
+    const after = (await request(app).get("/workspaces")).body as { id: string; active: boolean }[];
+    expect(after.find((w) => w.id === active.id)).toBeUndefined();
+    expect(after.filter((w) => w.active)).toHaveLength(1);
   });
 
   it("deletes an inactive workspace", async () => {

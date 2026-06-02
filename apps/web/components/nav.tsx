@@ -77,6 +77,7 @@ export function Nav({ onToggleSidebar }: { onToggleSidebar: () => void }) {
       await deleteWorkspaceApi(id);
       setWsError(null);
       loadWorkspaces();
+      router.refresh();
     } catch (err) {
       setWsError((err as Error).message);
     }
@@ -169,16 +170,18 @@ export function Nav({ onToggleSidebar }: { onToggleSidebar: () => void }) {
                     className={`flex items-center justify-between px-3 py-2 text-[13px] cursor-pointer hover:bg-muted group ${ws.active ? "text-primary font-medium" : "text-foreground"}`}
                   >
                     <span className="truncate flex-1">{ws.name}</span>
-                    {ws.active && <span className="text-[10px] text-primary ml-2 shrink-0">{t("nav.workspace_active")}</span>}
-                    {!ws.active && (
-                      <button
-                        onClick={(e) => removeWorkspace(ws.id, e)}
-                        className="opacity-0 group-hover:opacity-100 ml-2 text-muted-foreground hover:text-destructive shrink-0"
-                        title={t("common.delete")}
-                      >
-                        <Trash2 className="size-3" />
-                      </button>
-                    )}
+                    <span className="flex items-center gap-1.5 ml-2 shrink-0">
+                      {ws.active && <span className="text-[10px] text-primary">{t("nav.workspace_active")}</span>}
+                      {workspaces.length > 1 && (
+                        <button
+                          onClick={(e) => removeWorkspace(ws.id, e)}
+                          className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive"
+                          title={t("common.delete")}
+                        >
+                          <Trash2 className="size-3" />
+                        </button>
+                      )}
+                    </span>
                   </div>
                 ))}
 

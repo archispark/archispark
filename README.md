@@ -69,7 +69,7 @@ Default credentials: `admin` / `admin` (admin), `user` / `user` (read-only).
 | `GET` | `/workspaces` | List workspaces |
 | `POST` | `/workspaces` | Create workspace — body: `{ name, path? }` (`path` = XML file to import) |
 | `PUT` | `/workspaces/:id` | Rename workspace |
-| `DELETE` | `/workspaces/:id` | Delete workspace (active workspace protected) |
+| `DELETE` | `/workspaces/:id` | Delete workspace (deleting the active one switches to another; the last workspace is protected) |
 | `POST` | `/workspaces/:id/activate` | Switch active workspace |
 
 ## Model routes
