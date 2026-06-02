@@ -77,9 +77,9 @@ Default credentials: `admin` / `admin` (admin), `user` / `user` (read-only).
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/` | Active workspace info + model metadata |
-| `POST` | `/save` | Persist in-memory model to DB |
+| `POST` | `/save` | No-op (writes are persisted immediately); kept for compatibility |
 | `GET` | `/export` | Download model as Open Exchange XML |
-| `POST` | `/import` | Replace in-memory model from XML body |
+| `POST` | `/import` | Replace the active workspace model from an XML body |
 
 ## Elements
 

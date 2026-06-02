@@ -8,6 +8,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- **The API is now stateless — PostgreSQL is the single source of truth.** Removed the in-memory ArchiMate model (`dataSource`) and the full-workspace "auto-save on every write". Each request reads/writes Postgres at row level through a new `apps/api/src/store.ts`, so any instance can serve any request and concurrent edits to different rows no longer clobber each other (it is now safe to run multiple API replicas). The active workspace is persisted as `workspaces.is_active` (shared across instances) instead of being process-global state. `POST /save` is now a no-op (writes are already persisted). Render/export load the model on demand via `modelFromDb`.
 - **Database is now PostgreSQL-only.** Removed the SQLite (`better-sqlite3`) driver, the dual-driver switch (`DB_DRIVER`), the parallel `schema-pg.ts`, and the SQLite migrations. `packages/db` exposes a single Postgres schema and `drizzle-pg/` migrations. The connection string comes from `DATABASE_URL` (with `POSTGRES_URL_NON_POOLING` / `POSTGRES_URL` fallbacks for the Supabase/Vercel integration).
 - The test suite now runs on [PGlite](https://pglite.dev) (in-memory WASM Postgres) instead of in-memory SQLite — full Postgres fidelity, no Docker. Auto-selected when `VITEST` is set (or `DB_CLIENT=pglite`).
 - Added the missing `oauth_providers` table to the Postgres schema/migrations (it previously existed only for SQLite, breaking OAuth-provider CRUD on Postgres).
