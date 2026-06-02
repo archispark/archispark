@@ -90,18 +90,26 @@ export default function RelationshipsPage() {
     });
   }
 
-  const elementSelect = (value: string, onChange: (v: string) => void, placeholder: string) => (
-    <Select value={value} onValueChange={(v) => onChange(v ?? "")}>
-      <SelectTrigger><SelectValue placeholder={placeholder} /></SelectTrigger>
-      <SelectContent>
-        {allElements.map((el) => (
-          <SelectItem key={el.identifier} value={el.identifier}>
-            {el.name || el.identifier} ({el.type})
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  );
+  const elementSelect = (value: string, onChange: (v: string) => void, placeholder: string) => {
+    const selected = byId.get(value);
+    return (
+      <Select value={value} onValueChange={(v) => onChange(v ?? "")}>
+        <SelectTrigger>
+          {selected
+            ? <span className="truncate">{selected.name || selected.identifier} <span className="text-muted-foreground">({selected.type})</span></span>
+            : <span className="text-muted-foreground">{placeholder}</span>
+          }
+        </SelectTrigger>
+        <SelectContent>
+          {allElements.map((el) => (
+            <SelectItem key={el.identifier} value={el.identifier}>
+              {el.name || el.identifier} ({el.type})
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    );
+  };
 
   const validationStats = useMemo(() => {
     let ok = 0, bad = 0;
