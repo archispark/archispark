@@ -12,8 +12,8 @@
     }
   },
   "scripts": {
-    "start": "tsx src/main.ts",
-    "dev": "tsx watch src/main.ts",
+    "start": "TSX_TSCONFIG_PATH=./tsconfig.dev.json tsx src/main.ts",
+    "dev": "TSX_TSCONFIG_PATH=./tsconfig.dev.json tsx watch src/main.ts",
     "build": "tsc",
     "start:dist": "node dist/main.js",
     "test": "vitest run",

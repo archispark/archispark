@@ -1,0 +1,13 @@
+{
+  // Dev-only config loaded by `tsx` (via TSX_TSCONFIG_PATH in the dev script).
+  // Aliases @workspace/db to its TypeScript source so `pnpm dev` runs without a
+  // prior `pnpm --filter @workspace/db build`. NOT used by the production build:
+  // tsc uses tsconfig.json (no paths) to avoid pulling cross-package source
+  // under this project's rootDir.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "paths": {
+      "@workspace/db": ["../../packages/db/src/index.ts"]
+    }
+  }
+}
