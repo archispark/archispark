@@ -7,7 +7,7 @@ import { Menu, LogOut, FolderOpen } from "lucide-react";
 import { Button } from "@workspace/ui/components/button";
 import { useQueryClient } from "@tanstack/react-query";
 import { type ElementOut } from "@/lib/api";
-import { useWorkspaces, useElement } from "@/lib/queries";
+import { useWorkspaces, useElement, useView } from "@/lib/queries";
 import { useT } from "@/lib/i18n";
 import { LocaleSwitcher } from "@/components/locale-switcher";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -45,7 +45,9 @@ export function Nav({ onToggleSidebar }: { onToggleSidebar: () => void }) {
   const elementId = segments[0] === "elements" && segments.length === 2 ? decodeURIComponent(segments[1]!) : "";
   const { data: breadcrumbElement } = useElement(elementId);
 
-  // For /elements/[id], show the element name instead of its id.
+  const viewId = segments[0] === "views" && segments.length === 2 ? decodeURIComponent(segments[1]!) : "";
+  const { data: breadcrumbView } = useView(viewId);
+
   function segmentLabel(seg: string, index: number): string {
     const bcKeys: Record<string, Parameters<typeof t>[0]> = {
       elements: "breadcrumb.elements",
@@ -67,9 +69,14 @@ export function Nav({ onToggleSidebar }: { onToggleSidebar: () => void }) {
       const name = (breadcrumbElement?.identifier === id ? breadcrumbElement?.name : undefined)
         ?? qc.getQueryData<ElementOut>(["element", id])?.name;
       if (name) return name;
-      // On the element page, show a placeholder rather than flashing the raw id
-      // while the name resolves.
       if (id === elementId) return "…";
+    }
+    if (segments[index - 1] === "views") {
+      const id = decodeURIComponent(seg);
+      const name = (breadcrumbView?.uuid === id ? breadcrumbView?.name : undefined)
+        ?? (qc.getQueryData<{ uuid: string; name: string }>(["view", id]) as { name?: string } | undefined)?.name;
+      if (name) return name;
+      if (id === viewId) return "…";
     }
     return decodeURIComponent(seg);
   }
