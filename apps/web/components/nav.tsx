@@ -150,28 +150,33 @@ export function Nav({ onToggleSidebar }: { onToggleSidebar: () => void }) {
 
       <div className="w-px h-5 bg-border mx-1" />
 
-      {/* Workspace breadcrumb: "Workspaces / [active workspace ▼]" */}
+      {/* Unified breadcrumb: Workspaces / nom projet / Section / leaf */}
       {workspaces.length > 0 && (
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 text-[13px] text-muted-foreground overflow-hidden">
           <Link
             href="/workspaces"
-            className="flex items-center gap-1.5 text-[13px] text-muted-foreground hover:text-foreground no-underline whitespace-nowrap"
+            className="flex items-center gap-1.5 hover:text-foreground no-underline whitespace-nowrap shrink-0"
           >
             <FolderOpen className="size-3.5 text-primary shrink-0" />
             {t("breadcrumb.workspaces")}
           </Link>
-          {/* At the /workspaces root, omit the active-workspace name: we are not
-              inside a specific workspace's context. */}
+
+          {/* At the /workspaces root we are not inside a specific workspace. */}
           {pathname !== "/workspaces" && (
           <>
           <span className="text-border">/</span>
-          <div className="relative">
+          {/* Active workspace = the workspace root: the name links to its overview,
+              the chevron opens the switch / create / delete menu. */}
+          <div className="relative flex items-center gap-0.5 shrink-0">
+          <Link href="/" className="max-w-[160px] truncate hover:text-foreground no-underline">
+            {activeWs?.name ?? "—"}
+          </Link>
           <button
             onClick={() => { setWsMenuOpen((o) => !o); setWsError(null); setShowNewForm(false); }}
-            className="flex items-center gap-1.5 text-[13px] px-2 py-1 rounded hover:bg-muted text-foreground"
+            className="flex items-center justify-center size-5 rounded hover:bg-muted hover:text-foreground"
+            aria-label={t("nav.workspace_new")}
           >
-            <span className="max-w-[160px] truncate">{activeWs?.name ?? "—"}</span>
-            <ChevronDown className="size-3 text-muted-foreground" />
+            <ChevronDown className="size-3" />
           </button>
 
           {wsMenuOpen && (
@@ -248,46 +253,26 @@ export function Nav({ onToggleSidebar }: { onToggleSidebar: () => void }) {
             </>
           )}
           </div>
+          {segments.map((seg, i) => {
+            const isLast = i === segments.length - 1;
+            const label = segmentLabel(seg, i);
+            const href = "/" + segments.slice(0, i + 1).join("/");
+            return (
+              <span key={seg} className="flex items-center gap-1.5 overflow-hidden">
+                <span className="text-border shrink-0">/</span>
+                {isLast ? (
+                  <span className="text-foreground whitespace-nowrap overflow-hidden text-ellipsis">{label}</span>
+                ) : (
+                  <Link href={href} className="hover:text-foreground no-underline whitespace-nowrap">
+                    {label}
+                  </Link>
+                )}
+              </span>
+            );
+          })}
           </>
           )}
         </div>
-      )}
-
-      {/* The /workspaces root already shows the "Workspaces" breadcrumb above, so
-          skip the redundant "Home / Workspaces" page breadcrumb here. */}
-      {pathname !== "/workspaces" && (
-        <>
-          <div className="w-px h-5 bg-border mx-1" />
-
-          <div className="flex items-center gap-1.5 text-[13px] text-muted-foreground overflow-hidden">
-            {segments.length === 0 ? (
-              <span className="text-muted-foreground">{t("nav.overview")}</span>
-            ) : (
-              <>
-                <Link href="/" className="text-muted-foreground hover:text-foreground no-underline whitespace-nowrap">
-                  {t("nav.home")}
-                </Link>
-                {segments.map((seg, i) => {
-                  const isLast = i === segments.length - 1;
-                  const label = segmentLabel(seg, i);
-                  const href = "/" + segments.slice(0, i + 1).join("/");
-                  return (
-                    <span key={seg} className="flex items-center gap-1.5">
-                      <span className="text-border">/</span>
-                      {isLast ? (
-                        <span className="text-foreground whitespace-nowrap overflow-hidden text-ellipsis">{label}</span>
-                      ) : (
-                        <Link href={href} className="text-muted-foreground hover:text-foreground no-underline whitespace-nowrap">
-                          {label}
-                        </Link>
-                      )}
-                    </span>
-                  );
-                })}
-              </>
-            )}
-          </div>
-        </>
       )}
 
       <div className="flex-1" />
