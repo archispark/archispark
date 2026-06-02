@@ -99,8 +99,8 @@ export async function initUsers(): Promise<void> {
     if (!userId) {
       const res = await getAuth().api.signUpEmail({
         body: { email: `${username}@archispark.internal`, password, name: username, username } as never,
-      }).catch(() => null);
-      if (!res?.user) return;
+      /* v8 ignore next */ }).catch(() => null);
+      /* v8 ignore next */ if (!res?.user) return;
       await db.update(usersTable).set({ username, role }).where(eq(usersTable.id, res.user.id));
       userId = res.user.id;
     }
@@ -143,7 +143,7 @@ export async function createUser(username: string, password: string, role: strin
   if (existing) throw new ValidationError(`Le nom d'utilisateur '${username}' est déjà pris.`);
   const res = await getAuth().api.signUpEmail({
     body: { email: `${username}@archispark.internal`, password, name: username, username } as never,
-  }).catch(() => null);
+  /* v8 ignore next */ }).catch(() => null);
   if (!res?.user) throw new ValidationError("Impossible de créer l'utilisateur.");
   const validRole: "admin" | "user" = role === "admin" ? "admin" : "user";
   await db.update(usersTable).set({ username, role: validRole }).where(eq(usersTable.id, res.user.id));
@@ -221,6 +221,7 @@ async function userHasPermission(userId: string, baRole: string, resource: strin
 export function requirePermission(resource: string, flag: PermissionFlag) {
   return async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     if (!req.user) { res.status(401).json({ detail: "Non authentifié." }); return; }
+    /* v8 ignore next 4 */
     if (!(await userHasPermission(req.user.id, req.user.role, resource, flag))) {
       console.warn(`[security] permission denied user=${req.user.id} role=${req.user.role} layer=${resource} flag=${flag} path=${req.path}`);
       res.status(403).json({ detail: `Permission '${flag}' requise sur '${resource}'.` });

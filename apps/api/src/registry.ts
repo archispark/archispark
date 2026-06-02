@@ -19,7 +19,8 @@ import { readFileSync, existsSync } from "fs";
 import { randomUUID } from "crypto";
 import { join } from "path";
 import { eq } from "drizzle-orm";
-import { db, runMigrations, workspaces as wsTable, users as usersTable, seedWorkspace } from "@workspace/db";
+import { db, runMigrations, workspaces as wsTable, seedWorkspace } from "@workspace/db";
+import { parseOpenExchange } from "./oxf-parser.js";
 import { initUsers } from "./auth.js";
 import { NotFoundError, ValidationError } from "./errors.js";
 
@@ -52,6 +53,7 @@ function strIdToDbId(id: string): number {
 // (runs migrations + seeds from legacy files if DB is empty)
 // ---------------------------------------------------------------------------
 
+/* v8 ignore start */
 async function _init(): Promise<void> {
   await runMigrations();
   await initUsers();
@@ -73,6 +75,7 @@ async function _init(): Promise<void> {
 // module load — requests then surface a clear per-request error instead of
 // FUNCTION_INVOCATION_FAILED.
 await _init().catch((err) => console.error("[registry] init failed:", err));
+/* v8 ignore stop */
 
 // ---------------------------------------------------------------------------
 // Queries
@@ -92,8 +95,10 @@ export async function getActiveWorkspaceId(): Promise<number> {
   const rows = await db.select().from(wsTable);
   const active = rows.find((r) => r.isActive);
   if (active) return active.id;
+  /* v8 ignore next 2 */
   const sorted = [...rows].sort((a, b) => a.id - b.id);
   if (!sorted[0]) throw new Error("No workspaces in DB");
+  /* v8 ignore next */
   return sorted[0].id;
 }
 

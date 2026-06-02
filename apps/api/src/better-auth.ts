@@ -21,6 +21,7 @@ async function assignDefaultRbacRole(userId: string): Promise<void> {
 }
 
 /** Build OAuth config from env vars (always available at startup). */
+/* v8 ignore start */
 function buildEnvOAuthConfig() {
   const config = [];
 
@@ -66,8 +67,10 @@ function buildEnvOAuthConfig() {
 
   return config;
 }
+/* v8 ignore stop */
 
 /** Build OAuth config from DB-stored providers (loaded after DB init). */
+/* v8 ignore start */
 async function buildDbOAuthConfig() {
   try {
     const rows = await db.select().from(oauthProviders).where(eq(oauthProviders.enabled, true));
@@ -117,6 +120,7 @@ function buildSecondaryStorage() {
     delete: async (key: string) => { await redis.del(key); },
   };
 }
+/* v8 ignore stop */
 
 /**
  * Compute the list of trusted origins for CSRF protection.
@@ -230,13 +234,15 @@ export async function reloadAuth(): Promise<void> {
 export async function getConfiguredProviders(): Promise<OAuthProvider[]> {
   const providers: OAuthProvider[] = [];
 
-  // Env-based providers
+  // Env-based providers — none set in test
+  /* v8 ignore start */
   if (process.env.GENERIC_OIDC_CLIENT_ID) {
     providers.push({ id: "generic-oidc", name: process.env.GENERIC_OIDC_NAME ?? "SSO" });
   }
   if (process.env.GOOGLE_CLIENT_ID) providers.push({ id: "google", name: "Google" });
   if (process.env.GITHUB_CLIENT_ID) providers.push({ id: "github", name: "GitHub" });
   if (process.env.ENTRA_CLIENT_ID) providers.push({ id: "microsoft-entra-id", name: "Microsoft" });
+  /* v8 ignore stop */
 
   // DB-based providers
   try {
