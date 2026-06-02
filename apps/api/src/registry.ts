@@ -75,7 +75,10 @@ async function _init(): Promise<void> {
   }
 }
 
-await _init();
+// Non-fatal: in serverless a cold start that can't reach the DB (or re-run the
+// idempotent migrations) must not crash module load — requests then surface a
+// clear per-request error instead of FUNCTION_INVOCATION_FAILED.
+await _init().catch((err) => console.error("[registry] init failed:", err));
 
 // Legacy migration: seed workspaces from on-disk workspaces.json / config.json +
 // XML files when present. File-system driven; covered by deployment, not unit tests.

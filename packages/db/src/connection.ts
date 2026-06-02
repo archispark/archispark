@@ -25,14 +25,18 @@ async function createDb(): Promise<NodePgDatabase<typeof schema>> {
   }
   // v8 ignore stop
 
-  // Priority: explicit DATABASE_URL → Supabase non-pooling (safer for drizzle
-  // migrations) → Supabase pooled → default dev connection.
+  // Priority: explicit DATABASE_URL → Supabase pooled (IPv4 — works from
+  // serverless/Vercel) → Supabase direct (IPv6 — only reachable locally/in a
+  // container) → default dev connection. Serverless functions must use the
+  // pooled connection: the direct host is IPv6-only and unreachable from Lambdas.
   const connectionString =
     process.env["DATABASE_URL"] ??
-    process.env["POSTGRES_URL_NON_POOLING"] ??
     process.env["POSTGRES_URL"] ??
+    process.env["POSTGRES_URL_NON_POOLING"] ??
     "postgresql://archispark:archispark@localhost:5432/archispark";
-  return pgDrizzle(new Pool({ connectionString }), { schema });
+  // Supabase poolers require TLS; allow the self-signed pooler cert.
+  const ssl = /supabase\.(co|com|net)/.test(connectionString) ? { rejectUnauthorized: false } : undefined;
+  return pgDrizzle(new Pool({ connectionString, ssl }), { schema });
 }
 
 export const db: NodePgDatabase<typeof schema> = await createDb();
