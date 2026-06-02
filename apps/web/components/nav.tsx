@@ -253,36 +253,42 @@ export function Nav({ onToggleSidebar }: { onToggleSidebar: () => void }) {
         </div>
       )}
 
-      <div className="w-px h-5 bg-border mx-1" />
+      {/* The /workspaces root already shows the "Workspaces" breadcrumb above, so
+          skip the redundant "Home / Workspaces" page breadcrumb here. */}
+      {pathname !== "/workspaces" && (
+        <>
+          <div className="w-px h-5 bg-border mx-1" />
 
-      <div className="flex items-center gap-1.5 text-[13px] text-muted-foreground overflow-hidden">
-        {segments.length === 0 ? (
-          <span className="text-muted-foreground">{t("nav.overview")}</span>
-        ) : (
-          <>
-            <Link href="/" className="text-muted-foreground hover:text-foreground no-underline whitespace-nowrap">
-              {t("nav.home")}
-            </Link>
-            {segments.map((seg, i) => {
-              const isLast = i === segments.length - 1;
-              const label = segmentLabel(seg, i);
-              const href = "/" + segments.slice(0, i + 1).join("/");
-              return (
-                <span key={seg} className="flex items-center gap-1.5">
-                  <span className="text-border">/</span>
-                  {isLast ? (
-                    <span className="text-foreground whitespace-nowrap overflow-hidden text-ellipsis">{label}</span>
-                  ) : (
-                    <Link href={href} className="text-muted-foreground hover:text-foreground no-underline whitespace-nowrap">
-                      {label}
-                    </Link>
-                  )}
-                </span>
-              );
-            })}
-          </>
-        )}
-      </div>
+          <div className="flex items-center gap-1.5 text-[13px] text-muted-foreground overflow-hidden">
+            {segments.length === 0 ? (
+              <span className="text-muted-foreground">{t("nav.overview")}</span>
+            ) : (
+              <>
+                <Link href="/" className="text-muted-foreground hover:text-foreground no-underline whitespace-nowrap">
+                  {t("nav.home")}
+                </Link>
+                {segments.map((seg, i) => {
+                  const isLast = i === segments.length - 1;
+                  const label = segmentLabel(seg, i);
+                  const href = "/" + segments.slice(0, i + 1).join("/");
+                  return (
+                    <span key={seg} className="flex items-center gap-1.5">
+                      <span className="text-border">/</span>
+                      {isLast ? (
+                        <span className="text-foreground whitespace-nowrap overflow-hidden text-ellipsis">{label}</span>
+                      ) : (
+                        <Link href={href} className="text-muted-foreground hover:text-foreground no-underline whitespace-nowrap">
+                          {label}
+                        </Link>
+                      )}
+                    </span>
+                  );
+                })}
+              </>
+            )}
+          </div>
+        </>
+      )}
 
       <div className="flex-1" />
 
