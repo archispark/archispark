@@ -21,18 +21,15 @@ export default function WorkspacesPage() {
 
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState("");
-  const [path] = useState("");
+
   const [error, setError] = useState<string | null>(null);
 
   async function create() {
     if (!name.trim()) return;
     try {
-      const ws = await createWs.mutateAsync({ name: name.trim(), path: path.trim() || undefined });
-      // Enter the freshly created workspace: activate it (unless the backend
-      // already did, when it was the first one) and go to its overview.
+      const ws = await createWs.mutateAsync({ name: name.trim() });
       if (!ws.active) await activateWs.mutateAsync(ws.id);
       setName("");
-      setPath("");
       setShowForm(false);
       setError(null);
       router.push("/");
@@ -46,6 +43,9 @@ export default function WorkspacesPage() {
     try {
       await deleteWs.mutateAsync(id);
       setError(null);
+      // Return to the workspace list so the user sees the updated state
+      // (including the possible auto-switch to another workspace).
+      router.push("/workspaces");
     } catch (err) {
       setError((err as Error).message);
     }

@@ -295,7 +295,15 @@ export function useDeleteWorkspace() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => deleteWorkspaceApi(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.workspaces() }),
+    onSuccess: () => {
+      // A workspace switch may have happened server-side: flush everything so
+      // the sidebar, breadcrumb, and dashboard all reflect the new active workspace.
+      qc.invalidateQueries({ queryKey: queryKeys.workspaces() });
+      qc.invalidateQueries({ queryKey: queryKeys.model() });
+      qc.invalidateQueries({ queryKey: ["elements"] });
+      qc.invalidateQueries({ queryKey: ["relationships"] });
+      qc.invalidateQueries({ queryKey: ["views"] });
+    },
   });
 }
 
