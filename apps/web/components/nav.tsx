@@ -150,14 +150,22 @@ export function Nav({ onToggleSidebar }: { onToggleSidebar: () => void }) {
 
       <div className="w-px h-5 bg-border mx-1" />
 
-      {/* Workspace selector */}
+      {/* Workspace breadcrumb: "Workspaces / [active workspace ▼]" */}
       {workspaces.length > 0 && (
-        <div className="relative">
+        <div className="flex items-center gap-1.5">
+          <Link
+            href="/workspaces"
+            className="flex items-center gap-1.5 text-[13px] text-muted-foreground hover:text-foreground no-underline whitespace-nowrap"
+          >
+            <FolderOpen className="size-3.5 text-primary shrink-0" />
+            {t("breadcrumb.workspaces")}
+          </Link>
+          <span className="text-border">/</span>
+          <div className="relative">
           <button
             onClick={() => { setWsMenuOpen((o) => !o); setWsError(null); setShowNewForm(false); }}
             className="flex items-center gap-1.5 text-[13px] px-2 py-1 rounded hover:bg-muted text-foreground"
           >
-            <FolderOpen className="size-3.5 text-primary shrink-0" />
             <span className="max-w-[160px] truncate">{activeWs?.name ?? "—"}</span>
             <ChevronDown className="size-3 text-muted-foreground" />
           </button>
@@ -235,6 +243,7 @@ export function Nav({ onToggleSidebar }: { onToggleSidebar: () => void }) {
               </div>
             </>
           )}
+          </div>
         </div>
       )}
 
