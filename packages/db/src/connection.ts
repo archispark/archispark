@@ -17,8 +17,14 @@ export const USE_PGLITE = Boolean(process.env["VITEST"]) || process.env["DB_CLIE
 async function createDb(): Promise<NodePgDatabase<typeof schema>> {
   // v8 ignore start
   if (USE_PGLITE) {
-    const { PGlite } = await import("@electric-sql/pglite");
-    const { drizzle: pgliteDrizzle } = await import("drizzle-orm/pglite");
+    // Indirect specifiers: keep these test-only deps (PGlite ships WASM) out of
+    // the production serverless bundle — a static import() lets Vercel's esbuild
+    // trace and bundle them, which breaks the function. `import(variable)` stays
+    // a runtime resolution that only executes under VITEST.
+    const pglitePkg = "@electric-sql/pglite";
+    const drizzlePglitePkg = "drizzle-orm/pglite";
+    const { PGlite } = await import(pglitePkg);
+    const { drizzle: pgliteDrizzle } = await import(drizzlePglitePkg);
     // Cast: PGlite and node-postgres share the same Drizzle query API + pg
     // dialect; the cast lets callers type against a single db shape.
     return pgliteDrizzle(new PGlite(), { schema }) as unknown as NodePgDatabase<typeof schema>;
