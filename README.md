@@ -41,6 +41,14 @@ pnpm --filter @workspace/db seed:demo
 psql $DATABASE_URL -f packages/db/seeds/demo.sql
 ```
 
+### Restore demo data on Vercel (GitHub Actions)
+
+The workflow **Actions → Restore demo data** can be triggered manually from GitHub to reset the Vercel Postgres database to the demo state.
+
+**Required GitHub secret** — add `POSTGRES_URL_NON_POOLING` to the repository secrets (Settings → Secrets and variables → Actions). Copy the value from the Vercel project environment variables.
+
+The workflow offers a **reset** checkbox (on by default): when checked it deletes the existing ArchiMetal and ArchiSurance workspaces (all child data is removed via CASCADE) before re-seeding. Uncheck it to seed only if those workspaces do not yet exist.
+
 ## Persistence
 
 All data lives in PostgreSQL, shared between the API and MCP server.  

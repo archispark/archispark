@@ -1,0 +1,42 @@
+name: Restore demo data
+
+on:
+  workflow_dispatch:
+    inputs:
+      reset:
+        description: 'Delete existing ArchiMetal / ArchiSurance workspaces before seeding (required to overwrite)'
+        required: false
+        type: boolean
+        default: true
+
+jobs:
+  seed:
+    name: Seed demo data on Vercel Postgres
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Delete existing demo workspaces
+        if: inputs.reset == true
+        # CASCADE on workspaces.id removes all child rows (elements, relationships,
+        # views, nodes, connections, bendpoints, property_definitions, …).
+        run: psql "$POSTGRES_URL_NON_POOLING" -c "DELETE FROM workspaces WHERE name IN ('ArchiMetal', 'ArchiSurance');"
+        env:
+          POSTGRES_URL_NON_POOLING: ${{ secrets.POSTGRES_URL_NON_POOLING }}
+          PGSSLMODE: require
+
+      - name: Seed demo data
+        run: pnpm --filter @workspace/db seed:demo
+        env:
+          POSTGRES_URL_NON_POOLING: ${{ secrets.POSTGRES_URL_NON_POOLING }}
