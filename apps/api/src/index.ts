@@ -8,15 +8,21 @@
  * traced reliably. Mirror of the `@workspace/db` package's `.` export.
  */
 export * as store from "./store.js";
-export { getActiveWorkspaceId } from "./registry.js";
+export { getActiveWorkspaceId, getWorkspaces, activateWorkspace } from "./registry.js";
+export type { WorkspaceOut } from "./registry.js";
 export { renderViewToSvg } from "./renderer.js";
 export {
   ELEMENT_TYPES,
   RELATIONSHIP_TYPES,
   PROPERTY_DEFINITION_TYPES,
+  VIEWPOINTS,
 } from "./schemas.js";
 export type {
   ElementUpdateIn,
   RelationshipUpdateIn,
   PropertyDefinitionUpdateIn,
+  ViewUpdateIn,
+  NodeUpdateIn,
+  ConnectionCreateIn,
+  ConnectionUpdateIn,
 } from "./schemas.js";

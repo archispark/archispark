@@ -6,6 +6,7 @@ export default defineConfig({
     alias: {
       "@workspace/db": resolve(__dirname, "../../packages/db/src/index.ts"),
     },
+    conditions: ["source", "import", "module", "default"],
   },
   test: {
     pool: "forks",

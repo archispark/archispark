@@ -118,18 +118,6 @@ export default function SettingsPage() {
         </button>
         <button
           type="button"
-          onClick={() => setTab("import-export")}
-          className={`flex items-center gap-2 px-3 py-2 text-[13px] border-b-2 transition-colors ${
-            tab === "import-export"
-              ? "border-primary text-foreground font-medium"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <Upload className="size-3.5" />
-          {t("settings.tab_import_export")}
-        </button>
-        <button
-          type="button"
           onClick={() => setTab("authentication")}
           className={`flex items-center gap-2 px-3 py-2 text-[13px] border-b-2 transition-colors ${
             tab === "authentication"
@@ -139,6 +127,18 @@ export default function SettingsPage() {
         >
           <KeyRound className="size-3.5" />
           {t("settings.tab_authentication")}
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab("mcp")}
+          className={`flex items-center gap-2 px-3 py-2 text-[13px] border-b-2 transition-colors ${
+            tab === "mcp"
+              ? "border-primary text-foreground font-medium"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <KeyRound className="size-3.5" />
+          MCP
         </button>
         <button
           type="button"
@@ -154,15 +154,15 @@ export default function SettingsPage() {
         </button>
         <button
           type="button"
-          onClick={() => setTab("mcp")}
+          onClick={() => setTab("import-export")}
           className={`flex items-center gap-2 px-3 py-2 text-[13px] border-b-2 transition-colors ${
-            tab === "mcp"
+            tab === "import-export"
               ? "border-primary text-foreground font-medium"
               : "border-transparent text-muted-foreground hover:text-foreground"
           }`}
         >
-          <KeyRound className="size-3.5" />
-          MCP
+          <Upload className="size-3.5" />
+          {t("settings.tab_import_export")}
         </button>
       </div>
 

@@ -8,6 +8,8 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- **14 new MCP tools — full API parity.** The MCP server now exposes 38 tools (up from 24), covering all ArchiMate modeling operations: `update_view`, `delete_view`, `update_node`, `delete_node`, `create_connection`, `update_connection`, `delete_connection`, `get_element_relationships`, `list_elements_in_views`, `list_workspaces`, `activate_workspace`, `export_model`, `import_model`, `list_viewpoints`. An AI agent can now build, populate, and fully refactor views without leaving the MCP context.
+- **Settings tab order.** Tabs in the Settings page are now ordered: Général — Membres — Rôles — Authentification — MCP — Redis — Import/Export.
 - **MCP Bearer token authentication.** The MCP server now enforces a `Bearer` token when `MCP_AUTH_TOKEN` is set. The token is generated and displayed in **Settings → MCP** (new tab), with a masked display, copy button, and the ready-to-run `claude mcp add` command. The token is stored in the `mcp_tokens` table (migration `0002_mcp_tokens.sql`) and verified server-side on every request.
 - **Vercel Analytics and Speed Insights.** `@vercel/analytics` and `@vercel/speed-insights` are now included in the Next.js layout. Both are no-ops outside Vercel deployments.
 - **Settings → MCP tab.** Dedicated tab in the settings page for MCP token management (generate, regenerate, reveal, copy).

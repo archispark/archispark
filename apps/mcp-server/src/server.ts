@@ -1,7 +1,7 @@
 /**
  * MCP server.
  *
- * Exposes the same 25 ArchiMate MCP tools via streamable-HTTP transport.
+ * Exposes ArchiMate MCP tools via streamable-HTTP transport.
  * Reads from (and writes to) the same PostgreSQL database as the REST API.
  */
 
@@ -16,14 +16,21 @@ import packageJson from "api/package.json" with { type: "json" };
 // `./src/*.js` export is not (caused ERR_MODULE_NOT_FOUND on the deployed lambda).
 import {
   getActiveWorkspaceId,
+  getWorkspaces,
+  activateWorkspace,
   store,
   renderViewToSvg,
   ELEMENT_TYPES,
   RELATIONSHIP_TYPES,
   PROPERTY_DEFINITION_TYPES,
+  VIEWPOINTS,
   type ElementUpdateIn,
   type RelationshipUpdateIn,
   type PropertyDefinitionUpdateIn,
+  type ViewUpdateIn,
+  type NodeUpdateIn,
+  type ConnectionCreateIn,
+  type ConnectionUpdateIn,
 } from "api";
 
 
@@ -34,6 +41,8 @@ import {
 const _ELEMENT_TYPES_STR = [...ELEMENT_TYPES].sort().join(", ");
 const _RELATIONSHIP_TYPES_STR = [...RELATIONSHIP_TYPES].sort().join(", ");
 const _PROPERTY_DEFINITION_TYPES_STR = [...PROPERTY_DEFINITION_TYPES].sort().join(", ");
+const _VIEWPOINTS_STR = [...VIEWPOINTS].sort().join(", ");
+const _EDGE_SIDES_STR = "top, right, bottom, left";
 
 function toContent(data: unknown): { content: [{ type: "text"; text: string }] } {
   return { content: [{ type: "text" as const, text: JSON.stringify(data) }] };
@@ -166,6 +175,140 @@ mcpServer.registerTool(
   },
   async ({ view_id, element_id, x, y, w, h }) =>
     toContent(await store.createNode(await getActiveWorkspaceId(), view_id, { element_id, x, y, w, h }))
+);
+
+mcpServer.registerTool(
+  "update_view",
+  {
+    description: "Met à jour une vue ArchiMate existante. Seuls les champs fournis sont modifiés.",
+    inputSchema: {
+      view_id: z.string().describe("Identifiant de la vue à modifier"),
+      name: z.string().optional().describe("Nouveau nom"),
+      viewpoint: z.string().optional().nullable().describe(`Nouveau point de vue ArchiMate. Valides: ${_VIEWPOINTS_STR}`),
+      documentation: z.string().optional().nullable().describe("Nouvelle documentation (null pour effacer)"),
+    },
+  },
+  async ({ view_id, name, viewpoint, documentation }) => {
+    const input: ViewUpdateIn = {};
+    if (name !== undefined) input.name = name;
+    if (viewpoint !== undefined) input.viewpoint = viewpoint;
+    if (documentation !== undefined) input.documentation = documentation;
+    return toContent(await store.updateView(await getActiveWorkspaceId(), view_id, input));
+  }
+);
+
+mcpServer.registerTool(
+  "delete_view",
+  {
+    description: "Supprime une vue ArchiMate du modèle (les éléments sous-jacents ne sont pas supprimés).",
+    inputSchema: { view_id: z.string().describe("Identifiant de la vue à supprimer") },
+  },
+  async ({ view_id }) => {
+    await store.deleteView(await getActiveWorkspaceId(), view_id);
+    return toContent({ deleted: true, identifier: view_id });
+  }
+);
+
+mcpServer.registerTool(
+  "update_node",
+  {
+    description: "Met à jour la position, la taille ou le nom d'un nœud dans une vue ArchiMate.",
+    inputSchema: {
+      view_id: z.string().describe("Identifiant de la vue"),
+      node_id: z.string().describe("Identifiant du nœud"),
+      x: z.number().optional().nullable().describe("Position X en pixels"),
+      y: z.number().optional().nullable().describe("Position Y en pixels"),
+      w: z.number().optional().nullable().describe("Largeur en pixels"),
+      h: z.number().optional().nullable().describe("Hauteur en pixels"),
+      name: z.string().optional().nullable().describe("Nom affiché sur le nœud (remplace le nom de l'élément)"),
+    },
+  },
+  async ({ view_id, node_id, x, y, w, h, name }) => {
+    const input: NodeUpdateIn = {};
+    if (x !== undefined) input.x = x;
+    if (y !== undefined) input.y = y;
+    if (w !== undefined) input.w = w;
+    if (h !== undefined) input.h = h;
+    if (name !== undefined) input.name = name;
+    return toContent(await store.updateViewNode(await getActiveWorkspaceId(), view_id, node_id, input));
+  }
+);
+
+mcpServer.registerTool(
+  "delete_node",
+  {
+    description: "Retire un nœud (et ses enfants) d'une vue ArchiMate. L'élément sous-jacent n'est pas supprimé.",
+    inputSchema: {
+      view_id: z.string().describe("Identifiant de la vue"),
+      node_id: z.string().describe("Identifiant du nœud à retirer"),
+    },
+  },
+  async ({ view_id, node_id }) => {
+    await store.deleteViewNode(await getActiveWorkspaceId(), view_id, node_id);
+    return toContent({ deleted: true, identifier: node_id });
+  }
+);
+
+mcpServer.registerTool(
+  "create_connection",
+  {
+    description: "Crée une connexion visuelle entre deux nœuds dans une vue ArchiMate.",
+    inputSchema: {
+      view_id: z.string().describe("Identifiant de la vue"),
+      source: z.string().describe("Identifiant du nœud source"),
+      target: z.string().describe("Identifiant du nœud cible"),
+      relationship_id: z.string().optional().nullable().describe("Identifiant de la relation ArchiMate sous-jacente (optionnel)"),
+      name: z.string().optional().nullable().describe("Nom de la connexion (optionnel)"),
+      source_side: z.string().optional().nullable().describe(`Côté du nœud source (${_EDGE_SIDES_STR})`),
+      target_side: z.string().optional().nullable().describe(`Côté du nœud cible (${_EDGE_SIDES_STR})`),
+    },
+  },
+  async ({ view_id, source, target, relationship_id, name, source_side, target_side }) =>
+    toContent(await store.createViewConnection(await getActiveWorkspaceId(), view_id, {
+      source, target, relationship_id, name,
+      source_side: source_side as ConnectionCreateIn["source_side"],
+      target_side: target_side as ConnectionCreateIn["target_side"],
+    }))
+);
+
+mcpServer.registerTool(
+  "update_connection",
+  {
+    description: "Met à jour une connexion dans une vue ArchiMate. Seuls les champs fournis sont modifiés.",
+    inputSchema: {
+      view_id: z.string().describe("Identifiant de la vue"),
+      connection_id: z.string().describe("Identifiant de la connexion"),
+      name: z.string().optional().nullable().describe("Nouveau nom (null pour effacer)"),
+      source: z.string().optional().describe("Nouvel identifiant de nœud source"),
+      target: z.string().optional().describe("Nouvel identifiant de nœud cible"),
+      source_side: z.string().optional().nullable().describe(`Côté du nœud source (${_EDGE_SIDES_STR})`),
+      target_side: z.string().optional().nullable().describe(`Côté du nœud cible (${_EDGE_SIDES_STR})`),
+    },
+  },
+  async ({ view_id, connection_id, name, source, target, source_side, target_side }) => {
+    const input: ConnectionUpdateIn = {};
+    if (name !== undefined) input.name = name;
+    if (source !== undefined) input.source = source;
+    if (target !== undefined) input.target = target;
+    if (source_side !== undefined) input.source_side = source_side as ConnectionUpdateIn["source_side"];
+    if (target_side !== undefined) input.target_side = target_side as ConnectionUpdateIn["target_side"];
+    return toContent(await store.updateViewConnection(await getActiveWorkspaceId(), view_id, connection_id, input));
+  }
+);
+
+mcpServer.registerTool(
+  "delete_connection",
+  {
+    description: "Supprime une connexion d'une vue ArchiMate.",
+    inputSchema: {
+      view_id: z.string().describe("Identifiant de la vue"),
+      connection_id: z.string().describe("Identifiant de la connexion à supprimer"),
+    },
+  },
+  async ({ view_id, connection_id }) => {
+    await store.deleteViewConnection(await getActiveWorkspaceId(), view_id, connection_id);
+    return toContent({ deleted: true, identifier: connection_id });
+  }
 );
 
 // ---------------------------------------------------------------------------
@@ -310,6 +453,85 @@ mcpServer.registerTool(
     await store.deleteRelationship(await getActiveWorkspaceId(), relationship_id);
     return toContent({ deleted: true, identifier: relationship_id });
   }
+);
+
+mcpServer.registerTool(
+  "get_element_relationships",
+  {
+    description: "Retourne toutes les relations (entrantes et sortantes) d'un élément ArchiMate.",
+    inputSchema: { element_id: z.string().describe("Identifiant de l'élément") },
+  },
+  async ({ element_id }) =>
+    toContent(await store.getElementRelationships(await getActiveWorkspaceId(), element_id))
+);
+
+mcpServer.registerTool(
+  "list_elements_in_views",
+  {
+    description: "Retourne les identifiants des éléments représentés dans au moins une vue (utile pour distinguer les éléments placés des orphelins).",
+    inputSchema: {},
+  },
+  async () => toContent(await store.listElementsInViews(await getActiveWorkspaceId()))
+);
+
+// ---------------------------------------------------------------------------
+// Tools – Workspaces
+// ---------------------------------------------------------------------------
+
+mcpServer.registerTool(
+  "list_workspaces",
+  {
+    description: "Liste tous les workspaces disponibles et indique lequel est actif.",
+    inputSchema: {},
+  },
+  async () => toContent(await getWorkspaces())
+);
+
+mcpServer.registerTool(
+  "activate_workspace",
+  {
+    description: "Active un workspace par son identifiant. Toutes les opérations suivantes (éléments, vues…) portent sur ce workspace.",
+    inputSchema: { workspace_id: z.string().describe("Identifiant numérique du workspace (champ 'id' de list_workspaces)") },
+  },
+  async ({ workspace_id }) => toContent(await activateWorkspace(workspace_id))
+);
+
+// ---------------------------------------------------------------------------
+// Tools – Import / Export
+// ---------------------------------------------------------------------------
+
+mcpServer.registerTool(
+  "export_model",
+  {
+    description: "Exporte le modèle ArchiMate actif au format Open Exchange XML (chaîne de caractères).",
+    inputSchema: {},
+  },
+  async () => {
+    const xml = await store.exportModelToXml(await getActiveWorkspaceId());
+    return { content: [{ type: "text" as const, text: xml }] };
+  }
+);
+
+mcpServer.registerTool(
+  "import_model",
+  {
+    description: "Importe un modèle ArchiMate depuis du XML Open Exchange Format. Remplace le contenu du workspace actif. Retourne les métadonnées du modèle importé.",
+    inputSchema: { xml: z.string().describe("Contenu XML au format Open Exchange (archimate3_Model.xsd)") },
+  },
+  async ({ xml }) => toContent(await store.importModelFromXml(await getActiveWorkspaceId(), xml))
+);
+
+// ---------------------------------------------------------------------------
+// Tools – Viewpoints
+// ---------------------------------------------------------------------------
+
+mcpServer.registerTool(
+  "list_viewpoints",
+  {
+    description: `Retourne la liste des points de vue ArchiMate disponibles pour les vues. Valides: ${_VIEWPOINTS_STR}.`,
+    inputSchema: {},
+  },
+  async () => toContent([...VIEWPOINTS].sort())
 );
 
 // ---------------------------------------------------------------------------

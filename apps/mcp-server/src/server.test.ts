@@ -29,6 +29,8 @@ vi.mock("api/package.json", () => ({ default: { version: "0.0.0-test" } }));
 
 vi.mock("api/src/registry.js", () => ({
   getActiveWorkspaceId: vi.fn().mockResolvedValue(1),
+  getWorkspaces: vi.fn().mockResolvedValue([{ id: "1", name: "Default", active: true }]),
+  activateWorkspace: vi.fn().mockResolvedValue({ id: "2", name: "Other", active: true }),
 }));
 
 vi.mock("api/src/store.js", () => ({
@@ -42,10 +44,19 @@ vi.mock("api/src/store.js", () => ({
   listViews: vi.fn().mockResolvedValue([]),
   getViewById: vi.fn().mockResolvedValue(null),
   createView: vi.fn().mockResolvedValue({ identifier: "v1" }),
+  updateView: vi.fn().mockResolvedValue({ identifier: "v1", name: "Updated" }),
+  deleteView: vi.fn().mockResolvedValue(undefined),
   createNode: vi.fn().mockResolvedValue({ identifier: "n1" }),
+  updateViewNode: vi.fn().mockResolvedValue({ identifier: "n1" }),
+  deleteViewNode: vi.fn().mockResolvedValue(undefined),
+  createViewConnection: vi.fn().mockResolvedValue({ identifier: "c1" }),
+  updateViewConnection: vi.fn().mockResolvedValue({ identifier: "c1" }),
+  deleteViewConnection: vi.fn().mockResolvedValue(undefined),
   createElement: vi.fn().mockResolvedValue({ identifier: "e1" }),
   updateElement: vi.fn().mockResolvedValue({ identifier: "e1" }),
   deleteElement: vi.fn().mockResolvedValue(undefined),
+  getElementRelationships: vi.fn().mockResolvedValue([]),
+  listElementsInViews: vi.fn().mockResolvedValue(["e1", "e2"]),
   createRelationship: vi.fn().mockResolvedValue({ identifier: "r1" }),
   updateRelationship: vi.fn().mockResolvedValue({ identifier: "r1" }),
   deleteRelationship: vi.fn().mockResolvedValue(undefined),
@@ -55,6 +66,8 @@ vi.mock("api/src/store.js", () => ({
   updatePropertyDefinition: vi.fn().mockResolvedValue({ identifier: "pd1" }),
   deletePropertyDefinition: vi.fn().mockResolvedValue(undefined),
   loadModel: vi.fn().mockResolvedValue({ uuid: "m1", name: "Test", desc: null, version: null, views: [], elements: [], relationships: [], propertyDefinitions: [] }),
+  exportModelToXml: vi.fn().mockResolvedValue("<model/>"),
+  importModelFromXml: vi.fn().mockResolvedValue({ identifier: "m1", name: "Imported" }),
 }));
 
 vi.mock("api/src/renderer.js", () => ({
@@ -65,6 +78,7 @@ vi.mock("api/src/schemas.js", () => ({
   ELEMENT_TYPES: new Set(["ApplicationComponent", "BusinessActor"]),
   RELATIONSHIP_TYPES: new Set(["Association", "Realization"]),
   PROPERTY_DEFINITION_TYPES: new Set(["string", "number"]),
+  VIEWPOINTS: new Set(["Layered", "Application Structure", "Technology"]),
 }));
 
 // Set the MCP token env var before the app module is loaded so the auth middleware uses it
@@ -105,13 +119,18 @@ import { app } from "./server.js";
 import {
   getModelInfo, listElementTypes, listElements, getElementById,
   listRelationshipTypes, listRelationships, getRelationshipById,
-  listViews, getViewById, createView, createNode,
+  listViews, getViewById,
+  createView, updateView, deleteView,
+  createNode, updateViewNode, deleteViewNode,
+  createViewConnection, updateViewConnection, deleteViewConnection,
   createElement, updateElement, deleteElement,
+  getElementRelationships, listElementsInViews,
   createRelationship, updateRelationship, deleteRelationship,
   listPropertyDefinitions, getPropertyDefinitionById,
   createPropertyDefinition, updatePropertyDefinition, deletePropertyDefinition,
-  loadModel,
+  loadModel, exportModelToXml, importModelFromXml,
 } from "api/src/store.js";
+import { getWorkspaces, activateWorkspace } from "api/src/registry.js";
 import { renderViewToSvg } from "api/src/renderer.js";
 
 // ---------------------------------------------------------------------------
@@ -174,6 +193,23 @@ describe("POST /mcp/ (stateless)", () => {
     const res = await request(app).post("/mcp/").set("Authorization", `Bearer ${TEST_TOKEN}`).send({ method: "tools/call", params: {} });
     expect(res.status).toBe(200);
     expect(shared.handleReq).toHaveBeenCalledOnce();
+  });
+
+  it("returns 401 when Authorization header is wrong", async () => {
+    const res = await request(app).post("/mcp/").set("Authorization", "Bearer wrong-token").send({ method: "initialize", params: {} });
+    expect(res.status).toBe(401);
+    expect(res.body.error.message).toMatch(/authentifi/i);
+  });
+
+  it("returns 401 when Authorization header is absent", async () => {
+    const res = await request(app).post("/mcp/").send({ method: "initialize", params: {} });
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 500 when transport throws", async () => {
+    shared.handleReq.mockRejectedValueOnce(new Error("transport crash"));
+    const res = await request(app).post("/mcp/").set("Authorization", `Bearer ${TEST_TOKEN}`).send({ method: "initialize", params: {} });
+    expect(res.status).toBe(500);
   });
 
   it("builds a fresh McpServer per request (no shared instance → no 'Already connected')", async () => {
@@ -442,5 +478,141 @@ describe("MCP tool: render_view", () => {
     vi.mocked(loadModel).mockResolvedValueOnce(modelWithViews([]) as never);
     await expect(callTool("render_view", { view_id: "missing" }))
       .rejects.toThrow(/introuvable/i);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// New tools – View mutations
+// ---------------------------------------------------------------------------
+
+describe("MCP tool: update_view", () => {
+  it("updates view name", async () => {
+    const result = await callTool("update_view", { view_id: "v1", name: "New Name" });
+    expect(vi.mocked(updateView)).toHaveBeenCalledWith(1, "v1", { name: "New Name" });
+    expect(result.content[0].text).toContain("Updated");
+  });
+
+  it("passes only provided fields", async () => {
+    await callTool("update_view", { view_id: "v1", documentation: null });
+    expect(vi.mocked(updateView)).toHaveBeenCalledWith(1, "v1", { documentation: null });
+  });
+});
+
+describe("MCP tool: delete_view", () => {
+  it("deletes view and returns confirmation", async () => {
+    const result = await callTool("delete_view", { view_id: "v1" });
+    expect(vi.mocked(deleteView)).toHaveBeenCalledWith(1, "v1");
+    expect(JSON.parse(result.content[0].text)).toMatchObject({ deleted: true, identifier: "v1" });
+  });
+});
+
+describe("MCP tool: update_node", () => {
+  it("updates node position", async () => {
+    await callTool("update_node", { view_id: "v1", node_id: "n1", x: 10, y: 20 });
+    expect(vi.mocked(updateViewNode)).toHaveBeenCalledWith(1, "v1", "n1", { x: 10, y: 20 });
+  });
+});
+
+describe("MCP tool: delete_node", () => {
+  it("deletes node and returns confirmation", async () => {
+    const result = await callTool("delete_node", { view_id: "v1", node_id: "n1" });
+    expect(vi.mocked(deleteViewNode)).toHaveBeenCalledWith(1, "v1", "n1");
+    expect(JSON.parse(result.content[0].text)).toMatchObject({ deleted: true, identifier: "n1" });
+  });
+});
+
+describe("MCP tool: create_connection", () => {
+  it("creates connection between two nodes", async () => {
+    const result = await callTool("create_connection", { view_id: "v1", source: "n1", target: "n2" });
+    expect(vi.mocked(createViewConnection)).toHaveBeenCalledWith(1, "v1", expect.objectContaining({ source: "n1", target: "n2" }));
+    expect(result.content[0].text).toContain("c1");
+  });
+});
+
+describe("MCP tool: update_connection", () => {
+  it("updates connection name", async () => {
+    await callTool("update_connection", { view_id: "v1", connection_id: "c1", name: "flow" });
+    expect(vi.mocked(updateViewConnection)).toHaveBeenCalledWith(1, "v1", "c1", { name: "flow" });
+  });
+});
+
+describe("MCP tool: delete_connection", () => {
+  it("deletes connection and returns confirmation", async () => {
+    const result = await callTool("delete_connection", { view_id: "v1", connection_id: "c1" });
+    expect(vi.mocked(deleteViewConnection)).toHaveBeenCalledWith(1, "v1", "c1");
+    expect(JSON.parse(result.content[0].text)).toMatchObject({ deleted: true, identifier: "c1" });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// New tools – Element utilities
+// ---------------------------------------------------------------------------
+
+describe("MCP tool: get_element_relationships", () => {
+  it("returns relationships for an element", async () => {
+    const result = await callTool("get_element_relationships", { element_id: "e1" });
+    expect(vi.mocked(getElementRelationships)).toHaveBeenCalledWith(1, "e1");
+    expect(result.content[0].text).toBe("[]");
+  });
+});
+
+describe("MCP tool: list_elements_in_views", () => {
+  it("returns element ids present in views", async () => {
+    const result = await callTool("list_elements_in_views");
+    expect(vi.mocked(listElementsInViews)).toHaveBeenCalledWith(1);
+    expect(result.content[0].text).toContain("e1");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// New tools – Workspaces
+// ---------------------------------------------------------------------------
+
+describe("MCP tool: list_workspaces", () => {
+  it("lists available workspaces", async () => {
+    const result = await callTool("list_workspaces");
+    expect(vi.mocked(getWorkspaces)).toHaveBeenCalled();
+    expect(result.content[0].text).toContain("Default");
+  });
+});
+
+describe("MCP tool: activate_workspace", () => {
+  it("activates a workspace by id", async () => {
+    const result = await callTool("activate_workspace", { workspace_id: "2" });
+    expect(vi.mocked(activateWorkspace)).toHaveBeenCalledWith("2");
+    expect(result.content[0].text).toContain("Other");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// New tools – Import / Export
+// ---------------------------------------------------------------------------
+
+describe("MCP tool: export_model", () => {
+  it("returns XML string", async () => {
+    const result = await callTool("export_model");
+    expect(vi.mocked(exportModelToXml)).toHaveBeenCalledWith(1);
+    expect(result.content[0].text).toContain("<model/>");
+  });
+});
+
+describe("MCP tool: import_model", () => {
+  it("imports XML and returns model info", async () => {
+    const result = await callTool("import_model", { xml: "<model/>" });
+    expect(vi.mocked(importModelFromXml)).toHaveBeenCalledWith(1, "<model/>");
+    expect(result.content[0].text).toContain("Imported");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// New tools – Viewpoints
+// ---------------------------------------------------------------------------
+
+describe("MCP tool: list_viewpoints", () => {
+  it("returns sorted list of viewpoints", async () => {
+    const result = await callTool("list_viewpoints");
+    const vps = JSON.parse(result.content[0].text) as string[];
+    expect(vps).toContain("Layered");
+    expect(vps).toEqual([...vps].sort());
   });
 });

@@ -16,9 +16,11 @@ import {
   db,
   workspaces, elements, relationships, propertyDefinitions,
   elementProperties, relationshipProperties, views, nodes, connections,
-  buildNodeTree, modelFromDb,
+  buildNodeTree, modelFromDb, modelToDb,
 } from "@workspace/db";
 import type { ArchiModel } from "@workspace/db";
+import { parseOpenExchange } from "./oxf-parser.js";
+import { serializeToOpenExchange } from "./oxf-serializer.js";
 
 /** Load the full workspace model (object graph) — for render/export consumers. */
 export async function loadModel(wsId: number): Promise<ArchiModel> {
@@ -555,6 +557,19 @@ export async function getModelInfo(wsId: number): Promise<ModelInfo> {
     view_count: Number(vc?.c ?? 0),
     property_definition_count: Number(pc?.c ?? 0),
   };
+}
+
+export async function exportModelToXml(wsId: number): Promise<string> {
+  const model = await modelFromDb(wsId);
+  return serializeToOpenExchange(model);
+}
+
+export async function importModelFromXml(wsId: number, xml: string): Promise<ModelInfo> {
+  let model: ArchiModel;
+  try { model = parseOpenExchange(xml); }
+  catch (err) { throw new Error(`Erreur de parsing XML : ${(err as Error).message}`, { cause: err }); }
+  await modelToDb(wsId, model);
+  return getModelInfo(wsId);
 }
 
 // ---------------------------------------------------------------------------
