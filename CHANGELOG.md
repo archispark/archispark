@@ -10,10 +10,11 @@ All notable changes to this project will be documented in this file.
 
 - **ArchiMate type icons on the view canvas.** Every element on the web view canvas now shows its ArchiMate notation icon in the top-right corner (business process arrow, application component, node, gear/equipment, target/goal, etc.). The glyphs are extracted from Archi's own reference SVG exports (`models/exports/references/`) for fidelity, with hand-crafted standard notation for the few element types whose exports lacked a corner glyph (collaboration, interaction, role, contract, …). See `apps/web/components/archimate-icons.ts`.
 - **ArchiMate type icons in the server SVG export.** `renderViewToSvg` now draws the same corner type-icons as inline vectors for box-mode elements (replacing the never-populated PNG icon loader, which left server exports icon-less). The icon data is duplicated to `apps/api/src/archimate-icons.ts` (kept in sync with the web copy).
-- **"Télécharger SVG" button on the view canvas.** Alongside the existing PNG download, the canvas toolbar now offers an SVG download (client-side via `html-to-image`'s `toSvg`).
+- **Canvas image download menu.** A single "Télécharger ▾" button in the canvas toolbar opens a menu to export the view as **PNG or SVG** (client-side via `html-to-image`'s `toPng`/`toSvg`).
 
 ### Fixed
 
+- **MCP server build on Vercel (`TS2322` on `PropertyOut[]`).** `apps/mcp-server` pinned Zod v3 while `apps/api` (and the MCP SDK) use Zod v4, so a fresh install deduped a mixed Zod tree and the SDK inferred tool-handler property fields as optional, breaking the `tsc` build. Aligned `mcp-server` to `zod@^4.4.3` (matching the rest of the monorepo) so the whole tree resolves a single Zod version.
 - **Nested element positioning on the view canvas.** Child elements are now placed correctly inside their parent. The model stores absolute coordinates, but React Flow positions children relative to their parent, so nested nodes were double-offset by the parent's position. Coordinates are converted to parent-relative when building the canvas (and back to absolute when a node is dragged).
 - **Crash on the theme hotkey.** `ThemeHotkey` no longer throws `Cannot read properties of undefined (reading 'toLowerCase')` for keyboard events without a `key` (IME composition, autofill).
 

@@ -197,15 +197,17 @@ describe("ViewCanvas", () => {
     expect(document.querySelectorAll("path").length).toBeGreaterThan(0);
   });
 
-  it("offers PNG and SVG canvas downloads", () => {
+  it("offers PNG and SVG canvas downloads from a single menu", () => {
     render(<ViewCanvas viewId="v1" nodes={[makeNode("n1")]} connections={[]} />);
-    const png = screen.getByText("Télécharger PNG");
-    const svg = screen.getByText("Télécharger SVG");
-    expect(png).toBeInTheDocument();
-    expect(svg).toBeInTheDocument();
-    // Clicking exercises both format branches (export resolves to a no-op in jsdom).
-    fireEvent.click(png);
-    fireEvent.click(svg);
+    const trigger = screen.getByRole("button", { name: /Télécharger/ });
+    // Menu items are hidden until the menu is opened.
+    expect(screen.queryByRole("menuitem", { name: "PNG" })).toBeNull();
+
+    fireEvent.click(trigger);
+    fireEvent.click(screen.getByRole("menuitem", { name: "PNG" })); // closes after choosing
+
+    fireEvent.click(trigger);
+    fireEvent.click(screen.getByRole("menuitem", { name: "SVG" }));
   });
 
   it("maps connections with relationship type from map", () => {

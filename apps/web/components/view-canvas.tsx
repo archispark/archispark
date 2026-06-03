@@ -1,7 +1,7 @@
 "use client";
 import { useT } from "@/lib/i18n";
 
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type React from "react";
 import {
   ReactFlow,
@@ -627,9 +627,29 @@ function downloadDataUrl(dataUrl: string, filename: string) {
   a.click();
 }
 
-function DownloadButton({ format, filename }: { format: "png" | "svg"; filename: string }) {
+const DOWNLOAD_FORMATS: ReadonlyArray<{ format: "png" | "svg"; label: string }> = [
+  { format: "png", label: "PNG" },
+  { format: "svg", label: "SVG" },
+];
+
+function DownloadMenu() {
   const { getNodes } = useReactFlow();
-  const handleClick = () => {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDocClick = (e: MouseEvent) => {
+      // `Node` in this module is React Flow's node type; use the DOM Node here.
+      const target = e.target as globalThis.Node | null;
+      if (ref.current && target && !ref.current.contains(target)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, [open]);
+
+  const download = (format: "png" | "svg") => {
+    setOpen(false);
     const nodesBounds = getNodesBounds(getNodes());
     const viewport = getViewportForBounds(nodesBounds, IMAGE_WIDTH, IMAGE_HEIGHT, 0.5, 2, 0);
     const el = document.querySelector(".react-flow__viewport") as HTMLElement | null;
@@ -645,23 +665,67 @@ function DownloadButton({ format, filename }: { format: "png" | "svg"; filename:
       },
     };
     const toImage = format === "svg" ? toSvg : toPng;
-    toImage(el, options).then((dataUrl) => downloadDataUrl(dataUrl, filename));
+    toImage(el, options).then((dataUrl) => downloadDataUrl(dataUrl, `view.${format}`));
   };
+
   return (
-    <button
-      type="button"
-      onClick={handleClick}
-      style={{
-        padding: "4px 10px",
-        fontSize: 12,
-        background: "#fff",
-        border: "1px solid #b1b1b7",
-        borderRadius: 4,
-        cursor: "pointer",
-      }}
-    >
-      {format === "svg" ? "Télécharger SVG" : "Télécharger PNG"}
-    </button>
+    <div ref={ref} style={{ position: "relative" }}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        style={{
+          padding: "4px 10px",
+          fontSize: 12,
+          background: "#fff",
+          border: "1px solid #b1b1b7",
+          borderRadius: 4,
+          cursor: "pointer",
+        }}
+      >
+        Télécharger <span aria-hidden>▾</span>
+      </button>
+      {open && (
+        <div
+          role="menu"
+          style={{
+            position: "absolute",
+            top: "100%",
+            right: 0,
+            marginTop: 4,
+            background: "#fff",
+            border: "1px solid #b1b1b7",
+            borderRadius: 4,
+            overflow: "hidden",
+            boxShadow: "0 2px 6px rgba(0,0,0,0.12)",
+            minWidth: 120,
+            zIndex: 10,
+          }}
+        >
+          {DOWNLOAD_FORMATS.map(({ format, label }) => (
+            <button
+              key={format}
+              type="button"
+              role="menuitem"
+              onClick={() => download(format)}
+              style={{
+                display: "block",
+                width: "100%",
+                textAlign: "left",
+                padding: "5px 10px",
+                fontSize: 12,
+                background: "#fff",
+                border: "none",
+                cursor: "pointer",
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -1037,10 +1101,7 @@ function ViewCanvasInner({ viewId, nodes, connections, elements = [], elementNam
         <Background />
         <Controls />
         <Panel position="top-right">
-          <div style={{ display: "flex", gap: 6 }}>
-            <DownloadButton format="png" filename="view.png" />
-            <DownloadButton format="svg" filename="view.svg" />
-          </div>
+          <DownloadMenu />
         </Panel>
       </ReactFlow>
       </div>
