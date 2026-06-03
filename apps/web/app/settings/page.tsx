@@ -64,7 +64,7 @@ import { Plus, Trash2, Pencil, Users as UsersIcon, Settings as SettingsIcon, Shi
 import { exportModelUrl, importModel } from "@/lib/api";
 import { useDropzone } from "react-dropzone";
 
-type Tab = "members" | "roles" | "general" | "import-export" | "authentication" | "redis";
+type Tab = "members" | "roles" | "general" | "import-export" | "authentication" | "redis" | "mcp";
 
 export default function SettingsPage() {
   const { t } = useT();
@@ -152,6 +152,18 @@ export default function SettingsPage() {
           <Database className="size-3.5" />
           Redis
         </button>
+        <button
+          type="button"
+          onClick={() => setTab("mcp")}
+          className={`flex items-center gap-2 px-3 py-2 text-[13px] border-b-2 transition-colors ${
+            tab === "mcp"
+              ? "border-primary text-foreground font-medium"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <KeyRound className="size-3.5" />
+          MCP
+        </button>
       </div>
 
       {tab === "members" && <MembersTab />}
@@ -160,6 +172,7 @@ export default function SettingsPage() {
       {tab === "import-export" && <ImportExportTab />}
       {tab === "authentication" && <AuthenticationTab />}
       {tab === "redis" && <RedisTab />}
+      {tab === "mcp" && <McpTokenSection />}
     </div>
   );
 }
@@ -1029,8 +1042,6 @@ function GeneralTab() {
         </Dialog>
       </div>
 
-      <hr className="border-border" />
-      <McpTokenSection />
     </div>
   );
 }
@@ -1079,13 +1090,11 @@ function McpTokenSection() {
     : null;
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4 max-w-xl">
       <div>
-        <h2 className="text-sm font-medium flex items-center gap-1.5">
-          <KeyRound className="size-4" /> Token MCP
-        </h2>
-        <p className="text-[11px] text-muted-foreground mt-0.5">
-          Bearer token utilisé par les clients MCP (Claude Code, agents IA) pour s&apos;authentifier.
+        <h2 className="text-sm font-semibold">Token MCP</h2>
+        <p className="text-[12px] text-muted-foreground mt-0.5">
+          Bearer token utilisé par les clients MCP (Claude Code, agents IA) pour s&apos;authentifier sur le serveur MCP.
         </p>
       </div>
 
