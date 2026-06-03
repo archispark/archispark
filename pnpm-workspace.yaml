@@ -1,6 +1,9 @@
 packages:
   - "apps/*"
   - "packages/*"
+overrides:
+  esbuild: ">=0.24.3"
+  postcss: ">=8.5.10"
 allowBuilds:
   bcryptjs: true
   better-sqlite3: true
