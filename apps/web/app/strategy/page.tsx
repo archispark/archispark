@@ -429,6 +429,7 @@ export default function StrategyPage() {
 }
 
 function CourseRow({ course, indent }: { course: CourseGroup; indent?: boolean }) {
+  const { t } = useT();
   return (
     <div className={indent ? "" : "px-4 py-3"}>
       <div className="flex items-center gap-2 mb-2">

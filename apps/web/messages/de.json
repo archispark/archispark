@@ -113,6 +113,7 @@
   "views.delete_title": "Ansicht löschen",
   "views.delete_desc": "{name} löschen? Diese Aktion ist unwiderruflich.",
   "views.unnamed": "Ohne Namen",
+  "views.viewpoint": "Standpunkt",
   "views.no_viewpoint": "Kein (freie Ansicht)",
   "views.no_viewpoint_short": "Kein",
   "views.empty": "Keine Ansichten im Modell.",

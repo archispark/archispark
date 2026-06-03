@@ -113,6 +113,7 @@
   "views.delete_title": "Elimina vista",
   "views.delete_desc": "Eliminare {name}? Questa azione è irreversibile.",
   "views.unnamed": "Senza nome",
+  "views.viewpoint": "Punto di vista",
   "views.no_viewpoint": "Nessuno (vista libera)",
   "views.no_viewpoint_short": "Nessuno",
   "views.empty": "Nessuna vista nel modello.",

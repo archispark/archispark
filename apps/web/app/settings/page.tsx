@@ -1366,7 +1366,7 @@ function AuthenticationTab() {
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {(Object.keys(PROVIDER_TYPE_LABELS) as OAuthProviderType[]).map((pt) => (
-                      <SelectItem key={pt} value={pt}>{PROVIDER_TYPE_LABELS[t]}</SelectItem>
+                      <SelectItem key={pt} value={pt}>{PROVIDER_TYPE_LABELS[pt]}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>

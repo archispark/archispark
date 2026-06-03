@@ -30,7 +30,7 @@ export default function ViewDetailPage() {
         setElementTypes(new Map(elements.map((e) => [e.identifier, e.type])));
         setRelationshipsList(relationships);
         setRelationshipTypes(new Map(relationships.map((r) => [r.identifier, r.type])));
-        setRelationshipNames(new Map(relationships.filter((r) => r.name).map((r) => [r.identifier, r.name])));
+        setRelationshipNames(new Map(relationships.filter((r): r is typeof r & { name: string } => r.name !== null).map((r) => [r.identifier, r.name])));
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));

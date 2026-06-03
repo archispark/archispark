@@ -113,6 +113,7 @@
   "views.delete_title": "Delete view",
   "views.delete_desc": "Delete {name}? This action is irreversible.",
   "views.unnamed": "Untitled",
+  "views.viewpoint": "Viewpoint",
   "views.no_viewpoint": "None (free view)",
   "views.no_viewpoint_short": "None",
   "views.empty": "No views in the model.",

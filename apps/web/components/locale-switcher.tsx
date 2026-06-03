@@ -14,7 +14,7 @@ const LOCALES: { value: Locale; label: string; cc: string }[] = [
 
 export function LocaleSwitcher() {
   const { locale, setLocale } = useT();
-  const current = LOCALES.find((l) => l.value === locale) ?? LOCALES[0];
+  const current = LOCALES.find((l) => l.value === locale) ?? LOCALES[0]!;
 
   return (
     <div className="relative group">

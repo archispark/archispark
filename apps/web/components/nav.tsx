@@ -73,7 +73,7 @@ export function Nav({ onToggleSidebar }: { onToggleSidebar: () => void }) {
     }
     if (segments[index - 1] === "views") {
       const id = decodeURIComponent(seg);
-      const name = (breadcrumbView?.uuid === id ? breadcrumbView?.name : undefined)
+      const name = (breadcrumbView?.identifier === id ? breadcrumbView?.name : undefined)
         ?? (qc.getQueryData<{ uuid: string; name: string }>(["view", id]) as { name?: string } | undefined)?.name;
       if (name) return name;
       if (id === viewId) return "…";
