@@ -16,6 +16,8 @@
   "dependencies": {
     "@tanstack/react-query": "^5.100.14",
     "@tanstack/react-table": "^8.21.3",
+    "@vercel/analytics": "^2.0.1",
+    "@vercel/speed-insights": "^2.0.0",
     "@workspace/ui": "workspace:*",
     "@xyflow/react": "^12.10.2",
     "better-auth": "^1.6.11",
