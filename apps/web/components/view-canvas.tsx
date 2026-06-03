@@ -406,6 +406,8 @@ function pickHandles(src: NodeRect, tgt: NodeRect): { sourceHandle: string; targ
   return { sourceHandle: `s-${srcSide}`, targetHandle: `t-${tgtSide}` };
 }
 
+const HIDDEN_ELEMENT_TYPES = new Set(["AndJunction"]);
+
 function flattenNodes(
   nodes: NodeOut[] | null | undefined,
   elementNames: Map<string, string>,
@@ -421,6 +423,7 @@ function flattenNodes(
       (n.element_ref ? elementNames.get(n.element_ref) : undefined) ||
       "";
     const elementType = n.element_ref ? elementTypes.get(n.element_ref) : undefined;
+    if (elementType && HIDDEN_ELEMENT_TYPES.has(elementType)) return [];
     const hasChildren = Boolean(n.children && n.children.length > 0);
     // Model coordinates are absolute (from the diagram top-left), but React Flow
     // treats a child node's `position` as relative to its parent. Subtract the
@@ -457,9 +460,10 @@ function ElementPalette({ elements }: { elements: ElementOut[] }) {
 
   const grouped = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const filtered = q
+    const filtered = (q
       ? elements.filter((e) => e.name.toLowerCase().includes(q) || e.type.toLowerCase().includes(q))
-      : elements;
+      : elements
+    ).filter((e) => !HIDDEN_ELEMENT_TYPES.has(e.type));
     const map = new Map<string, ElementOut[]>();
     for (const el of filtered) {
       const list = map.get(el.type) ?? [];
@@ -771,6 +775,20 @@ function ViewCanvasInner({ viewId, nodes, connections, elements = [], elementNam
   const { screenToFlowPosition } = useReactFlow();
   const initialNodes = useMemo(() => flattenNodes(nodes, elementNames, elementTypes), [nodes, elementNames, elementTypes]);
 
+  // IDs of hidden nodes — edges connected to them are also filtered out.
+  const hiddenNodeIds = useMemo(() => {
+    const ids = new Set<string>();
+    function collect(ns: NodeOut[]) {
+      for (const n of ns ?? []) {
+        const t = n.element_ref ? elementTypes.get(n.element_ref) : undefined;
+        if (t && HIDDEN_ELEMENT_TYPES.has(t)) ids.add(n.identifier);
+        collect(n.children ?? []);
+      }
+    }
+    collect(nodes);
+    return ids;
+  }, [nodes, elementTypes]);
+
   const nodeRectMap = useMemo(() => {
     const map = new Map<string, NodeRect>();
     // Model coordinates are already absolute (from the diagram top-left), so
@@ -787,7 +805,7 @@ function ViewCanvasInner({ viewId, nodes, connections, elements = [], elementNam
 
   const initialEdges = useMemo<Edge[]>(
     () =>
-      connections.map((c) => {
+      connections.filter((c) => !hiddenNodeIds.has(c.source ?? "") && !hiddenNodeIds.has(c.target ?? "")).map((c) => {
         const src = c.source ? nodeRectMap.get(c.source) : undefined;
         const tgt = c.target ? nodeRectMap.get(c.target) : undefined;
         const handles =
@@ -813,7 +831,7 @@ function ViewCanvasInner({ viewId, nodes, connections, elements = [], elementNam
           data: { relationshipType: relType, relationshipRef: c.relationship_ref ?? null },
         };
       }),
-    [connections, nodeRectMap, relationshipTypes, relationshipNames]
+    [connections, nodeRectMap, relationshipTypes, relationshipNames, hiddenNodeIds]
   );
 
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState(initialNodes);
