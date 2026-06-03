@@ -1512,7 +1512,7 @@ function RedisTab() {
         <div>
           <h2 className="text-sm font-semibold">Redis</h2>
           <p className="text-[12px] text-muted-foreground mt-0.5">
-            Utilisé pour le rate limiting. Configuré via la variable d&apos;environnement <code>REDIS_URL</code>.
+            Utilisé pour le rate limiting et le cache de sessions. Configuré via <code>REDIS_URL</code>.
           </p>
         </div>
         <button
@@ -1535,63 +1535,28 @@ function RedisTab() {
 
       {!loading && status && (
         <div className="rounded-lg border border-border bg-card p-5 space-y-4">
-          {/* Connection status */}
           <div className="flex items-center gap-3">
-            <span
-              className={`size-3 rounded-full shrink-0 ${
-                !status.url_configured
-                  ? "bg-muted-foreground"
-                  : status.connected
-                  ? "bg-green-500"
-                  : "bg-destructive"
-              }`}
-            />
+            <span className={`size-3 rounded-full shrink-0 ${status.connected ? "bg-green-500" : "bg-destructive"}`} />
             <div>
-              <div className="text-sm font-medium">
-                {!status.url_configured
-                  ? "Non configuré"
-                  : status.connected
-                  ? "Connecté"
-                  : "Déconnecté"}
-              </div>
+              <div className="text-sm font-medium">{status.connected ? "Connecté" : "Déconnecté"}</div>
               <div className="text-[11px] text-muted-foreground">
-                {!status.url_configured
-                  ? "Aucune variable REDIS_URL définie — le rate limiting utilise la mémoire locale."
-                  : status.connected
-                  ? "La connexion Redis est active."
-                  : "Redis est configuré mais injoignable."}
+                {status.connected ? "La connexion Redis est active." : "Redis est injoignable."}
               </div>
             </div>
           </div>
 
-          {/* Host / Port */}
-          {status.url_configured && (
-            <div className="grid grid-cols-2 gap-3 pt-1">
-              <div className="flex flex-col gap-1">
-                <Label className="text-[11px]">Hôte</Label>
-                <div className="text-[13px] font-mono bg-muted rounded px-2 py-1">
-                  {status.host ?? "—"}
-                </div>
-              </div>
-              <div className="flex flex-col gap-1">
-                <Label className="text-[11px]">Port</Label>
-                <div className="text-[13px] font-mono bg-muted rounded px-2 py-1">
-                  {status.port ?? "—"}
-                </div>
-              </div>
+          <div className="grid grid-cols-2 gap-3 pt-1">
+            <div className="flex flex-col gap-1">
+              <Label className="text-[11px]">Hôte</Label>
+              <div className="text-[13px] font-mono bg-muted rounded px-2 py-1">{status.host ?? "—"}</div>
             </div>
-          )}
+            <div className="flex flex-col gap-1">
+              <Label className="text-[11px]">Port</Label>
+              <div className="text-[13px] font-mono bg-muted rounded px-2 py-1">{status.port ?? "—"}</div>
+            </div>
+          </div>
         </div>
       )}
-
-      <div className="rounded-lg border bg-muted/40 p-4 text-[12px] text-muted-foreground space-y-1.5">
-        <p className="font-medium text-foreground">Configuration</p>
-        <p>Définir <code>REDIS_URL</code> dans l&apos;environnement de l&apos;API avant le démarrage :</p>
-        <pre className="bg-background border border-border rounded px-3 py-2 text-[11px] overflow-x-auto">
-          REDIS_URL=redis://localhost:6379
-        </pre>
-        <p>Un redémarrage de l&apos;API est nécessaire après tout changement.</p>
-      </div>
     </div>
   );
 }

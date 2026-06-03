@@ -108,18 +108,6 @@ async function buildDbOAuthConfig() {
   }
 }
 
-function buildSecondaryStorage() {
-  const redis = getRedis();
-  if (!redis) return undefined;
-  return {
-    get: (key: string) => redis.get(key),
-    set: async (key: string, value: string, ttl?: number) => {
-      if (ttl) await redis.setex(key, ttl, value);
-      else await redis.set(key, value);
-    },
-    delete: async (key: string) => { await redis.del(key); },
-  };
-}
 /* v8 ignore stop */
 
 /**
@@ -146,7 +134,6 @@ export function computeTrustedOrigins(request?: Request): string[] {
 }
 
 function createAuthInstance(oauthConfig: unknown[]) {
-  const redis = getRedis();
   return betterAuth({
     baseURL: process.env.API_URL ?? "http://localhost:3000",
     basePath: "/auth",
@@ -161,7 +148,14 @@ function createAuthInstance(oauthConfig: unknown[]) {
       },
     }),
 
-    secondaryStorage: buildSecondaryStorage(),
+    secondaryStorage: {
+      get: (key: string) => getRedis().get(key),
+      set: async (key: string, value: string, ttl?: number) => {
+        if (ttl) await getRedis().setex(key, ttl, value);
+        else await getRedis().set(key, value);
+      },
+      delete: async (key: string) => { await getRedis().del(key); },
+    },
 
     emailAndPassword: {
       enabled: true,
@@ -202,8 +196,6 @@ function createAuthInstance(oauthConfig: unknown[]) {
     session: {
       expiresIn: 60 * 60 * 24,
       updateAge: 60 * 60,
-      // Cookie cache when Redis absent; Redis covers the caching layer otherwise
-      cookieCache: redis ? undefined : { enabled: true, maxAge: 60 * 5 },
     },
 
     trustedOrigins: computeTrustedOrigins,

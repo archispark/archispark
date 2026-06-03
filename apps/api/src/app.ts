@@ -139,12 +139,10 @@ app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors({ origin: true, credentials: true, methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"] }));
 app.use(express.json());
 
-function redisStore(prefix: string) {
-  const redis = getRedis();
-  if (!redis) return undefined;
+function redisStore(prefix: string): RedisStore {
   return new RedisStore({
     prefix,
-    sendCommand: (...args: string[]) => redis.call(args[0]!, ...args.slice(1)) as Promise<number>,
+    sendCommand: (...args: string[]) => getRedis().call(args[0]!, ...args.slice(1)) as Promise<number>,
   });
 }
 
@@ -462,14 +460,7 @@ app.delete("/settings/providers/:id", requireAdmin as express.RequestHandler, as
 // ---------------------------------------------------------------------------
 
 app.get("/settings/redis", requireAdmin as express.RequestHandler, async (_req: Request, res: Response) => {
-  const redis = getRedis();
-  const url = process.env["REDIS_URL"] ?? null;
-
-  if (!redis || !url) {
-    res.json({ connected: false, url_configured: false, host: null, port: null });
-    return;
-  }
-
+  const url = process.env["REDIS_URL"]!;
   let host: string | null = null;
   let port: number | null = null;
   try {
@@ -479,10 +470,10 @@ app.get("/settings/redis", requireAdmin as express.RequestHandler, async (_req: 
   } catch { /* malformed URL */ }
 
   try {
-    await redis.ping();
-    res.json({ connected: true, url_configured: true, host, port });
+    await getRedis().ping();
+    res.json({ connected: true, host, port });
   } catch {
-    res.json({ connected: false, url_configured: true, host, port });
+    res.json({ connected: false, host, port });
   }
 });
 

@@ -2,6 +2,10 @@
  * Unit tests for redis.ts — initRedis / getRedis branches.
  */
 import { describe, it, expect, vi, afterEach } from "vitest";
+
+// Annule le mock global de test-setup.ts pour tester l'implémentation réelle.
+vi.unmock("./redis.js");
+
 import { initRedis, getRedis } from "./redis.js";
 
 // vi.hoisted() runs before any import, so MockRedis is available when the
@@ -23,15 +27,14 @@ describe("redis", () => {
     vi.clearAllMocks();
   });
 
-  it("getRedis returns null when initRedis has not been called with a URL", () => {
-    expect(getRedis()).toBeNull();
+  it("getRedis throws when initRedis has not been called", () => {
+    expect(() => getRedis()).toThrow("[redis] Non initialisé");
   });
 
-  it("initRedis is a no-op when REDIS_URL is not set", () => {
+  it("initRedis throws when REDIS_URL is not set", () => {
     delete process.env["REDIS_URL"];
-    initRedis();
+    expect(() => initRedis()).toThrow("[redis] REDIS_URL non défini");
     expect(MockRedis).not.toHaveBeenCalled();
-    expect(getRedis()).toBeNull();
   });
 
   it("initRedis creates a Redis instance and registers event listeners when REDIS_URL is set", () => {

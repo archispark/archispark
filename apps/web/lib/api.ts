@@ -466,7 +466,6 @@ export const deleteProvider = (id: string) => del(`/settings/providers/${encodeU
 
 export interface RedisStatus {
   connected: boolean;
-  url_configured: boolean;
   host: string | null;
   port: number | null;
 }
