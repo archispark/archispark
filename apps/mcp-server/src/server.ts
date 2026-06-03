@@ -13,17 +13,20 @@ import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 
 import packageJson from "api/package.json" with { type: "json" };
-import { getActiveWorkspaceId } from "api/src/registry.js";
-import * as store from "api/src/store.js";
-import { renderViewToSvg } from "api/src/renderer.js";
+// Import from the `api` package root (its `.` export), not deep `api/src/*.js`
+// paths: the `.` export is traced into `dist/` by Vercel's bundler, the wildcard
+// `./src/*.js` export is not (caused ERR_MODULE_NOT_FOUND on the deployed lambda).
 import {
+  getActiveWorkspaceId,
+  store,
+  renderViewToSvg,
   ELEMENT_TYPES,
   RELATIONSHIP_TYPES,
   PROPERTY_DEFINITION_TYPES,
   type ElementUpdateIn,
   type RelationshipUpdateIn,
   type PropertyDefinitionUpdateIn,
-} from "api/src/schemas.js";
+} from "api";
 
 
 // ---------------------------------------------------------------------------
