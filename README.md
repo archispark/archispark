@@ -6,9 +6,10 @@ ArchiMate 3.1 modeling tool — REST API, MCP server, and web UI.
 
 | Layer | Tech |
 |-------|------|
-| API | Express + TypeScript ESM, PostgreSQL (Drizzle ORM), JWT auth |
-| MCP | `@modelcontextprotocol/sdk` — Streamable HTTP transport |
-| Web | Next.js 16, React, shadcn/ui |
+| API | Express + TypeScript ESM, PostgreSQL (Drizzle ORM), Better Auth (sessions) |
+| MCP | `@modelcontextprotocol/sdk` — Streamable HTTP transport, Bearer token auth |
+| Web | Next.js 16, React, shadcn/ui, Vercel Analytics + Speed Insights |
+| Cache | Redis (required) — session store + distributed rate-limiting |
 
 ## Quick start
 
@@ -25,6 +26,9 @@ On first run the API:
 Set the database connection with `DATABASE_URL` (the Supabase/Vercel
 `POSTGRES_URL_NON_POOLING` / `POSTGRES_URL` vars are also picked up as
 fallbacks). It defaults to `postgresql://archispark:archispark@localhost:5432/archispark`.
+
+Redis is **required** — set `REDIS_URL` (e.g. `redis://localhost:6379`). It is used
+for session storage and distributed rate-limiting. The API will fail to start without it.
 
 ## Demo seed
 
@@ -66,13 +70,14 @@ DB_DRIVER=postgres npx drizzle-kit generate   # writes to drizzle-pg/
 
 ## Authentication
 
-All routes except `POST /auth/login`, `GET /openapi.json`, `GET /docs`, and `POST|GET|DELETE /mcp/*` require a Bearer token.  
-Write operations (`POST`, `PUT`, `DELETE`) outside `/auth/*` and `/mcp/*` require the `admin` role.
+All routes except `/auth/*`, `GET /openapi.json`, and `GET /docs` require a valid session (cookie set by Better Auth sign-in).  
+Write operations (`POST`, `PUT`, `DELETE`) outside `/auth/*` require the `admin` role.
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| `POST` | `/auth/login` | public | Returns JWT (`{ token }`) |
-| `GET` | `/auth/me` | user | Returns current user |
+| `POST` | `/auth/sign-in/email` | public | Sign in — sets session cookie |
+| `POST` | `/auth/sign-out` | user | Sign out |
+| `GET` | `/me` | user | Returns current user |
 
 Default credentials: `admin` / `admin` (admin), `user` / `user` (read-only).
 
@@ -153,14 +158,30 @@ Default credentials: `admin` / `admin` (admin), `user` / `user` (read-only).
 Endpoint: `http://localhost:3001/mcp/`  
 Transport: Streamable HTTP (MCP 2025-03-26).
 
-Available tools: `get_model_info`, `list_element_types`, `list_elements`, `get_element`, `list_relationship_types`, `list_relationships`, `get_relationship`, `list_views`, `get_view`, `create_view`, `create_node`, `create_element`, `update_element`, `delete_element`, `create_relationship`, `update_relationship`, `delete_relationship`, `save_model`.
+**Authentication:** when `MCP_AUTH_TOKEN` is set on the server, all requests must include `Authorization: Bearer <token>`. Generate and copy the token from **Settings → MCP** in the web UI, then configure your client:
+
+```bash
+claude mcp add archimate \
+  http://localhost:3001/mcp/ \
+  --transport http \
+  --header "Authorization: Bearer <token>"
+```
+
+**Available tools (27):**  
+`get_model_info`, `list_element_types`, `list_elements`, `get_element`,  
+`list_relationship_types`, `list_relationships`, `get_relationship`,  
+`list_views`, `get_view`, `create_view`, `create_node`,  
+`create_element`, `update_element`, `delete_element`,  
+`create_relationship`, `update_relationship`, `delete_relationship`,  
+`list_property_definitions`, `get_property_definition`, `create_property_definition`, `update_property_definition`, `delete_property_definition`,  
+`render_view`, `save_model`.
 
 Interactive docs: `GET /docs` — OpenAPI spec: `GET /openapi.json`.
 
 ## Tests
 
 ```bash
-pnpm run -w test            # 624 tests across all packages
+pnpm run -w test            # 637 tests across all packages
 pnpm run -w test:coverage   # ≥80% coverage required
 ```
 

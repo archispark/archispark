@@ -8,6 +8,9 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- **MCP Bearer token authentication.** The MCP server now enforces a `Bearer` token when `MCP_AUTH_TOKEN` is set. The token is generated and displayed in **Settings → MCP** (new tab), with a masked display, copy button, and the ready-to-run `claude mcp add` command. The token is stored in the `mcp_tokens` table (migration `0002_mcp_tokens.sql`) and verified server-side on every request.
+- **Vercel Analytics and Speed Insights.** `@vercel/analytics` and `@vercel/speed-insights` are now included in the Next.js layout. Both are no-ops outside Vercel deployments.
+- **Settings → MCP tab.** Dedicated tab in the settings page for MCP token management (generate, regenerate, reveal, copy).
 - **ArchiMate type icons on the view canvas.** Every element on the web view canvas now shows its ArchiMate notation icon in the top-right corner (business process arrow, application component, node, gear/equipment, target/goal, etc.). The glyphs are extracted from Archi's own reference SVG exports (`models/exports/references/`) for fidelity, with hand-crafted standard notation for the few element types whose exports lacked a corner glyph (collaboration, interaction, role, contract, …). See `apps/web/components/archimate-icons.ts`.
 - **ArchiMate type icons in the server SVG export.** `renderViewToSvg` now draws the same corner type-icons as inline vectors for box-mode elements (replacing the never-populated PNG icon loader, which left server exports icon-less). The icon data is duplicated to `apps/api/src/archimate-icons.ts` (kept in sync with the web copy).
 - **Canvas image download menu.** A single "Télécharger ▾" button in the canvas toolbar opens a menu to export the view as **PNG or SVG** (client-side via `html-to-image`'s `toPng`/`toSvg`).
@@ -26,8 +29,13 @@ All notable changes to this project will be documented in this file.
 - The test suite now runs on [PGlite](https://pglite.dev) (in-memory WASM Postgres) instead of in-memory SQLite — full Postgres fidelity, no Docker. Auto-selected when `VITEST` is set (or `DB_CLIENT=pglite`).
 - Added the missing `oauth_providers` table to the Postgres schema/migrations (it previously existed only for SQLite, breaking OAuth-provider CRUD on Postgres).
 
+### Changed
+
+- **Redis is now mandatory.** `REDIS_URL` is required at startup — the API throws if it is absent. Redis is used for Better Auth's session store and distributed rate-limiting (`rate-limit-redis`). The optional fallback paths (cookie-based session cache, in-memory rate-limiter) have been removed. The `docker-compose.redis.yml` overlay is no longer optional for production deployments.
+
 ### Removed
 
+- **Redis optional fallback code.** `buildSecondaryStorage()`, the `cookieCache` conditional, and the `if (!redis)` guards in `redisStore()` and `/settings/redis` have been deleted. `getRedis()` now returns `Redis` (non-nullable) and throws if not initialised.
 - **The "SVG" tab on the web view detail page.** The view is now shown only as the interactive canvas; the server-rendered SVG is still available to the API/MCP via `GET /views/:id/image?format=svg`, just no longer surfaced in the UI.
 - **Server-side PNG export (`sharp`).** The `/views/:id/image?format=png` endpoint and the MCP `render_view` PNG option now serve/return SVG only. PNG export is handled client-side in the web UI (React Flow + `html-to-image`). This drops the native `sharp` dependency from the API, making it serverless/container friendly.
 
