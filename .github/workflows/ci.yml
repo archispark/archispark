@@ -8,7 +8,7 @@ on:
 
 jobs:
   test:
-    name: Test & Coverage
+    name: Continuous Integration
     runs-on: ubuntu-latest
 
     steps:
@@ -29,8 +29,8 @@ jobs:
         env:
           NODE_ENV: production
 
-      - name: Run tests with coverage
-        run: pnpm turbo run test:coverage --filter=api --filter=mcp-server --filter=web
+      - name: Run CI Tasks (Lint, Typecheck, Test)
+        run: pnpm turbo run lint typecheck test:coverage --filter=api --filter=mcp-server --filter=web
         env:
           NODE_ENV: test
 
@@ -47,43 +47,3 @@ jobs:
         if: github.event_name == 'pull_request'
         with:
           working-directory: apps/api
-
-  typecheck:
-    name: Typecheck
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: pnpm/action-setup@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Typecheck
-        run: pnpm --filter api exec tsc --noEmit
-
-  lint:
-    name: Lint
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: pnpm/action-setup@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Lint
-        run: pnpm turbo run lint
