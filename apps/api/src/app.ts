@@ -42,8 +42,8 @@ import type { Archiver, ZipOptions } from "archiver";
 import * as archiverNs from "archiver";
 const ZipArchive = (archiverNs as unknown as { ZipArchive: new (opts?: ZipOptions) => Archiver }).ZipArchive;
 import { AppError, ValidationError } from "./errors.js";
-import { db, oauthProviders, modelFromDb, modelToDb } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { db, oauthProviders, mcpTokens, modelFromDb, modelToDb } from "@workspace/db";
+import { desc, eq } from "drizzle-orm";
 import * as store from "./store.js";
 import {
   getActiveWorkspaceId,
@@ -484,6 +484,22 @@ app.get("/settings/redis", requireAdmin as express.RequestHandler, async (_req: 
   } catch {
     res.json({ connected: false, url_configured: true, host, port });
   }
+});
+
+// ---------------------------------------------------------------------------
+// MCP token routes
+// ---------------------------------------------------------------------------
+
+app.get("/settings/mcp-token", requireAdmin as express.RequestHandler, async (_req: Request, res: Response) => {
+  const [row] = await db.select({ token: mcpTokens.token, created_at: mcpTokens.createdAt }).from(mcpTokens).orderBy(desc(mcpTokens.id)).limit(1);
+  res.json(row ?? null);
+});
+
+app.post("/settings/mcp-token/regenerate", requireAdmin as express.RequestHandler, async (_req: Request, res: Response) => {
+  const token = randomUUID().replace(/-/g, "") + randomUUID().replace(/-/g, "");
+  await db.delete(mcpTokens);
+  const [row] = await db.insert(mcpTokens).values({ token }).returning({ token: mcpTokens.token, created_at: mcpTokens.createdAt });
+  res.json(row);
 });
 
 // ---------------------------------------------------------------------------

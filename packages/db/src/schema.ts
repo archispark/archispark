@@ -305,6 +305,17 @@ export const userRoles = pgTable("user_roles", {
 ]);
 
 // ---------------------------------------------------------------------------
+// MCP API tokens (Bearer token protecting the MCP server endpoint)
+// ---------------------------------------------------------------------------
+
+export const mcpTokens = pgTable("mcp_tokens", {
+  id:        serial("id").primaryKey(),
+  token:     text("token").notNull(),
+  createdAt: integer("created_at").notNull().default(sql`extract(epoch from now())::int`),
+  createdBy: text("created_by"),
+});
+
+// ---------------------------------------------------------------------------
 // OAuth / OIDC provider configurations (managed via admin UI)
 // ---------------------------------------------------------------------------
 

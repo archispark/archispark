@@ -23,7 +23,10 @@ import {
   updateProvider,
   deleteProvider,
   fetchRedisStatus,
+  fetchMcpToken,
+  regenerateMcpToken,
   type RedisStatus,
+  type McpTokenOut,
   ARCHIMATE_LAYERS,
   PERMISSION_FLAGS,
   type UserOut,
@@ -57,7 +60,7 @@ import {
   DialogTrigger,
 } from "@workspace/ui/components/dialog";
 import { DataTable } from "@/components/data-table";
-import { Plus, Trash2, Pencil, Users as UsersIcon, Settings as SettingsIcon, Shield, Upload, Download, KeyRound, Eye, EyeOff, Database, RefreshCw } from "lucide-react";
+import { Plus, Trash2, Pencil, Users as UsersIcon, Settings as SettingsIcon, Shield, Upload, Download, KeyRound, Eye, EyeOff, Database, RefreshCw, Copy, Check } from "lucide-react";
 import { exportModelUrl, importModel } from "@/lib/api";
 import { useDropzone } from "react-dropzone";
 
@@ -1025,6 +1028,127 @@ function GeneralTab() {
           </DialogContent>
         </Dialog>
       </div>
+
+      <hr className="border-border" />
+      <McpTokenSection />
+    </div>
+  );
+}
+
+function McpTokenSection() {
+  const [tokenData, setTokenData] = useState<McpTokenOut | null | undefined>(undefined);
+  const [loading, setLoading] = useState(true);
+  const [regenerating, setRegenerating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [visible, setVisible] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const load = useCallback(() => {
+    setLoading(true);
+    fetchMcpToken()
+      .then(setTokenData)
+      .catch((e) => setError((e as Error).message))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  async function handleRegenerate() {
+    setRegenerating(true);
+    setError(null);
+    try {
+      const data = await regenerateMcpToken();
+      setTokenData(data);
+      setVisible(true);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setRegenerating(false);
+    }
+  }
+
+  async function handleCopy() {
+    if (!tokenData?.token) return;
+    await navigator.clipboard.writeText(tokenData.token);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  const maskedToken = tokenData?.token
+    ? tokenData.token.slice(0, 8) + "•".repeat(24) + tokenData.token.slice(-8)
+    : null;
+
+  return (
+    <div className="space-y-3">
+      <div>
+        <h2 className="text-sm font-medium flex items-center gap-1.5">
+          <KeyRound className="size-4" /> Token MCP
+        </h2>
+        <p className="text-[11px] text-muted-foreground mt-0.5">
+          Bearer token utilisé par les clients MCP (Claude Code, agents IA) pour s&apos;authentifier.
+        </p>
+      </div>
+
+      {error && (
+        <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">
+          {error}
+        </div>
+      )}
+
+      {loading ? (
+        <div className="text-muted-foreground text-sm">Chargement…</div>
+      ) : tokenData ? (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1">
+              <Input
+                readOnly
+                value={visible ? tokenData.token : (maskedToken ?? "")}
+                className="font-mono text-xs pr-16"
+              />
+              <div className="absolute right-1 top-1/2 -translate-y-1/2 flex gap-0.5">
+                <button
+                  type="button"
+                  onClick={() => setVisible((v) => !v)}
+                  className="p-1.5 text-muted-foreground hover:text-foreground rounded"
+                  title={visible ? "Masquer" : "Afficher"}
+                >
+                  {visible ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCopy}
+                  className="p-1.5 text-muted-foreground hover:text-foreground rounded"
+                  title="Copier"
+                >
+                  {copied ? <Check className="size-3.5 text-emerald-600" /> : <Copy className="size-3.5" />}
+                </button>
+              </div>
+            </div>
+          </div>
+          {tokenData.created_at && (
+            <p className="text-[11px] text-muted-foreground">
+              Généré le {new Date(tokenData.created_at * 1000).toLocaleString()}
+            </p>
+          )}
+        </div>
+      ) : (
+        <p className="text-[12px] text-muted-foreground">Aucun token généré.</p>
+      )}
+
+      <Button variant="outline" size="sm" onClick={handleRegenerate} disabled={regenerating}>
+        <RefreshCw className="size-3.5" />
+        {regenerating ? "Génération…" : tokenData ? "Régénérer" : "Générer un token"}
+      </Button>
+
+      {tokenData && (
+        <div className="bg-muted/50 border border-border rounded-md px-3 py-2 space-y-1">
+          <p className="text-[11px] font-medium text-muted-foreground">Configuration Claude Code</p>
+          <code className="text-[10px] break-all text-foreground">
+            claude mcp add archimate-vercel https://archispark-mcp-server.vercel.app/mcp/ --transport http --header &quot;Authorization: Bearer &lt;token&gt;&quot;
+          </code>
+        </div>
+      )}
     </div>
   );
 }

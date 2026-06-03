@@ -15,6 +15,13 @@
       "when": 1780376722525,
       "tag": "0001_workable_surge",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1780500539129,
+      "tag": "0002_mcp_tokens",
+      "breakpoints": true
     }
   ]
 }

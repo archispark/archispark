@@ -473,6 +473,16 @@ export interface RedisStatus {
 
 export const fetchRedisStatus = () => get<RedisStatus>("/settings/redis");
 
+// --- MCP Token ---
+
+export interface McpTokenOut {
+  token: string;
+  created_at: number;
+}
+
+export const fetchMcpToken = () => get<McpTokenOut | null>("/settings/mcp-token");
+export const regenerateMcpToken = () => post<McpTokenOut>("/settings/mcp-token/regenerate", {});
+
 // --- Workspaces ---
 
 export const fetchWorkspaces = () => get<WorkspaceInfo[]>("/workspaces");

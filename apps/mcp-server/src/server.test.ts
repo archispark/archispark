@@ -67,6 +67,12 @@ vi.mock("api/src/schemas.js", () => ({
   PROPERTY_DEFINITION_TYPES: new Set(["string", "number"]),
 }));
 
+// Set the MCP token env var before the app module is loaded so the auth middleware uses it
+const TEST_TOKEN = vi.hoisted(() => {
+  process.env["MCP_AUTH_TOKEN"] = "test-mcp-bearer-token-fixture";
+  return "test-mcp-bearer-token-fixture";
+});
+
 // ---------------------------------------------------------------------------
 // Mock MCP SDK — capture registered tool handlers for direct testing
 // ---------------------------------------------------------------------------
@@ -113,7 +119,7 @@ import { renderViewToSvg } from "api/src/renderer.js";
 // ---------------------------------------------------------------------------
 
 async function initSession(): Promise<void> {
-  await request(app).post("/mcp/").send({ method: "initialize", params: {} });
+  await request(app).post("/mcp/").set("Authorization", `Bearer ${TEST_TOKEN}`).send({ method: "initialize", params: {} });
 }
 
 // Tools are registered lazily, per request (createMcpServer). Trigger one POST
@@ -158,14 +164,14 @@ describe("CORS middleware", () => {
 describe("POST /mcp/ (stateless)", () => {
   it("handles an initialize request via a fresh transport and returns 200", async () => {
     shared.handleReq.mockClear();
-    const res = await request(app).post("/mcp/").send({ method: "initialize", params: {} });
+    const res = await request(app).post("/mcp/").set("Authorization", `Bearer ${TEST_TOKEN}`).send({ method: "initialize", params: {} });
     expect(res.status).toBe(200);
     expect(shared.handleReq).toHaveBeenCalledOnce();
   });
 
   it("handles a request with no session header (no 400 — stateless)", async () => {
     shared.handleReq.mockClear();
-    const res = await request(app).post("/mcp/").send({ method: "tools/call", params: {} });
+    const res = await request(app).post("/mcp/").set("Authorization", `Bearer ${TEST_TOKEN}`).send({ method: "tools/call", params: {} });
     expect(res.status).toBe(200);
     expect(shared.handleReq).toHaveBeenCalledOnce();
   });
@@ -173,8 +179,8 @@ describe("POST /mcp/ (stateless)", () => {
   it("builds a fresh McpServer per request (no shared instance → no 'Already connected')", async () => {
     const { McpServer } = await import("@modelcontextprotocol/sdk/server/mcp.js");
     const before = vi.mocked(McpServer).mock.calls.length;
-    await request(app).post("/mcp/").send({ method: "initialize", params: {} });
-    await request(app).post("/mcp/").send({ method: "initialize", params: {} });
+    await request(app).post("/mcp/").set("Authorization", `Bearer ${TEST_TOKEN}`).send({ method: "initialize", params: {} });
+    await request(app).post("/mcp/").set("Authorization", `Bearer ${TEST_TOKEN}`).send({ method: "initialize", params: {} });
     // One McpServer constructed per request. A shared module-level instance
     // (the old bug) would construct zero here and throw "Already connected".
     expect(vi.mocked(McpServer).mock.calls.length).toBe(before + 2);

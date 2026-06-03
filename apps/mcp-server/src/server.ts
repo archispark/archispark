@@ -5,7 +5,7 @@
  * Reads from (and writes to) the same PostgreSQL database as the REST API.
  */
 
-import express, { type Request, type Response } from "express";
+import express, { type Request, type Response, type NextFunction } from "express";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { z } from "zod";
@@ -435,12 +435,36 @@ export const app: ReturnType<typeof express> = express();
 app.use((_req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*");
   res.header("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
-  res.header("Access-Control-Allow-Headers", "Content-Type, mcp-session-id");
+  res.header("Access-Control-Allow-Headers", "Content-Type, mcp-session-id, Authorization");
   if (_req.method === "OPTIONS") { res.sendStatus(204); return; }
   next();
 });
 
 app.use(express.json());
+
+// Stateless mode has no long-lived session, so the SSE stream (GET) and session
+// teardown (DELETE) are not applicable. Register before the auth middleware so
+// these short-circuit cleanly regardless of authentication.
+const methodNotAllowed = (_req: Request, res: Response): void => {
+  res.status(405).json({
+    jsonrpc: "2.0",
+    error: { code: -32000, message: "Method not allowed: this MCP server is stateless." },
+    id: null,
+  });
+};
+app.get("/mcp/", methodNotAllowed);
+app.delete("/mcp/", methodNotAllowed);
+
+app.use("/mcp/", (req: Request, res: Response, next: NextFunction) => {
+  const secret = process.env["MCP_AUTH_TOKEN"];
+  if (!secret) { next(); return; }
+  const provided = req.headers.authorization?.replace(/^Bearer\s+/i, "").trim();
+  if (provided !== secret) {
+    res.status(401).json({ jsonrpc: "2.0", error: { code: -32000, message: "Non authentifié." }, id: null });
+    return;
+  }
+  next();
+});
 
 app.post("/mcp/", async (req: Request, res: Response) => {
   try {
@@ -456,16 +480,3 @@ app.post("/mcp/", async (req: Request, res: Response) => {
     }
   }
 });
-
-// Stateless mode has no long-lived session, so the SSE stream (GET) and session
-// teardown (DELETE) are not applicable.
-const methodNotAllowed = (_req: Request, res: Response): void => {
-  res.status(405).json({
-    jsonrpc: "2.0",
-    error: { code: -32000, message: "Method not allowed: this MCP server is stateless." },
-    id: null,
-  });
-};
-
-app.get("/mcp/", methodNotAllowed);
-app.delete("/mcp/", methodNotAllowed);
