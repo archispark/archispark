@@ -5,11 +5,9 @@
  * Reads from (and writes to) the same PostgreSQL database as the REST API.
  */
 
-import { randomUUID } from "crypto";
 import express, { type Request, type Response } from "express";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 
 import packageJson from "api/package.json" with { type: "json" };
@@ -419,22 +417,14 @@ mcpServer.registerTool(
 }
 
 // ---------------------------------------------------------------------------
-// MCP HTTP transport (session-aware, streamable-http)
+// MCP HTTP transport (stateless streamable-http)
 // ---------------------------------------------------------------------------
-
-const mcpTransports: Record<string, StreamableHTTPServerTransport> = {};
-const mcpSessionTimestamps: Record<string, number> = {};
-const SESSION_TTL_MS = 30 * 60 * 1000;
-
-setInterval(() => {
-  const cutoff = Date.now() - SESSION_TTL_MS;
-  for (const id of Object.keys(mcpSessionTimestamps)) {
-    if ((mcpSessionTimestamps[id] ?? 0) < cutoff) {
-      delete mcpTransports[id];
-      delete mcpSessionTimestamps[id];
-    }
-  }
-}, 5 * 60 * 1000).unref();
+//
+// Each request gets a fresh server + transport with NO session id. This is the
+// robust pattern for serverless (Vercel): an in-memory session map can't be
+// shared across Lambda instances, so a client's follow-up request could land on
+// an instance that never saw its session. A stateless tool server (no
+// server->client streaming) doesn't need sessions, so we drop them entirely.
 
 // ---------------------------------------------------------------------------
 // Express app
@@ -453,46 +443,29 @@ app.use((_req, res, next) => {
 app.use(express.json());
 
 app.post("/mcp/", async (req: Request, res: Response) => {
-  const sessionId = req.headers["mcp-session-id"] as string | undefined;
-
-  if (sessionId && mcpTransports[sessionId]) {
-    mcpSessionTimestamps[sessionId] = Date.now();
-    await mcpTransports[sessionId]!.handleRequest(req, res, req.body);
-    return;
-  }
-
-  if (isInitializeRequest(req.body)) {
-    const transport = new StreamableHTTPServerTransport({
-      sessionIdGenerator: () => randomUUID(),
-      onsessioninitialized: (id) => {
-        mcpTransports[id] = transport;
-        mcpSessionTimestamps[id] = Date.now();
-      },
-    });
+  try {
+    const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
+    res.on("close", () => { void transport.close(); });
     const mcpServer = createMcpServer();
     await mcpServer.connect(transport);
     await transport.handleRequest(req, res, req.body);
-    return;
+  } catch (err) {
+    console.error("[mcp] request failed:", err);
+    if (!res.headersSent) {
+      res.status(500).json({ jsonrpc: "2.0", error: { code: -32603, message: "Internal server error" }, id: null });
+    }
   }
-
-  res.status(400).json({ error: "Bad Request: missing or invalid session." });
 });
 
-app.get("/mcp/", async (req: Request, res: Response) => {
-  const sessionId = req.headers["mcp-session-id"] as string | undefined;
-  if (sessionId && mcpTransports[sessionId]) {
-    await mcpTransports[sessionId]!.handleRequest(req, res);
-    return;
-  }
-  res.status(405).json({ error: "Method Not Allowed" });
-});
+// Stateless mode has no long-lived session, so the SSE stream (GET) and session
+// teardown (DELETE) are not applicable.
+const methodNotAllowed = (_req: Request, res: Response): void => {
+  res.status(405).json({
+    jsonrpc: "2.0",
+    error: { code: -32000, message: "Method not allowed: this MCP server is stateless." },
+    id: null,
+  });
+};
 
-app.delete("/mcp/", async (req: Request, res: Response) => {
-  const sessionId = req.headers["mcp-session-id"] as string | undefined;
-  if (sessionId && mcpTransports[sessionId]) {
-    await mcpTransports[sessionId]!.handleRequest(req, res);
-    delete mcpTransports[sessionId];
-    return;
-  }
-  res.status(404).json({ error: "Session not found" });
-});
+app.get("/mcp/", methodNotAllowed);
+app.delete("/mcp/", methodNotAllowed);

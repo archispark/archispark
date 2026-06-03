@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeAll } from "vitest";
 import request from "supertest";
 
 // ---------------------------------------------------------------------------
@@ -87,11 +87,8 @@ vi.mock("@modelcontextprotocol/sdk/server/streamableHttp.js", () => ({
   StreamableHTTPServerTransport: vi.fn().mockImplementation(function TransportMock(this: any, opts: any) {
     shared.setOnInit(opts.onsessioninitialized);
     this.handleRequest = shared.handleReq;
+    this.close = vi.fn();
   }),
-}));
-
-vi.mock("@modelcontextprotocol/sdk/types.js", () => ({
-  isInitializeRequest: vi.fn().mockReturnValue(false),
 }));
 
 // ---------------------------------------------------------------------------
@@ -99,7 +96,6 @@ vi.mock("@modelcontextprotocol/sdk/types.js", () => ({
 // ---------------------------------------------------------------------------
 
 import { app } from "./server.js";
-import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import {
   getModelInfo, listElementTypes, listElements, getElementById,
   listRelationshipTypes, listRelationships, getRelationshipById,
@@ -113,13 +109,16 @@ import {
 import { renderViewToSvg } from "api/src/renderer.js";
 
 // ---------------------------------------------------------------------------
-// Helper: POST initialize to create a session
+// Helper: a POST request triggers createMcpServer() → registers tools
 // ---------------------------------------------------------------------------
 
 async function initSession(): Promise<void> {
-  vi.mocked(isInitializeRequest).mockReturnValueOnce(true);
   await request(app).post("/mcp/").send({ method: "initialize", params: {} });
 }
+
+// Tools are registered lazily, per request (createMcpServer). Trigger one POST
+// up front so the tool-handler tests find their handlers regardless of order.
+beforeAll(async () => { await initSession(); });
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function callTool(name: string, args: Record<string, unknown> = {}): Promise<any> {
@@ -156,105 +155,45 @@ describe("CORS middleware", () => {
   });
 });
 
-describe("POST /mcp/", () => {
-  beforeEach(() => {
-    vi.mocked(isInitializeRequest).mockReturnValue(false);
+describe("POST /mcp/ (stateless)", () => {
+  it("handles an initialize request via a fresh transport and returns 200", async () => {
     shared.handleReq.mockClear();
-  });
-
-  it("returns 400 when no session and body is not an initialize request", async () => {
-    const res = await request(app).post("/mcp/").send({ method: "tools/call" });
-    expect(res.status).toBe(400);
-    expect(res.body.error).toMatch(/session/i);
-  });
-
-  it("returns 400 when unknown session-id and body is not initialize", async () => {
-    const res = await request(app)
-      .post("/mcp/")
-      .set("mcp-session-id", "unknown-session")
-      .send({ method: "tools/call" });
-    expect(res.status).toBe(400);
-  });
-
-  it("handles initialize request — creates session, calls transport.handleRequest", async () => {
-    vi.mocked(isInitializeRequest).mockReturnValueOnce(true);
     const res = await request(app).post("/mcp/").send({ method: "initialize", params: {} });
     expect(res.status).toBe(200);
     expect(shared.handleReq).toHaveBeenCalledOnce();
   });
 
-  it("reuses existing session when mcp-session-id header matches", async () => {
-    await initSession();
+  it("handles a request with no session header (no 400 — stateless)", async () => {
     shared.handleReq.mockClear();
-
-    const res = await request(app)
-      .post("/mcp/")
-      .set("mcp-session-id", "test-session-abc")
-      .send({ method: "tools/call" });
+    const res = await request(app).post("/mcp/").send({ method: "tools/call", params: {} });
     expect(res.status).toBe(200);
     expect(shared.handleReq).toHaveBeenCalledOnce();
   });
 
-  it("builds a fresh McpServer per initialize (no shared instance → no 'Already connected')", async () => {
+  it("builds a fresh McpServer per request (no shared instance → no 'Already connected')", async () => {
     const { McpServer } = await import("@modelcontextprotocol/sdk/server/mcp.js");
     const before = vi.mocked(McpServer).mock.calls.length;
-    await initSession();
-    await initSession();
-    // One McpServer constructed per initialize. A shared module-level instance
+    await request(app).post("/mcp/").send({ method: "initialize", params: {} });
+    await request(app).post("/mcp/").send({ method: "initialize", params: {} });
+    // One McpServer constructed per request. A shared module-level instance
     // (the old bug) would construct zero here and throw "Already connected".
     expect(vi.mocked(McpServer).mock.calls.length).toBe(before + 2);
   });
 });
 
-describe("GET /mcp/", () => {
-  beforeEach(() => shared.handleReq.mockClear());
-
-  it("returns 405 when no mcp-session-id header", async () => {
+describe("GET /mcp/ (stateless → 405)", () => {
+  it("returns 405 Method Not Allowed", async () => {
     const res = await request(app).get("/mcp/");
     expect(res.status).toBe(405);
-    expect(res.body.error).toMatch(/not allowed/i);
-  });
-
-  it("returns 405 when session-id does not exist in store", async () => {
-    const res = await request(app).get("/mcp/").set("mcp-session-id", "ghost");
-    expect(res.status).toBe(405);
-  });
-
-  it("delegates to transport.handleRequest when session exists", async () => {
-    await initSession();
-    shared.handleReq.mockClear();
-
-    const res = await request(app).get("/mcp/").set("mcp-session-id", "test-session-abc");
-    expect(res.status).toBe(200);
-    expect(shared.handleReq).toHaveBeenCalledOnce();
+    expect(res.body.error.message).toMatch(/stateless/i);
   });
 });
 
-describe("DELETE /mcp/", () => {
-  beforeEach(() => shared.handleReq.mockClear());
-
-  it("returns 404 when no mcp-session-id header", async () => {
+describe("DELETE /mcp/ (stateless → 405)", () => {
+  it("returns 405 Method Not Allowed", async () => {
     const res = await request(app).delete("/mcp/");
-    expect(res.status).toBe(404);
-    expect(res.body.error).toMatch(/session not found/i);
-  });
-
-  it("returns 404 when session-id does not exist in store", async () => {
-    const res = await request(app).delete("/mcp/").set("mcp-session-id", "unknown");
-    expect(res.status).toBe(404);
-  });
-
-  it("delegates to transport and removes session from store", async () => {
-    await initSession();
-    shared.handleReq.mockClear();
-
-    const res = await request(app).delete("/mcp/").set("mcp-session-id", "test-session-abc");
-    expect(res.status).toBe(200);
-    expect(shared.handleReq).toHaveBeenCalledOnce();
-
-    // session purged — next delete returns 404
-    const res2 = await request(app).delete("/mcp/").set("mcp-session-id", "test-session-abc");
-    expect(res2.status).toBe(404);
+    expect(res.status).toBe(405);
+    expect(res.body.error.message).toMatch(/stateless/i);
   });
 });
 
