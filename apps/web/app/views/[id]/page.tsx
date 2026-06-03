@@ -2,50 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { fetchView, fetchElements, fetchRelationships, viewImageUrl, type ViewDetail, type ElementOut, type RelationshipOut } from "@/lib/api";
-import { Button } from "@workspace/ui/components/button";
+import { fetchView, fetchElements, fetchRelationships, type ViewDetail, type ElementOut, type RelationshipOut } from "@/lib/api";
 import { ViewCanvas } from "@/components/view-canvas";
 import { ValidatorTable } from "@/components/validator-table";
 import { useT } from "@/lib/i18n";
-
-type Tab = "canvas" | "svg";
-
-function useImageBlob(id: string, format: "svg" | null) {
-  const [blobUrl, setBlobUrl] = useState<string | null>(null);
-  const [imgError, setImgError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!format) return;
-    let revoked = false;
-    setBlobUrl(null);
-    setImgError(null);
-
-    fetch(viewImageUrl(id), {
-      credentials: "include",
-    })
-      .then((res) => {
-        if (!res.ok) throw new Error(`Erreur ${res.status}`);
-        return res.blob();
-      })
-      .then((blob) => {
-        if (revoked) return;
-        setBlobUrl(URL.createObjectURL(blob));
-      })
-      .catch((err) => {
-        if (!revoked) setImgError((err as Error).message);
-      });
-
-    return () => {
-      revoked = true;
-      setBlobUrl((prev) => {
-        if (prev) URL.revokeObjectURL(prev);
-        return null;
-      });
-    };
-  }, [id, format]);
-
-  return { blobUrl, imgError };
-}
 
 export default function ViewDetailPage() {
   const { t } = useT();
@@ -60,10 +20,6 @@ export default function ViewDetailPage() {
   const [relationshipNames, setRelationshipNames] = useState<Map<string, string>>(new Map());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<Tab>("canvas");
-
-  const imageFormat = tab === "svg" ? tab : null;
-  const { blobUrl, imgError } = useImageBlob(id, imageFormat);
 
   useEffect(() => {
     Promise.all([fetchView(id), fetchElements(), fetchRelationships()])
@@ -111,55 +67,16 @@ export default function ViewDetailPage() {
             {t("views.nodes_count", { n: view?.nodes.length ?? 0, c: view?.connections.length ?? 0 })}
           </div>
         </div>
-        <div className="flex items-center gap-1.5">
-          <Button
-            variant={tab === "canvas" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setTab("canvas")}
-          >
-            Canvas
-          </Button>
-          <Button
-            variant={tab === "svg" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setTab("svg")}
-          >
-            SVG
-          </Button>
-        </div>
       </div>
 
       <div className="space-y-4">
         <div className="border border-border rounded-lg bg-card overflow-hidden">
           {view ? (
-            <div style={{ display: tab === "canvas" ? "block" : "none" }}>
-              <ViewCanvas viewId={id} nodes={view.nodes} connections={view.connections} elements={elementsList} elementNames={elementNames} elementTypes={elementTypes} relationshipTypes={relationshipTypes} relationshipNames={relationshipNames} />
-            </div>
-          ) : null}
-          {tab === "svg" ? (
-            imgError ? (
-              <div className="p-4 text-sm text-destructive bg-destructive/10 border-t border-destructive/30">
-                {t("common.error")} : {imgError}
-              </div>
-            ) : blobUrl ? (
-              <div className="overflow-auto p-4">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={blobUrl}
-                  alt={view?.name || "View"}
-                  className="max-w-full h-auto"
-                />
-              </div>
-            ) : (
-              <div className="flex items-center gap-2 text-muted-foreground p-8">
-                <div className="size-4 rounded-full border-2 border-border border-t-primary animate-spin shrink-0" />
-                {t("views.loading_image")}
-              </div>
-            )
+            <ViewCanvas viewId={id} nodes={view.nodes} connections={view.connections} elements={elementsList} elementNames={elementNames} elementTypes={elementTypes} relationshipTypes={relationshipTypes} relationshipNames={relationshipNames} />
           ) : null}
         </div>
 
-        {view && tab === "canvas" && (
+        {view && (
           <div className="border border-border rounded-lg bg-card overflow-hidden">
             <div className="px-4 pt-3 pb-1 text-[12px] font-medium text-muted-foreground uppercase tracking-wide">
               {t("views.validator_section")}

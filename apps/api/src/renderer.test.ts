@@ -319,6 +319,60 @@ describe("renderViewToSvg – specialized shapes (archi_type=1)", () => {
 });
 
 // ===========================================================================
+// Unit tests – renderViewToSvg: corner type-icons (box-mode elements)
+// ===========================================================================
+
+describe("renderViewToSvg – corner type-icons", () => {
+  const model = (type: string): ArchiModel => ({
+    uuid: "m1", name: "Model", desc: null, version: null,
+    elements: [{ uuid: "e1", name: type, type, desc: null, props: {} }],
+    relationships: [], propertyDefinitions: [], views: [],
+  });
+  const boxNode = (type: string) =>
+    makeNode({ uuid: "n1", ref: model(type).elements[0]!, archi_type: 0, x: 10, y: 20, w: 120, h: 55 });
+
+  it("draws a translated vector corner icon group for a box-mode element", () => {
+    const svg = renderViewToSvg(makeView({ nodes: [boxNode("Capability")] }), model("Capability"));
+    expect(svg).toContain('<g transform="translate(');
+  });
+
+  it("renders the Capability grid glyph (multiple small rects beside the body rect)", () => {
+    const svg = renderViewToSvg(makeView({ nodes: [boxNode("Capability")] }), model("Capability"));
+    // 1 body rect + 6 grid squares
+    expect((svg.match(/<rect /g) ?? []).length).toBeGreaterThanOrEqual(7);
+  });
+
+  it("no longer emits <image> PNG icon references", () => {
+    const svg = renderViewToSvg(makeView({ nodes: [boxNode("Capability")] }), model("Capability"));
+    expect(svg).not.toContain("<image");
+  });
+
+  it("does not add a corner icon group for an unknown element type", () => {
+    const svg = renderViewToSvg(makeView({ nodes: [boxNode("NotAType")] }), model("NotAType"));
+    expect(svg).not.toContain('<g transform="translate(');
+  });
+
+  it("emits the right SVG primitive for each glyph kind (polygon/circle/ellipse/path/filled)", () => {
+    // Box-mode (archi_type=0) elements get a corner icon; these types cover all
+    // IconPrim branches incl. the filled-vs-stroke fill ternary.
+    const types = ["BusinessProcess", "BusinessActor", "Gap", "WorkPackage", "Product", "Capability"];
+    const m: ArchiModel = {
+      uuid: "m1", name: "Model", desc: null, version: null,
+      elements: types.map((t, i) => ({ uuid: `e${i}`, name: t, type: t, desc: null, props: {} })),
+      relationships: [], propertyDefinitions: [], views: [],
+    };
+    const nodes = types.map((_, i) =>
+      makeNode({ uuid: `n${i}`, ref: m.elements[i]!, archi_type: 0, x: 10 + i * 150, y: 20, w: 120, h: 55 })
+    );
+    const svg = renderViewToSvg(makeView({ nodes }), m);
+    expect(svg).toContain("<polygon "); // BusinessProcess arrow
+    expect(svg).toContain("<circle ");  // BusinessActor head
+    expect(svg).toContain("<ellipse "); // Gap
+    expect(svg).toContain("<path ");    // BusinessActor body / WorkPackage
+  });
+});
+
+// ===========================================================================
 // Unit tests – renderViewToSvg: data-object shapes
 // ===========================================================================
 

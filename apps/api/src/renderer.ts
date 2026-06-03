@@ -7,41 +7,44 @@
  * the server no longer rasterizes to PNG, so there is no native image dependency.
  */
 
-import { readFileSync, existsSync } from "fs";
-import { dirname, join } from "path";
-import { fileURLToPath } from "url";
 import type { ArchiView, ArchiNode, ArchiModel } from "@workspace/db";
 import { escXml } from "./xml-escape.js";
 import { colord } from "colord";
-import { LRUCache } from "lru-cache";
-
-const _srcDir = dirname(fileURLToPath(import.meta.url));
-const ICONS_DIR = join(_srcDir, "..", "public", "images", "archimate");
+import { iconForType, type IconPrim } from "./archimate-icons.js";
 
 // ---------------------------------------------------------------------------
-// PNG icon loader (lazy, LRU-cached with max 200 entries)
+// ArchiMate type icons — drawn as inline vectors in the element's top-right
+// corner. Glyph coordinates are anchored to that corner (x ≤ 0, y ≥ 0), so the
+// group is translated to the element's (right, top) point. Data is extracted
+// from Archi's reference SVGs; see archimate-icons.ts.
 // ---------------------------------------------------------------------------
 
-const _iconCache = new LRUCache<string, string>({ max: 200 });
-
-function _typeToKebab(type: string): string {
-  return type.replace(/([A-Z])/g, (m, _, i) => (i > 0 ? `-${m.toLowerCase()}` : m.toLowerCase()));
+function iconPrimSvg(p: IconPrim, color: string): string {
+  const fill = "fill" in p && p.fill ? color : "none";
+  switch (p.tag) {
+    case "path":
+      return `<path d="${p.d}" fill="${fill}"/>`;
+    case "polygon":
+      return `<polygon points="${p.points.join(" ")}" fill="${fill}"/>`;
+    case "polyline":
+      return `<polyline points="${p.points.join(" ")}" fill="none"/>`;
+    case "circle":
+      return `<circle cx="${p.cx}" cy="${p.cy}" r="${p.r}" fill="${fill}"/>`;
+    case "ellipse":
+      return `<ellipse cx="${p.cx}" cy="${p.cy}" rx="${p.rx}" ry="${p.ry}" fill="${fill}"/>`;
+    case "rect":
+      return `<rect x="${p.x}" y="${p.y}" width="${p.width}" height="${p.height}"${p.rx ? ` rx="${p.rx}"` : ""} fill="${fill}"/>`;
+  }
 }
 
-function loadIconDataUri(type: string): string | null {
-  if (_iconCache.has(type)) {
-    const cached = _iconCache.get(type)!;
-    return cached === "" ? null : cached;
-  }
-  let uri = "";
-  const file = join(ICONS_DIR, `${_typeToKebab(type)}.png`);
-  try {
-    if (existsSync(file)) {
-      uri = `data:image/png;base64,${readFileSync(file).toString("base64")}`;
-    }
-  } catch { /* ignore */ }
-  _iconCache.set(type, uri);
-  return uri === "" ? null : uri;
+function renderTypeIcon(type: string, rightX: number, topY: number, color: string): string {
+  const prims = iconForType(type);
+  if (!prims) return "";
+  const body = prims.map((p) => iconPrimSvg(p, color)).join("");
+  return (
+    `<g transform="translate(${rightX.toFixed(1)} ${topY.toFixed(1)})" fill="none" ` +
+    `stroke="${color}" stroke-width="1" stroke-linejoin="round" stroke-linecap="round">${body}</g>`
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -718,13 +721,7 @@ export function renderViewToSvg(view: ArchiView, model: ArchiModel): string {
     if (kind === "grouping") {
       const { svg, nameY } = shapeGrouping(x, y, absW, absH, fill, stroke, lw, FONT);
       out.push(...svg);
-      const groupingIcon = loadIconDataUri(type);
-      if (groupingIcon) {
-        out.push(
-          `<image href="${groupingIcon}" x="${(x + absW - ICON_SIZE - ICON_PAD).toFixed(1)}" ` +
-          `y="${(y + ICON_PAD).toFixed(1)}" width="${ICON_SIZE}" height="${ICON_SIZE}"/>`
-        );
-      }
+      out.push(renderTypeIcon(type, x + absW, y, stroke));
       if (name) {
         out.push(
           `<text x="${x + 5}" y="${nameY}" font-family="${FONT}" font-size="11" ` +
@@ -751,13 +748,11 @@ export function renderViewToSvg(view: ArchiView, model: ArchiModel): string {
 
     out.push(...shape.svg);
 
-    // PNG icon for box-mode shapes; specialized icon-mode shapes are the notation
-    const iconUri = (kind === "rect" || kind === "data-object") ? loadIconDataUri(type) : null;
-    if (iconUri && shape.iconX !== null && shape.iconY !== null) {
-      out.push(
-        `<image href="${iconUri}" x="${shape.iconX.toFixed(1)}" y="${shape.iconY.toFixed(1)}" ` +
-        `width="${ICON_SIZE}" height="${ICON_SIZE}"/>`
-      );
+    // Corner type-icon for box-mode (rect) shapes. The specialized icon-mode
+    // shapes (service, event, component, …) and data-object already carry their
+    // own notation, so they don't get a corner icon.
+    if (kind === "rect") {
+      out.push(renderTypeIcon(type, x + absW, y, stroke));
     }
 
     // Name label — top when container has nested children, centered otherwise

@@ -1,6 +1,6 @@
-// ArchiMate type icons — web-canvas copy.
-// Kept in sync with apps/api/src/archimate-icons.ts (identical data); the two
-// apps don't share a workspace package, so the generated data is duplicated.
+// ArchiMate type icons — server-renderer copy.
+// Kept in sync with apps/web/components/archimate-icons.ts (identical data); the
+// two apps don't share a workspace package, so the generated data is duplicated.
 // Glyphs extracted from Archi's reference SVG exports (models/exports/references),
 // normalised to a top-right-corner frame: x in roughly [-26,0] (left of the
 // element's right edge), y in [0,28] (below its top edge). A handful of element

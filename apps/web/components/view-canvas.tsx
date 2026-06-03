@@ -27,7 +27,7 @@ import {
   type EdgeProps,
   type NodeProps,
 } from "@xyflow/react";
-import { toPng } from "html-to-image";
+import { toPng, toSvg } from "html-to-image";
 import "@xyflow/react/dist/style.css";
 import {
   type NodeOut,
@@ -627,14 +627,14 @@ function downloadDataUrl(dataUrl: string, filename: string) {
   a.click();
 }
 
-function DownloadButton({ filename = "view.png" }: { filename?: string }) {
+function DownloadButton({ format, filename }: { format: "png" | "svg"; filename: string }) {
   const { getNodes } = useReactFlow();
   const handleClick = () => {
     const nodesBounds = getNodesBounds(getNodes());
     const viewport = getViewportForBounds(nodesBounds, IMAGE_WIDTH, IMAGE_HEIGHT, 0.5, 2, 0);
     const el = document.querySelector(".react-flow__viewport") as HTMLElement | null;
     if (!el) return;
-    toPng(el, {
+    const options = {
       backgroundColor: "#ffffff",
       width: IMAGE_WIDTH,
       height: IMAGE_HEIGHT,
@@ -643,7 +643,9 @@ function DownloadButton({ filename = "view.png" }: { filename?: string }) {
         height: `${IMAGE_HEIGHT}px`,
         transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.zoom})`,
       },
-    }).then((dataUrl) => downloadDataUrl(dataUrl, filename));
+    };
+    const toImage = format === "svg" ? toSvg : toPng;
+    toImage(el, options).then((dataUrl) => downloadDataUrl(dataUrl, filename));
   };
   return (
     <button
@@ -658,7 +660,7 @@ function DownloadButton({ filename = "view.png" }: { filename?: string }) {
         cursor: "pointer",
       }}
     >
-      Télécharger PNG
+      {format === "svg" ? "Télécharger SVG" : "Télécharger PNG"}
     </button>
   );
 }
@@ -1035,7 +1037,10 @@ function ViewCanvasInner({ viewId, nodes, connections, elements = [], elementNam
         <Background />
         <Controls />
         <Panel position="top-right">
-          <DownloadButton />
+          <div style={{ display: "flex", gap: 6 }}>
+            <DownloadButton format="png" filename="view.png" />
+            <DownloadButton format="svg" filename="view.svg" />
+          </div>
         </Panel>
       </ReactFlow>
       </div>

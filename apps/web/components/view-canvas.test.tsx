@@ -17,15 +17,18 @@ vi.mock("@xyflow/react", () => ({
     edges,
     nodeTypes = {},
     edgeTypes = {},
+    children,
   }: {
     nodes: Array<{ id: string; type?: string; data: Record<string, unknown>; selected?: boolean; position?: { x: number; y: number }; parentId?: string }>;
     edges: Array<{ id: string; type?: string; data: Record<string, unknown>; label?: unknown }>;
     nodeTypes?: Record<string, NodeRenderer>;
     edgeTypes?: Record<string, EdgeRenderer>;
+    children?: React.ReactNode;
   }) => (
     <div data-testid="reactflow">
       <span data-testid="node-count">{nodes.length}</span>
       <span data-testid="edge-count">{edges.length}</span>
+      {children}
       {nodes.map((n) => {
         const Comp = n.type ? nodeTypes[n.type] : undefined;
         return Comp ? (
@@ -81,6 +84,7 @@ vi.mock("@xyflow/react", () => ({
 
 vi.mock("html-to-image", () => ({
   toPng: vi.fn(() => Promise.resolve("")),
+  toSvg: vi.fn(() => Promise.resolve("")),
 }));
 
 const makeNode = (id: string, overrides: Partial<NodeOut> = {}): NodeOut => ({
@@ -169,6 +173,39 @@ describe("ViewCanvas", () => {
     expect(gcEl.getAttribute("data-x")).toBe("53"); // 233 - 180
     expect(gcEl.getAttribute("data-y")).toBe("108"); // 252 - 144
     expect(gcEl.getAttribute("data-parent")).toBe("child");
+  });
+
+  it("renders ArchiMate type-icon primitives for nodes with known element types", () => {
+    const nodes = [
+      makeNode("p", { element_ref: "e-process" }), // polygon glyph
+      makeNode("c", { element_ref: "e-collab" }), // circle glyph
+      makeNode("cap", { element_ref: "e-cap" }), // rect glyph
+      makeNode("art", { element_ref: "e-art" }), // path glyph
+      makeNode("gap", { element_ref: "e-gap" }), // ellipse glyph
+    ];
+    const elementTypes = new Map([
+      ["e-process", "BusinessProcess"],
+      ["e-collab", "BusinessCollaboration"],
+      ["e-cap", "Capability"],
+      ["e-art", "Artifact"],
+      ["e-gap", "Gap"],
+    ]);
+    render(<ViewCanvas nodes={nodes} connections={[]} elementTypes={elementTypes} />);
+    expect(document.querySelectorAll("polygon").length).toBeGreaterThan(0);
+    expect(document.querySelectorAll("circle").length).toBeGreaterThan(0);
+    expect(document.querySelectorAll("ellipse").length).toBeGreaterThan(0);
+    expect(document.querySelectorAll("path").length).toBeGreaterThan(0);
+  });
+
+  it("offers PNG and SVG canvas downloads", () => {
+    render(<ViewCanvas viewId="v1" nodes={[makeNode("n1")]} connections={[]} />);
+    const png = screen.getByText("Télécharger PNG");
+    const svg = screen.getByText("Télécharger SVG");
+    expect(png).toBeInTheDocument();
+    expect(svg).toBeInTheDocument();
+    // Clicking exercises both format branches (export resolves to a no-op in jsdom).
+    fireEvent.click(png);
+    fireEvent.click(svg);
   });
 
   it("maps connections with relationship type from map", () => {
