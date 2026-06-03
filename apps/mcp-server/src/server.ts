@@ -47,7 +47,12 @@ function toContent(data: unknown): { content: [{ type: "text"; text: string }] }
 
 const { version } = packageJson;
 
-const mcpServer = new McpServer({ name: "ArchiMate MCP", version });
+// Build a fresh MCP server (with all tools registered) per HTTP session. A single
+// McpServer can only be connected to one transport at a time, so sharing one
+// instance across sessions throws "Already connected to a transport" — which on
+// serverless means every request after the first on a warm instance 500s.
+function createMcpServer(): McpServer {
+  const mcpServer = new McpServer({ name: "ArchiMate MCP", version });
 
 // ---------------------------------------------------------------------------
 // Read tools
@@ -410,6 +415,9 @@ mcpServer.registerTool(
   }
 );
 
+  return mcpServer;
+}
+
 // ---------------------------------------------------------------------------
 // MCP HTTP transport (session-aware, streamable-http)
 // ---------------------------------------------------------------------------
@@ -461,6 +469,7 @@ app.post("/mcp/", async (req: Request, res: Response) => {
         mcpSessionTimestamps[id] = Date.now();
       },
     });
+    const mcpServer = createMcpServer();
     await mcpServer.connect(transport);
     await transport.handleRequest(req, res, req.body);
     return;

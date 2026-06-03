@@ -194,6 +194,16 @@ describe("POST /mcp/", () => {
     expect(res.status).toBe(200);
     expect(shared.handleReq).toHaveBeenCalledOnce();
   });
+
+  it("builds a fresh McpServer per initialize (no shared instance → no 'Already connected')", async () => {
+    const { McpServer } = await import("@modelcontextprotocol/sdk/server/mcp.js");
+    const before = vi.mocked(McpServer).mock.calls.length;
+    await initSession();
+    await initSession();
+    // One McpServer constructed per initialize. A shared module-level instance
+    // (the old bug) would construct zero here and throw "Already connected".
+    expect(vi.mocked(McpServer).mock.calls.length).toBe(before + 2);
+  });
 });
 
 describe("GET /mcp/", () => {
