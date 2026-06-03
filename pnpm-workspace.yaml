@@ -14,3 +14,11 @@ minimumReleaseAgeExclude:
   - shadcn@4.8.1
   - eslint-plugin-turbo@2.9.16
   - lucide-react@1.17.0
+  - '@better-auth/core@1.6.14'
+  - '@better-auth/drizzle-adapter@1.6.14'
+  - '@better-auth/kysely-adapter@1.6.14'
+  - '@better-auth/memory-adapter@1.6.14'
+  - '@better-auth/mongo-adapter@1.6.14'
+  - '@better-auth/prisma-adapter@1.6.14'
+  - '@better-auth/telemetry@1.6.14'
+  - better-auth@1.6.14
