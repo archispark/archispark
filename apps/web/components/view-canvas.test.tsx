@@ -18,7 +18,7 @@ vi.mock("@xyflow/react", () => ({
     nodeTypes = {},
     edgeTypes = {},
   }: {
-    nodes: Array<{ id: string; type?: string; data: Record<string, unknown>; selected?: boolean }>;
+    nodes: Array<{ id: string; type?: string; data: Record<string, unknown>; selected?: boolean; position?: { x: number; y: number }; parentId?: string }>;
     edges: Array<{ id: string; type?: string; data: Record<string, unknown>; label?: unknown }>;
     nodeTypes?: Record<string, NodeRenderer>;
     edgeTypes?: Record<string, EdgeRenderer>;
@@ -28,7 +28,17 @@ vi.mock("@xyflow/react", () => ({
       <span data-testid="edge-count">{edges.length}</span>
       {nodes.map((n) => {
         const Comp = n.type ? nodeTypes[n.type] : undefined;
-        return Comp ? <Comp key={n.id} id={n.id} data={n.data} selected={n.selected ?? false} /> : null;
+        return Comp ? (
+          <div
+            key={n.id}
+            data-testid={`node-${n.id}`}
+            data-x={n.position?.x}
+            data-y={n.position?.y}
+            data-parent={n.parentId ?? ""}
+          >
+            <Comp id={n.id} data={n.data} selected={n.selected ?? false} />
+          </div>
+        ) : null;
       })}
       {edges.map((e) => {
         const Comp = e.type ? edgeTypes[e.type] : undefined;
@@ -134,6 +144,31 @@ describe("ViewCanvas", () => {
     const root = makeNode("r", { children: [child] });
     render(<ViewCanvas nodes={[root]} connections={[]} />);
     expect(screen.getByTestId("node-count").textContent).toBe("3");
+  });
+
+  it("converts absolute model coordinates to parent-relative React Flow positions", () => {
+    // Model coords are absolute. A child at (180,144) inside a parent at
+    // (144,96) must render at the relative offset (36,48); a grandchild at
+    // (233,252) inside that child must be relative to the child, not the root.
+    const grandchild = makeNode("gc", { x: 233, y: 252 });
+    const child = makeNode("child", { x: 180, y: 144, children: [grandchild] });
+    const parent = makeNode("parent", { x: 144, y: 96, children: [child] });
+    render(<ViewCanvas nodes={[parent]} connections={[]} />);
+
+    const parentEl = screen.getByTestId("node-parent");
+    expect(parentEl.getAttribute("data-x")).toBe("144");
+    expect(parentEl.getAttribute("data-y")).toBe("96");
+    expect(parentEl.getAttribute("data-parent")).toBe("");
+
+    const childEl = screen.getByTestId("node-child");
+    expect(childEl.getAttribute("data-x")).toBe("36"); // 180 - 144
+    expect(childEl.getAttribute("data-y")).toBe("48"); // 144 - 96
+    expect(childEl.getAttribute("data-parent")).toBe("parent");
+
+    const gcEl = screen.getByTestId("node-gc");
+    expect(gcEl.getAttribute("data-x")).toBe("53"); // 233 - 180
+    expect(gcEl.getAttribute("data-y")).toBe("108"); // 252 - 144
+    expect(gcEl.getAttribute("data-parent")).toBe("child");
   });
 
   it("maps connections with relationship type from map", () => {

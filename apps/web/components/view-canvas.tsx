@@ -42,6 +42,7 @@ import {
   updateViewNode,
 } from "@/lib/api";
 import { allowedRelationships } from "@/lib/archimate-rules";
+import { iconForType, type IconPrim } from "./archimate-icons";
 
 const HANDLE_STYLE: React.CSSProperties = {
   width: 8,
@@ -97,6 +98,48 @@ function colorFor(elementType?: string): { bg: string; border: string } {
 
 const ViewIdContext = createContext<string | undefined>(undefined);
 
+function renderIconPrim(p: IconPrim, i: number) {
+  const fill = "fill" in p && p.fill ? "currentColor" : "none";
+  switch (p.tag) {
+    case "path":
+      return <path key={i} d={p.d} fill={fill} />;
+    case "polygon":
+      return <polygon key={i} points={p.points.join(" ")} fill={fill} />;
+    case "polyline":
+      return <polyline key={i} points={p.points.join(" ")} fill="none" />;
+    case "circle":
+      return <circle key={i} cx={p.cx} cy={p.cy} r={p.r} fill={fill} />;
+    case "ellipse":
+      return <ellipse key={i} cx={p.cx} cy={p.cy} rx={p.rx} ry={p.ry} fill={fill} />;
+    case "rect":
+      return <rect key={i} x={p.x} y={p.y} width={p.width} height={p.height} rx={p.rx} fill={fill} />;
+  }
+}
+
+// The ArchiMate type icon, drawn in the element's top-right corner. The glyph
+// coordinates are anchored to the corner (x ≤ 0, y ≥ 0), so the overlay SVG is
+// pinned flush to the top-right and its viewBox places x=0 at the right edge.
+function ArchimateTypeIcon({ elementType, color }: { elementType?: string; color: string }) {
+  const prims = iconForType(elementType);
+  if (!prims) return null;
+  return (
+    <svg
+      width={28}
+      height={30}
+      viewBox="-28 0 28 30"
+      style={{ position: "absolute", top: 2, right: 2, overflow: "visible", pointerEvents: "none", color }}
+      stroke="currentColor"
+      strokeWidth={1}
+      fill="none"
+      strokeLinejoin="round"
+      strokeLinecap="round"
+      aria-hidden
+    >
+      {prims.map(renderIconPrim)}
+    </svg>
+  );
+}
+
 function ArchiNode({ id, data, selected }: NodeProps) {
   const viewId = useContext(ViewIdContext);
   const elementType = (data.elementType as string | undefined) ?? undefined;
@@ -134,6 +177,7 @@ function ArchiNode({ id, data, selected }: NodeProps) {
         textAlign: "center",
         overflow: "hidden",
         cursor: "grab",
+        position: "relative",
       };
   return (
     <div style={containerStyle}>
@@ -158,6 +202,7 @@ function ArchiNode({ id, data, selected }: NodeProps) {
       <Handle type="target" position={Position.Right} id="t-right" style={HANDLE_STYLE} />
       <Handle type="target" position={Position.Bottom} id="t-bottom" style={HANDLE_STYLE} />
       <Handle type="target" position={Position.Left} id="t-left" style={HANDLE_STYLE} />
+      <ArchimateTypeIcon elementType={elementType} color={border} />
       {hasChildren ? (
         <span style={{ position: "absolute", top: 3, left: 6, fontWeight: 500, pointerEvents: "none" }}>
           {String(data.label ?? "")}
@@ -365,7 +410,9 @@ function flattenNodes(
   nodes: NodeOut[] | null | undefined,
   elementNames: Map<string, string>,
   elementTypes: Map<string, string>,
-  parentId?: string
+  parentId?: string,
+  parentAbsX = 0,
+  parentAbsY = 0
 ): Node[] {
   if (!nodes) return [];
   return nodes.flatMap((n) => {
@@ -375,15 +422,20 @@ function flattenNodes(
       "";
     const elementType = n.element_ref ? elementTypes.get(n.element_ref) : undefined;
     const hasChildren = Boolean(n.children && n.children.length > 0);
+    // Model coordinates are absolute (from the diagram top-left), but React Flow
+    // treats a child node's `position` as relative to its parent. Subtract the
+    // parent's absolute origin so nested nodes land in the right spot.
+    const absX = n.x ?? 0;
+    const absY = n.y ?? 0;
     const node: Node = {
       id: n.identifier,
       type: "archi",
-      position: { x: n.x ?? 0, y: n.y ?? 0 },
+      position: { x: absX - parentAbsX, y: absY - parentAbsY },
       data: { label: resolvedName, elementType, elementRef: n.element_ref ?? null, hasChildren },
       style: { width: n.w ?? undefined, height: n.h ?? undefined },
       ...(parentId ? { parentId, extent: "parent" as const, expandParent: true } : {}),
     };
-    return [node, ...flattenNodes(n.children, elementNames, elementTypes, n.identifier)];
+    return [node, ...flattenNodes(n.children, elementNames, elementTypes, n.identifier, absX, absY)];
   });
 }
 
@@ -655,12 +707,12 @@ function ViewCanvasInner({ viewId, nodes, connections, elements = [], elementNam
 
   const nodeRectMap = useMemo(() => {
     const map = new Map<string, NodeRect>();
-    function collect(ns: NodeOut[], parentX = 0, parentY = 0) {
+    // Model coordinates are already absolute (from the diagram top-left), so
+    // children are stored at their final position — no parent offset to add.
+    function collect(ns: NodeOut[]) {
       for (const n of ns ?? []) {
-        const x = (n.x ?? 0) + parentX;
-        const y = (n.y ?? 0) + parentY;
-        map.set(n.identifier, { x, y, w: n.w ?? 0, h: n.h ?? 0 });
-        collect(n.children ?? [], x, y);
+        map.set(n.identifier, { x: n.x ?? 0, y: n.y ?? 0, w: n.w ?? 0, h: n.h ?? 0 });
+        collect(n.children ?? []);
       }
     }
     collect(nodes);
@@ -770,7 +822,19 @@ function ViewCanvasInner({ viewId, nodes, connections, elements = [], elementNam
 
   const onNodeDragStop = (_e: unknown, node: Node) => {
     if (!viewId) return;
-    updateViewNode(viewId, node.id, { x: Math.round(node.position.x), y: Math.round(node.position.y) }).catch((err) =>
+    // React Flow positions are relative to the parent, but the model stores
+    // absolute coordinates. Walk the parent chain to recover the absolute spot.
+    let absX = node.position.x;
+    let absY = node.position.y;
+    let parentId = node.parentId;
+    while (parentId) {
+      const parent: Node | undefined = rfNodes.find((m) => m.id === parentId);
+      if (!parent) break;
+      absX += parent.position.x;
+      absY += parent.position.y;
+      parentId = parent.parentId;
+    }
+    updateViewNode(viewId, node.id, { x: Math.round(absX), y: Math.round(absY) }).catch((err) =>
       console.error("updateViewNode drag failed", err)
     );
   };

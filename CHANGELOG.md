@@ -6,6 +6,15 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Added
+
+- **ArchiMate type icons on the view canvas.** Every element on the web view canvas now shows its ArchiMate notation icon in the top-right corner (business process arrow, application component, node, gear/equipment, target/goal, etc.). The glyphs are extracted from Archi's own reference SVG exports (`models/exports/references/`) for fidelity, with hand-crafted standard notation for the few element types whose exports lacked a corner glyph (collaboration, interaction, role, contract, …). See `apps/web/components/archimate-icons.ts`.
+
+### Fixed
+
+- **Nested element positioning on the view canvas.** Child elements are now placed correctly inside their parent. The model stores absolute coordinates, but React Flow positions children relative to their parent, so nested nodes were double-offset by the parent's position. Coordinates are converted to parent-relative when building the canvas (and back to absolute when a node is dragged).
+- **Crash on the theme hotkey.** `ThemeHotkey` no longer throws `Cannot read properties of undefined (reading 'toLowerCase')` for keyboard events without a `key` (IME composition, autofill).
+
 ### Changed
 
 - **The API is now stateless — PostgreSQL is the single source of truth.** Removed the in-memory ArchiMate model (`dataSource`) and the full-workspace "auto-save on every write". Each request reads/writes Postgres at row level through a new `apps/api/src/store.ts`, so any instance can serve any request and concurrent edits to different rows no longer clobber each other (it is now safe to run multiple API replicas). The active workspace is persisted as `workspaces.is_active` (shared across instances) instead of being process-global state. `POST /save` is now a no-op (writes are already persisted). Render/export load the model on demand via `modelFromDb`.
