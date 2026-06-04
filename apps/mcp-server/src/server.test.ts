@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeAll } from "vitest";
+import { elementCreationHints, relationshipCreationHints } from "./archimate-guide.js";
 import request from "supertest";
 
 // ---------------------------------------------------------------------------
@@ -13,9 +14,14 @@ const shared = vi.hoisted(() => {
   });
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const toolHandlers = new Map<string, (args: any) => Promise<unknown>>();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const promptHandlers = new Map<string, (args: any) => Promise<unknown>>();
+  const resourceHandlers = new Map<string, () => Promise<unknown>>();
   return {
     handleReq,
     toolHandlers,
+    promptHandlers,
+    resourceHandlers,
     setOnInit: (fn: (id: string) => void) => { onInit = fn; },
     callOnInit: (id: string) => { if (onInit) onInit(id); },
   };
@@ -98,8 +104,13 @@ vi.mock("@modelcontextprotocol/sdk/server/mcp.js", () => ({
     this.registerTool = vi.fn().mockImplementation((_name: string, _schema: unknown, handler: (args: any) => Promise<unknown>) => {
       shared.toolHandlers.set(_name, handler);
     });
-    this.registerPrompt = vi.fn();
-    this.registerResource = vi.fn();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    this.registerPrompt = vi.fn().mockImplementation((_name: string, _schema: unknown, handler: (args: any) => Promise<unknown>) => {
+      shared.promptHandlers.set(_name, handler);
+    });
+    this.registerResource = vi.fn().mockImplementation((_name: string, _uri: string, _meta: unknown, handler: () => Promise<unknown>) => {
+      shared.resourceHandlers.set(_name, handler);
+    });
     this.connect = vi.fn().mockImplementation(async () => shared.callOnInit("test-session-abc"));
   }),
 }));
@@ -616,5 +627,89 @@ describe("MCP tool: list_viewpoints", () => {
     const vps = JSON.parse(result.content[0].text) as string[];
     expect(vps).toContain("Layered");
     expect(vps).toEqual([...vps].sort());
+  });
+});
+
+// ---------------------------------------------------------------------------
+// MCP Prompts
+// ---------------------------------------------------------------------------
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function callPrompt(name: string, args: Record<string, unknown> = {}): Promise<any> {
+  const handler = shared.promptHandlers.get(name);
+  if (!handler) throw new Error(`Prompt not registered: ${name}`);
+  return handler(args);
+}
+
+describe("MCP prompt: archimate-modeling-guide", () => {
+  it("returns a user message with the modeling guide text", async () => {
+    const result = await callPrompt("archimate-modeling-guide");
+    expect(result.messages).toHaveLength(1);
+    expect(result.messages[0].role).toBe("user");
+    expect(result.messages[0].content.type).toBe("text");
+    expect(result.messages[0].content.text).toContain("ArchiMate");
+  });
+});
+
+describe("MCP prompt: create-viewpoint-view", () => {
+  it("returns a user message referencing the requested viewpoint", async () => {
+    const result = await callPrompt("create-viewpoint-view", { viewpoint: "Layered" });
+    expect(result.messages).toHaveLength(1);
+    expect(result.messages[0].content.text).toContain("Layered");
+    expect(result.messages[0].content.text).toContain("create_view");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// MCP Resources
+// ---------------------------------------------------------------------------
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function callResource(name: string): Promise<any> {
+  const handler = shared.resourceHandlers.get(name);
+  if (!handler) throw new Error(`Resource not registered: ${name}`);
+  return handler();
+}
+
+describe("MCP resource: archimate-layers", () => {
+  it("returns JSON content for archimate://layers", async () => {
+    const result = await callResource("archimate-layers");
+    expect(result.contents).toHaveLength(1);
+    expect(result.contents[0].uri).toBe("archimate://layers");
+    expect(result.contents[0].mimeType).toBe("application/json");
+    const parsed = JSON.parse(result.contents[0].text);
+    expect(parsed).toHaveProperty("Business");
+  });
+});
+
+describe("MCP resource: archimate-relationships", () => {
+  it("returns JSON content for archimate://relationships", async () => {
+    const result = await callResource("archimate-relationships");
+    expect(result.contents).toHaveLength(1);
+    expect(result.contents[0].uri).toBe("archimate://relationships");
+    expect(result.contents[0].mimeType).toBe("application/json");
+    const parsed = JSON.parse(result.contents[0].text) as Record<string, unknown>;
+    expect(parsed).toHaveProperty("Association");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// archimate-guide fallback branches
+// ---------------------------------------------------------------------------
+
+describe("elementCreationHints — unknown type", () => {
+  it("falls back to Composite layer", () => {
+    const hints = elementCreationHints("NonExistentType");
+    expect(hints.layer).toBe("Composite");
+    expect(hints.next_steps.length).toBeGreaterThan(0);
+  });
+});
+
+describe("relationshipCreationHints — unknown type", () => {
+  it("falls back to empty semantics and direction", () => {
+    const hints = relationshipCreationHints("NonExistentRelType");
+    expect(hints.semantics).toBe("");
+    expect(hints.direction).toBe("");
+    expect(hints.next_steps.length).toBeGreaterThan(0);
   });
 });
