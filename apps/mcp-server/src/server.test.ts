@@ -98,6 +98,8 @@ vi.mock("@modelcontextprotocol/sdk/server/mcp.js", () => ({
     this.registerTool = vi.fn().mockImplementation((_name: string, _schema: unknown, handler: (args: any) => Promise<unknown>) => {
       shared.toolHandlers.set(_name, handler);
     });
+    this.registerPrompt = vi.fn();
+    this.registerResource = vi.fn();
     this.connect = vi.fn().mockImplementation(async () => shared.callOnInit("test-session-abc"));
   }),
 }));
