@@ -182,17 +182,6 @@ function createAuthInstance(oauthConfig: unknown[]) {
       },
     },
 
-    user: {
-      additionalFields: {
-        role: {
-          type: "string",
-          required: false,
-          defaultValue: "user",
-          input: true,
-        },
-      },
-    },
-
     session: {
       expiresIn: 60 * 60 * 24,
       updateAge: 60 * 60,
