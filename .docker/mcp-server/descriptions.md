@@ -11,6 +11,11 @@ Exposes 38 tools, 2 prompts and 2 resources over the MCP Streamable HTTP transpo
 | `alpine-latest` | `node:22-alpine` |
 | `trixie-slim-latest` | `node:22-trixie-slim` |
 | `alpine-X.Y.Z` | Pinned release |
+| `trixie-slim-X.Y.Z` | Pinned release |
+
+## Source
+
+[archispark/archispark](https://github.com/archispark/archispark) — monorepo source
 
 ## Documentation
 

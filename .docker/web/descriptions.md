@@ -11,6 +11,11 @@ Interactive canvas for creating and editing ArchiMate diagrams. Connects to the 
 | `alpine-latest` | `node:22-alpine` |
 | `trixie-slim-latest` | `node:22-trixie-slim` |
 | `alpine-X.Y.Z` | Pinned release |
+| `trixie-slim-X.Y.Z` | Pinned release |
+
+## Source
+
+[archispark/archispark](https://github.com/archispark/archispark) — monorepo source
 
 ## Documentation
 

@@ -123,4 +123,4 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
           repository: archispark/archispark-${{ matrix.service }}
           short-description: ${{ steps.desc.outputs.short }}
-          readme-filepath: ./docker/${{ matrix.service }}/descriptions.md
+          readme-filepath: ./.docker/${{ matrix.service }}descriptions/.md
