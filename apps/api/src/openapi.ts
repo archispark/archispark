@@ -281,7 +281,7 @@ export const openApiSpec = {
     description:
       "API REST pour interroger et modifier un modèle ArchiMate 3.1. " +
       "Authentification via Better Auth (cookie httpOnly). Permissions RBAC par couche ArchiMate.",
-    contact: { name: "GitHub", url: "https://github.com/lacrif/archispark" },
+    contact: { name: "GitHub", url: "https://github.com/archispark/archispark" },
   },
   servers: [{ url: "http://localhost:3000", description: "Serveur local" }],
 

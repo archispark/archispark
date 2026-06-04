@@ -38,7 +38,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/lacrif/mcp-archimate"
+    "url": "https://github.com/archispark/mcp-archimate"
   },
   "dependencies": {
     "@codecov/vite-plugin": "^2.0.1",
