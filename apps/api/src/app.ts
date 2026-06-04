@@ -129,7 +129,7 @@ import {
 
 export const app: ReturnType<typeof express> = express();
 
-// Behind a reverse proxy (Vercel, Traefik, Caddy) the client IP arrives via
+// Behind a reverse proxy (Vercel, Traefik) the client IP arrives via
 // X-Forwarded-For. Trust one proxy hop so req.ip is correct and express-rate-limit
 // doesn't throw ERR_ERL_UNEXPECTED_X_FORWARDED_FOR. `1` (not `true`) keeps it from
 // blindly trusting a spoofable client-supplied header.
