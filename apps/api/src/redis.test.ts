@@ -10,14 +10,15 @@ import { initRedis, getRedis } from "./redis.js";
 
 // vi.hoisted() runs before any import, so MockRedis is available when the
 // vi.mock factory executes (which happens when redis.js imports ioredis).
-const { mockOn, MockRedis } = vi.hoisted(() => {
+const { mockOn, mockOnce, MockRedis } = vi.hoisted(() => {
   const mockOn = vi.fn();
+  const mockOnce = vi.fn();
   // Regular function (not arrow) so `new MockRedis()` works — when a
   // constructor returns a plain object, `new` uses that returned object.
   const MockRedis = vi.fn(function (this: unknown) {
-    return { on: mockOn };
+    return { on: mockOn, once: mockOnce };
   });
-  return { mockOn, MockRedis };
+  return { mockOn, mockOnce, MockRedis };
 });
 
 vi.mock("ioredis", () => ({ Redis: MockRedis }));
@@ -40,12 +41,13 @@ describe("redis", () => {
   it("initRedis creates a Redis instance and registers event listeners when REDIS_URL is set", () => {
     process.env["REDIS_URL"] = "redis://localhost:6379";
     try {
-      initRedis();
+      void initRedis(); // returns Promise; mock never fires ready/error so it stays pending
       expect(MockRedis).toHaveBeenCalledWith("redis://localhost:6379", {
         maxRetriesPerRequest: 3,
         lazyConnect: false,
       });
-      expect(mockOn).toHaveBeenCalledWith("connect", expect.any(Function));
+      expect(mockOnce).toHaveBeenCalledWith("ready", expect.any(Function));
+      expect(mockOnce).toHaveBeenCalledWith("error", expect.any(Function));
       expect(mockOn).toHaveBeenCalledWith("error", expect.any(Function));
       expect(getRedis()).not.toBeNull();
     } finally {
@@ -53,13 +55,14 @@ describe("redis", () => {
     }
   });
 
-  it("connect listener logs a message", () => {
+  it("ready listener resolves the promise and logs a message", async () => {
     process.env["REDIS_URL"] = "redis://localhost:6379";
     try {
-      initRedis();
-      const connectCb = mockOn.mock.calls.find(([event]) => event === "connect")?.[1] as (() => void) | undefined;
+      const p = initRedis();
+      const readyCb = mockOnce.mock.calls.find(([event]) => event === "ready")?.[1] as (() => void) | undefined;
       const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
-      connectCb?.();
+      readyCb?.();
+      await expect(p).resolves.toBeUndefined();
       expect(logSpy).toHaveBeenCalledWith(expect.stringContaining("[redis]"));
       logSpy.mockRestore();
     } finally {
@@ -67,13 +70,14 @@ describe("redis", () => {
     }
   });
 
-  it("error listener logs an error message", () => {
+  it("error listener rejects the promise and logs", async () => {
     process.env["REDIS_URL"] = "redis://localhost:6379";
     try {
-      initRedis();
-      const errorCb = mockOn.mock.calls.find(([event]) => event === "error")?.[1] as ((err: Error) => void) | undefined;
+      const p = initRedis();
+      const errorCb = mockOnce.mock.calls.find(([event]) => event === "error")?.[1] as ((err: Error) => void) | undefined;
       const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
       errorCb?.(new Error("connection refused"));
+      await expect(p).rejects.toThrow("connection refused");
       expect(errSpy).toHaveBeenCalledWith(expect.stringContaining("[redis]"), "connection refused");
       errSpy.mockRestore();
     } finally {

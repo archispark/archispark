@@ -139,6 +139,9 @@ app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors({ origin: true, credentials: true, methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"] }));
 app.use(express.json());
 
+// Lightweight liveness probe — no auth, no DB, used by Docker healthchecks.
+app.get("/health", (_req, res) => { res.json({ status: "ok" }); });
+
 function redisStore(prefix: string): RedisStore {
   return new RedisStore({
     prefix,

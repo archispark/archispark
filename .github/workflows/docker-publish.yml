@@ -1,0 +1,126 @@
+name: Build & Push to Docker Hub
+
+on:
+  push:
+    tags: ['[0-9]*.*.*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to tag the images with (e.g. 0.5.0) — leave empty to build without versioned tags'
+        required: false
+        default: ''
+
+jobs:
+  build:
+    name: ${{ matrix.service }} (${{ matrix.variant }})
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [api, web, mcp-server]
+        variant: [alpine, trixie-slim]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v4
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # When workflow_dispatch provides a version, extract major.minor for the
+      # floating minor tag (e.g. 0.5.0 → full=0.5.0, minor=0.5).
+      - name: Parse version input
+        id: ver
+        run: |
+          version="${{ inputs.version }}"
+          # If workflow_dispatch with explicit version
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "${version}" ]]; then
+            echo "full=${version}" >> "$GITHUB_OUTPUT"
+            echo "minor=$(echo "${version}" | cut -d. -f1-2)" >> "$GITHUB_OUTPUT"
+            echo "tagged=true" >> "$GITHUB_OUTPUT"
+          # If this run was triggered by a tag push, extract the tag name
+          elif [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            TAG="${GITHUB_REF#refs/tags/}"
+            echo "full=${TAG}" >> "$GITHUB_OUTPUT"
+            echo "minor=$(echo "${TAG}" | cut -d. -f1-2)" >> "$GITHUB_OUTPUT"
+            echo "tagged=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "tagged=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # ── Variants ────────────────────────────────────────────────────────
+      # On tag push:         alpine-1.2.3      · alpine-1.2      · alpine-latest
+      # On tag push:         trixie-slim-1.2.3 · trixie-slim-1.2 · trixie-slim-latest
+      # On workflow_dispatch with version: same tags
+      # On workflow_dispatch without version: no tags produced (build-only)
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: archispark/archispark-${{ matrix.service }}
+          flavor: |
+            latest=false
+            prefix=${{ matrix.variant }}-
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/') || steps.ver.outputs.tagged == 'true' }}
+            type=raw,value=${{ steps.ver.outputs.full }},enable=${{ steps.ver.outputs.tagged == 'true' }}
+            type=raw,value=${{ steps.ver.outputs.minor }},enable=${{ steps.ver.outputs.tagged == 'true' }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: .docker/${{ matrix.service }}/${{ matrix.variant }}/Dockerfile
+          push: ${{ steps.meta.outputs.tags != '' }}
+          platforms: linux/amd64
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.service }}-${{ matrix.variant }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}-${{ matrix.variant }}
+
+  update-descriptions:
+    name: Update Docker Hub descriptions
+    runs-on: ubuntu-latest
+    needs: build
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [api, web, mcp-server]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set short description
+        id: desc
+        run: |
+          case "${{ matrix.service }}" in
+            api)        echo "short=REST API for ArchiSpark — ArchiMate 3.1 modeling (Express, PostgreSQL, Better Auth)" >> "$GITHUB_OUTPUT" ;;
+            web)        echo "short=Next.js front-end for ArchiSpark — interactive ArchiMate 3.1 canvas and workspace UI" >> "$GITHUB_OUTPUT" ;;
+            mcp-server) echo "short=MCP server for ArchiSpark — 38 tools, 2 prompts and 2 resources for AI-driven ArchiMate 3.1 modeling" >> "$GITHUB_OUTPUT" ;;
+          esac
+
+      - name: Update Docker Hub description
+        uses: peter-evans/dockerhub-description@v3
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          repository: archispark/archispark-${{ matrix.service }}
+          short-description: ${{ steps.desc.outputs.short }}
+          readme-filepath: ./docker/${{ matrix.service }}/descriptions.md

@@ -99,19 +99,19 @@ export async function initUsers(): Promise<void> {
     if (!userId) {
       const res = await getAuth().api.signUpEmail({
         body: { email: `${username}@archispark.internal`, password, name: username, username } as never,
-      /* v8 ignore next */ }).catch(() => null);
-      /* v8 ignore next */ if (!res?.user) return;
-      await db.update(usersTable).set({ username, role }).where(eq(usersTable.id, res.user.id));
+      }).catch((err: unknown) => { console.error(`[auth] signUpEmail failed for '${username}':`, err); return null; });
+      if (!res?.user) return;
       userId = res.user.id;
     }
+    await db.update(usersTable).set({ username, role }).where(eq(usersTable.id, userId!));
     const [rbacRole] = await db.select().from(rolesTable).where(eq(rolesTable.name, role));
-    if (rbacRole && userId) {
-      await db.insert(userRolesTable).values({ roleId: rbacRole.id, userId }).onConflictDoNothing();
+    if (rbacRole) {
+      await db.insert(userRolesTable).values({ roleId: rbacRole.id, userId: userId! }).onConflictDoNothing();
     }
   };
 
-  const adminPwd = process.env["SEED_ADMIN_PASSWORD"] ?? "admin";
-  const userPwd  = process.env["SEED_USER_PASSWORD"]  ?? "user";
+  const adminPwd = process.env["SEED_ADMIN_PASSWORD"] || "admin";
+  const userPwd  = process.env["SEED_USER_PASSWORD"]  || "user";
   await seedUser("admin", adminPwd, "admin");
   await seedUser("user",  userPwd,  "user");
   if (!process.env["SEED_ADMIN_PASSWORD"]) {
