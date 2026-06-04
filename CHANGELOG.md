@@ -6,6 +6,32 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+---
+
+## 0.5.1 — 2026-06-04
+
+### Added
+
+- **ArchiMate 3.1 semantic layer for the MCP server.** A new `archimate-guide.ts` module centralises all semantic knowledge: element types grouped by layer and category (active/behavioural/passive), relationship semantics with direction and concrete examples, post-mutation hints, and guided error messages grouped by ArchiMate layer.
+- **MCP Prompts.** Two prompts are now registered on the MCP server: `archimate-modeling-guide` (injects the full ArchiMate 3.1 rules, layer structure, relationship semantics and recommended workflow) and `create-viewpoint-view` (step-by-step guide for creating a view for a specific viewpoint, with a `viewpoint` argument).
+- **MCP Resources.** Two static resources are exposed: `archimate://layers` (JSON of all 8 layers with element types by category) and `archimate://relationships` (JSON of all 11 relationship types with semantics, direction and examples). The LLM can read them on demand without polluting every tool response.
+- **Layered `list_element_types` output.** The tool now returns elements grouped by layer and category (active/behavioural/passive), with both the types present in the current model and the full ArchiMate 3.1 type list per category.
+- **Enriched `list_relationship_types` output.** Each relationship type now includes a `description` and `direction` field.
+- **Post-mutation hints.** `create_element` returns a `hints` object with the element's ArchiMate layer and layer-specific next steps. `create_relationship` returns the semantic description, direction and suggested next steps. `create_view` returns a `next_steps` array guiding toward `create_node` → `create_connection` → `render_view`.
+- **Guided error messages.** Type validation errors now list valid ArchiMate types grouped by layer (instead of a flat alphabetical dump), with a hint to call `list_element_types`.
+- **MCP server description.** `McpServer` now includes a `description` field explaining the ArchiMate 3.1 context and recommending the `archimate-modeling-guide` prompt.
+- **GitHub Actions auto-assign workflow.** New `.github/workflows/auto-assign.yml` automatically assigns opened issues and PRs.
+
+### Fixed
+
+- **Broken CI/CD GitHub Actions versions.** The `chore: update packages` commit had re-introduced non-existent action versions (`actions/checkout@v6`, `pnpm/action-setup@v6`, `actions/setup-node@v6`, `actions/upload-artifact@v7`) that had previously been fixed in commit `8aa9778`. All four actions are restored to their current stable `@v4`.
+- **`@vitest/coverage-v8` version mismatch.** `apps/mcp-server` and `packages/db` had `@vitest/coverage-v8` pinned at `^4.1.7` while `vitest` was bumped to `^4.1.8`. Both are now consistently at `^4.1.8`.
+
+### Changed
+
+- **Tool descriptions rewritten as micro-instructions.** All 38 MCP tool descriptions now embed ArchiMate semantic guidance (correct layer, category, relationship direction) rather than being simple one-line labels. The LLM receives this context at every tool call.
+- **Dependency bumps.** `better-auth` 1.6.14, `react`/`react-dom` 19.2.7, `next` 16.2.7, `@xyflow/react` 12.11.0, `vitest` 4.1.8, `tsx` 4.22.4, `vite` 8.0.16, `prettier-plugin-tailwindcss` 0.8.0.
+
 ### Added
 
 - **14 new MCP tools — full API parity.** The MCP server now exposes 38 tools (up from 24), covering all ArchiMate modeling operations: `update_view`, `delete_view`, `update_node`, `delete_node`, `create_connection`, `update_connection`, `delete_connection`, `get_element_relationships`, `list_elements_in_views`, `list_workspaces`, `activate_workspace`, `export_model`, `import_model`, `list_viewpoints`. An AI agent can now build, populate, and fully refactor views without leaving the MCP context.
