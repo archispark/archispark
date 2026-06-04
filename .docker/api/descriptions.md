@@ -20,4 +20,3 @@ Built with **Express.js**, **PostgreSQL** and **Better Auth**. Exposes modeling 
 ## Documentation
 
 Full setup guide, environment variables and configuration reference at **[docs.archispark.io](https://docs.archispark.io/)**.
-

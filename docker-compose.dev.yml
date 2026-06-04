@@ -43,7 +43,9 @@ services:
 
   # ── REST API ───────────────────────────────────────────────────────────────
   api:
-    image: archispark/archispark-api:${ARCHISPARK_OS:-alpine}-${ARCHISPARK_VERSION:-latest}
+    build:
+      context:    .
+      dockerfile: .docker/api/${ARCHISPARK_OS:-alpine}/Dockerfile
     restart: unless-stopped
     depends_on:
       postgres:
@@ -105,7 +107,9 @@ services:
   # Serveur Model Context Protocol — expose les outils ArchiMate aux agents IA.
   # Démarre uniquement après que l'API soit saine (dépend de api:healthy).
   mcp-server:
-    image: archispark/archispark-mcp-server:${ARCHISPARK_OS:-alpine}-${ARCHISPARK_VERSION:-latest}
+    build:
+      context:    .
+      dockerfile: .docker/mcp-server/${ARCHISPARK_OS:-alpine}/Dockerfile
     restart: unless-stopped
     environment:
       NODE_ENV:        production
@@ -132,7 +136,9 @@ services:
   # Interface utilisateur Next.js. ARCHIMATE_API_URL est vide : les appels API
   # passent par le proxy Traefik (chemin relatif /api) plutôt que directement.
   web:
-    image: archispark/archispark-web:${ARCHISPARK_OS:-alpine}-${ARCHISPARK_VERSION:-latest}
+    build:
+      context:    .
+      dockerfile: .docker/web/${ARCHISPARK_OS:-alpine}/Dockerfile
     restart: unless-stopped
     environment:
       NODE_ENV:          production
