@@ -3,14 +3,14 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
-import { Menu, LogOut, FolderOpen } from "lucide-react";
-import { Button } from "@workspace/ui/components/button";
+import { Menu, FolderOpen } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { type ElementOut } from "@/lib/api";
 import { useWorkspaces, useElement, useView } from "@/lib/queries";
 import { useT } from "@/lib/i18n";
 import { LocaleSwitcher } from "@/components/locale-switcher";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { UserMenu } from "@/components/user-menu";
 
 export function Nav({ onToggleSidebar }: { onToggleSidebar: () => void }) {
   const pathname = usePathname();
@@ -26,13 +26,6 @@ export function Nav({ onToggleSidebar }: { onToggleSidebar: () => void }) {
       router.push("/workspaces");
     }
   }, [wsLoaded, workspaces.length, pathname, router]);
-
-  async function logout() {
-    const { signOut } = await import("@/lib/auth-client");
-    await signOut();
-    router.push("/login");
-    router.refresh();
-  }
 
   const qc = useQueryClient();
 
@@ -158,9 +151,7 @@ export function Nav({ onToggleSidebar }: { onToggleSidebar: () => void }) {
 
       <LocaleSwitcher />
       <ThemeToggle />
-      <Button variant="ghost" size="icon-sm" onClick={logout} aria-label={t("nav.logout")}>
-        <LogOut className="size-4" />
-      </Button>
+      <UserMenu />
     </nav>
   );
 }

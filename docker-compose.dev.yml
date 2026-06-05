@@ -1,17 +1,11 @@
 # ─────────────────────────────────────────────────────────────────────────────
 #  ArchiSpark — Docker Compose (dev local / pnpm)
 #
-#  Deux modes d'utilisation :
+#  Lance uniquement l'infrastructure (Postgres + Redis).
+#  L'application tourne en local via pnpm :
 #
-#  A) Infrastructure seule (pnpm dev sur l'hôte) :
-#       docker compose -f docker-compose.dev.yml up -d postgres redis
-#       pnpm dev
-#
-#  B) Stack complète dans Docker (sources montées depuis l'hôte) :
-#       docker compose -f docker-compose.dev.yml up
-#       → web  : http://localhost:8000
-#       → api  : http://localhost:3000
-#       → mcp  : http://localhost:3001
+#    make dev-infra   # démarre Postgres + Redis
+#    pnpm dev         # démarre api, web et mcp-server avec hot-reload
 #
 #  Arrêt (en conservant les données) :
 #    docker compose -f docker-compose.dev.yml down
@@ -57,73 +51,6 @@ services:
       timeout:  5s
       retries:  10
 
-  # ── Application (web + api + mcp-server via pnpm dev) ────────────────────
-  # Les sources sont montées depuis l'hôte pour le hot-reload.
-  # node_modules est dans un volume nommé : les modules natifs (sharp, bcryptjs)
-  # sont compilés pour l'Alpine du conteneur, pas pour l'hôte.
-  # apps/api/.env (valeurs localhost) est écrasé par .docker/api-dev.env via bind-mount.
-  # Turbo 2 et tsx --env-file chargent le .env du package AVANT process.env Docker,
-  # donc les vars Docker perdent sans ce override explicite.
-  app:
-    build:
-      context: .
-      dockerfile: dev.dockerfile
-    restart: unless-stopped
-    ports:
-      - "3000:3000"   # API Express
-      - "3001:3001"   # MCP Server
-      - "8000:8000"   # Next.js web
-    volumes:
-      - .:/app
-      - app_node_modules:/app/node_modules   # modules natifs compilés pour Alpine
-    environment:
-      # Connexion PostgreSQL (réseau Docker interne, nom de service)
-      DATABASE_URL:        postgresql://archispark:${DB_PASSWORD:-changeme}@postgres:5432/archispark
-      # Connexion Redis
-      REDIS_URL:           ${REDIS_URL:-redis://redis:6379}
-      # Clé secrète Better Auth — obligatoire
-      BETTER_AUTH_SECRET:  ${BETTER_AUTH_SECRET:-dev-secret-change-me}
-      # URL publique de l'app (utilisée par Better Auth pour les redirections)
-      WEB_URL:             ${ARCHISPARK_URL:-http://localhost:8000}
-      # Origines autorisées pour le CORS
-      TRUSTED_ORIGINS:     ${TRUSTED_ORIGINS:-http://localhost:8000}
-      # Mots de passe des comptes créés au premier démarrage (seed)
-      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-}
-      SEED_USER_PASSWORD:  ${SEED_USER_PASSWORD:-}
-      # Le proxy Next.js rewrites /api/* → API ; localhost:3000 fonctionne car
-      # web et api tournent dans le même conteneur.
-      ARCHIMATE_API_URL:   http://localhost:3000
-      # Augmente le tas V8 pour le serveur de dev Next.js (compilation TypeScript + HMR)
-      NODE_OPTIONS:        --max-old-space-size=4096
-    healthcheck:
-      test:     ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/health || exit 1"]
-      interval: 10s
-      timeout:  5s
-      retries:  12
-      start_period: 120s  # Laisse le temps à pnpm install + migrations au premier démarrage
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-
-  # ── Seed données de démo ─────────────────────────────────────────────────
-  # Charge les workspaces ArchiMetal + ArchiSurance au premier démarrage.
-  # Idempotent : chaque workspace est ignoré s'il existe déjà.
-  # Démarre uniquement une fois l'API saine (migrations + auth déjà faits).
-  seed-demo:
-    image: postgres:17-alpine
-    restart: "no"
-    environment:
-      PGPASSWORD: ${DB_PASSWORD:-changeme}
-    volumes:
-      - ./packages/db/seeds/demo.sql:/seed/demo.sql:ro
-    command: psql -h postgres -U archispark -d archispark -f /seed/demo.sql
-    depends_on:
-      app:
-        condition: service_healthy
-
 volumes:
   postgres_dev_data:
   redis_dev_data:
-  app_node_modules:

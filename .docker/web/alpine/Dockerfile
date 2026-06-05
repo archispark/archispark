@@ -18,6 +18,10 @@ RUN pnpm --filter @workspace/db build
 ARG ARCHIMATE_API_URL=
 ENV ARCHIMATE_API_URL=${ARCHIMATE_API_URL}
 
+# URL publique du serveur MCP — inlinée dans le bundle Next.js au build
+ARG NEXT_PUBLIC_MCP_SERVER_URL=https://archispark-mcp-server.vercel.app/mcp/
+ENV NEXT_PUBLIC_MCP_SERVER_URL=${NEXT_PUBLIC_MCP_SERVER_URL}
+
 RUN pnpm --filter web build
 
 # ── Stage 2 : runtime (Next.js standalone, auto-suffisant) ────────────────────

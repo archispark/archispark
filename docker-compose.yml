@@ -140,6 +140,8 @@ services:
       HOSTNAME:          "0.0.0.0"
       # Vide intentionnellement : le frontend appelle /api via Traefik
       ARCHIMATE_API_URL: ""
+      # Note : NEXT_PUBLIC_MCP_SERVER_URL est inlinée au build — non modifiable ici.
+      # Pour la changer, rebuilder l'image avec docker-compose.build.yml.
     depends_on:
       api:
         condition: service_healthy
@@ -159,43 +161,6 @@ services:
       - "traefik.http.routers.web.middlewares=security-headers"
       - "traefik.http.routers.web.service=web"
       - "traefik.http.services.web.loadbalancer.server.port=8000"
-
-  # ── Swagger UI ─────────────────────────────────────────────────────────────
-  # Swagger UI généré depuis l'OpenAPI de l'API. Accessible directement sur
-  # DOCS_PORT (défaut 9000) ou via un sous-domaine si ARCHISPARK_DOCS_HOST est
-  # défini (active le routeur Traefik).
-  # swagger-ui:
-  #   build:
-  #     context:    .
-  #     dockerfile: .docker/swagger-ui/${ARCHISPARK_OS:-alpine}/Dockerfile
-  #   restart: unless-stopped
-  #   ports:
-  #     # Accès direct sans Traefik (pratique pour le dev / réseau interne)
-  #     - "${DOCS_PORT:-9000}:9000"
-  #   environment:
-  #     NODE_ENV: production
-  #     PORT:     "9000"
-  #     HOST:     "0.0.0.0"
-  #     # URL interne de l'API (réseau Docker) pour le proxy des requêtes OpenAPI
-  #     API_URL:  "http://api:3000"
-  #   depends_on:
-  #     api:
-  #       condition: service_healthy
-  #   healthcheck:
-  #     test:     ["CMD", "wget", "-qO-", "http://localhost:9000/openapi.json"]
-  #     interval: 10s
-  #     timeout:  5s
-  #     retries:  5
-  #   networks:
-  #     - archispark
-  #   labels:
-  #     # Le routeur Traefik n'est activé que si ARCHISPARK_DOCS_HOST est fourni
-  #     - "traefik.enable=${ARCHISPARK_DOCS_HOST:+true}"
-  #     - "traefik.http.routers.docs.rule=Host(`${ARCHISPARK_DOCS_HOST:-docs.localhost}`)"
-  #     - "traefik.http.routers.docs.entrypoints=web"
-  #     - "traefik.http.routers.docs.middlewares=security-headers"
-  #     - "traefik.http.routers.docs.service=docs"
-  #     - "traefik.http.services.docs.loadbalancer.server.port=9000"
 
   # ── Base de données ────────────────────────────────────────────────────────
   # PostgreSQL 17 — base principale de l'application.

@@ -10,6 +10,9 @@ export function ThemeToggle() {
   const { resolvedTheme, setTheme } = useTheme();
   const { t } = useT();
   const [themePref, setThemePref] = useState<"light" | "dark" | "auto">("dark");
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => { setMounted(true); }, []);
 
   useEffect(() => {
     const saved = (localStorage.getItem("theme-pref") as "light" | "dark" | "auto") ?? "dark";
@@ -49,7 +52,7 @@ export function ThemeToggle() {
       aria-label={label}
       title={label}
     >
-      {themePref === "auto" ? (
+      {!mounted || themePref === "auto" ? (
         <Clock className="size-4" />
       ) : resolvedTheme === "dark" ? (
         <Sun className="size-4" />
