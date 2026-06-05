@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -16,28 +16,39 @@ import {
   type NodeProps,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import {
-  forceSimulation,
-  forceLink,
-  forceManyBody,
-  forceCenter,
-  forceCollide,
-  type Simulation,
-  type SimulationNodeDatum,
-  type SimulationLinkDatum,
-} from "d3-force";
+import dagre from "@dagrejs/dagre";
 import { getLayer, LAYER_HEX_COLORS } from "@/lib/archimate-helpers";
 import type { ElementOut, RelationshipOut } from "@/lib/api";
 import { useRouter } from "next/navigation";
+import { Button } from "@workspace/ui/components/button";
 
 const NODE_W = 150;
 const NODE_H = 60;
 
-interface SimNode extends SimulationNodeDatum {
-  id: string;
-  label: string;
-  elementType: string;
-  isCentral: boolean;
+type Direction = "TB" | "LR";
+
+function applyDagreLayout(
+  nodes: Node[],
+  edges: Edge[],
+  direction: Direction,
+): Node[] {
+  const g = new dagre.graphlib.Graph();
+  g.setDefaultEdgeLabel(() => ({}));
+  g.setGraph({ rankdir: direction, nodesep: 60, ranksep: 80 });
+
+  for (const node of nodes) {
+    g.setNode(node.id, { width: NODE_W, height: NODE_H });
+  }
+  for (const edge of edges) {
+    g.setEdge(edge.source, edge.target);
+  }
+
+  dagre.layout(g);
+
+  return nodes.map((node) => {
+    const { x, y } = g.node(node.id);
+    return { ...node, position: { x: x - NODE_W / 2, y: y - NODE_H / 2 } };
+  });
 }
 
 function ArchiNode({ data }: NodeProps) {
@@ -52,11 +63,7 @@ function ArchiNode({ data }: NodeProps) {
 
   return (
     <>
-      <Handle
-        type="target"
-        position={Position.Top}
-        style={{ opacity: 0, pointerEvents: "none" }}
-      />
+      <Handle type="target" position={Position.Top} style={{ opacity: 0, pointerEvents: "none" }} />
       <div
         onClick={d.onClick}
         style={{
@@ -78,16 +85,7 @@ function ArchiNode({ data }: NodeProps) {
           userSelect: "none",
         }}
       >
-        <div
-          style={{
-            fontSize: 10,
-            color,
-            fontWeight: 700,
-            letterSpacing: 0.4,
-            lineHeight: 1,
-            marginBottom: 4,
-          }}
-        >
+        <div style={{ fontSize: 10, color, fontWeight: 700, letterSpacing: 0.4, lineHeight: 1, marginBottom: 4 }}>
           {d.elementType}
         </div>
         <div
@@ -105,11 +103,7 @@ function ArchiNode({ data }: NodeProps) {
           {d.label || "—"}
         </div>
       </div>
-      <Handle
-        type="source"
-        position={Position.Bottom}
-        style={{ opacity: 0, pointerEvents: "none" }}
-      />
+      <Handle type="source" position={Position.Bottom} style={{ opacity: 0, pointerEvents: "none" }} />
     </>
   );
 }
@@ -122,158 +116,111 @@ export interface ElementGraphTabProps {
   byId: Map<string, ElementOut>;
 }
 
+function buildGraph(
+  element: ElementOut,
+  relationships: RelationshipOut[],
+  byId: Map<string, ElementOut>,
+  router: ReturnType<typeof useRouter>,
+): { nodes: Node[]; edges: Edge[] } {
+  const nodeMap = new Map<string, Node>();
+
+  const addNode = (id: string, label: string, elementType: string, isCentral: boolean) => {
+    if (nodeMap.has(id)) return;
+    nodeMap.set(id, {
+      id,
+      position: { x: 0, y: 0 },
+      data: {
+        label,
+        elementType,
+        isCentral,
+        onClick: isCentral ? undefined : () => router.push(`/elements/${encodeURIComponent(id)}`),
+      },
+      type: "archimateNode",
+    });
+  };
+
+  addNode(element.identifier, element.name, element.type, true);
+
+  const validRels: RelationshipOut[] = [];
+  for (const rel of relationships) {
+    const otherId = rel.source === element.identifier ? rel.target : rel.source;
+    const other = byId.get(otherId);
+    const label =
+      other?.name ??
+      (rel.source === element.identifier ? (rel.target_name ?? otherId) : (rel.source_name ?? otherId));
+    addNode(otherId, label, other?.type ?? "Grouping", false);
+    validRels.push(rel);
+  }
+
+  const edges: Edge[] = validRels
+    .filter((r) => nodeMap.has(r.source) && nodeMap.has(r.target))
+    .map((r) => ({
+      id: r.identifier,
+      source: r.source,
+      target: r.target,
+      label: r.name || r.type,
+      labelStyle: { fontSize: 9, fill: "#64748b" },
+      labelBgStyle: { fill: "rgba(255,255,255,0.85)" },
+      style: { stroke: "#94a3b8", strokeWidth: 1.5 },
+      type: "smoothstep",
+    }));
+
+  return { nodes: Array.from(nodeMap.values()), edges };
+}
+
 function GraphCanvas({ element, relationships, byId }: ElementGraphTabProps) {
   const router = useRouter();
   const { fitView } = useReactFlow();
+  const [direction, setDirection] = useState<Direction>("TB");
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
-  const simRef = useRef<Simulation<SimNode, SimulationLinkDatum<SimNode>> | null>(null);
-  const fittedRef = useRef(false);
+
+  const layout = useCallback(
+    (dir: Direction) => {
+      const { nodes: rawNodes, edges: rawEdges } = buildGraph(element, relationships, byId, router);
+      const laid = applyDagreLayout(rawNodes, rawEdges, dir);
+      setNodes(laid);
+      setEdges(rawEdges);
+      setTimeout(() => fitView({ padding: 0.35, duration: 400 }), 50);
+    },
+    [element, relationships, byId, router, setNodes, setEdges, fitView],
+  );
 
   useEffect(() => {
-    simRef.current?.stop();
-    simRef.current = null;
-    fittedRef.current = false;
+    layout(direction);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [element, relationships, byId]);
 
-    // Central node — fixed at origin
-    const nodeMap = new Map<string, SimNode>();
-    nodeMap.set(element.identifier, {
-      id: element.identifier,
-      label: element.name,
-      elementType: element.type,
-      isCentral: true,
-      fx: 0,
-      fy: 0,
-    });
-
-    // Collect unique neighbor ids
-    const neighborIds = new Set<string>();
-    for (const rel of relationships) {
-      const otherId =
-        rel.source === element.identifier ? rel.target : rel.source;
-      neighborIds.add(otherId);
-    }
-
-    // Place neighbors in a circle initially
-    let idx = 0;
-    for (const otherId of neighborIds) {
-      const other = byId.get(otherId);
-      const rel = relationships.find(
-        (r) => r.source === otherId || r.target === otherId,
-      );
-      const label =
-        other?.name ??
-        (rel
-          ? rel.source === element.identifier
-            ? (rel.target_name ?? otherId)
-            : (rel.source_name ?? otherId)
-          : otherId);
-      const angle = (idx / Math.max(neighborIds.size, 1)) * 2 * Math.PI;
-      nodeMap.set(otherId, {
-        id: otherId,
-        label,
-        elementType: other?.type ?? "Grouping",
-        isCentral: false,
-        x: Math.cos(angle) * 230,
-        y: Math.sin(angle) * 230,
-      });
-      idx++;
-    }
-
-    const simNodes = Array.from(nodeMap.values());
-
-    // Valid edges (both endpoints present)
-    const validRels = relationships.filter(
-      (r) => nodeMap.has(r.source) && nodeMap.has(r.target),
-    );
-
-    setEdges(
-      validRels.map((r) => ({
-        id: r.identifier,
-        source: r.source,
-        target: r.target,
-        label: r.name || r.type,
-        labelStyle: { fontSize: 9, fill: "#64748b" },
-        labelBgStyle: { fill: "rgba(255,255,255,0.85)" },
-        style: { stroke: "#94a3b8", strokeWidth: 1.5 },
-        type: "smoothstep",
-        animated: true,
-      })) as Edge[],
-    );
-
-    const links = validRels.map((r) => ({
-      source: r.source,
-      target: r.target,
-    })) as SimulationLinkDatum<SimNode>[];
-
-    const sim = forceSimulation<SimNode>(simNodes)
-      .force(
-        "link",
-        forceLink<SimNode, SimulationLinkDatum<SimNode>>(links)
-          .id((d) => d.id)
-          .distance(230)
-          .strength(0.5),
-      )
-      .force("charge", forceManyBody<SimNode>().strength(-520))
-      .force("center", forceCenter(0, 0))
-      .force("collide", forceCollide<SimNode>(NODE_W * 0.7))
-      .alphaDecay(0.025)
-      .on("tick", () => {
-        setNodes(
-          simNodes.map((n) => ({
-            id: n.id,
-            position: {
-              x: (n.x ?? 0) - NODE_W / 2,
-              y: (n.y ?? 0) - NODE_H / 2,
-            },
-            data: {
-              label: n.label,
-              elementType: n.elementType,
-              isCentral: n.isCentral,
-              onClick: n.isCentral
-                ? undefined
-                : () =>
-                    router.push(
-                      `/elements/${encodeURIComponent(n.id)}`,
-                    ),
-            },
-            type: "archimateNode",
-          })),
-        );
-        // Fit view once after the first tick so nodes are visible
-        if (!fittedRef.current) {
-          fittedRef.current = true;
-          setTimeout(() => fitView({ padding: 0.35, duration: 700 }), 80);
-        }
-      });
-
-    simRef.current = sim;
-
-    return () => {
-      sim.stop();
-    };
-  }, [element, relationships, byId, router, setNodes, setEdges, fitView]);
+  function toggleDirection() {
+    const next: Direction = direction === "TB" ? "LR" : "TB";
+    setDirection(next);
+    layout(next);
+  }
 
   return (
-    <div
-      style={{ width: "100%", height: 500 }}
-      className="rounded-lg border border-border overflow-hidden"
-    >
-      <ReactFlow
-        nodes={nodes}
-        edges={edges}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
-        nodeTypes={NODE_TYPES}
-        nodesDraggable={false}
-        nodesConnectable={false}
-        elementsSelectable={false}
-        minZoom={0.2}
-        maxZoom={3}
-      >
-        <Background color="#e2e8f0" gap={24} />
-        <Controls showInteractive={false} />
-      </ReactFlow>
+    <div className="space-y-2">
+      <div className="flex justify-end">
+        <Button size="sm" variant="outline" onClick={toggleDirection}>
+          {direction === "TB" ? "→ Horizontal" : "↓ Vertical"}
+        </Button>
+      </div>
+      <div style={{ width: "100%", height: 500 }} className="rounded-lg border border-border overflow-hidden">
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          nodeTypes={NODE_TYPES}
+          nodesDraggable
+          nodesConnectable={false}
+          elementsSelectable={false}
+          minZoom={0.2}
+          maxZoom={3}
+        >
+          <Background color="#e2e8f0" gap={24} />
+          <Controls showInteractive={false} />
+        </ReactFlow>
+      </div>
     </div>
   );
 }
