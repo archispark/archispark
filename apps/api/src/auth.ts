@@ -1,7 +1,7 @@
 import { randomUUID } from "crypto";
 import type { Request, Response, NextFunction } from "express";
 import { and, eq, inArray } from "drizzle-orm";
-import { db, users as usersTable, accounts, roles as rolesTable, roleLayerPermissions as rolePermsTable, userRoles as userRolesTable, apiTokens } from "@workspace/db";
+import { db, users as usersTable, accounts, roles as rolesTable, roleLayerPermissions as rolePermsTable, userRoles as userRolesTable, apiTokens, mcpTokens } from "@workspace/db";
 import { getAuth } from "./better-auth.js";
 import { fromNodeHeaders } from "better-auth/node";
 import bcrypt from "bcryptjs";
@@ -182,13 +182,22 @@ export async function deleteUserById(id: string): Promise<void> {
 export interface TokenUser { id: string; username: string; role: string }
 
 export async function lookupApiToken(token: string): Promise<TokenUser | null> {
+  // Check personal API tokens first
   const [row] = await db.select({ id: apiTokens.id, userId: apiTokens.userId })
     .from(apiTokens).where(eq(apiTokens.token, token));
-  if (!row) return null;
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, row.userId));
+  if (row) {
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, row.userId));
+    if (!user) return null;
+    db.update(apiTokens).set({ lastUsedAt: Math.floor(Date.now() / 1000) })
+      .where(eq(apiTokens.id, row.id)).catch(() => {});
+    return { id: user.id, username: user.username, role: user.role };
+  }
+  // Also accept the shared MCP token — acts as the admin who created it
+  const [mcp] = await db.select({ createdBy: mcpTokens.createdBy })
+    .from(mcpTokens).where(eq(mcpTokens.token, token));
+  if (!mcp?.createdBy) return null;
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, mcp.createdBy));
   if (!user) return null;
-  db.update(apiTokens).set({ lastUsedAt: Math.floor(Date.now() / 1000) })
-    .where(eq(apiTokens.id, row.id)).catch(() => {});
   return { id: user.id, username: user.username, role: user.role };
 }
 

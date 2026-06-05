@@ -187,15 +187,15 @@ const ElementUpdateInput   = registry.register("ElementUpdateInput",   ElementUp
 const RelationshipCreateInput = registry.register("RelationshipCreateInput", RelationshipCreateSchema.openapi("RelationshipCreateInput"));
 const RelationshipUpdateInput = registry.register("RelationshipUpdateInput", RelationshipUpdateSchema.openapi("RelationshipUpdateInput"));
 const ViewCreateInput      = registry.register("ViewCreateInput",      ViewCreateSchema.openapi("ViewCreateInput"));
-const ViewUpdateInput      = registry.register("ViewUpdateInput",      ViewUpdateSchema.openapi("ViewUpdateInput"));
+void registry.register("ViewUpdateInput",      ViewUpdateSchema.openapi("ViewUpdateInput"));
 const NodeCreateInput      = registry.register("NodeCreateInput",      NodeCreateSchema.openapi("NodeCreateInput"));
 const NodeUpdateInput      = registry.register("NodeUpdateInput",      NodeUpdateSchema.openapi("NodeUpdateInput"));
 const ConnectionCreateInput = registry.register("ConnectionCreateInput", ConnectionCreateSchema.openapi("ConnectionCreateInput"));
 const ConnectionUpdateInput = registry.register("ConnectionUpdateInput", ConnectionUpdateSchema.openapi("ConnectionUpdateInput"));
 const WorkspaceCreateInput = registry.register("WorkspaceCreateInput", WorkspaceCreateSchema.openapi("WorkspaceCreateInput"));
 const WorkspaceUpdateInput = registry.register("WorkspaceUpdateInput", WorkspaceUpdateSchema.openapi("WorkspaceUpdateInput"));
-const PropertyDefinitionCreateInput = registry.register("PropertyDefinitionCreateInput", PropertyDefinitionCreateSchema.openapi("PropertyDefinitionCreateInput"));
-const PropertyDefinitionUpdateInput = registry.register("PropertyDefinitionUpdateInput", PropertyDefinitionUpdateSchema.openapi("PropertyDefinitionUpdateInput"));
+void registry.register("PropertyDefinitionCreateInput", PropertyDefinitionCreateSchema.openapi("PropertyDefinitionCreateInput"));
+void registry.register("PropertyDefinitionUpdateInput", PropertyDefinitionUpdateSchema.openapi("PropertyDefinitionUpdateInput"));
 const RoleCreateInput      = registry.register("RoleCreateInput",      RoleCreateSchema.openapi("RoleCreateInput"));
 const RoleUpdateInput      = registry.register("RoleUpdateInput",      RoleUpdateSchema.openapi("RoleUpdateInput"));
 

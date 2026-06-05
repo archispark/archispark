@@ -5,7 +5,7 @@
  *
  * Usage: pnpm --filter api openapi
  */
-import { writeFileSync, existsSync, mkdirSync } from "node:fs";
+import { writeFileSync, existsSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { openApiSpec } from "../src/openapi.js";
