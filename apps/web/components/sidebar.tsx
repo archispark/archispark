@@ -29,7 +29,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="w-full flex items-center justify-between gap-2 text-[10px] font-bold tracking-[0.8px] uppercase text-muted-foreground px-2 mb-1 hover:text-foreground transition-colors"
+        className="w-full min-h-6 flex items-center justify-between gap-2 text-[10px] font-bold tracking-[0.8px] uppercase text-muted-foreground px-2 mb-1 hover:text-foreground transition-colors"
       >
         <span>{title}</span>
         <ChevronDown className={`size-3 shrink-0 transition-transform ${open ? "" : "-rotate-90"}`} />
