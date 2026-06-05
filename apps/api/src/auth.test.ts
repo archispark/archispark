@@ -379,3 +379,32 @@ describe("API token isolation between users", () => {
     expect(res.status).toBe(204);
   });
 });
+
+describe("API token expiry", () => {
+  it("creates a token with expires_at and returns it", async () => {
+    const future = Math.floor(Date.now() / 1000) + 86400 * 30;
+    const res = await request(app).post("/settings/api-tokens").send({ name: "expiring", expires_at: future });
+    expect(res.status).toBe(201);
+    expect(res.body.expires_at).toBe(future);
+    await request(app).delete(`/settings/api-tokens/${(res.body as { id: number }).id}`);
+  });
+
+  it("expires_at appears in token list", async () => {
+    const future = Math.floor(Date.now() / 1000) + 86400 * 7;
+    const create = await request(app).post("/settings/api-tokens").send({ name: "listed expiry", expires_at: future });
+    const id = (create.body as { id: number }).id;
+    const list = await request(app).get("/settings/api-tokens");
+    const found = (list.body as Array<{ id: number; expires_at: number | null }>).find((t) => t.id === id);
+    expect(found?.expires_at).toBe(future);
+    await request(app).delete(`/settings/api-tokens/${id}`);
+  });
+
+  it("rejects authentication with an expired token", async () => {
+    const past = Math.floor(Date.now() / 1000) - 1;
+    const create = await request(app).post("/settings/api-tokens").send({ name: "expired", expires_at: past });
+    const { token, id } = create.body as { token: string; id: number };
+    const res = await _request(app).get("/me").set("Authorization", `Bearer ${token}`);
+    expect(res.status).toBe(401);
+    await request(app).delete(`/settings/api-tokens/${id}`);
+  });
+});

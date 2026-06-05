@@ -55,6 +55,7 @@ export function Nav({ onToggleSidebar }: { onToggleSidebar: () => void }) {
       settings: "breadcrumb.settings",
       workspaces: "breadcrumb.workspaces",
       login: "breadcrumb.login",
+      profile: "breadcrumb.profile",
     };
     if (bcKeys[seg]) return t(bcKeys[seg]);
     if (segments[index - 1] === "elements") {

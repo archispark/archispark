@@ -1,0 +1,120 @@
+# ─────────────────────────────────────────────────────────────────────────────
+#  ArchiSpark — Helm values
+#
+#  Usage minimal :
+#    helm install archispark .k8s/helm/archispark \
+#      --set config.webUrl=https://archispark.example.com \
+#      --set ingress.host=archispark.example.com \
+#      --set secrets.dbPassword=<motdepasse> \
+#      --set secrets.betterAuthSecret=<secret32chars>
+#
+#  Voir NOTES.txt après l'installation pour les instructions de démarrage.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── Images ───────────────────────────────────────────────────────────────────
+# Variante OS : alpine (défaut, plus légère) ou trixie-slim (Debian)
+image:
+  os: alpine
+  # Version des images Docker Hub archispark/*
+  # Utilisez un tag précis en production (ex: alpine-0.4.0)
+  tag: latest
+  pullPolicy: IfNotPresent
+  # pullSecrets: []
+
+# ── API (Express) ─────────────────────────────────────────────────────────────
+api:
+  image: archispark/archispark-api
+  replicas: 1
+  port: 3000
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+# ── MCP Server ────────────────────────────────────────────────────────────────
+mcpServer:
+  image: archispark/archispark-mcp-server
+  replicas: 1
+  port: 3001
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+
+# ── Web (Next.js) ─────────────────────────────────────────────────────────────
+web:
+  image: archispark/archispark-web
+  replicas: 1
+  port: 8000
+  # NEXT_PUBLIC_MCP_SERVER_URL est inlinée au build — modifiez l'image si besoin.
+  # mcpServerUrl: ""
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+# ── PostgreSQL ────────────────────────────────────────────────────────────────
+postgres:
+  image: postgres:17-alpine
+  storage: 5Gi
+  # storageClass: "" # vide = classe par défaut du cluster
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+# ── Redis ─────────────────────────────────────────────────────────────────────
+redis:
+  image: redis:7-alpine
+  storage: 1Gi
+  # storageClass: ""
+  resources:
+    requests:
+      cpu: 50m
+      memory: 32Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+# ── Ingress (NGINX Ingress Controller) ───────────────────────────────────────
+ingress:
+  enabled: true
+  className: nginx
+  host: archispark.example.com
+  tls:
+    enabled: false
+    # secretName: archispark-tls  # Secret TLS à créer manuellement ou via cert-manager
+  annotations: {}
+
+# ── Configuration applicative ────────────────────────────────────────────────
+config:
+  # URL publique de l'application (redirections OAuth, emails)
+  webUrl: "http://archispark.example.com"
+  # Origines CORS supplémentaires (séparées par des virgules)
+  trustedOrigins: ""
+
+# ── Secrets ───────────────────────────────────────────────────────────────────
+# En production, préférez un gestionnaire de secrets externe
+# (Sealed Secrets, External Secrets Operator, Vault…) et pointez
+# existingSecret vers le nom du Secret K8s existant.
+secrets:
+  # Nom d'un Secret K8s existant (laissez vide pour que le chart le crée)
+  existingSecret: ""
+  # Clés attendues dans le Secret (ou valeurs inline si existingSecret est vide)
+  dbPassword: ""         # Requis — mot de passe PostgreSQL
+  betterAuthSecret: ""   # Requis — clé HMAC 32+ chars pour Better Auth
+  seedAdminPassword: ""  # Optionnel — mot de passe admin initial
+  seedUserPassword: ""   # Optionnel — mot de passe utilisateur démo initial
+  redisPassword: ""      # Optionnel — laisser vide pour désactiver l'auth Redis

@@ -1,0 +1,31 @@
+ArchiSpark a été déployé avec succès !
+
+URL de l'application :
+{{- if .Values.ingress.enabled }}
+{{- if .Values.ingress.tls.enabled }}
+  https://{{ .Values.ingress.host }}
+{{- else }}
+  http://{{ .Values.ingress.host }}
+{{- end }}
+{{- else }}
+  kubectl port-forward svc/{{ include "archispark.fullname" . }}-web {{ .Values.web.port }}:{{ .Values.web.port }} -n {{ .Release.Namespace }}
+  http://localhost:{{ .Values.web.port }}
+{{- end }}
+
+État des pods :
+  kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+
+Logs :
+  kubectl logs -n {{ .Release.Namespace }} -l app=archispark-api --tail=50
+  kubectl logs -n {{ .Release.Namespace }} -l app=archispark-web --tail=50
+
+Premier démarrage — l'API seed la base automatiquement.
+Compte admin : admin / valeur de secrets.seedAdminPassword (ou "admin" par défaut).
+
+MCP Server :
+  URL  : {{ if .Values.ingress.tls.enabled }}https{{ else }}http{{ end }}://{{ .Values.ingress.host }}/mcp/
+  Config Claude Code :
+    claude mcp add archimate-vercel {{ if .Values.ingress.tls.enabled }}https{{ else }}http{{ end }}://{{ .Values.ingress.host }}/mcp/ \
+      --transport http \
+      --header "Authorization: Bearer <votre-token>"
+  Générez un token dans l'interface : Mon profil → Tokens API → Nouveau token

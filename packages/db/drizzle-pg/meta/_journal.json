@@ -29,6 +29,20 @@
       "when": 1749081600000,
       "tag": "0003_api_tokens",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1749168000000,
+      "tag": "0004_drop_mcp_tokens",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1749254400000,
+      "tag": "0005_api_tokens_expiry",
+      "breakpoints": true
     }
   ]
 }

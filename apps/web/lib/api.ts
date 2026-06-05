@@ -473,15 +473,25 @@ export interface RedisStatus {
 
 export const fetchRedisStatus = () => get<RedisStatus>("/settings/redis");
 
-// --- MCP Token ---
+// --- API Tokens ---
 
-export interface McpTokenOut {
-  token: string;
+export interface ApiTokenOut {
+  id: number;
+  name: string;
+  user_id: string;
   created_at: number;
+  last_used_at: number | null;
+  expires_at: number | null;
 }
 
-export const fetchMcpToken = () => get<McpTokenOut | null>("/settings/mcp-token");
-export const regenerateMcpToken = () => post<McpTokenOut>("/settings/mcp-token/regenerate", {});
+export interface ApiTokenCreatedOut extends ApiTokenOut {
+  token: string;
+}
+
+export const fetchApiTokens = () => get<ApiTokenOut[]>("/settings/api-tokens");
+export const createApiToken = (name: string, expiresAt?: number) =>
+  post<ApiTokenCreatedOut>("/settings/api-tokens", { name, expires_at: expiresAt ?? null });
+export const deleteApiToken = (id: number) => del(`/settings/api-tokens/${id}`);
 
 // --- Workspaces ---
 

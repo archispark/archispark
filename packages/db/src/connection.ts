@@ -41,7 +41,12 @@ async function createDb(): Promise<NodePgDatabase<typeof schema>> {
     process.env["POSTGRES_URL_NON_POOLING"] ??
     "postgresql://archispark:archispark@localhost:5432/archispark";
 
-  const isLocal = /@(localhost|127\.0\.0\.1|\[::1\]|postgres)[:/]/.test(rawConnectionString);
+  // isLocal: standard local hostnames OR explicit sslmode=disable in the URL
+  // (covers K8s/Docker internal hostnames like archispark-postgres that don't
+  // match the localhost pattern but also have no SSL).
+  const isLocal =
+    /@(localhost|127\.0\.0\.1|\[::1\]|postgres)[:/]/.test(rawConnectionString) ||
+    /[?&]sslmode=disable/i.test(rawConnectionString);
 
   // Managed Postgres (Supabase, etc.) serves TLS with a private-CA certificate.
   // node-postgres treats the URL's `sslmode=require` as verify-full and rejects

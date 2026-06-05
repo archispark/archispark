@@ -111,9 +111,9 @@ services:
       NODE_ENV:        production
       MCP_PORT:        "3001"
       HOST:            "0.0.0.0"
-      # Token d'authentification Bearer pour sécuriser l'endpoint /mcp
-      # Laisser vide pour désactiver l'authentification (non recommandé en prod)
-      MCP_AUTH_TOKEN:  ${MCP_AUTH_TOKEN:-}
+      # Connexion directe à PostgreSQL (le MCP server importe le package api qui lit la DB)
+      DATABASE_URL:    "postgresql://archispark:${DB_PASSWORD}@postgres:5432/archispark"
+      REDIS_URL:       ${REDIS_URL:-redis://redis:6379}
     depends_on:
       api:
         condition: service_healthy

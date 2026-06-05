@@ -305,17 +305,6 @@ export const userRoles = pgTable("user_roles", {
 ]);
 
 // ---------------------------------------------------------------------------
-// MCP API tokens (Bearer token protecting the MCP server endpoint)
-// ---------------------------------------------------------------------------
-
-export const mcpTokens = pgTable("mcp_tokens", {
-  id:        serial("id").primaryKey(),
-  token:     text("token").notNull(),
-  createdAt: integer("created_at").notNull().default(sql`extract(epoch from now())::int`),
-  createdBy: text("created_by"),
-});
-
-// ---------------------------------------------------------------------------
 // API tokens (Bearer tokens for REST API access — one per user, named)
 // ---------------------------------------------------------------------------
 
@@ -326,6 +315,7 @@ export const apiTokens = pgTable("api_tokens", {
   userId:      text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   createdAt:   integer("created_at").notNull().default(sql`extract(epoch from now())::int`),
   lastUsedAt:  integer("last_used_at"),
+  expiresAt:   integer("expires_at"),
 }, (t) => [
   uniqueIndex("api_tokens_token_uniq").on(t.token),
   index("api_tokens_user_idx").on(t.userId),

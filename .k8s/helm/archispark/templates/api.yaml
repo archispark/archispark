@@ -1,0 +1,103 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "archispark.fullname" . }}-api
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "archispark.labels" . | nindent 4 }}
+    app: archispark-api
+spec:
+  replicas: {{ .Values.api.replicas }}
+  selector:
+    matchLabels:
+      app: archispark-api
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app: archispark-api
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      {{- with .Values.image.pullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: api
+          image: "{{ .Values.api.image }}:{{ include "archispark.imageTag" . }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.api.port }}
+          env:
+            - name: NODE_ENV
+              value: production
+            - name: PORT
+              value: {{ .Values.api.port | quote }}
+            - name: HOST
+              value: "0.0.0.0"
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "archispark.secretName" . }}
+                  key: DB_PASSWORD
+            - name: DATABASE_URL
+              value: "postgresql://archispark:$(DB_PASSWORD)@{{ include "archispark.fullname" . }}-postgres:5432/archispark?sslmode=disable"
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "archispark.secretName" . }}
+                  key: REDIS_PASSWORD
+            - name: REDIS_URL
+              value: {{ include "archispark.redisUrl" . | quote }}
+            - name: BETTER_AUTH_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "archispark.secretName" . }}
+                  key: BETTER_AUTH_SECRET
+            - name: WEB_URL
+              value: {{ .Values.config.webUrl | quote }}
+            - name: TRUSTED_ORIGINS
+              value: {{ .Values.config.trustedOrigins | quote }}
+            - name: SEED_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "archispark.secretName" . }}
+                  key: SEED_ADMIN_PASSWORD
+            - name: SEED_USER_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "archispark.secretName" . }}
+                  key: SEED_USER_PASSWORD
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 5
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          resources:
+            {{- toYaml .Values.api.resources | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "archispark.fullname" . }}-api
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "archispark.labels" . | nindent 4 }}
+    app: archispark-api
+spec:
+  selector:
+    app: archispark-api
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  ports:
+    - name: http
+      port: {{ .Values.api.port }}
+      targetPort: http

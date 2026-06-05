@@ -25,7 +25,7 @@
  */
 
 import express, { Request, Response, NextFunction } from "express";
-import { randomUUID, randomBytes } from "crypto";
+import { randomUUID } from "crypto";
 import cors from "cors";
 import helmet from "helmet";
 import { rateLimit } from "express-rate-limit";
@@ -42,7 +42,7 @@ import type { Archiver, ZipOptions } from "archiver";
 import * as archiverNs from "archiver";
 const ZipArchive = (archiverNs as unknown as { ZipArchive: new (opts?: ZipOptions) => Archiver }).ZipArchive;
 import { AppError, ValidationError } from "./errors.js";
-import { db, oauthProviders, apiTokens, mcpTokens, modelFromDb, modelToDb } from "@workspace/db";
+import { db, oauthProviders, apiTokens, modelFromDb, modelToDb } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import * as store from "./store.js";
 import {
@@ -484,44 +484,32 @@ app.get("/settings/redis", requireAdmin as express.RequestHandler, async (_req: 
 });
 
 // ---------------------------------------------------------------------------
-// MCP token routes (admin only — single shared bearer token for MCP clients)
-// ---------------------------------------------------------------------------
-
-app.get("/settings/mcp-token", requireAdmin as express.RequestHandler, async (_req: Request, res: Response) => {
-  const [row] = await db.select({ token: mcpTokens.token, createdAt: mcpTokens.createdAt }).from(mcpTokens).limit(1);
-  if (!row) { res.json(null); return; }
-  res.json({ token: row.token, created_at: row.createdAt });
-});
-
-app.post("/settings/mcp-token/regenerate", requireAdmin as express.RequestHandler, async (req: AuthRequest, res: Response) => {
-  const token = randomBytes(32).toString("hex");
-  const now   = Math.floor(Date.now() / 1000);
-  await db.delete(mcpTokens);
-  await db.insert(mcpTokens).values({ token, createdAt: now, createdBy: req.user?.id ?? null });
-  res.json({ token, created_at: now });
-});
-
-// ---------------------------------------------------------------------------
 // API token routes (personal access tokens — any authenticated user)
 // ---------------------------------------------------------------------------
 
 app.get("/settings/api-tokens", requireAuth as express.RequestHandler, async (req: AuthRequest, res: Response) => {
+  const cols = { id: apiTokens.id, name: apiTokens.name, userId: apiTokens.userId, createdAt: apiTokens.createdAt, lastUsedAt: apiTokens.lastUsedAt, expiresAt: apiTokens.expiresAt };
   const rows = req.user?.role === "admin"
-    ? await db.select({ id: apiTokens.id, name: apiTokens.name, userId: apiTokens.userId, createdAt: apiTokens.createdAt, lastUsedAt: apiTokens.lastUsedAt }).from(apiTokens)
-    : await db.select({ id: apiTokens.id, name: apiTokens.name, userId: apiTokens.userId, createdAt: apiTokens.createdAt, lastUsedAt: apiTokens.lastUsedAt }).from(apiTokens).where(eq(apiTokens.userId, req.user!.id));
-  res.json(rows.map((r) => ({ id: r.id, name: r.name, user_id: r.userId, created_at: r.createdAt, last_used_at: r.lastUsedAt ?? null })));
+    ? await db.select(cols).from(apiTokens)
+    : await db.select(cols).from(apiTokens).where(eq(apiTokens.userId, req.user!.id));
+  res.json(rows.map((r) => ({ id: r.id, name: r.name, user_id: r.userId, created_at: r.createdAt, last_used_at: r.lastUsedAt ?? null, expires_at: r.expiresAt ?? null })));
 });
 
 app.post("/settings/api-tokens", requireAuth as express.RequestHandler, async (req: AuthRequest, res: Response) => {
-  const { name } = req.body as { name?: unknown };
+  const { name, expires_at } = req.body as { name?: unknown; expires_at?: unknown };
   if (!name || typeof name !== "string" || !name.trim()) {
     res.status(422).json({ detail: "Le champ 'name' est requis." });
     return;
   }
+  const expiresAt: number | undefined = (() => {
+    if (expires_at === null || expires_at === undefined) return undefined;
+    const v = typeof expires_at === "string" ? parseInt(expires_at, 10) : (typeof expires_at === "number" ? expires_at : NaN);
+    return isNaN(v) ? undefined : v;
+  })();
   const token = randomUUID().replace(/-/g, "") + randomUUID().replace(/-/g, "");
-  const [row] = await db.insert(apiTokens).values({ token, name: name.trim(), userId: req.user!.id })
-    .returning({ id: apiTokens.id, name: apiTokens.name, userId: apiTokens.userId, createdAt: apiTokens.createdAt });
-  res.status(201).json({ id: row!.id, name: row!.name, user_id: row!.userId, created_at: row!.createdAt, token });
+  const [row] = await db.insert(apiTokens).values({ token, name: name.trim(), userId: req.user!.id, expiresAt })
+    .returning({ id: apiTokens.id, name: apiTokens.name, userId: apiTokens.userId, createdAt: apiTokens.createdAt, expiresAt: apiTokens.expiresAt });
+  res.status(201).json({ id: row!.id, name: row!.name, user_id: row!.userId, created_at: row!.createdAt, expires_at: row!.expiresAt ?? null, token });
 });
 
 app.delete("/settings/api-tokens/:id", requireAuth as express.RequestHandler, async (req: AuthRequest, res: Response) => {

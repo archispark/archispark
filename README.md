@@ -70,6 +70,108 @@ make clean          # remove local ArchiSpark images
 make version        # print version from package.json
 ```
 
+## Kubernetes (Helm)
+
+A Helm chart is available in `.k8s/helm/archispark/`. It deploys the full stack (api, web, mcp-server, postgres, redis) with an NGINX Ingress — the same topology as the Docker Compose setup.
+
+### Prerequisites
+
+| Tool | Install |
+|------|---------|
+| `helm` ≥ 3.x | `curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 \| bash` |
+| `kubectl` | `curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"` |
+| Kubernetes cluster | Any cluster with an **NGINX Ingress Controller** (minikube, k3s, GKE, EKS…) |
+
+**Local cluster with minikube (Docker driver) :**
+
+```bash
+minikube start --driver=docker --cpus=4 --memory=6g --addons=ingress
+```
+
+### Install
+
+```bash
+# Minimal install (replace values with your own)
+helm install archispark .k8s/helm/archispark \
+  --namespace archispark --create-namespace \
+  --set config.webUrl=http://archispark.local \
+  --set ingress.host=archispark.local \
+  --set secrets.dbPassword=<motdepasse> \
+  --set secrets.betterAuthSecret=$(openssl rand -hex 32) \
+  --set secrets.seedAdminPassword=admin
+```
+
+With TLS (cert-manager or manual secret):
+
+```bash
+helm install archispark .k8s/helm/archispark \
+  --namespace archispark --create-namespace \
+  --set config.webUrl=https://archispark.example.com \
+  --set ingress.host=archispark.example.com \
+  --set ingress.tls.enabled=true \
+  --set ingress.tls.secretName=archispark-tls \
+  --set secrets.dbPassword=<motdepasse> \
+  --set secrets.betterAuthSecret=$(openssl rand -hex 32)
+```
+
+**minikube local DNS** (add Ingress IP to `/etc/hosts`):
+
+```bash
+echo "$(minikube ip) archispark.local" | sudo tee -a /etc/hosts
+```
+
+### Key values
+
+| Value | Default | Description |
+|-------|---------|-------------|
+| `image.os` | `alpine` | Image variant: `alpine` or `trixie-slim` |
+| `image.tag` | `latest` | Image tag (use a pinned version in production, e.g. `0.4.0`) |
+| `ingress.host` | `archispark.example.com` | Hostname served by the Ingress |
+| `ingress.className` | `nginx` | Ingress class |
+| `ingress.tls.enabled` | `false` | Enable TLS |
+| `secrets.dbPassword` | — | **Required** — PostgreSQL password |
+| `secrets.betterAuthSecret` | — | **Required** — HMAC secret ≥ 32 chars for Better Auth |
+| `secrets.seedAdminPassword` | `admin` | Initial admin password |
+| `secrets.existingSecret` | `""` | Name of a pre-existing K8s Secret (Sealed Secrets, ESO…) |
+| `postgres.storage` | `5Gi` | PostgreSQL PVC size |
+| `redis.storage` | `1Gi` | Redis PVC size |
+
+See [`.k8s/helm/archispark/values.yaml`](.k8s/helm/archispark/values.yaml) for the full list.
+
+### Upgrade / uninstall
+
+```bash
+# Upgrade (keep existing values)
+helm upgrade archispark .k8s/helm/archispark --namespace archispark --reuse-values
+
+# Uninstall (keeps PVCs — data is preserved)
+helm uninstall archispark --namespace archispark
+
+# Full wipe including data
+helm uninstall archispark --namespace archispark
+kubectl delete pvc -n archispark --all
+```
+
+### Routing
+
+| Path | Backend | Notes |
+|------|---------|-------|
+| `/api/*` | `archispark-api:3000` | `/api` prefix stripped before forwarding |
+| `/auth/*` | `archispark-api:3000` | Better Auth handles the full path |
+| `/mcp/*` | `archispark-mcp:3001` | MCP Streamable HTTP (Bearer token required) |
+| `/` | `archispark-web:8000` | Next.js catch-all |
+
+### MCP Server on Kubernetes
+
+Once deployed, generate a personal API token in the web UI (**Mon profil → Tokens API → Nouveau token**) and configure Claude Code:
+
+```bash
+claude mcp add archimate \
+  http://archispark.local/mcp/ \
+  --transport http \
+  --header "Authorization: Bearer <your-token>"
+```
+
 ## Demo seed
 
 Two sample ArchiMate models are available for demo or local testing: **ArchiMetal** (294 elements, 476 relationships, 33 views) and **ArchiSurance** (257 elements, 402 relationships, 40 views).

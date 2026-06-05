@@ -1,0 +1,13 @@
+apiVersion: v2
+name: archispark
+description: ArchiSpark — ArchiMate modeling platform (web + api + mcp-server + postgres + redis)
+type: application
+version: 0.1.0
+appVersion: "latest"
+keywords:
+  - archimate
+  - modeling
+  - enterprise-architecture
+maintainers:
+  - name: ArchiSpark
+    url: https://github.com/archispark/archispark

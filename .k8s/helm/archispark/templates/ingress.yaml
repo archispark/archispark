@@ -1,0 +1,116 @@
+{{- if .Values.ingress.enabled }}
+# ── Ingress 1 : /api → strip préfixe → api:3000 ──────────────────────────────
+# Équivalent du middleware Traefik `stripprefix /api`.
+# NGINX capture le chemin après /api et le réécrit en /$1.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "archispark.fullname" . }}-ingress-api
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "archispark.labels" . | nindent 4 }}
+  annotations:
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/rewrite-target: "/$1"
+    {{- with .Values.ingress.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  {{- if .Values.ingress.className }}
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- end }}
+  {{- if .Values.ingress.tls.enabled }}
+  tls:
+    - hosts:
+        - {{ .Values.ingress.host }}
+      secretName: {{ .Values.ingress.tls.secretName | default (printf "%s-tls" (include "archispark.fullname" .)) }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.ingress.host }}
+      http:
+        paths:
+          - path: /api/(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: {{ include "archispark.fullname" . }}-api
+                port:
+                  number: {{ .Values.api.port }}
+---
+# ── Ingress 2 : /auth et /mcp → pas de réécriture ────────────────────────────
+# Better Auth gère le chemin complet /auth/…
+# Le MCP Server gère le chemin complet /mcp/…
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "archispark.fullname" . }}-ingress-passthrough
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "archispark.labels" . | nindent 4 }}
+  annotations:
+    {{- with .Values.ingress.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  {{- if .Values.ingress.className }}
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- end }}
+  {{- if .Values.ingress.tls.enabled }}
+  tls:
+    - hosts:
+        - {{ .Values.ingress.host }}
+      secretName: {{ .Values.ingress.tls.secretName | default (printf "%s-tls" (include "archispark.fullname" .)) }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.ingress.host }}
+      http:
+        paths:
+          - path: /auth
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "archispark.fullname" . }}-api
+                port:
+                  number: {{ .Values.api.port }}
+          - path: /mcp
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "archispark.fullname" . }}-mcp
+                port:
+                  number: {{ .Values.mcpServer.port }}
+---
+# ── Ingress 3 : / → web:8000 (catch-all) ────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "archispark.fullname" . }}-ingress-web
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "archispark.labels" . | nindent 4 }}
+  annotations:
+    {{- with .Values.ingress.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  {{- if .Values.ingress.className }}
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- end }}
+  {{- if .Values.ingress.tls.enabled }}
+  tls:
+    - hosts:
+        - {{ .Values.ingress.host }}
+      secretName: {{ .Values.ingress.tls.secretName | default (printf "%s-tls" (include "archispark.fullname" .)) }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.ingress.host }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "archispark.fullname" . }}-web
+                port:
+                  number: {{ .Values.web.port }}
+{{- end }}
