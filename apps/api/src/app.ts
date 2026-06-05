@@ -617,6 +617,10 @@ app.get("/elements/:element_id", async (req: Request, res: Response) => {
   res.json(await store.getElementById(await getActiveWorkspaceId(), req.params["element_id"] as string));
 });
 
+app.get("/elements/:element_id/views", async (req: Request, res: Response) => {
+  res.json(await store.getElementViews(await getActiveWorkspaceId(), req.params["element_id"] as string));
+});
+
 app.get("/elements/:element_id/relationships", requirePermission("Relations", "read"), async (req: Request, res: Response) => {
   res.json(await store.getElementRelationships(await getActiveWorkspaceId(), req.params["element_id"] as string));
 });

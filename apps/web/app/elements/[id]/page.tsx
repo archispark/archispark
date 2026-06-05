@@ -6,11 +6,11 @@ import Link from "next/link";
 import type { ColumnDef } from "@tanstack/react-table";
 import {
   useElement, useElementRelationships, useElements, useElementTypes,
-  useUpdateElement, useDeleteElement, useElementsInViews,
+  useUpdateElement, useDeleteElement, useElementsInViews, useElementViews,
   useCreateRelationship, useUpdateRelationship, useDeleteRelationship,
   useRelationshipTypes, usePropertyDefinitions,
 } from "@/lib/queries";
-import { type RelationshipOut, type Property, type RelationshipCreateIn, type RelationshipUpdateIn, type PropertyDefinitionOut } from "@/lib/api";
+import { type RelationshipOut, type Property, type RelationshipCreateIn, type RelationshipUpdateIn, type PropertyDefinitionOut, type ViewOut } from "@/lib/api";
 import { getLayer, LAYER_BADGE_COLORS } from "@/lib/archimate-helpers";
 import { allowedRelationships } from "@/lib/archimate-rules";
 import { DataTable } from "@/components/data-table";
@@ -30,6 +30,7 @@ import { useIsAdmin } from "@/hooks/use-current-user";
 import { useFormModal } from "@/hooks/use-form-modal";
 import { useT } from "@/lib/i18n";
 import type { ElementOut } from "@/lib/api";
+import { ElementGraphTab } from "@/components/element-graph-tab";
 
 // ── Simple tab bar ────────────────────────────────────────────────────────────
 
@@ -142,6 +143,7 @@ export default function ElementDetailPage() {
   const { data: propDefs = [] } = usePropertyDefinitions();
   const { data: inViews = [] } = useElementsInViews();
   const isInViews = useMemo(() => inViews.includes(id), [inViews, id]);
+  const { data: elementViews = [] } = useElementViews(id);
 
   const updateMutation = useUpdateElement();
   const deleteMutation = useDeleteElement();
@@ -149,7 +151,7 @@ export default function ElementDetailPage() {
   const updateRelMutation = useUpdateRelationship();
   const deleteRelMutation = useDeleteRelationship();
 
-  const [activeTab, setActiveTab] = useState<"properties" | "relations">("properties");
+  const [activeTab, setActiveTab] = useState<"properties" | "relations" | "canvas" | "views">("properties");
 
   // ── Delete element ────────────────────────────────────────────────────────
   const [deleteModal, deleteActions] = useFormModal<ElementOut>();
@@ -408,6 +410,8 @@ export default function ElementDetailPage() {
   const tabs = [
     { id: "properties", label: t("elements.tab_properties"), count: properties.length },
     { id: "relations",  label: t("elements.tab_relations"),  count: relationships.length },
+    { id: "views",      label: t("elements.tab_views"),      count: elementViews.length },
+    { id: "canvas",     label: t("elements.tab_canvas") },
   ];
 
   return (
@@ -543,7 +547,7 @@ export default function ElementDetailPage() {
 
       {/* Tabs */}
       <div className="space-y-3">
-        <Tabs tabs={tabs} active={activeTab} onChange={(v) => setActiveTab(v as "properties" | "relations")} />
+        <Tabs tabs={tabs} active={activeTab} onChange={(v) => setActiveTab(v as "properties" | "relations" | "canvas" | "views")} />
 
         {/* ── Properties tab ──────────────────────────────────────────────── */}
         {activeTab === "properties" && (
@@ -629,6 +633,39 @@ export default function ElementDetailPage() {
                 );
               }}
             />
+          </div>
+        )}
+
+        {/* ── Canvas tab ───────────────────────────────────────────────────── */}
+        {activeTab === "canvas" && (
+          <ElementGraphTab element={element} relationships={relationships} byId={byId} />
+        )}
+
+        {/* ── Views tab ────────────────────────────────────────────────────── */}
+        {activeTab === "views" && (
+          <div className="space-y-1">
+            {elementViews.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-4 text-center">{t("elements.not_in_views_hint")}</p>
+            ) : (
+              elementViews.map((view: ViewOut) => (
+                <Link
+                  key={view.identifier}
+                  href={`/views/${encodeURIComponent(view.identifier)}`}
+                  className="flex items-center justify-between rounded-md border border-border px-4 py-3 hover:bg-muted/40 transition-colors group"
+                >
+                  <div className="space-y-0.5 min-w-0">
+                    <div className="text-sm font-medium truncate">{view.name || view.identifier}</div>
+                    {view.viewpoint && (
+                      <div className="text-[11px] text-muted-foreground">{view.viewpoint}</div>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-3 shrink-0 ml-4">
+                    <span className="text-[11px] text-muted-foreground tabular-nums">{view.node_count} nodes</span>
+                    <ChevronRight className="size-3.5 text-muted-foreground group-hover:text-foreground transition-colors" />
+                  </div>
+                </Link>
+              ))
+            )}
           </div>
         )}
       </div>

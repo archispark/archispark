@@ -241,6 +241,8 @@
   "overview.other": "Autres",
   "elements.tab_properties": "Propriétés",
   "elements.tab_relations": "Relations",
+  "elements.tab_canvas": "Canvas",
+  "elements.tab_views": "Vues",
   "elements.specialization": "Spécialise",
   "elements.prop_definition": "Définition",
   "elements.prop_value": "Valeur",

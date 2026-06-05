@@ -5,6 +5,7 @@ import {
   fetchElement,
   fetchElementTypes,
   fetchElementRelationships,
+  fetchElementViews,
   fetchElementsInViews,
   fetchRelationships,
   fetchRelationshipTypes,
@@ -65,6 +66,7 @@ export const queryKeys = {
   elements: (type?: string | null, name?: string | null) => ["elements", type, name] as const,
   element: (id: string) => ["element", id] as const,
   elementRelationships: (id: string) => ["elementRelationships", id] as const,
+  elementViews: (id: string) => ["elementViews", id] as const,
   elementsInViews: () => ["elementsInViews"] as const,
   elementTypes: () => ["elementTypes"] as const,
   relationships: (type?: string | null, name?: string | null) => ["relationships", type, name] as const,
@@ -100,6 +102,10 @@ export function useElement(id: string) {
 
 export function useElementRelationships(id: string) {
   return useQuery({ queryKey: queryKeys.elementRelationships(id), queryFn: () => fetchElementRelationships(id), enabled: !!id });
+}
+
+export function useElementViews(id: string) {
+  return useQuery({ queryKey: queryKeys.elementViews(id), queryFn: () => fetchElementViews(id), enabled: !!id });
 }
 
 export function useElementsInViews() {

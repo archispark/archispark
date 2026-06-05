@@ -1,234 +1,46 @@
 # ─────────────────────────────────────────────────────────────────────────────
-#  ArchiSpark — Docker Compose (base)
+#  ArchiSpark — Docker Compose (dev local / pnpm)
 #
-#  Utilise les images publiées sur Docker Hub.
+#  Deux modes d'utilisation :
 #
-#  Variante d'image  : ARCHISPARK_OS      (alpine | trixie-slim, défaut: alpine)
-#  Version des images: ARCHISPARK_VERSION (défaut: latest)
+#  A) Infrastructure seule (pnpm dev sur l'hôte) :
+#       docker compose -f docker-compose.dev.yml up -d postgres redis
+#       pnpm dev
 #
-#  Exemples :
-#    # Dernières images stables
-#    docker compose -f docker-compose.yml
+#  B) Stack complète dans Docker (sources montées depuis l'hôte) :
+#       docker compose -f docker-compose.dev.yml up
+#       → web  : http://localhost:8000
+#       → api  : http://localhost:3000
+#       → mcp  : http://localhost:3001
 #
+#  Arrêt (en conservant les données) :
+#    docker compose -f docker-compose.dev.yml down
+#
+#  Arrêt + suppression des volumes :
+#    docker compose -f docker-compose.dev.yml down -v
 # ─────────────────────────────────────────────────────────────────────────────
 
 services:
 
-  # ── Reverse proxy ─────────────────────────────────────────────────────────
-  # Traefik écoute sur les ports 80/443 et route le trafic vers les services
-  # via les labels Docker. Il démarre après que l'API et le web soient sains.
-  proxy-traefik:
-    image: traefik:v3
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      # Socket Docker en lecture seule pour la découverte automatique des services
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      # Configuration statique Traefik (entrypoints, providers, TLS…)
-      - ./traefik.yml:/etc/traefik/traefik.yml:ro
-      # Stockage persistant des certificats Let's Encrypt
-      - traefik_certs:/letsencrypt
-    depends_on:
-      api:
-        condition: service_healthy
-      web:
-        condition: service_healthy
-      mcp-server:
-        condition: service_started
-    networks:
-      - archispark
-
-
-  # ── REST API ───────────────────────────────────────────────────────────────
-  api:
-    build:
-      context:    .
-      dockerfile: .docker/api/${ARCHISPARK_OS:-alpine}/Dockerfile
-    restart: unless-stopped
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    environment:
-      NODE_ENV:            production
-      PORT:                "3000"
-      HOST:                "0.0.0.0"
-      # Connexion PostgreSQL (réseau Docker interne)
-      DATABASE_URL:        "postgresql://archispark:${DB_PASSWORD}@postgres:5432/archispark"
-      # Connexion Redis — si REDIS_PASSWORD est défini dans .env, remplacer par
-      # redis://:${REDIS_PASSWORD}@redis:6379
-      REDIS_URL:           ${REDIS_URL:-redis://redis:6379}
-      # Clé secrète pour Better Auth (JWT/sessions) — obligatoire
-      BETTER_AUTH_SECRET:  ${BETTER_AUTH_SECRET:?Set BETTER_AUTH_SECRET in .env}
-      # URL publique de l'application web (utilisée pour les redirections OAuth)
-      WEB_URL:             ${ARCHISPARK_URL:-http://localhost}
-      # Origines autorisées pour les requêtes CORS (séparées par des virgules)
-      TRUSTED_ORIGINS:     ${TRUSTED_ORIGINS:-}
-      # Mot de passe du compte admin créé au premier démarrage (seed)
-      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-}
-      # Mot de passe du compte utilisateur de démonstration (seed)
-      SEED_USER_PASSWORD:  ${SEED_USER_PASSWORD:-}
-    healthcheck:
-      test:     ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/health"]
-      interval: 10s
-      timeout:  5s
-      retries:  5
-      start_period: 30s
-    networks:
-      - archispark
-    labels:
-      - "traefik.enable=true"
-      # Middleware : supprime le préfixe /api avant de transmettre la requête
-      - "traefik.http.middlewares.strip-api.stripprefix.prefixes=/api"
-      # Middleware : en-têtes de sécurité HTTP (HSTS, X-Content-Type, etc.)
-      - "traefik.http.middlewares.security-headers.headers.stsSeconds=31536000"
-      - "traefik.http.middlewares.security-headers.headers.stsIncludeSubdomains=true"
-      - "traefik.http.middlewares.security-headers.headers.contentTypeNosniff=true"
-      - "traefik.http.middlewares.security-headers.headers.customFrameOptionsValue=SAMEORIGIN"
-      - "traefik.http.middlewares.security-headers.headers.referrerPolicy=strict-origin-when-cross-origin"
-      # Supprime l'en-tête Server pour ne pas exposer la stack technique
-      - "traefik.http.middlewares.security-headers.headers.customResponseHeaders.Server="
-      # Routeur /api → strip préfixe puis forwarde sur le port 3000
-      - "traefik.http.routers.api.rule=PathPrefix(`/api`)"
-      - "traefik.http.routers.api.entrypoints=web"
-      - "traefik.http.routers.api.middlewares=strip-api,security-headers"
-      - "traefik.http.routers.api.service=api"
-      - "traefik.http.services.api.loadbalancer.server.port=3000"
-      # Routeur /auth → pas de strip (Better Auth gère le chemin complet)
-      - "traefik.http.routers.auth.rule=PathPrefix(`/auth`)"
-      - "traefik.http.routers.auth.entrypoints=web"
-      - "traefik.http.routers.auth.middlewares=security-headers"
-      - "traefik.http.routers.auth.service=api"
-
-  # ── MCP Server ─────────────────────────────────────────────────────────────
-  # Serveur Model Context Protocol — expose les outils ArchiMate aux agents IA.
-  # Démarre uniquement après que l'API soit saine (dépend de api:healthy).
-  mcp-server:
-    build:
-      context:    .
-      dockerfile: .docker/mcp-server/${ARCHISPARK_OS:-alpine}/Dockerfile
-    restart: unless-stopped
-    environment:
-      NODE_ENV:        production
-      MCP_PORT:        "3001"
-      HOST:            "0.0.0.0"
-      # Token d'authentification Bearer pour sécuriser l'endpoint /mcp
-      # Laisser vide pour désactiver l'authentification (non recommandé en prod)
-      MCP_AUTH_TOKEN:  ${MCP_AUTH_TOKEN:-}
-    depends_on:
-      api:
-        condition: service_healthy
-    networks:
-      - archispark
-    labels:
-      - "traefik.enable=true"
-      # Toutes les requêtes /mcp sont routées vers le serveur MCP
-      - "traefik.http.routers.mcp.rule=PathPrefix(`/mcp`)"
-      - "traefik.http.routers.mcp.entrypoints=web"
-      - "traefik.http.routers.mcp.middlewares=security-headers"
-      - "traefik.http.routers.mcp.service=mcp"
-      - "traefik.http.services.mcp.loadbalancer.server.port=3001"
-
-  # ── Next.js Web ────────────────────────────────────────────────────────────
-  # Interface utilisateur Next.js. ARCHIMATE_API_URL est vide : les appels API
-  # passent par le proxy Traefik (chemin relatif /api) plutôt que directement.
-  web:
-    build:
-      context:    .
-      dockerfile: .docker/web/${ARCHISPARK_OS:-alpine}/Dockerfile
-    restart: unless-stopped
-    environment:
-      NODE_ENV:          production
-      PORT:              "8000"
-      HOSTNAME:          "0.0.0.0"
-      # Vide intentionnellement : le frontend appelle /api via Traefik
-      ARCHIMATE_API_URL: ""
-    depends_on:
-      api:
-        condition: service_healthy
-    healthcheck:
-      test:     ["CMD", "wget", "-qO-", "http://127.0.0.1:8000/"]
-      interval: 10s
-      timeout:  5s
-      retries:  5
-      start_period: 30s
-    networks:
-      - archispark
-    labels:
-      - "traefik.enable=true"
-      # Route catch-all : tout ce qui n'est ni /api ni /auth ni /mcp
-      - "traefik.http.routers.web.rule=PathPrefix(`/`)"
-      - "traefik.http.routers.web.entrypoints=web"
-      - "traefik.http.routers.web.middlewares=security-headers"
-      - "traefik.http.routers.web.service=web"
-      - "traefik.http.services.web.loadbalancer.server.port=8000"
-
-  # ── Swagger UI ─────────────────────────────────────────────────────────────
-  # Swagger UI généré depuis l'OpenAPI de l'API. Accessible directement sur
-  # DOCS_PORT (défaut 9000) ou via un sous-domaine si ARCHISPARK_DOCS_HOST est
-  # défini (active le routeur Traefik).
-  # swagger-ui:
-  #   build:
-  #     context:    .
-  #     dockerfile: .docker/swagger-ui/${ARCHISPARK_OS:-alpine}/Dockerfile
-  #   restart: unless-stopped
-  #   ports:
-  #     # Accès direct sans Traefik (pratique pour le dev / réseau interne)
-  #     - "${DOCS_PORT:-9000}:9000"
-  #   environment:
-  #     NODE_ENV: production
-  #     PORT:     "9000"
-  #     HOST:     "0.0.0.0"
-  #     # URL interne de l'API (réseau Docker) pour le proxy des requêtes OpenAPI
-  #     API_URL:  "http://api:3000"
-  #   depends_on:
-  #     api:
-  #       condition: service_healthy
-  #   healthcheck:
-  #     test:     ["CMD", "wget", "-qO-", "http://localhost:9000/openapi.json"]
-  #     interval: 10s
-  #     timeout:  5s
-  #     retries:  5
-  #   networks:
-  #     - archispark
-  #   labels:
-  #     # Le routeur Traefik n'est activé que si ARCHISPARK_DOCS_HOST est fourni
-  #     - "traefik.enable=${ARCHISPARK_DOCS_HOST:+true}"
-  #     - "traefik.http.routers.docs.rule=Host(`${ARCHISPARK_DOCS_HOST:-docs.localhost}`)"
-  #     - "traefik.http.routers.docs.entrypoints=web"
-  #     - "traefik.http.routers.docs.middlewares=security-headers"
-  #     - "traefik.http.routers.docs.service=docs"
-  #     - "traefik.http.services.docs.loadbalancer.server.port=9000"
-
-  # ── Base de données ────────────────────────────────────────────────────────
-  # PostgreSQL 17 — base principale de l'application.
-  # Le port 5432 est exposé pour permettre un accès externe (psql, DBeaver…).
+  # ── Base de données ──────────────────────────────────────────────────────
   postgres:
     image: postgres:17-alpine
     restart: unless-stopped
     environment:
       POSTGRES_USER:     archispark
-      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
       POSTGRES_DB:       archispark
     ports:
       - "5432:5432"
     volumes:
-      # Volume nommé pour la persistance des données entre les redémarrages
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_dev_data:/var/lib/postgresql/data
     healthcheck:
       test:     ["CMD-SHELL", "pg_isready -U archispark -d archispark"]
       interval: 5s
       timeout:  5s
       retries:  10
-    networks:
-      - archispark
 
-  # ── Cache / pub-sub ────────────────────────────────────────────────────────
-  # Redis 7 avec persistance AOF activée.
-  # Si REDIS_PASSWORD est défini, l'authentification est requise.
+  # ── Cache / pub-sub ───────────────────────────────────────────────────────
   redis:
     image: redis:7-alpine
     restart: unless-stopped
@@ -238,25 +50,79 @@ services:
     ports:
       - "6379:6379"
     volumes:
-      - redis_data:/data
+      - redis_dev_data:/data
     healthcheck:
-      # Utilise le mot de passe si défini, sinon ping simple
       test:     ["CMD-SHELL", "redis-cli ${REDIS_PASSWORD:+-a $REDIS_PASSWORD} ping | grep -q PONG"]
       interval: 5s
       timeout:  5s
       retries:  10
-    networks:
-      - archispark
 
-# ── Réseau ─────────────────────────────────────────────────────────────────
-# Réseau bridge nommé partagé par tous les services.
-# Le nom explicite "archispark" permet aux stacks externes de s'y attacher.
-networks:
-  archispark:
-    name: archispark
+  # ── Application (web + api + mcp-server via pnpm dev) ────────────────────
+  # Les sources sont montées depuis l'hôte pour le hot-reload.
+  # node_modules est dans un volume nommé : les modules natifs (sharp, bcryptjs)
+  # sont compilés pour l'Alpine du conteneur, pas pour l'hôte.
+  # apps/api/.env (valeurs localhost) est écrasé par .docker/api-dev.env via bind-mount.
+  # Turbo 2 et tsx --env-file chargent le .env du package AVANT process.env Docker,
+  # donc les vars Docker perdent sans ce override explicite.
+  app:
+    build:
+      context: .
+      dockerfile: dev.dockerfile
+    restart: unless-stopped
+    ports:
+      - "3000:3000"   # API Express
+      - "3001:3001"   # MCP Server
+      - "8000:8000"   # Next.js web
+    volumes:
+      - .:/app
+      - ./.docker/api-dev.env:/app/apps/api/.env:ro  # Écrase apps/api/.env (localhost) par les noms de services Docker
+      - app_node_modules:/app/node_modules   # modules natifs compilés pour Alpine
+    environment:
+      # Connexion PostgreSQL (réseau Docker interne, nom de service)
+      DATABASE_URL:        postgresql://archispark:${DB_PASSWORD:-changeme}@postgres:5432/archispark
+      # Connexion Redis
+      REDIS_URL:           ${REDIS_URL:-redis://redis:6379}
+      # Clé secrète Better Auth — obligatoire
+      BETTER_AUTH_SECRET:  ${BETTER_AUTH_SECRET:-dev-secret-change-me}
+      # URL publique de l'app (utilisée par Better Auth pour les redirections)
+      WEB_URL:             ${ARCHISPARK_URL:-http://localhost:8000}
+      # Origines autorisées pour le CORS
+      TRUSTED_ORIGINS:     ${TRUSTED_ORIGINS:-http://localhost:8000}
+      # Mots de passe des comptes créés au premier démarrage (seed)
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-}
+      SEED_USER_PASSWORD:  ${SEED_USER_PASSWORD:-}
+      # Le proxy Next.js rewrites /api/* → API ; localhost:3000 fonctionne car
+      # web et api tournent dans le même conteneur.
+      ARCHIMATE_API_URL:   http://localhost:3000
+    healthcheck:
+      test:     ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/health || exit 1"]
+      interval: 10s
+      timeout:  5s
+      retries:  12
+      start_period: 120s  # Laisse le temps à pnpm install + migrations au premier démarrage
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
-# ── Volumes ────────────────────────────────────────────────────────────────
+  # ── Seed données de démo ─────────────────────────────────────────────────
+  # Charge les workspaces ArchiMetal + ArchiSurance au premier démarrage.
+  # Idempotent : chaque workspace est ignoré s'il existe déjà.
+  # Démarre uniquement une fois l'API saine (migrations + auth déjà faits).
+  seed-demo:
+    image: postgres:17-alpine
+    restart: "no"
+    environment:
+      PGPASSWORD: ${DB_PASSWORD:-changeme}
+    volumes:
+      - ./packages/db/seeds/demo.sql:/seed/demo.sql:ro
+    command: psql -h postgres -U archispark -d archispark -f /seed/demo.sql
+    depends_on:
+      app:
+        condition: service_healthy
+
 volumes:
-  redis_data:      # Persistance Redis (AOF)
-  postgres_data:   # Données PostgreSQL
-  traefik_certs:   # Certificats TLS Let's Encrypt gérés par Traefik
+  postgres_dev_data:
+  redis_dev_data:
+  app_node_modules:

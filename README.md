@@ -30,6 +30,46 @@ fallbacks). It defaults to `postgresql://archispark:archispark@localhost:5432/ar
 Redis is **required** — set `REDIS_URL` (e.g. `redis://localhost:6379`). It is used
 for session storage and distributed rate-limiting. The API will fail to start without it.
 
+## Docker & Makefile
+
+Three Docker Compose files cover every deployment mode:
+
+| File | Purpose |
+|------|---------|
+| `docker-compose.yml` | **Production** — pulls published images from Docker Hub |
+| `docker-compose.build.yml` | **Build** — builds images from source (same services) |
+| `docker-compose.dev.yml` | **Development** — hot-reload, sources mounted from host |
+
+The `Makefile` wraps the most common operations. Run `make` or `make help` for the full list.
+
+```bash
+# First-time setup
+make env            # copy .env.example → .env (edit DB_PASSWORD, BETTER_AUTH_SECRET)
+
+# Production (Hub images)
+make up             # docker compose up -d
+make down
+make logs
+
+# Development
+make dev            # full hot-reload stack
+make dev-infra      # postgres + redis only, then run pnpm dev on the host
+
+# Build images from source (OS=alpine|trixie-slim, VERSION auto-read from package.json)
+make build          # build all images for current OS variant
+make build-all      # build both alpine and trixie-slim
+make build-api      # build a single service
+make build OS=trixie-slim VERSION=1.2.3
+
+# Push to Docker Hub
+make push
+make release VERSION=x.y.z   # build-all + push-all in one command
+
+# Utilities
+make clean          # remove local ArchiSpark images
+make version        # print version from package.json
+```
+
 ## Demo seed
 
 Two sample ArchiMate models are available for demo or local testing: **ArchiMetal** (294 elements, 476 relationships, 33 views) and **ArchiSurance** (257 elements, 402 relationships, 40 views).
@@ -187,22 +227,24 @@ pnpm run -w test:coverage   # ≥80% coverage required
 
 ## Vercel
 
-1. Lier Supabase aux projets (dashboard Vercel)
-Dans Vercel → Storage : lier supabase-celeste-compass à archispark-api et archispark-web. Cela injecte automatiquement POSTGRES_URL, POSTGRES_URL_NON_POOLING, etc.
+1. **Link Supabase** — In Vercel → Storage, attach your Supabase project to both `archispark-api` and `archispark-web`. This auto-injects `POSTGRES_URL`, `POSTGRES_URL_NON_POOLING`, etc.
 
-2. Configurer les variables d'environnement
-Récupère ton token Vercel dans Account Settings → Tokens, puis :
+2. **Set environment variables** — grab a Vercel token from Account Settings → Tokens, then:
 
+```bash
 VERCEL_TOKEN=xxx \
-SEED_ADMIN_PASSWORD=un-mot-de-passe-fort \
-SEED_USER_PASSWORD=un-autre-mdp \
+SEED_ADMIN_PASSWORD=<strong-password> \
+SEED_USER_PASSWORD=<another-password> \
 bash apps/api/scripts/setup-vercel-env.sh
-Le script configure :
+```
 
-Variable	Projet	Valeur
-JWT_SECRET	api	(générée)
-WEB_URL	api	https://demo.archispark.cloud
-API_URL	api	https://demo.archispark.cloud
-TRUSTED_ORIGINS	api	https://demo.archispark.cloud
-SEED_ADMIN_PASSWORD	api	(ton choix)
-ARCHIMATE_API_URL	web	https://archispark-api-lacrifs-projects.vercel.app
+The script configures:
+
+| Variable | Project | Value |
+|---|---|---|
+| `BETTER_AUTH_SECRET` | api | (auto-generated) |
+| `WEB_URL` | api | your public URL |
+| `TRUSTED_ORIGINS` | api | your public URL |
+| `SEED_ADMIN_PASSWORD` | api | your choice |
+| `SEED_USER_PASSWORD` | api | your choice |
+| `ARCHIMATE_API_URL` | web | API Vercel deployment URL |

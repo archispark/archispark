@@ -369,6 +369,31 @@ async function buildView(v: typeof views.$inferSelect): Promise<ArchiView> {
   };
 }
 
+export async function getElementViews(wsId: number, elementId: string): Promise<ViewOut[]> {
+  const rows = await db
+    .select({ view: views })
+    .from(nodes)
+    .innerJoin(views, eq(nodes.viewId, views.id))
+    .where(and(eq(views.workspaceId, wsId), eq(nodes.elementUuid, elementId)));
+  const seen = new Set<number>();
+  const out: ViewOut[] = [];
+  for (const { view: v } of rows) {
+    if (seen.has(v.id)) continue;
+    seen.add(v.id);
+    const [nc] = await db.select({ c: count() }).from(nodes).where(eq(nodes.viewId, v.id));
+    const [cc] = await db.select({ c: count() }).from(connections).where(eq(connections.viewId, v.id));
+    out.push({
+      identifier: v.uuid,
+      name: v.name || "",
+      documentation: v.description ?? null,
+      viewpoint: v.viewpoint ?? null,
+      node_count: Number(nc?.c ?? 0),
+      connection_count: Number(cc?.c ?? 0),
+    });
+  }
+  return out;
+}
+
 export async function listViews(wsId: number): Promise<ViewOut[]> {
   const viewRows = await db.select().from(views).where(eq(views.workspaceId, wsId));
   const out: ViewOut[] = [];
