@@ -8,10 +8,10 @@
 #    pnpm dev         # démarre api, web et mcp-server avec hot-reload
 #
 #  Arrêt (en conservant les données) :
-#    docker compose -f docker-compose.dev.yml down
+#    docker compose -f .docker/docker-compose.dev.yml down
 #
 #  Arrêt + suppression des volumes :
-#    docker compose -f docker-compose.dev.yml down -v
+#    docker compose -f .docker/docker-compose.dev.yml down -v
 # ─────────────────────────────────────────────────────────────────────────────
 
 services:
@@ -22,7 +22,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER:     archispark
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-archispark}
       POSTGRES_DB:       archispark
     ports:
       - "5432:5432"

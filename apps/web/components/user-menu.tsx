@@ -17,7 +17,7 @@ import { useSession } from "@/lib/auth-client";
 import { fetchMcpToken, regenerateMcpToken, type McpTokenOut } from "@/lib/api";
 import { authClient } from "@/lib/auth-client";
 
-type AccountTab = "name" | "password" | "photo";
+type AccountTab = "name" | "password";
 
 function AccountDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const user = useCurrentUser();
@@ -27,7 +27,6 @@ function AccountDialog({ open, onClose }: { open: boolean; onClose: () => void }
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [imageUrl, setImageUrl] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -35,7 +34,6 @@ function AccountDialog({ open, onClose }: { open: boolean; onClose: () => void }
   useEffect(() => {
     if (open) {
       setName(user?.username ?? "");
-      setImageUrl((session?.user as { image?: string } | undefined)?.image ?? "");
       setTab("name");
       setCurrentPassword("");
       setNewPassword("");
@@ -86,33 +84,9 @@ function AccountDialog({ open, onClose }: { open: boolean; onClose: () => void }
     }
   }
 
-  async function savePhoto() {
-    setSaving(true);
-    setError(null);
-    setSuccess(null);
-    try {
-      const { error: err } = await authClient.updateUser({ image: imageUrl });
-      if (err) throw new Error(err.message ?? "Erreur inconnue");
-      setSuccess("Photo mise à jour.");
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => setImageUrl(reader.result as string);
-    reader.readAsDataURL(file);
-  }
-
   const TABS: { id: AccountTab; label: string }[] = [
     { id: "name", label: "Nom" },
     { id: "password", label: "Mot de passe" },
-    { id: "photo", label: "Photo" },
   ];
 
   return (
@@ -211,48 +185,6 @@ function AccountDialog({ open, onClose }: { open: boolean; onClose: () => void }
             </>
           )}
 
-          {tab === "photo" && (
-            <>
-              <div className="flex items-center gap-4">
-                {imageUrl ? (
-                  <img
-                    src={imageUrl}
-                    alt="Avatar"
-                    className="size-14 rounded-full object-cover border border-border shrink-0"
-                  />
-                ) : (
-                  <div className="size-14 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xl font-semibold shrink-0">
-                    {user?.username?.[0]?.toUpperCase() ?? "?"}
-                  </div>
-                )}
-                <div className="flex-1 space-y-2">
-                  <div>
-                    <Label htmlFor="photo-url" className="text-[12px]">URL de l&apos;image</Label>
-                    <Input
-                      id="photo-url"
-                      value={imageUrl}
-                      onChange={(e) => setImageUrl(e.target.value)}
-                      placeholder="https://..."
-                      className="mt-1 text-xs"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="photo-file" className="text-[12px]">Ou uploader un fichier</Label>
-                    <input
-                      id="photo-file"
-                      type="file"
-                      accept="image/*"
-                      onChange={handleFileChange}
-                      className="mt-1 block w-full text-xs text-muted-foreground file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:bg-muted file:text-foreground hover:file:bg-muted/80 cursor-pointer"
-                    />
-                  </div>
-                </div>
-              </div>
-              <Button onClick={savePhoto} disabled={saving} size="sm">
-                {saving ? "Enregistrement…" : "Mettre à jour"}
-              </Button>
-            </>
-          )}
         </div>
       </DialogContent>
     </Dialog>
@@ -311,7 +243,7 @@ function McpDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
     <Dialog open={open} onOpenChange={(v: boolean) => { if (!v) onClose(); }}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Token MCP</DialogTitle>
+          <DialogTitle>Token</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
@@ -411,7 +343,6 @@ export function UserMenu() {
     router.refresh();
   }
 
-  const imageUrl = (session?.user as { image?: string } | undefined)?.image;
   const initial = user?.username?.[0]?.toUpperCase() ?? "?";
 
   return (
@@ -423,11 +354,7 @@ export function UserMenu() {
           className="flex items-center justify-center size-8 rounded-full overflow-hidden bg-primary/10 text-primary hover:ring-2 hover:ring-primary/30 transition-all text-[13px] font-semibold"
           aria-label="Mon compte"
         >
-          {imageUrl ? (
-            <img src={imageUrl} alt="avatar" className="size-full object-cover" />
-          ) : (
-            initial
-          )}
+          {initial}
         </button>
 
         {open && (
@@ -453,7 +380,7 @@ export function UserMenu() {
                 onClick={() => { setOpen(false); setMcpOpen(true); }}
               >
                 <Key className="size-3.5 text-muted-foreground shrink-0" />
-                Token MCP
+                Token
               </button>
             )}
 

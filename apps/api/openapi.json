@@ -57,6 +57,1124 @@
       "description": "Transport MCP (streamable-http)"
     }
   ],
+  "components": {
+    "schemas": {
+      "RGBColor": {
+        "type": "object",
+        "properties": {
+          "r": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 255
+          },
+          "g": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 255
+          },
+          "b": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 255
+          }
+        },
+        "required": [
+          "r",
+          "g",
+          "b"
+        ]
+      },
+      "Font": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "size": {
+            "type": "number",
+            "nullable": true
+          },
+          "style": {
+            "type": "string",
+            "nullable": true
+          },
+          "color": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/RGBColor"
+              },
+              {
+                "nullable": true
+              }
+            ]
+          }
+        }
+      },
+      "Style": {
+        "type": "object",
+        "properties": {
+          "fill_color": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/RGBColor"
+              },
+              {
+                "nullable": true
+              }
+            ]
+          },
+          "line_color": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/RGBColor"
+              },
+              {
+                "nullable": true
+              }
+            ]
+          },
+          "font": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Font"
+              },
+              {
+                "nullable": true
+              }
+            ]
+          },
+          "line_width": {
+            "type": "number",
+            "nullable": true
+          }
+        }
+      },
+      "Property": {
+        "type": "object",
+        "properties": {
+          "property_definition_ref": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "property_definition_ref",
+          "value"
+        ]
+      },
+      "ModelInfo": {
+        "type": "object",
+        "properties": {
+          "identifier": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "documentation": {
+            "type": "string",
+            "nullable": true
+          },
+          "version": {
+            "type": "string",
+            "nullable": true
+          },
+          "element_count": {
+            "type": "integer"
+          },
+          "relationship_count": {
+            "type": "integer"
+          },
+          "view_count": {
+            "type": "integer"
+          },
+          "property_definition_count": {
+            "type": "integer"
+          },
+          "workspace_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "workspace_name": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "identifier",
+          "name",
+          "element_count",
+          "relationship_count",
+          "view_count",
+          "property_definition_count"
+        ]
+      },
+      "Element": {
+        "type": "object",
+        "properties": {
+          "identifier": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "AndJunction",
+              "ApplicationCollaboration",
+              "ApplicationComponent",
+              "ApplicationEvent",
+              "ApplicationFunction",
+              "ApplicationInteraction",
+              "ApplicationInterface",
+              "ApplicationProcess",
+              "ApplicationService",
+              "Artifact",
+              "Assessment",
+              "BusinessActor",
+              "BusinessCollaboration",
+              "BusinessEvent",
+              "BusinessFunction",
+              "BusinessInteraction",
+              "BusinessInterface",
+              "BusinessObject",
+              "BusinessProcess",
+              "BusinessRole",
+              "BusinessService",
+              "Capability",
+              "CommunicationNetwork",
+              "Constraint",
+              "Contract",
+              "CourseOfAction",
+              "DataObject",
+              "Deliverable",
+              "Device",
+              "DistributionNetwork",
+              "Driver",
+              "Equipment",
+              "Facility",
+              "Gap",
+              "Goal",
+              "Grouping",
+              "ImplementationEvent",
+              "Location",
+              "Material",
+              "Meaning",
+              "Node",
+              "OrJunction",
+              "Outcome",
+              "Path",
+              "Plateau",
+              "Principle",
+              "Product",
+              "Representation",
+              "Requirement",
+              "Resource",
+              "Stakeholder",
+              "SystemSoftware",
+              "TechnologyCollaboration",
+              "TechnologyEvent",
+              "TechnologyFunction",
+              "TechnologyInteraction",
+              "TechnologyInterface",
+              "TechnologyProcess",
+              "TechnologyService",
+              "Value",
+              "ValueStream",
+              "WorkPackage"
+            ]
+          },
+          "documentation": {
+            "type": "string",
+            "nullable": true
+          },
+          "properties": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Property"
+            }
+          }
+        },
+        "required": [
+          "identifier",
+          "name",
+          "type",
+          "properties"
+        ]
+      },
+      "Relationship": {
+        "type": "object",
+        "properties": {
+          "identifier": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "Access",
+              "Aggregation",
+              "Assignment",
+              "Association",
+              "Composition",
+              "Flow",
+              "Influence",
+              "Realization",
+              "Serving",
+              "Specialization",
+              "Triggering"
+            ]
+          },
+          "source": {
+            "type": "string",
+            "description": "Identifiant de l'élément source"
+          },
+          "source_name": {
+            "type": "string",
+            "nullable": true
+          },
+          "target": {
+            "type": "string",
+            "description": "Identifiant de l'élément cible"
+          },
+          "target_name": {
+            "type": "string",
+            "nullable": true
+          },
+          "documentation": {
+            "type": "string",
+            "nullable": true
+          },
+          "properties": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Property"
+            }
+          },
+          "access_type": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "Access",
+              "Read",
+              "Write",
+              "ReadWrite",
+              null
+            ],
+            "description": "Uniquement pour le type Access"
+          },
+          "is_directed": {
+            "type": "boolean",
+            "nullable": true,
+            "description": "Uniquement pour le type Association"
+          },
+          "modifier": {
+            "type": "string",
+            "nullable": true,
+            "description": "Force d'influence, uniquement pour le type Influence"
+          }
+        },
+        "required": [
+          "identifier",
+          "type",
+          "source",
+          "target",
+          "properties"
+        ]
+      },
+      "Node": {
+        "type": "object",
+        "properties": {
+          "identifier": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "element_ref": {
+            "type": "string",
+            "nullable": true
+          },
+          "x": {
+            "type": "integer",
+            "nullable": true
+          },
+          "y": {
+            "type": "integer",
+            "nullable": true
+          },
+          "w": {
+            "type": "integer",
+            "nullable": true
+          },
+          "h": {
+            "type": "integer",
+            "nullable": true
+          },
+          "style": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Style"
+              },
+              {
+                "nullable": true
+              }
+            ]
+          },
+          "children": {
+            "type": "array",
+            "items": {
+              "nullable": true
+            },
+            "description": "Nœuds enfants (type Node récursif)"
+          }
+        },
+        "required": [
+          "identifier",
+          "children"
+        ]
+      },
+      "Connection": {
+        "type": "object",
+        "properties": {
+          "identifier": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "relationship_ref": {
+            "type": "string",
+            "nullable": true
+          },
+          "source": {
+            "type": "string",
+            "nullable": true
+          },
+          "target": {
+            "type": "string",
+            "nullable": true
+          },
+          "source_side": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "top",
+              "right",
+              "bottom",
+              "left",
+              null
+            ]
+          },
+          "target_side": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "top",
+              "right",
+              "bottom",
+              "left",
+              null
+            ]
+          },
+          "style": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Style"
+              },
+              {
+                "nullable": true
+              }
+            ]
+          }
+        },
+        "required": [
+          "identifier"
+        ]
+      },
+      "View": {
+        "type": "object",
+        "properties": {
+          "identifier": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "documentation": {
+            "type": "string",
+            "nullable": true
+          },
+          "viewpoint": {
+            "type": "string",
+            "nullable": true
+          },
+          "node_count": {
+            "type": "integer"
+          },
+          "connection_count": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "identifier",
+          "name",
+          "node_count",
+          "connection_count"
+        ]
+      },
+      "ViewDetail": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/View"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "nodes": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Node"
+                }
+              },
+              "connections": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Connection"
+                }
+              }
+            },
+            "required": [
+              "nodes",
+              "connections"
+            ]
+          }
+        ]
+      },
+      "SaveResult": {
+        "type": "object",
+        "properties": {
+          "saved": {
+            "type": "boolean",
+            "example": true
+          },
+          "path": {
+            "type": "string",
+            "example": "data/archisurance.xml"
+          }
+        },
+        "required": [
+          "saved",
+          "path"
+        ]
+      },
+      "ErrorDetail": {
+        "type": "object",
+        "properties": {
+          "detail": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "detail"
+        ]
+      },
+      "WorkspaceInfo": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string",
+            "nullable": true
+          },
+          "active": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "active"
+        ]
+      },
+      "UserOut": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "example": "user"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "username",
+          "role",
+          "created_at"
+        ]
+      },
+      "RoleOut": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "is_system": {
+            "type": "boolean"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "permissions": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "description": "Map de layer → liste de flags (read|create|update|delete)"
+          },
+          "user_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "is_system",
+          "created_at",
+          "permissions",
+          "user_ids"
+        ]
+      },
+      "PropertyDefinition": {
+        "type": "object",
+        "properties": {
+          "identifier": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "identifier",
+          "name"
+        ]
+      },
+      "ElementCreateInput": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "type": {
+            "type": "string"
+          },
+          "documentation": {
+            "type": "string",
+            "nullable": true
+          },
+          "properties": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "property_definition_ref": {
+                  "type": "string"
+                },
+                "value": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "property_definition_ref",
+                "value"
+              ]
+            }
+          }
+        },
+        "required": [
+          "name",
+          "type"
+        ]
+      },
+      "ElementUpdateInput": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "type": {
+            "type": "string"
+          },
+          "documentation": {
+            "type": "string",
+            "nullable": true
+          },
+          "properties": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "property_definition_ref": {
+                  "type": "string"
+                },
+                "value": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "property_definition_ref",
+                "value"
+              ]
+            }
+          }
+        }
+      },
+      "RelationshipCreateInput": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "type": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string",
+            "minLength": 1
+          },
+          "target": {
+            "type": "string",
+            "minLength": 1
+          },
+          "documentation": {
+            "type": "string",
+            "nullable": true
+          },
+          "properties": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "property_definition_ref": {
+                  "type": "string"
+                },
+                "value": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "property_definition_ref",
+                "value"
+              ]
+            }
+          },
+          "access_type": {
+            "type": "string",
+            "nullable": true
+          },
+          "is_directed": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "influence_strength": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "type",
+          "source",
+          "target"
+        ]
+      },
+      "RelationshipUpdateInput": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "type": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "target": {
+            "type": "string"
+          },
+          "documentation": {
+            "type": "string",
+            "nullable": true
+          },
+          "properties": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "property_definition_ref": {
+                  "type": "string"
+                },
+                "value": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "property_definition_ref",
+                "value"
+              ]
+            }
+          },
+          "access_type": {
+            "type": "string",
+            "nullable": true
+          },
+          "is_directed": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "influence_strength": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "ViewCreateInput": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "viewpoint": {
+            "type": "string",
+            "nullable": true
+          },
+          "documentation": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "ViewUpdateInput": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "viewpoint": {
+            "type": "string",
+            "nullable": true
+          },
+          "documentation": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "NodeCreateInput": {
+        "type": "object",
+        "properties": {
+          "element_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "x": {
+            "type": "number",
+            "nullable": true
+          },
+          "y": {
+            "type": "number",
+            "nullable": true
+          },
+          "w": {
+            "type": "number",
+            "nullable": true
+          },
+          "h": {
+            "type": "number",
+            "nullable": true
+          }
+        },
+        "required": [
+          "element_id"
+        ]
+      },
+      "NodeUpdateInput": {
+        "type": "object",
+        "properties": {
+          "x": {
+            "type": "number",
+            "nullable": true
+          },
+          "y": {
+            "type": "number",
+            "nullable": true
+          },
+          "w": {
+            "type": "number",
+            "nullable": true
+          },
+          "h": {
+            "type": "number",
+            "nullable": true
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "ConnectionCreateInput": {
+        "type": "object",
+        "properties": {
+          "relationship_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "source": {
+            "type": "string",
+            "minLength": 1
+          },
+          "target": {
+            "type": "string",
+            "minLength": 1
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "source_side": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "top",
+              "right",
+              "bottom",
+              "left",
+              null
+            ]
+          },
+          "target_side": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "top",
+              "right",
+              "bottom",
+              "left",
+              null
+            ]
+          }
+        },
+        "required": [
+          "source",
+          "target"
+        ]
+      },
+      "ConnectionUpdateInput": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "source": {
+            "type": "string"
+          },
+          "target": {
+            "type": "string"
+          },
+          "source_side": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "top",
+              "right",
+              "bottom",
+              "left",
+              null
+            ]
+          },
+          "target_side": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "top",
+              "right",
+              "bottom",
+              "left",
+              null
+            ]
+          }
+        }
+      },
+      "WorkspaceCreateInput": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "path": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "WorkspaceUpdateInput": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "PropertyDefinitionCreateInput": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "type": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "PropertyDefinitionUpdateInput": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "type": {
+            "type": "string"
+          }
+        }
+      },
+      "RoleCreateInput": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "permissions": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "RoleUpdateInput": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "permissions": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "parameters": {},
+    "securitySchemes": {
+      "cookieAuth": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "better-auth.session_token",
+        "description": "Cookie de session httpOnly défini par Better Auth après /auth/sign-in/username"
+      },
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Token personnel généré depuis Mon compte → Token."
+      }
+    }
+  },
   "paths": {
     "/": {
       "get": {
@@ -148,9 +1266,6 @@
         "operationId": "listElements",
         "parameters": [
           {
-            "name": "type",
-            "in": "query",
-            "required": false,
             "schema": {
               "type": "string",
               "enum": [
@@ -216,18 +1331,23 @@
                 "Value",
                 "ValueStream",
                 "WorkPackage"
-              ]
+              ],
+              "description": "Filtrer par type ArchiMate 3.1"
             },
-            "description": "Filtrer par type ArchiMate 3.1"
+            "required": false,
+            "description": "Filtrer par type ArchiMate 3.1",
+            "name": "type",
+            "in": "query"
           },
           {
-            "name": "name",
-            "in": "query",
-            "required": false,
             "schema": {
-              "type": "string"
+              "type": "string",
+              "description": "Filtrer par nom (insensible à la casse, sous-chaîne)"
             },
-            "description": "Filtrer par nom (insensible a la casse, sous-chaine)"
+            "required": false,
+            "description": "Filtrer par nom (insensible à la casse, sous-chaîne)",
+            "name": "name",
+            "in": "query"
           }
         ],
         "responses": {
@@ -245,7 +1365,14 @@
             }
           },
           "422": {
-            "$ref": "#/components/responses/UnprocessableType"
+            "description": "Type ArchiMate invalide",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           }
         }
       },
@@ -277,7 +1404,14 @@
             }
           },
           "422": {
-            "$ref": "#/components/responses/UnprocessableType"
+            "description": "Type ArchiMate invalide",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           }
         }
       }
@@ -291,13 +1425,14 @@
         "operationId": "getElementById",
         "parameters": [
           {
-            "name": "identifier",
-            "in": "path",
-            "required": true,
             "schema": {
-              "type": "string"
+              "type": "string",
+              "description": "Identifiant de l'élément"
             },
-            "description": "Identifiant de l'élément"
+            "required": true,
+            "description": "Identifiant de l'élément",
+            "name": "identifier",
+            "in": "path"
           }
         ],
         "responses": {
@@ -312,7 +1447,14 @@
             }
           },
           "404": {
-            "$ref": "#/components/responses/NotFound"
+            "description": "Ressource introuvable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           }
         }
       },
@@ -324,12 +1466,12 @@
         "operationId": "updateElement",
         "parameters": [
           {
-            "name": "identifier",
-            "in": "path",
-            "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "required": true,
+            "name": "identifier",
+            "in": "path"
           }
         ],
         "requestBody": {
@@ -354,10 +1496,24 @@
             }
           },
           "404": {
-            "$ref": "#/components/responses/NotFound"
+            "description": "Ressource introuvable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           },
           "422": {
-            "$ref": "#/components/responses/UnprocessableType"
+            "description": "Type ArchiMate invalide",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           }
         }
       },
@@ -369,12 +1525,12 @@
         "operationId": "deleteElement",
         "parameters": [
           {
-            "name": "identifier",
-            "in": "path",
-            "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "required": true,
+            "name": "identifier",
+            "in": "path"
           }
         ],
         "responses": {
@@ -382,7 +1538,14 @@
             "description": "Élément supprimé (et relations associées)"
           },
           "404": {
-            "$ref": "#/components/responses/NotFound"
+            "description": "Ressource introuvable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           }
         }
       }
@@ -424,9 +1587,6 @@
         "operationId": "listRelationships",
         "parameters": [
           {
-            "name": "type",
-            "in": "query",
-            "required": false,
             "schema": {
               "type": "string",
               "enum": [
@@ -441,27 +1601,33 @@
                 "Serving",
                 "Specialization",
                 "Triggering"
-              ]
+              ],
+              "description": "Filtrer par type de relation"
             },
-            "description": "Filtrer par type de relation"
+            "required": false,
+            "description": "Filtrer par type de relation",
+            "name": "type",
+            "in": "query"
           },
           {
+            "schema": {
+              "type": "string",
+              "description": "Filtrer par identifiant de l'élément source"
+            },
+            "required": false,
+            "description": "Filtrer par identifiant de l'élément source",
             "name": "source_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Filtrer par identifiant de l'élément source"
+            "in": "query"
           },
           {
-            "name": "target_id",
-            "in": "query",
-            "required": false,
             "schema": {
-              "type": "string"
+              "type": "string",
+              "description": "Filtrer par identifiant de l'élément cible"
             },
-            "description": "Filtrer par identifiant de l'élément cible"
+            "required": false,
+            "description": "Filtrer par identifiant de l'élément cible",
+            "name": "target_id",
+            "in": "query"
           }
         ],
         "responses": {
@@ -479,7 +1645,14 @@
             }
           },
           "422": {
-            "$ref": "#/components/responses/UnprocessableType"
+            "description": "Type ArchiMate invalide",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           }
         }
       },
@@ -511,10 +1684,24 @@
             }
           },
           "404": {
-            "$ref": "#/components/responses/NotFound"
+            "description": "Ressource introuvable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           },
           "422": {
-            "$ref": "#/components/responses/UnprocessableType"
+            "description": "Type ArchiMate invalide",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           }
         }
       }
@@ -528,13 +1715,14 @@
         "operationId": "getRelationshipById",
         "parameters": [
           {
-            "name": "identifier",
-            "in": "path",
-            "required": true,
             "schema": {
-              "type": "string"
+              "type": "string",
+              "description": "Identifiant de la relation"
             },
-            "description": "Identifiant de la relation"
+            "required": true,
+            "description": "Identifiant de la relation",
+            "name": "identifier",
+            "in": "path"
           }
         ],
         "responses": {
@@ -549,7 +1737,14 @@
             }
           },
           "404": {
-            "$ref": "#/components/responses/NotFound"
+            "description": "Ressource introuvable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           }
         }
       },
@@ -561,12 +1756,12 @@
         "operationId": "updateRelationship",
         "parameters": [
           {
-            "name": "identifier",
-            "in": "path",
-            "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "required": true,
+            "name": "identifier",
+            "in": "path"
           }
         ],
         "requestBody": {
@@ -591,10 +1786,24 @@
             }
           },
           "404": {
-            "$ref": "#/components/responses/NotFound"
+            "description": "Ressource introuvable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           },
           "422": {
-            "$ref": "#/components/responses/UnprocessableType"
+            "description": "Type ArchiMate invalide",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           }
         }
       },
@@ -606,12 +1815,12 @@
         "operationId": "deleteRelationship",
         "parameters": [
           {
-            "name": "identifier",
-            "in": "path",
-            "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "required": true,
+            "name": "identifier",
+            "in": "path"
           }
         ],
         "responses": {
@@ -619,7 +1828,14 @@
             "description": "Relation supprimée"
           },
           "404": {
-            "$ref": "#/components/responses/NotFound"
+            "description": "Ressource introuvable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           }
         }
       }
@@ -675,7 +1891,124 @@
             }
           },
           "422": {
-            "$ref": "#/components/responses/UnprocessableType"
+            "description": "Type ArchiMate invalide",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/views/{identifier}": {
+      "get": {
+        "tags": [
+          "Views"
+        ],
+        "summary": "Détail d'une vue",
+        "operationId": "getViewById",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Identifiant de la vue"
+            },
+            "required": true,
+            "description": "Identifiant de la vue",
+            "name": "identifier",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Vue avec nœuds et connexions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ViewDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Ressource introuvable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/views/{view_id}/image": {
+      "get": {
+        "tags": [
+          "Views"
+        ],
+        "summary": "Rendu SVG d'une vue",
+        "operationId": "renderView",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Identifiant de la vue"
+            },
+            "required": true,
+            "description": "Identifiant de la vue",
+            "name": "view_id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "svg"
+              ],
+              "default": "svg",
+              "description": "Format de sortie (svg uniquement ; l'export PNG se fait côté client)"
+            },
+            "required": false,
+            "description": "Format de sortie (svg uniquement ; l'export PNG se fait côté client)",
+            "name": "format",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Image SVG de la vue",
+            "content": {
+              "image/svg+xml": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Ressource introuvable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Type ArchiMate invalide",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           }
         }
       }
@@ -689,13 +2022,14 @@
         "operationId": "createNode",
         "parameters": [
           {
-            "name": "view_id",
-            "in": "path",
-            "required": true,
             "schema": {
-              "type": "string"
+              "type": "string",
+              "description": "Identifiant de la vue"
             },
-            "description": "Identifiant de la vue"
+            "required": true,
+            "description": "Identifiant de la vue",
+            "name": "view_id",
+            "in": "path"
           }
         ],
         "requestBody": {
@@ -720,97 +2054,373 @@
             }
           },
           "404": {
-            "$ref": "#/components/responses/NotFound"
-          },
-          "422": {
-            "$ref": "#/components/responses/UnprocessableType"
-          }
-        }
-      }
-    },
-    "/views/{view_id}/image": {
-      "get": {
-        "tags": [
-          "Views"
-        ],
-        "summary": "Rendu SVG d'une vue",
-        "operationId": "renderView",
-        "parameters": [
-          {
-            "name": "view_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Identifiant de la vue"
-          },
-          {
-            "name": "format",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "enum": [
-                "svg"
-              ],
-              "default": "svg"
-            },
-            "description": "Format de sortie (svg uniquement ; l'export PNG se fait côté client)"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Image SVG de la vue",
-            "content": {
-              "image/svg+xml": {
-                "schema": {
-                  "type": "string",
-                  "format": "binary"
-                }
-              }
-            }
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
-          },
-          "422": {
-            "$ref": "#/components/responses/UnprocessableType"
-          }
-        }
-      }
-    },
-    "/views/{identifier}": {
-      "get": {
-        "tags": [
-          "Views"
-        ],
-        "summary": "Détail d'une vue",
-        "operationId": "getViewById",
-        "parameters": [
-          {
-            "name": "identifier",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Identifiant de la vue"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Vue avec nœuds et connexions",
+            "description": "Ressource introuvable",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ViewDetail"
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Type ArchiMate invalide",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/views/{view_id}/nodes/{node_id}": {
+      "put": {
+        "tags": [
+          "Views"
+        ],
+        "summary": "Déplacer / redimensionner un nœud",
+        "operationId": "updateNode",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "view_id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "node_id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NodeUpdateInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Nœud mis à jour",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Node"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Non authentifié",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission insuffisante",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
                 }
               }
             }
           },
           "404": {
-            "$ref": "#/components/responses/NotFound"
+            "description": "Ressource introuvable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Views"
+        ],
+        "summary": "Retirer un nœud d'une vue",
+        "operationId": "deleteNode",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "view_id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "node_id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Nœud retiré"
+          },
+          "401": {
+            "description": "Non authentifié",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission insuffisante",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Ressource introuvable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/views/{view_id}/connections": {
+      "post": {
+        "tags": [
+          "Views"
+        ],
+        "summary": "Créer une connexion dans une vue",
+        "operationId": "createConnection",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "view_id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectionCreateInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Connexion créée",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Connection"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Non authentifié",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission insuffisante",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Ressource introuvable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/views/{view_id}/connections/{conn_id}": {
+      "put": {
+        "tags": [
+          "Views"
+        ],
+        "summary": "Modifier une connexion",
+        "operationId": "updateConnection",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "view_id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "conn_id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectionUpdateInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Connexion mise à jour",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Connection"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Non authentifié",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission insuffisante",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Ressource introuvable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Views"
+        ],
+        "summary": "Supprimer une connexion",
+        "operationId": "deleteConnection",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "view_id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "conn_id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Connexion supprimée"
+          },
+          "401": {
+            "description": "Non authentifié",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission insuffisante",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Ressource introuvable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           }
         }
       }
@@ -839,7 +2449,14 @@
             }
           },
           "401": {
-            "$ref": "#/components/responses/Unauthorized"
+            "description": "Non authentifié",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           }
         }
       }
@@ -871,7 +2488,14 @@
             }
           },
           "401": {
-            "$ref": "#/components/responses/Unauthorized"
+            "description": "Non authentifié",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           }
         }
       },
@@ -890,7 +2514,9 @@
           "required": true,
           "content": {
             "application/json": {
-              "schema": {}
+              "schema": {
+                "$ref": "#/components/schemas/WorkspaceCreateInput"
+              }
             }
           }
         },
@@ -906,10 +2532,24 @@
             }
           },
           "401": {
-            "$ref": "#/components/responses/Unauthorized"
+            "description": "Non authentifié",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           },
           "422": {
-            "$ref": "#/components/responses/UnprocessableType"
+            "description": "Type ArchiMate invalide",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           }
         }
       }
@@ -928,19 +2568,21 @@
         ],
         "parameters": [
           {
-            "name": "id",
-            "in": "path",
-            "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
           }
         ],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
-              "schema": {}
+              "schema": {
+                "$ref": "#/components/schemas/WorkspaceUpdateInput"
+              }
             }
           }
         },
@@ -956,10 +2598,24 @@
             }
           },
           "401": {
-            "$ref": "#/components/responses/Unauthorized"
+            "description": "Non authentifié",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           },
           "404": {
-            "$ref": "#/components/responses/NotFound"
+            "description": "Ressource introuvable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           }
         }
       },
@@ -976,12 +2632,12 @@
         ],
         "parameters": [
           {
-            "name": "id",
-            "in": "path",
-            "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
           }
         ],
         "responses": {
@@ -989,10 +2645,24 @@
             "description": "Workspace supprimé"
           },
           "401": {
-            "$ref": "#/components/responses/Unauthorized"
+            "description": "Non authentifié",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           },
           "404": {
-            "$ref": "#/components/responses/NotFound"
+            "description": "Ressource introuvable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           }
         }
       }
@@ -1011,12 +2681,12 @@
         ],
         "parameters": [
           {
-            "name": "id",
-            "in": "path",
-            "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
           }
         ],
         "responses": {
@@ -1031,10 +2701,24 @@
             }
           },
           "401": {
-            "$ref": "#/components/responses/Unauthorized"
+            "description": "Non authentifié",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           },
           "404": {
-            "$ref": "#/components/responses/NotFound"
+            "description": "Ressource introuvable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           }
         }
       }
@@ -1066,10 +2750,24 @@
             }
           },
           "401": {
-            "$ref": "#/components/responses/Unauthorized"
+            "description": "Non authentifié",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           },
           "403": {
-            "$ref": "#/components/responses/Forbidden"
+            "description": "Permission insuffisante",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           }
         }
       }
@@ -1088,12 +2786,12 @@
         ],
         "parameters": [
           {
-            "name": "uid",
-            "in": "path",
-            "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "required": true,
+            "name": "uid",
+            "in": "path"
           }
         ],
         "responses": {
@@ -1111,7 +2809,14 @@
             }
           },
           "401": {
-            "$ref": "#/components/responses/Unauthorized"
+            "description": "Non authentifié",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           }
         }
       }
@@ -1143,7 +2848,14 @@
             }
           },
           "401": {
-            "$ref": "#/components/responses/Unauthorized"
+            "description": "Non authentifié",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           }
         }
       },
@@ -1163,28 +2875,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "required": [
-                  "name"
-                ],
-                "properties": {
-                  "name": {
-                    "type": "string"
-                  },
-                  "description": {
-                    "type": "string",
-                    "nullable": true
-                  },
-                  "permissions": {
-                    "type": "object",
-                    "additionalProperties": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      }
-                    }
-                  }
-                }
+                "$ref": "#/components/schemas/RoleCreateInput"
               }
             }
           }
@@ -1201,10 +2892,24 @@
             }
           },
           "401": {
-            "$ref": "#/components/responses/Unauthorized"
+            "description": "Non authentifié",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           },
           "403": {
-            "$ref": "#/components/responses/Forbidden"
+            "description": "Permission insuffisante",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           }
         }
       }
@@ -1223,12 +2928,12 @@
         ],
         "parameters": [
           {
-            "name": "id",
-            "in": "path",
-            "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
           }
         ],
         "responses": {
@@ -1243,10 +2948,24 @@
             }
           },
           "401": {
-            "$ref": "#/components/responses/Unauthorized"
+            "description": "Non authentifié",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           },
           "404": {
-            "$ref": "#/components/responses/NotFound"
+            "description": "Ressource introuvable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           }
         }
       },
@@ -1263,12 +2982,12 @@
         ],
         "parameters": [
           {
-            "name": "id",
-            "in": "path",
-            "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
           }
         ],
         "requestBody": {
@@ -1276,19 +2995,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "properties": {
-                  "name": {
-                    "type": "string"
-                  },
-                  "description": {
-                    "type": "string",
-                    "nullable": true
-                  },
-                  "permissions": {
-                    "type": "object"
-                  }
-                }
+                "$ref": "#/components/schemas/RoleUpdateInput"
               }
             }
           }
@@ -1305,13 +3012,34 @@
             }
           },
           "401": {
-            "$ref": "#/components/responses/Unauthorized"
+            "description": "Non authentifié",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           },
           "403": {
-            "$ref": "#/components/responses/Forbidden"
+            "description": "Permission insuffisante",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           },
           "404": {
-            "$ref": "#/components/responses/NotFound"
+            "description": "Ressource introuvable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           }
         }
       },
@@ -1328,12 +3056,12 @@
         ],
         "parameters": [
           {
-            "name": "id",
-            "in": "path",
-            "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
           }
         ],
         "responses": {
@@ -1341,13 +3069,34 @@
             "description": "Rôle supprimé"
           },
           "401": {
-            "$ref": "#/components/responses/Unauthorized"
+            "description": "Non authentifié",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           },
           "403": {
-            "$ref": "#/components/responses/Forbidden"
+            "description": "Permission insuffisante",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           },
           "404": {
-            "$ref": "#/components/responses/NotFound"
+            "description": "Ressource introuvable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           }
         }
       }
@@ -1366,21 +3115,22 @@
         ],
         "parameters": [
           {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "layer",
-            "in": "path",
-            "required": true,
             "schema": {
               "type": "string"
             },
-            "description": "Couche ArchiMate ou 'Relations'/'Views'"
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Couche ArchiMate ou 'Relations'/'Views'"
+            },
+            "required": true,
+            "description": "Couche ArchiMate ou 'Relations'/'Views'",
+            "name": "layer",
+            "in": "path"
           }
         ],
         "responses": {
@@ -1398,7 +3148,14 @@
             }
           },
           "401": {
-            "$ref": "#/components/responses/Unauthorized"
+            "description": "Non authentifié",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           }
         }
       },
@@ -1415,20 +3172,20 @@
         ],
         "parameters": [
           {
-            "name": "id",
-            "in": "path",
-            "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
           },
           {
-            "name": "layer",
-            "in": "path",
-            "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "required": true,
+            "name": "layer",
+            "in": "path"
           }
         ],
         "requestBody": {
@@ -1450,7 +3207,10 @@
                       ]
                     }
                   }
-                }
+                },
+                "required": [
+                  "permissions"
+                ]
               }
             }
           }
@@ -1460,10 +3220,24 @@
             "description": "Permissions mises à jour"
           },
           "401": {
-            "$ref": "#/components/responses/Unauthorized"
+            "description": "Non authentifié",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           },
           "403": {
-            "$ref": "#/components/responses/Forbidden"
+            "description": "Permission insuffisante",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           }
         }
       },
@@ -1480,20 +3254,20 @@
         ],
         "parameters": [
           {
-            "name": "id",
-            "in": "path",
-            "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
           },
           {
-            "name": "layer",
-            "in": "path",
-            "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "required": true,
+            "name": "layer",
+            "in": "path"
           }
         ],
         "responses": {
@@ -1501,10 +3275,24 @@
             "description": "Permissions supprimées"
           },
           "401": {
-            "$ref": "#/components/responses/Unauthorized"
+            "description": "Non authentifié",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           },
           "403": {
-            "$ref": "#/components/responses/Forbidden"
+            "description": "Permission insuffisante",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           }
         }
       }
@@ -1523,20 +3311,20 @@
         ],
         "parameters": [
           {
-            "name": "id",
-            "in": "path",
-            "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
           },
           {
-            "name": "uid",
-            "in": "path",
-            "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "required": true,
+            "name": "uid",
+            "in": "path"
           }
         ],
         "responses": {
@@ -1544,13 +3332,34 @@
             "description": "Assignation effectuée"
           },
           "401": {
-            "$ref": "#/components/responses/Unauthorized"
+            "description": "Non authentifié",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           },
           "403": {
-            "$ref": "#/components/responses/Forbidden"
+            "description": "Permission insuffisante",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           },
           "404": {
-            "$ref": "#/components/responses/NotFound"
+            "description": "Ressource introuvable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           }
         }
       },
@@ -1567,20 +3376,20 @@
         ],
         "parameters": [
           {
-            "name": "id",
-            "in": "path",
-            "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
           },
           {
-            "name": "uid",
-            "in": "path",
-            "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "required": true,
+            "name": "uid",
+            "in": "path"
           }
         ],
         "responses": {
@@ -1588,13 +3397,34 @@
             "description": "Désassignation effectuée"
           },
           "401": {
-            "$ref": "#/components/responses/Unauthorized"
+            "description": "Non authentifié",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           },
           "403": {
-            "$ref": "#/components/responses/Forbidden"
+            "description": "Permission insuffisante",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           },
           "404": {
-            "$ref": "#/components/responses/NotFound"
+            "description": "Ressource introuvable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           }
         }
       }
@@ -1626,276 +3456,14 @@
             }
           },
           "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          }
-        }
-      }
-    },
-    "/views/{view_id}/nodes/{node_id}": {
-      "put": {
-        "tags": [
-          "Views"
-        ],
-        "summary": "Déplacer / redimensionner un nœud",
-        "operationId": "updateNode",
-        "security": [
-          {
-            "cookieAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "view_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "node_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/NodeUpdateInput"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Nœud mis à jour",
+            "description": "Non authentifié",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Node"
+                  "$ref": "#/components/schemas/ErrorDetail"
                 }
               }
             }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
-          }
-        }
-      },
-      "delete": {
-        "tags": [
-          "Views"
-        ],
-        "summary": "Retirer un nœud d'une vue",
-        "operationId": "deleteNode",
-        "security": [
-          {
-            "cookieAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "view_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "node_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "Nœud retiré"
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
-          }
-        }
-      }
-    },
-    "/views/{view_id}/connections": {
-      "post": {
-        "tags": [
-          "Views"
-        ],
-        "summary": "Créer une connexion dans une vue",
-        "operationId": "createConnection",
-        "security": [
-          {
-            "cookieAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "view_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ConnectionCreateInput"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Connexion créée",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Connection"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
-          }
-        }
-      }
-    },
-    "/views/{view_id}/connections/{conn_id}": {
-      "put": {
-        "tags": [
-          "Views"
-        ],
-        "summary": "Modifier une connexion",
-        "operationId": "updateConnection",
-        "security": [
-          {
-            "cookieAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "view_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "conn_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ConnectionUpdateInput"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Connexion mise à jour",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Connection"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
-          }
-        }
-      },
-      "delete": {
-        "tags": [
-          "Views"
-        ],
-        "summary": "Supprimer une connexion",
-        "operationId": "deleteConnection",
-        "security": [
-          {
-            "cookieAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "view_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "conn_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "Connexion supprimée"
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
           }
         }
       }
@@ -1913,7 +3481,8 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object"
+                "type": "object",
+                "properties": {}
               }
             }
           }
@@ -1935,12 +3504,12 @@
         "operationId": "mcpGet",
         "parameters": [
           {
-            "name": "mcp-session-id",
-            "in": "header",
-            "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "required": true,
+            "name": "mcp-session-id",
+            "in": "header"
           }
         ],
         "responses": {
@@ -1960,12 +3529,12 @@
         "operationId": "mcpDelete",
         "parameters": [
           {
-            "name": "mcp-session-id",
-            "in": "header",
-            "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "required": true,
+            "name": "mcp-session-id",
+            "in": "header"
           }
         ],
         "responses": {
@@ -1974,678 +3543,6 @@
           },
           "404": {
             "description": "Session non trouvée"
-          }
-        }
-      }
-    }
-  },
-  "components": {
-    "schemas": {
-      "RGBColor": {
-        "type": "object",
-        "properties": {
-          "r": {
-            "type": "integer",
-            "minimum": 0,
-            "maximum": 255
-          },
-          "g": {
-            "type": "integer",
-            "minimum": 0,
-            "maximum": 255
-          },
-          "b": {
-            "type": "integer",
-            "minimum": 0,
-            "maximum": 255
-          }
-        },
-        "required": [
-          "r",
-          "g",
-          "b"
-        ]
-      },
-      "Font": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string",
-            "nullable": true
-          },
-          "size": {
-            "type": "number",
-            "nullable": true
-          },
-          "style": {
-            "type": "string",
-            "nullable": true
-          },
-          "color": {
-            "$ref": "#/components/schemas/RGBColor",
-            "nullable": true
-          }
-        }
-      },
-      "Style": {
-        "type": "object",
-        "properties": {
-          "fill_color": {
-            "$ref": "#/components/schemas/RGBColor",
-            "nullable": true
-          },
-          "line_color": {
-            "$ref": "#/components/schemas/RGBColor",
-            "nullable": true
-          },
-          "font": {
-            "$ref": "#/components/schemas/Font",
-            "nullable": true
-          },
-          "line_width": {
-            "type": "number",
-            "nullable": true
-          }
-        }
-      },
-      "Property": {
-        "type": "object",
-        "required": [
-          "property_definition_ref",
-          "value"
-        ],
-        "properties": {
-          "property_definition_ref": {
-            "type": "string"
-          },
-          "value": {
-            "type": "string"
-          }
-        }
-      },
-      "SaveResult": {
-        "type": "object",
-        "required": [
-          "saved",
-          "path"
-        ],
-        "properties": {
-          "saved": {
-            "type": "boolean",
-            "example": true
-          },
-          "path": {
-            "type": "string",
-            "example": "data/archisurance.xml"
-          }
-        }
-      },
-      "ModelInfo": {
-        "type": "object",
-        "required": [
-          "identifier",
-          "name",
-          "element_count",
-          "relationship_count",
-          "view_count",
-          "property_definition_count"
-        ],
-        "properties": {
-          "identifier": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "documentation": {
-            "type": "string",
-            "nullable": true
-          },
-          "version": {
-            "type": "string",
-            "nullable": true
-          },
-          "element_count": {
-            "type": "integer"
-          },
-          "relationship_count": {
-            "type": "integer"
-          },
-          "view_count": {
-            "type": "integer"
-          },
-          "property_definition_count": {
-            "type": "integer"
-          },
-          "workspace_id": {
-            "type": "string",
-            "nullable": true
-          },
-          "workspace_name": {
-            "type": "string",
-            "nullable": true
-          }
-        }
-      },
-      "Element": {
-        "type": "object",
-        "required": [
-          "identifier",
-          "name",
-          "type",
-          "properties"
-        ],
-        "properties": {
-          "identifier": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "type": {
-            "type": "string",
-            "enum": [
-              "AndJunction",
-              "ApplicationCollaboration",
-              "ApplicationComponent",
-              "ApplicationEvent",
-              "ApplicationFunction",
-              "ApplicationInteraction",
-              "ApplicationInterface",
-              "ApplicationProcess",
-              "ApplicationService",
-              "Artifact",
-              "Assessment",
-              "BusinessActor",
-              "BusinessCollaboration",
-              "BusinessEvent",
-              "BusinessFunction",
-              "BusinessInteraction",
-              "BusinessInterface",
-              "BusinessObject",
-              "BusinessProcess",
-              "BusinessRole",
-              "BusinessService",
-              "Capability",
-              "CommunicationNetwork",
-              "Constraint",
-              "Contract",
-              "CourseOfAction",
-              "DataObject",
-              "Deliverable",
-              "Device",
-              "DistributionNetwork",
-              "Driver",
-              "Equipment",
-              "Facility",
-              "Gap",
-              "Goal",
-              "Grouping",
-              "ImplementationEvent",
-              "Location",
-              "Material",
-              "Meaning",
-              "Node",
-              "OrJunction",
-              "Outcome",
-              "Path",
-              "Plateau",
-              "Principle",
-              "Product",
-              "Representation",
-              "Requirement",
-              "Resource",
-              "Stakeholder",
-              "SystemSoftware",
-              "TechnologyCollaboration",
-              "TechnologyEvent",
-              "TechnologyFunction",
-              "TechnologyInteraction",
-              "TechnologyInterface",
-              "TechnologyProcess",
-              "TechnologyService",
-              "Value",
-              "ValueStream",
-              "WorkPackage"
-            ]
-          },
-          "documentation": {
-            "type": "string",
-            "nullable": true
-          },
-          "properties": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Property"
-            }
-          }
-        }
-      },
-      "ElementCreateInput": {},
-      "ElementUpdateInput": {},
-      "Relationship": {
-        "type": "object",
-        "required": [
-          "identifier",
-          "type",
-          "source",
-          "target",
-          "properties"
-        ],
-        "properties": {
-          "identifier": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string",
-            "nullable": true
-          },
-          "type": {
-            "type": "string",
-            "enum": [
-              "Access",
-              "Aggregation",
-              "Assignment",
-              "Association",
-              "Composition",
-              "Flow",
-              "Influence",
-              "Realization",
-              "Serving",
-              "Specialization",
-              "Triggering"
-            ]
-          },
-          "source": {
-            "type": "string",
-            "description": "Identifiant de l'element source"
-          },
-          "source_name": {
-            "type": "string",
-            "nullable": true
-          },
-          "target": {
-            "type": "string",
-            "description": "Identifiant de l'element cible"
-          },
-          "target_name": {
-            "type": "string",
-            "nullable": true
-          },
-          "documentation": {
-            "type": "string",
-            "nullable": true
-          },
-          "properties": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Property"
-            }
-          },
-          "access_type": {
-            "type": "string",
-            "enum": [
-              "Access",
-              "Read",
-              "Write",
-              "ReadWrite"
-            ],
-            "nullable": true,
-            "description": "Uniquement pour le type Access"
-          },
-          "is_directed": {
-            "type": "boolean",
-            "nullable": true,
-            "description": "Uniquement pour le type Association"
-          },
-          "modifier": {
-            "type": "string",
-            "nullable": true,
-            "description": "Force d'influence, uniquement pour le type Influence"
-          }
-        }
-      },
-      "RelationshipCreateInput": {},
-      "RelationshipUpdateInput": {},
-      "Node": {
-        "type": "object",
-        "required": [
-          "identifier",
-          "children"
-        ],
-        "properties": {
-          "identifier": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string",
-            "nullable": true
-          },
-          "element_ref": {
-            "type": "string",
-            "nullable": true
-          },
-          "x": {
-            "type": "integer",
-            "nullable": true
-          },
-          "y": {
-            "type": "integer",
-            "nullable": true
-          },
-          "w": {
-            "type": "integer",
-            "nullable": true
-          },
-          "h": {
-            "type": "integer",
-            "nullable": true
-          },
-          "style": {
-            "$ref": "#/components/schemas/Style",
-            "nullable": true
-          },
-          "children": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Node"
-            }
-          }
-        }
-      },
-      "NodeCreateInput": {},
-      "NodeUpdateInput": {},
-      "Connection": {
-        "type": "object",
-        "required": [
-          "identifier"
-        ],
-        "properties": {
-          "identifier": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string",
-            "nullable": true
-          },
-          "relationship_ref": {
-            "type": "string",
-            "nullable": true
-          },
-          "source": {
-            "type": "string",
-            "nullable": true
-          },
-          "target": {
-            "type": "string",
-            "nullable": true
-          },
-          "source_side": {
-            "type": "string",
-            "enum": [
-              "top",
-              "right",
-              "bottom",
-              "left"
-            ],
-            "nullable": true
-          },
-          "target_side": {
-            "type": "string",
-            "enum": [
-              "top",
-              "right",
-              "bottom",
-              "left"
-            ],
-            "nullable": true
-          },
-          "style": {
-            "$ref": "#/components/schemas/Style",
-            "nullable": true
-          }
-        }
-      },
-      "ConnectionCreateInput": {},
-      "ConnectionUpdateInput": {},
-      "View": {
-        "type": "object",
-        "required": [
-          "identifier",
-          "name",
-          "node_count",
-          "connection_count"
-        ],
-        "properties": {
-          "identifier": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "documentation": {
-            "type": "string",
-            "nullable": true
-          },
-          "viewpoint": {
-            "type": "string",
-            "nullable": true
-          },
-          "node_count": {
-            "type": "integer"
-          },
-          "connection_count": {
-            "type": "integer"
-          }
-        }
-      },
-      "ViewDetail": {
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/View"
-          },
-          {
-            "type": "object",
-            "required": [
-              "nodes",
-              "connections"
-            ],
-            "properties": {
-              "nodes": {
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/Node"
-                }
-              },
-              "connections": {
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/Connection"
-                }
-              }
-            }
-          }
-        ]
-      },
-      "ViewCreateInput": {},
-      "ViewUpdateInput": {},
-      "WorkspaceInfo": {
-        "type": "object",
-        "required": [
-          "id",
-          "name",
-          "active"
-        ],
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "path": {
-            "type": "string",
-            "nullable": true
-          },
-          "active": {
-            "type": "boolean"
-          }
-        }
-      },
-      "WorkspaceCreateInput": {},
-      "WorkspaceUpdateInput": {},
-      "UserOut": {
-        "type": "object",
-        "required": [
-          "id",
-          "username",
-          "role",
-          "created_at"
-        ],
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "username": {
-            "type": "string"
-          },
-          "role": {
-            "type": "string",
-            "example": "user"
-          },
-          "created_at": {
-            "type": "string",
-            "format": "date-time"
-          }
-        }
-      },
-      "RoleOut": {
-        "type": "object",
-        "required": [
-          "id",
-          "name",
-          "is_system",
-          "created_at",
-          "permissions",
-          "user_ids"
-        ],
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "description": {
-            "type": "string",
-            "nullable": true
-          },
-          "is_system": {
-            "type": "boolean"
-          },
-          "created_at": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "permissions": {
-            "type": "object",
-            "description": "Map de layer → liste de flags (read|create|update|delete)",
-            "additionalProperties": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
-            }
-          },
-          "user_ids": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          }
-        }
-      },
-      "RoleCreateInput": {},
-      "RoleUpdateInput": {},
-      "PropertyDefinition": {
-        "type": "object",
-        "required": [
-          "identifier",
-          "name"
-        ],
-        "properties": {
-          "identifier": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "type": {
-            "type": "string",
-            "nullable": true
-          }
-        }
-      },
-      "PropertyDefinitionCreateInput": {},
-      "PropertyDefinitionUpdateInput": {},
-      "ErrorDetail": {
-        "type": "object",
-        "required": [
-          "detail"
-        ],
-        "properties": {
-          "detail": {
-            "type": "string"
-          }
-        }
-      }
-    },
-    "securitySchemes": {
-      "cookieAuth": {
-        "type": "apiKey",
-        "in": "cookie",
-        "name": "better-auth.session_token",
-        "description": "Cookie de session httpOnly défini par Better Auth après /auth/sign-in/username"
-      }
-    },
-    "responses": {
-      "NotFound": {
-        "description": "Ressource introuvable",
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "#/components/schemas/ErrorDetail"
-            }
-          }
-        }
-      },
-      "UnprocessableType": {
-        "description": "Type ArchiMate invalide",
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "#/components/schemas/ErrorDetail"
-            }
-          }
-        }
-      },
-      "Unauthorized": {
-        "description": "Non authentifié",
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "#/components/schemas/ErrorDetail"
-            }
-          }
-        }
-      },
-      "Forbidden": {
-        "description": "Permission insuffisante",
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "#/components/schemas/ErrorDetail"
-            }
           }
         }
       }

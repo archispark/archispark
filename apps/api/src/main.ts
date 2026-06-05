@@ -1,5 +1,4 @@
 import { runMigrations } from "@workspace/db";
-import { app } from "./app.js";
 import { initUsers } from "./auth.js";
 import { reloadAuth } from "./better-auth.js";
 import { initRedis } from "./redis.js";
@@ -11,7 +10,10 @@ initRedis()
   .then(() => runMigrations())
   .then(() => initUsers())
   .then(() => reloadAuth())
-  .then(() => {
+  .then(async () => {
+    // Dynamic import so app.ts (and its rateLimit/RedisStore) is loaded only
+    // after initRedis() has connected, avoiding the "Non initialisé" error.
+    const { app } = await import("./app.js");
     app.listen(PORT, HOST, () => {
       console.log(`ArchiMate API running on http://${HOST}:${PORT}`);
     });

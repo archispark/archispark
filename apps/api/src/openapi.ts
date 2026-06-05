@@ -1,14 +1,16 @@
 /**
- * OpenAPI 3.0 specification for the mcp-archimate REST API.
+ * OpenAPI 3.0 specification for the ArchiSpark REST API.
  * Served as JSON at GET /openapi.json and as Swagger UI at GET /docs.
  *
- * Request body schemas are auto-generated from the Zod schemas in validation.ts.
+ * Schemas are registered via @asteasolutions/zod-to-openapi.
+ * Input schemas come from validation.ts (Zod). Output schemas are defined here.
  */
 
+import "./validation.js"; // ensures extendZodWithOpenApi(z) runs first
+import { z } from "zod";
+import { OpenAPIRegistry, OpenApiGeneratorV3 } from "@asteasolutions/zod-to-openapi";
 import packageJson from "../package.json" with { type: "json" };
-const { version } = packageJson;
 import { ELEMENT_TYPES, RELATIONSHIP_TYPES } from "./schemas.js";
-import { zodToJsonSchema } from "zod-to-json-schema";
 import {
   ElementCreateSchema, ElementUpdateSchema,
   RelationshipCreateSchema, RelationshipUpdateSchema,
@@ -20,260 +22,740 @@ import {
   RoleCreateSchema, RoleUpdateSchema,
 } from "./validation.js";
 
-function toOpenApiSchema(zodSchema: unknown): unknown {
-  const s = zodToJsonSchema(zodSchema as Parameters<typeof zodToJsonSchema>[0], { target: "openApi3" }) as Record<string, unknown>;
-  // Remove $schema key which isn't needed inline
-  const { $schema: _, ...rest } = s;
-  return rest;
-}
-
-const elementTypesEnum = [...ELEMENT_TYPES].sort();
-const relationshipTypesEnum = [...RELATIONSHIP_TYPES].sort();
+const { version } = packageJson;
+const registry = new OpenAPIRegistry();
 
 // ---------------------------------------------------------------------------
-// Reusable schema objects
+// Enums
 // ---------------------------------------------------------------------------
 
-const RGBColor = {
-  type: "object",
-  properties: {
-    r: { type: "integer", minimum: 0, maximum: 255 },
-    g: { type: "integer", minimum: 0, maximum: 255 },
-    b: { type: "integer", minimum: 0, maximum: 255 },
-  },
-  required: ["r", "g", "b"],
-};
+const elementTypesEnum = [...ELEMENT_TYPES].sort() as [string, ...string[]];
+const relationshipTypesEnum = [...RELATIONSHIP_TYPES].sort() as [string, ...string[]];
 
-const Font = {
-  type: "object",
-  properties: {
-    name:  { type: "string", nullable: true },
-    size:  { type: "number", nullable: true },
-    style: { type: "string", nullable: true },
-    color: { $ref: "#/components/schemas/RGBColor", nullable: true },
-  },
-};
+// ---------------------------------------------------------------------------
+// Reusable output schemas
+// ---------------------------------------------------------------------------
 
-const Style = {
-  type: "object",
-  properties: {
-    fill_color:  { $ref: "#/components/schemas/RGBColor", nullable: true },
-    line_color:  { $ref: "#/components/schemas/RGBColor", nullable: true },
-    font:        { $ref: "#/components/schemas/Font",     nullable: true },
-    line_width:  { type: "number", nullable: true },
-  },
-};
+const RGBColorSchema = registry.register("RGBColor", z.object({
+  r: z.number().int().min(0).max(255),
+  g: z.number().int().min(0).max(255),
+  b: z.number().int().min(0).max(255),
+}).openapi("RGBColor"));
 
-const Property = {
-  type: "object",
-  required: ["property_definition_ref", "value"],
-  properties: {
-    property_definition_ref: { type: "string" },
-    value:                   { type: "string" },
-  },
-};
+const FontSchema = registry.register("Font", z.object({
+  name:  z.string().nullable().optional(),
+  size:  z.number().nullable().optional(),
+  style: z.string().nullable().optional(),
+  color: RGBColorSchema.nullable().optional(),
+}).openapi("Font"));
 
-const ModelInfo = {
-  type: "object",
-  required: ["identifier", "name", "element_count", "relationship_count", "view_count", "property_definition_count"],
-  properties: {
-    identifier:                  { type: "string" },
-    name:                        { type: "string" },
-    documentation:               { type: "string", nullable: true },
-    version:                     { type: "string", nullable: true },
-    element_count:               { type: "integer" },
-    relationship_count:          { type: "integer" },
-    view_count:                  { type: "integer" },
-    property_definition_count:   { type: "integer" },
-    workspace_id:                { type: "string", nullable: true },
-    workspace_name:              { type: "string", nullable: true },
-  },
-};
+const StyleSchema = registry.register("Style", z.object({
+  fill_color: RGBColorSchema.nullable().optional(),
+  line_color: RGBColorSchema.nullable().optional(),
+  font:        FontSchema.nullable().optional(),
+  line_width:  z.number().nullable().optional(),
+}).openapi("Style"));
 
-const Element = {
-  type: "object",
-  required: ["identifier", "name", "type", "properties"],
-  properties: {
-    identifier:    { type: "string" },
-    name:          { type: "string" },
-    type:          { type: "string", enum: elementTypesEnum },
-    documentation: { type: "string", nullable: true },
-    properties:    { type: "array", items: { $ref: "#/components/schemas/Property" } },
-  },
-};
+const PropertySchema = registry.register("Property", z.object({
+  property_definition_ref: z.string(),
+  value:                   z.string(),
+}).openapi("Property"));
 
-const Relationship = {
-  type: "object",
-  required: ["identifier", "type", "source", "target", "properties"],
-  properties: {
-    identifier:    { type: "string" },
-    name:          { type: "string", nullable: true },
-    type:          { type: "string", enum: relationshipTypesEnum },
-    source:        { type: "string", description: "Identifiant de l'element source" },
-    source_name:   { type: "string", nullable: true },
-    target:        { type: "string", description: "Identifiant de l'element cible" },
-    target_name:   { type: "string", nullable: true },
-    documentation: { type: "string", nullable: true },
-    properties:    { type: "array", items: { $ref: "#/components/schemas/Property" } },
-    access_type:   { type: "string", enum: ["Access", "Read", "Write", "ReadWrite"], nullable: true,
-                     description: "Uniquement pour le type Access" },
-    is_directed:   { type: "boolean", nullable: true,
-                     description: "Uniquement pour le type Association" },
-    modifier:      { type: "string", nullable: true,
-                     description: "Force d'influence, uniquement pour le type Influence" },
-  },
-};
+const ModelInfoSchema = registry.register("ModelInfo", z.object({
+  identifier:                z.string(),
+  name:                      z.string(),
+  documentation:             z.string().nullable().optional(),
+  version:                   z.string().nullable().optional(),
+  element_count:             z.number().int(),
+  relationship_count:        z.number().int(),
+  view_count:                z.number().int(),
+  property_definition_count: z.number().int(),
+  workspace_id:              z.string().nullable().optional(),
+  workspace_name:            z.string().nullable().optional(),
+}).openapi("ModelInfo"));
 
-const Node: Record<string, unknown> = {
-  type: "object",
-  required: ["identifier", "children"],
-  properties: {
-    identifier:  { type: "string" },
-    name:        { type: "string", nullable: true },
-    element_ref: { type: "string", nullable: true },
-    x:           { type: "integer", nullable: true },
-    y:           { type: "integer", nullable: true },
-    w:           { type: "integer", nullable: true },
-    h:           { type: "integer", nullable: true },
-    style:       { $ref: "#/components/schemas/Style", nullable: true },
-    children:    { type: "array", items: { $ref: "#/components/schemas/Node" } },
-  },
-};
+const ElementSchema = registry.register("Element", z.object({
+  identifier:    z.string(),
+  name:          z.string(),
+  type:          z.enum(elementTypesEnum),
+  documentation: z.string().nullable().optional(),
+  properties:    z.array(PropertySchema),
+}).openapi("Element"));
 
-const Connection = {
-  type: "object",
-  required: ["identifier"],
-  properties: {
-    identifier:       { type: "string" },
-    name:             { type: "string", nullable: true },
-    relationship_ref: { type: "string", nullable: true },
-    source:           { type: "string", nullable: true },
-    target:           { type: "string", nullable: true },
-    source_side:      { type: "string", enum: ["top", "right", "bottom", "left"], nullable: true },
-    target_side:      { type: "string", enum: ["top", "right", "bottom", "left"], nullable: true },
-    style:            { $ref: "#/components/schemas/Style", nullable: true },
-  },
-};
+const RelationshipSchema = registry.register("Relationship", z.object({
+  identifier:    z.string(),
+  name:          z.string().nullable().optional(),
+  type:          z.enum(relationshipTypesEnum),
+  source:        z.string().openapi({ description: "Identifiant de l'élément source" }),
+  source_name:   z.string().nullable().optional(),
+  target:        z.string().openapi({ description: "Identifiant de l'élément cible" }),
+  target_name:   z.string().nullable().optional(),
+  documentation: z.string().nullable().optional(),
+  properties:    z.array(PropertySchema),
+  access_type:   z.enum(["Access", "Read", "Write", "ReadWrite"]).nullable().optional()
+                   .openapi({ description: "Uniquement pour le type Access" }),
+  is_directed:   z.boolean().nullable().optional()
+                   .openapi({ description: "Uniquement pour le type Association" }),
+  modifier:      z.string().nullable().optional()
+                   .openapi({ description: "Force d'influence, uniquement pour le type Influence" }),
+}).openapi("Relationship"));
 
-const View = {
-  type: "object",
-  required: ["identifier", "name", "node_count", "connection_count"],
-  properties: {
-    identifier:       { type: "string" },
-    name:             { type: "string" },
-    documentation:    { type: "string", nullable: true },
-    viewpoint:        { type: "string", nullable: true },
-    node_count:       { type: "integer" },
-    connection_count: { type: "integer" },
-  },
-};
+// Node is self-referential — children typed as any[] for OpenAPI (doc only, not runtime)
+const NodeSchema = registry.register("Node", z.object({
+  identifier:  z.string(),
+  name:        z.string().nullable().optional(),
+  element_ref: z.string().nullable().optional(),
+  x:           z.number().int().nullable().optional(),
+  y:           z.number().int().nullable().optional(),
+  w:           z.number().int().nullable().optional(),
+  h:           z.number().int().nullable().optional(),
+  style:       StyleSchema.nullable().optional(),
+  children:    z.array(z.any()).openapi({ description: "Nœuds enfants (type Node récursif)" }),
+}).openapi("Node"));
 
-const ViewDetail = {
-  allOf: [
-    { $ref: "#/components/schemas/View" },
-    {
-      type: "object",
-      required: ["nodes", "connections"],
-      properties: {
-        nodes:       { type: "array", items: { $ref: "#/components/schemas/Node" } },
-        connections: { type: "array", items: { $ref: "#/components/schemas/Connection" } },
+const ConnectionSchema = registry.register("Connection", z.object({
+  identifier:       z.string(),
+  name:             z.string().nullable().optional(),
+  relationship_ref: z.string().nullable().optional(),
+  source:           z.string().nullable().optional(),
+  target:           z.string().nullable().optional(),
+  source_side:      z.enum(["top", "right", "bottom", "left"]).nullable().optional(),
+  target_side:      z.enum(["top", "right", "bottom", "left"]).nullable().optional(),
+  style:            StyleSchema.nullable().optional(),
+}).openapi("Connection"));
+
+const ViewSchema = registry.register("View", z.object({
+  identifier:       z.string(),
+  name:             z.string(),
+  documentation:    z.string().nullable().optional(),
+  viewpoint:        z.string().nullable().optional(),
+  node_count:       z.number().int(),
+  connection_count: z.number().int(),
+}).openapi("View"));
+
+const ViewDetailSchema = registry.register("ViewDetail", ViewSchema.extend({
+  nodes:       z.array(NodeSchema),
+  connections: z.array(ConnectionSchema),
+}).openapi("ViewDetail"));
+
+const SaveResultSchema = registry.register("SaveResult", z.object({
+  saved: z.boolean().openapi({ example: true }),
+  path:  z.string().openapi({ example: "data/archisurance.xml" }),
+}).openapi("SaveResult"));
+
+const ErrorDetailSchema = registry.register("ErrorDetail", z.object({
+  detail: z.string(),
+}).openapi("ErrorDetail"));
+
+const WorkspaceInfoSchema = registry.register("WorkspaceInfo", z.object({
+  id:     z.string(),
+  name:   z.string(),
+  path:   z.string().nullable().optional(),
+  active: z.boolean(),
+}).openapi("WorkspaceInfo"));
+
+const UserOutSchema = registry.register("UserOut", z.object({
+  id:         z.string(),
+  username:   z.string(),
+  role:       z.string().openapi({ example: "user" }),
+  created_at: z.string().datetime(),
+}).openapi("UserOut"));
+
+const RoleOutSchema = registry.register("RoleOut", z.object({
+  id:          z.string(),
+  name:        z.string(),
+  description: z.string().nullable().optional(),
+  is_system:   z.boolean(),
+  created_at:  z.string().datetime(),
+  permissions: z.record(z.string(), z.array(z.string()))
+                .openapi({ description: "Map de layer → liste de flags (read|create|update|delete)" }),
+  user_ids:    z.array(z.string()),
+}).openapi("RoleOut"));
+
+const PropertyDefinitionSchema = registry.register("PropertyDefinition", z.object({
+  identifier: z.string(),
+  name:       z.string(),
+  type:       z.string().nullable().optional(),
+}).openapi("PropertyDefinition"));
+
+// ---------------------------------------------------------------------------
+// Input schemas (from validation.ts)
+// ---------------------------------------------------------------------------
+
+const ElementCreateInput   = registry.register("ElementCreateInput",   ElementCreateSchema.openapi("ElementCreateInput"));
+const ElementUpdateInput   = registry.register("ElementUpdateInput",   ElementUpdateSchema.openapi("ElementUpdateInput"));
+const RelationshipCreateInput = registry.register("RelationshipCreateInput", RelationshipCreateSchema.openapi("RelationshipCreateInput"));
+const RelationshipUpdateInput = registry.register("RelationshipUpdateInput", RelationshipUpdateSchema.openapi("RelationshipUpdateInput"));
+const ViewCreateInput      = registry.register("ViewCreateInput",      ViewCreateSchema.openapi("ViewCreateInput"));
+const ViewUpdateInput      = registry.register("ViewUpdateInput",      ViewUpdateSchema.openapi("ViewUpdateInput"));
+const NodeCreateInput      = registry.register("NodeCreateInput",      NodeCreateSchema.openapi("NodeCreateInput"));
+const NodeUpdateInput      = registry.register("NodeUpdateInput",      NodeUpdateSchema.openapi("NodeUpdateInput"));
+const ConnectionCreateInput = registry.register("ConnectionCreateInput", ConnectionCreateSchema.openapi("ConnectionCreateInput"));
+const ConnectionUpdateInput = registry.register("ConnectionUpdateInput", ConnectionUpdateSchema.openapi("ConnectionUpdateInput"));
+const WorkspaceCreateInput = registry.register("WorkspaceCreateInput", WorkspaceCreateSchema.openapi("WorkspaceCreateInput"));
+const WorkspaceUpdateInput = registry.register("WorkspaceUpdateInput", WorkspaceUpdateSchema.openapi("WorkspaceUpdateInput"));
+const PropertyDefinitionCreateInput = registry.register("PropertyDefinitionCreateInput", PropertyDefinitionCreateSchema.openapi("PropertyDefinitionCreateInput"));
+const PropertyDefinitionUpdateInput = registry.register("PropertyDefinitionUpdateInput", PropertyDefinitionUpdateSchema.openapi("PropertyDefinitionUpdateInput"));
+const RoleCreateInput      = registry.register("RoleCreateInput",      RoleCreateSchema.openapi("RoleCreateInput"));
+const RoleUpdateInput      = registry.register("RoleUpdateInput",      RoleUpdateSchema.openapi("RoleUpdateInput"));
+
+// ---------------------------------------------------------------------------
+// Reusable responses
+// ---------------------------------------------------------------------------
+
+const NotFound        = { description: "Ressource introuvable",       content: { "application/json": { schema: ErrorDetailSchema } } };
+const UnprocessableType = { description: "Type ArchiMate invalide",   content: { "application/json": { schema: ErrorDetailSchema } } };
+const Unauthorized    = { description: "Non authentifié",             content: { "application/json": { schema: ErrorDetailSchema } } };
+const Forbidden       = { description: "Permission insuffisante",     content: { "application/json": { schema: ErrorDetailSchema } } };
+
+// ---------------------------------------------------------------------------
+// Paths
+// ---------------------------------------------------------------------------
+
+registry.registerPath({
+  method: "get", path: "/", tags: ["Model"],
+  summary: "Métadonnées du modèle", operationId: "getModelInfo",
+  responses: { 200: { description: "Informations globales du modèle", content: { "application/json": { schema: ModelInfoSchema } } } },
+});
+
+registry.registerPath({
+  method: "post", path: "/save", tags: ["Model"],
+  summary: "Sauvegarder le modèle sur disque", operationId: "saveModel",
+  description: "Sérialise le modèle en mémoire et l'écrit dans son fichier .xml (Open Exchange File).",
+  responses: {
+    200: { description: "Modèle sauvegardé", content: { "application/json": { schema: SaveResultSchema } } },
+    500: { description: "Erreur d'écriture",  content: { "application/json": { schema: ErrorDetailSchema } } },
+  },
+});
+
+registry.registerPath({
+  method: "get", path: "/elements/types", tags: ["Elements"],
+  summary: "Types d'éléments présents", operationId: "listElementTypes",
+  responses: {
+    200: {
+      description: "Liste triée des types d'éléments ArchiMate 3.1 présents",
+      content: { "application/json": { schema: z.array(z.string()).openapi({ example: ["ApplicationComponent", "BusinessActor"] }) } },
+    },
+  },
+});
+
+registry.registerPath({
+  method: "get", path: "/elements", tags: ["Elements"],
+  summary: "Lister les éléments", operationId: "listElements",
+  request: {
+    query: z.object({
+      type: z.enum(elementTypesEnum).optional().openapi({ description: "Filtrer par type ArchiMate 3.1" }),
+      name: z.string().optional().openapi({ description: "Filtrer par nom (insensible à la casse, sous-chaîne)" }),
+    }),
+  },
+  responses: {
+    200: { description: "Liste des éléments", content: { "application/json": { schema: z.array(ElementSchema) } } },
+    422: UnprocessableType,
+  },
+});
+
+registry.registerPath({
+  method: "post", path: "/elements", tags: ["Elements"],
+  summary: "Créer un élément", operationId: "createElement",
+  request: { body: { required: true, content: { "application/json": { schema: ElementCreateInput } } } },
+  responses: {
+    201: { description: "Élément créé", content: { "application/json": { schema: ElementSchema } } },
+    422: UnprocessableType,
+  },
+});
+
+registry.registerPath({
+  method: "get", path: "/elements/{identifier}", tags: ["Elements"],
+  summary: "Détail d'un élément", operationId: "getElementById",
+  request: { params: z.object({ identifier: z.string().openapi({ description: "Identifiant de l'élément" }) }) },
+  responses: {
+    200: { description: "Élément ArchiMate", content: { "application/json": { schema: ElementSchema } } },
+    404: NotFound,
+  },
+});
+
+registry.registerPath({
+  method: "put", path: "/elements/{identifier}", tags: ["Elements"],
+  summary: "Modifier un élément", operationId: "updateElement",
+  request: {
+    params: z.object({ identifier: z.string() }),
+    body: { required: true, content: { "application/json": { schema: ElementUpdateInput } } },
+  },
+  responses: {
+    200: { description: "Élément mis à jour", content: { "application/json": { schema: ElementSchema } } },
+    404: NotFound, 422: UnprocessableType,
+  },
+});
+
+registry.registerPath({
+  method: "delete", path: "/elements/{identifier}", tags: ["Elements"],
+  summary: "Supprimer un élément", operationId: "deleteElement",
+  request: { params: z.object({ identifier: z.string() }) },
+  responses: {
+    204: { description: "Élément supprimé (et relations associées)" },
+    404: NotFound,
+  },
+});
+
+registry.registerPath({
+  method: "get", path: "/relationships/types", tags: ["Relationships"],
+  summary: "Types de relations présents", operationId: "listRelationshipTypes",
+  responses: {
+    200: {
+      description: "Liste triée des types de relations ArchiMate 3.1 présents",
+      content: { "application/json": { schema: z.array(z.string()).openapi({ example: ["Association", "Flow"] }) } },
+    },
+  },
+});
+
+registry.registerPath({
+  method: "get", path: "/relationships", tags: ["Relationships"],
+  summary: "Lister les relations", operationId: "listRelationships",
+  request: {
+    query: z.object({
+      type:      z.enum(relationshipTypesEnum).optional().openapi({ description: "Filtrer par type de relation" }),
+      source_id: z.string().optional().openapi({ description: "Filtrer par identifiant de l'élément source" }),
+      target_id: z.string().optional().openapi({ description: "Filtrer par identifiant de l'élément cible" }),
+    }),
+  },
+  responses: {
+    200: { description: "Liste des relations", content: { "application/json": { schema: z.array(RelationshipSchema) } } },
+    422: UnprocessableType,
+  },
+});
+
+registry.registerPath({
+  method: "post", path: "/relationships", tags: ["Relationships"],
+  summary: "Créer une relation", operationId: "createRelationship",
+  request: { body: { required: true, content: { "application/json": { schema: RelationshipCreateInput } } } },
+  responses: {
+    201: { description: "Relation créée", content: { "application/json": { schema: RelationshipSchema } } },
+    404: NotFound, 422: UnprocessableType,
+  },
+});
+
+registry.registerPath({
+  method: "get", path: "/relationships/{identifier}", tags: ["Relationships"],
+  summary: "Détail d'une relation", operationId: "getRelationshipById",
+  request: { params: z.object({ identifier: z.string().openapi({ description: "Identifiant de la relation" }) }) },
+  responses: {
+    200: { description: "Relation ArchiMate", content: { "application/json": { schema: RelationshipSchema } } },
+    404: NotFound,
+  },
+});
+
+registry.registerPath({
+  method: "put", path: "/relationships/{identifier}", tags: ["Relationships"],
+  summary: "Modifier une relation", operationId: "updateRelationship",
+  request: {
+    params: z.object({ identifier: z.string() }),
+    body: { required: true, content: { "application/json": { schema: RelationshipUpdateInput } } },
+  },
+  responses: {
+    200: { description: "Relation mise à jour", content: { "application/json": { schema: RelationshipSchema } } },
+    404: NotFound, 422: UnprocessableType,
+  },
+});
+
+registry.registerPath({
+  method: "delete", path: "/relationships/{identifier}", tags: ["Relationships"],
+  summary: "Supprimer une relation", operationId: "deleteRelationship",
+  request: { params: z.object({ identifier: z.string() }) },
+  responses: {
+    204: { description: "Relation supprimée" },
+    404: NotFound,
+  },
+});
+
+registry.registerPath({
+  method: "get", path: "/views", tags: ["Views"],
+  summary: "Lister les vues", operationId: "listViews",
+  responses: {
+    200: { description: "Liste des vues avec compteurs", content: { "application/json": { schema: z.array(ViewSchema) } } },
+  },
+});
+
+registry.registerPath({
+  method: "post", path: "/views", tags: ["Views"],
+  summary: "Créer une vue", operationId: "createView",
+  request: { body: { required: true, content: { "application/json": { schema: ViewCreateInput } } } },
+  responses: {
+    201: { description: "Vue créée", content: { "application/json": { schema: ViewDetailSchema } } },
+    422: UnprocessableType,
+  },
+});
+
+registry.registerPath({
+  method: "get", path: "/views/{identifier}", tags: ["Views"],
+  summary: "Détail d'une vue", operationId: "getViewById",
+  request: { params: z.object({ identifier: z.string().openapi({ description: "Identifiant de la vue" }) }) },
+  responses: {
+    200: { description: "Vue avec nœuds et connexions", content: { "application/json": { schema: ViewDetailSchema } } },
+    404: NotFound,
+  },
+});
+
+registry.registerPath({
+  method: "get", path: "/views/{view_id}/image", tags: ["Views"],
+  summary: "Rendu SVG d'une vue", operationId: "renderView",
+  request: {
+    params: z.object({ view_id: z.string().openapi({ description: "Identifiant de la vue" }) }),
+    query: z.object({
+      format: z.enum(["svg"]).default("svg").optional()
+               .openapi({ description: "Format de sortie (svg uniquement ; l'export PNG se fait côté client)" }),
+    }),
+  },
+  responses: {
+    200: { description: "Image SVG de la vue", content: { "image/svg+xml": { schema: z.string() } } },
+    404: NotFound, 422: UnprocessableType,
+  },
+});
+
+registry.registerPath({
+  method: "post", path: "/views/{view_id}/nodes", tags: ["Views"],
+  summary: "Ajouter un nœud à une vue", operationId: "createNode",
+  request: {
+    params: z.object({ view_id: z.string().openapi({ description: "Identifiant de la vue" }) }),
+    body: { required: true, content: { "application/json": { schema: NodeCreateInput } } },
+  },
+  responses: {
+    201: { description: "Nœud créé", content: { "application/json": { schema: NodeSchema } } },
+    404: NotFound, 422: UnprocessableType,
+  },
+});
+
+registry.registerPath({
+  method: "put", path: "/views/{view_id}/nodes/{node_id}", tags: ["Views"],
+  summary: "Déplacer / redimensionner un nœud", operationId: "updateNode",
+  request: {
+    params: z.object({ view_id: z.string(), node_id: z.string() }),
+    body: { required: true, content: { "application/json": { schema: NodeUpdateInput } } },
+  },
+  responses: {
+    200: { description: "Nœud mis à jour", content: { "application/json": { schema: NodeSchema } } },
+    401: Unauthorized, 403: Forbidden, 404: NotFound,
+  },
+});
+
+registry.registerPath({
+  method: "delete", path: "/views/{view_id}/nodes/{node_id}", tags: ["Views"],
+  summary: "Retirer un nœud d'une vue", operationId: "deleteNode",
+  request: { params: z.object({ view_id: z.string(), node_id: z.string() }) },
+  responses: {
+    204: { description: "Nœud retiré" },
+    401: Unauthorized, 403: Forbidden, 404: NotFound,
+  },
+});
+
+registry.registerPath({
+  method: "post", path: "/views/{view_id}/connections", tags: ["Views"],
+  summary: "Créer une connexion dans une vue", operationId: "createConnection",
+  request: {
+    params: z.object({ view_id: z.string() }),
+    body: { required: true, content: { "application/json": { schema: ConnectionCreateInput } } },
+  },
+  responses: {
+    201: { description: "Connexion créée", content: { "application/json": { schema: ConnectionSchema } } },
+    401: Unauthorized, 403: Forbidden, 404: NotFound,
+  },
+});
+
+registry.registerPath({
+  method: "put", path: "/views/{view_id}/connections/{conn_id}", tags: ["Views"],
+  summary: "Modifier une connexion", operationId: "updateConnection",
+  request: {
+    params: z.object({ view_id: z.string(), conn_id: z.string() }),
+    body: { required: true, content: { "application/json": { schema: ConnectionUpdateInput } } },
+  },
+  responses: {
+    200: { description: "Connexion mise à jour", content: { "application/json": { schema: ConnectionSchema } } },
+    401: Unauthorized, 403: Forbidden, 404: NotFound,
+  },
+});
+
+registry.registerPath({
+  method: "delete", path: "/views/{view_id}/connections/{conn_id}", tags: ["Views"],
+  summary: "Supprimer une connexion", operationId: "deleteConnection",
+  request: { params: z.object({ view_id: z.string(), conn_id: z.string() }) },
+  responses: {
+    204: { description: "Connexion supprimée" },
+    401: Unauthorized, 403: Forbidden, 404: NotFound,
+  },
+});
+
+registry.registerPath({
+  method: "get", path: "/me", tags: ["Auth"],
+  summary: "Utilisateur courant", operationId: "getMe",
+  security: [{ cookieAuth: [] }],
+  responses: {
+    200: { description: "Utilisateur connecté", content: { "application/json": { schema: UserOutSchema } } },
+    401: Unauthorized,
+  },
+});
+
+registry.registerPath({
+  method: "get", path: "/workspaces", tags: ["Workspaces"],
+  summary: "Lister les workspaces", operationId: "listWorkspaces",
+  security: [{ cookieAuth: [] }],
+  responses: {
+    200: { description: "Liste des workspaces", content: { "application/json": { schema: z.array(WorkspaceInfoSchema) } } },
+    401: Unauthorized,
+  },
+});
+
+registry.registerPath({
+  method: "post", path: "/workspaces", tags: ["Workspaces"],
+  summary: "Créer un workspace", operationId: "createWorkspace",
+  security: [{ cookieAuth: [] }],
+  request: { body: { required: true, content: { "application/json": { schema: WorkspaceCreateInput } } } },
+  responses: {
+    201: { description: "Workspace créé", content: { "application/json": { schema: WorkspaceInfoSchema } } },
+    401: Unauthorized, 422: UnprocessableType,
+  },
+});
+
+registry.registerPath({
+  method: "put", path: "/workspaces/{id}", tags: ["Workspaces"],
+  summary: "Renommer un workspace", operationId: "updateWorkspace",
+  security: [{ cookieAuth: [] }],
+  request: {
+    params: z.object({ id: z.string() }),
+    body: { required: true, content: { "application/json": { schema: WorkspaceUpdateInput } } },
+  },
+  responses: {
+    200: { description: "Workspace mis à jour", content: { "application/json": { schema: WorkspaceInfoSchema } } },
+    401: Unauthorized, 404: NotFound,
+  },
+});
+
+registry.registerPath({
+  method: "delete", path: "/workspaces/{id}", tags: ["Workspaces"],
+  summary: "Supprimer un workspace", operationId: "deleteWorkspace",
+  security: [{ cookieAuth: [] }],
+  request: { params: z.object({ id: z.string() }) },
+  responses: {
+    204: { description: "Workspace supprimé" },
+    401: Unauthorized, 404: NotFound,
+  },
+});
+
+registry.registerPath({
+  method: "post", path: "/workspaces/{id}/activate", tags: ["Workspaces"],
+  summary: "Activer un workspace", operationId: "activateWorkspace",
+  security: [{ cookieAuth: [] }],
+  request: { params: z.object({ id: z.string() }) },
+  responses: {
+    200: { description: "Workspace activé", content: { "application/json": { schema: WorkspaceInfoSchema } } },
+    401: Unauthorized, 404: NotFound,
+  },
+});
+
+registry.registerPath({
+  method: "get", path: "/users", tags: ["Users"],
+  summary: "Lister les utilisateurs", operationId: "listUsers",
+  security: [{ cookieAuth: [] }],
+  responses: {
+    200: { description: "Liste des utilisateurs", content: { "application/json": { schema: z.array(UserOutSchema) } } },
+    401: Unauthorized, 403: Forbidden,
+  },
+});
+
+registry.registerPath({
+  method: "get", path: "/users/{uid}/roles", tags: ["Users"],
+  summary: "Rôles d'un utilisateur", operationId: "listUserRoles",
+  security: [{ cookieAuth: [] }],
+  request: { params: z.object({ uid: z.string() }) },
+  responses: {
+    200: { description: "Rôles assignés", content: { "application/json": { schema: z.array(RoleOutSchema) } } },
+    401: Unauthorized,
+  },
+});
+
+registry.registerPath({
+  method: "get", path: "/roles", tags: ["Roles"],
+  summary: "Lister les rôles", operationId: "listRoles",
+  security: [{ cookieAuth: [] }],
+  responses: {
+    200: { description: "Liste des rôles RBAC", content: { "application/json": { schema: z.array(RoleOutSchema) } } },
+    401: Unauthorized,
+  },
+});
+
+registry.registerPath({
+  method: "post", path: "/roles", tags: ["Roles"],
+  summary: "Créer un rôle", operationId: "createRole",
+  security: [{ cookieAuth: [] }],
+  request: { body: { required: true, content: { "application/json": { schema: RoleCreateInput } } } },
+  responses: {
+    201: { description: "Rôle créé", content: { "application/json": { schema: RoleOutSchema } } },
+    401: Unauthorized, 403: Forbidden,
+  },
+});
+
+registry.registerPath({
+  method: "get", path: "/roles/{id}", tags: ["Roles"],
+  summary: "Détail d'un rôle", operationId: "getRole",
+  security: [{ cookieAuth: [] }],
+  request: { params: z.object({ id: z.string() }) },
+  responses: {
+    200: { description: "Rôle", content: { "application/json": { schema: RoleOutSchema } } },
+    401: Unauthorized, 404: NotFound,
+  },
+});
+
+registry.registerPath({
+  method: "put", path: "/roles/{id}", tags: ["Roles"],
+  summary: "Modifier un rôle", operationId: "updateRole",
+  security: [{ cookieAuth: [] }],
+  request: {
+    params: z.object({ id: z.string() }),
+    body: { required: true, content: { "application/json": { schema: RoleUpdateInput } } },
+  },
+  responses: {
+    200: { description: "Rôle mis à jour", content: { "application/json": { schema: RoleOutSchema } } },
+    401: Unauthorized, 403: Forbidden, 404: NotFound,
+  },
+});
+
+registry.registerPath({
+  method: "delete", path: "/roles/{id}", tags: ["Roles"],
+  summary: "Supprimer un rôle", operationId: "deleteRole",
+  security: [{ cookieAuth: [] }],
+  request: { params: z.object({ id: z.string() }) },
+  responses: {
+    204: { description: "Rôle supprimé" },
+    401: Unauthorized, 403: Forbidden, 404: NotFound,
+  },
+});
+
+registry.registerPath({
+  method: "get", path: "/roles/{id}/layers/{layer}", tags: ["Roles"],
+  summary: "Permissions d'un rôle sur une couche", operationId: "getRoleLayer",
+  security: [{ cookieAuth: [] }],
+  request: {
+    params: z.object({
+      id:    z.string(),
+      layer: z.string().openapi({ description: "Couche ArchiMate ou 'Relations'/'Views'" }),
+    }),
+  },
+  responses: {
+    200: { description: "Permissions", content: { "application/json": { schema: z.array(z.string()) } } },
+    401: Unauthorized,
+  },
+});
+
+registry.registerPath({
+  method: "put", path: "/roles/{id}/layers/{layer}", tags: ["Roles"],
+  summary: "Définir permissions sur une couche", operationId: "setRoleLayer",
+  security: [{ cookieAuth: [] }],
+  request: {
+    params: z.object({ id: z.string(), layer: z.string() }),
+    body: {
+      required: true,
+      content: {
+        "application/json": {
+          schema: z.object({
+            permissions: z.array(z.enum(["read", "create", "update", "delete"])),
+          }),
+        },
       },
     },
-  ],
-};
-
-const ErrorDetail = {
-  type: "object",
-  required: ["detail"],
-  properties: {
-    detail: { type: "string" },
   },
-};
-
-const ElementCreateInput = toOpenApiSchema(ElementCreateSchema);
-const ElementUpdateInput = toOpenApiSchema(ElementUpdateSchema);
-const RelationshipCreateInput = toOpenApiSchema(RelationshipCreateSchema);
-const RelationshipUpdateInput = toOpenApiSchema(RelationshipUpdateSchema);
-
-const SaveResult = {
-  type: "object",
-  required: ["saved", "path"],
-  properties: {
-    saved: { type: "boolean", example: true },
-    path:  { type: "string", example: "data/archisurance.xml" },
+  responses: {
+    200: { description: "Permissions mises à jour" },
+    401: Unauthorized, 403: Forbidden,
   },
-};
+});
 
-const ViewCreateInput = toOpenApiSchema(ViewCreateSchema);
-const ViewUpdateInput = toOpenApiSchema(ViewUpdateSchema);
-const NodeCreateInput = toOpenApiSchema(NodeCreateSchema);
-const NodeUpdateInput = toOpenApiSchema(NodeUpdateSchema);
-const ConnectionCreateInput = toOpenApiSchema(ConnectionCreateSchema);
-const ConnectionUpdateInput = toOpenApiSchema(ConnectionUpdateSchema);
-
-const WorkspaceCreateInput = toOpenApiSchema(WorkspaceCreateSchema);
-const WorkspaceUpdateInput = toOpenApiSchema(WorkspaceUpdateSchema);
-
-const WorkspaceInfo = {
-  type: "object",
-  required: ["id", "name", "active"],
-  properties: {
-    id:     { type: "string" },
-    name:   { type: "string" },
-    path:   { type: "string", nullable: true },
-    active: { type: "boolean" },
+registry.registerPath({
+  method: "delete", path: "/roles/{id}/layers/{layer}", tags: ["Roles"],
+  summary: "Supprimer permissions sur une couche", operationId: "deleteRoleLayer",
+  security: [{ cookieAuth: [] }],
+  request: { params: z.object({ id: z.string(), layer: z.string() }) },
+  responses: {
+    204: { description: "Permissions supprimées" },
+    401: Unauthorized, 403: Forbidden,
   },
-};
+});
 
-const UserOut = {
-  type: "object",
-  required: ["id", "username", "role", "created_at"],
-  properties: {
-    id:         { type: "string" },
-    username:   { type: "string" },
-    role:       { type: "string", example: "user" },
-    created_at: { type: "string", format: "date-time" },
+registry.registerPath({
+  method: "put", path: "/roles/{id}/users/{uid}", tags: ["Roles"],
+  summary: "Assigner un utilisateur à un rôle", operationId: "assignUserToRole",
+  security: [{ cookieAuth: [] }],
+  request: { params: z.object({ id: z.string(), uid: z.string() }) },
+  responses: {
+    200: { description: "Assignation effectuée" },
+    401: Unauthorized, 403: Forbidden, 404: NotFound,
   },
-};
+});
 
-const RoleOut = {
-  type: "object",
-  required: ["id", "name", "is_system", "created_at", "permissions", "user_ids"],
-  properties: {
-    id:          { type: "string" },
-    name:        { type: "string" },
-    description: { type: "string", nullable: true },
-    is_system:   { type: "boolean" },
-    created_at:  { type: "string", format: "date-time" },
-    permissions: {
-      type: "object",
-      description: "Map de layer → liste de flags (read|create|update|delete)",
-      additionalProperties: { type: "array", items: { type: "string" } },
-    },
-    user_ids: { type: "array", items: { type: "string" } },
+registry.registerPath({
+  method: "delete", path: "/roles/{id}/users/{uid}", tags: ["Roles"],
+  summary: "Retirer un utilisateur d'un rôle", operationId: "unassignUserFromRole",
+  security: [{ cookieAuth: [] }],
+  request: { params: z.object({ id: z.string(), uid: z.string() }) },
+  responses: {
+    204: { description: "Désassignation effectuée" },
+    401: Unauthorized, 403: Forbidden, 404: NotFound,
   },
-};
+});
 
-const PropertyDefinitionCreateInput = toOpenApiSchema(PropertyDefinitionCreateSchema);
-const PropertyDefinitionUpdateInput = toOpenApiSchema(PropertyDefinitionUpdateSchema);
-const RoleCreateInput = toOpenApiSchema(RoleCreateSchema);
-const RoleUpdateInput = toOpenApiSchema(RoleUpdateSchema);
-
-const PropertyDefinition = {
-  type: "object",
-  required: ["identifier", "name"],
-  properties: {
-    identifier: { type: "string" },
-    name:       { type: "string" },
-    type:       { type: "string", nullable: true },
+registry.registerPath({
+  method: "get", path: "/property-definitions", tags: ["PropertyDefinitions"],
+  summary: "Lister les définitions de propriétés", operationId: "listPropertyDefinitions",
+  security: [{ cookieAuth: [] }],
+  responses: {
+    200: { description: "Définitions de propriétés", content: { "application/json": { schema: z.array(PropertyDefinitionSchema) } } },
+    401: Unauthorized,
   },
-};
+});
+
+registry.registerPath({
+  method: "post", path: "/mcp/", tags: ["MCP"],
+  summary: "Requête MCP (JSON-RPC)", operationId: "mcpPost",
+  description:
+    "Point d'entrée JSON-RPC 2.0 du transport streamable-http MCP. " +
+    "La première requête doit être une `initialize`. " +
+    "Les requêtes suivantes doivent inclure l'en-tête `mcp-session-id` retourné par `initialize`.",
+  request: { body: { required: true, content: { "application/json": { schema: z.object({}) } } } },
+  responses: {
+    200: { description: "Réponse JSON-RPC (text/event-stream ou application/json)" },
+    400: { description: "Session invalide ou requête non-initialize sans session" },
+  },
+});
+
+registry.registerPath({
+  method: "get", path: "/mcp/", tags: ["MCP"],
+  summary: "Flux SSE MCP", operationId: "mcpGet",
+  request: {
+    headers: z.object({ "mcp-session-id": z.string() }),
+  },
+  responses: {
+    200: { description: "Flux d'événements SSE" },
+    405: { description: "Session non trouvée" },
+  },
+});
+
+registry.registerPath({
+  method: "delete", path: "/mcp/", tags: ["MCP"],
+  summary: "Fermer une session MCP", operationId: "mcpDelete",
+  request: {
+    headers: z.object({ "mcp-session-id": z.string() }),
+  },
+  responses: {
+    200: { description: "Session fermée" },
+    404: { description: "Session non trouvée" },
+  },
+});
 
 // ---------------------------------------------------------------------------
-// Spec
+// Generate spec
 // ---------------------------------------------------------------------------
 
-export const openApiSpec = {
+const generator = new OpenApiGeneratorV3(registry.definitions);
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const _doc: Record<string, any> = generator.generateDocument({
   openapi: "3.0.3",
   info: {
     title: "ArchiSpark API",
@@ -284,872 +766,25 @@ export const openApiSpec = {
     contact: { name: "GitHub", url: "https://github.com/archispark/archispark" },
   },
   servers: [{ url: "http://localhost:3000", description: "Serveur local" }],
-
   tags: [
-    { name: "Auth",               description: "Authentification (Better Auth)" },
-    { name: "Model",              description: "Informations et persistance du modèle" },
-    { name: "Workspaces",         description: "Gestion des workspaces" },
-    { name: "Elements",           description: "Éléments ArchiMate 3.1" },
-    { name: "Relationships",      description: "Relations ArchiMate 3.1" },
-    { name: "Views",              description: "Vues et diagrammes" },
+    { name: "Auth",                description: "Authentification (Better Auth)" },
+    { name: "Model",               description: "Informations et persistance du modèle" },
+    { name: "Workspaces",          description: "Gestion des workspaces" },
+    { name: "Elements",            description: "Éléments ArchiMate 3.1" },
+    { name: "Relationships",       description: "Relations ArchiMate 3.1" },
+    { name: "Views",               description: "Vues et diagrammes" },
     { name: "PropertyDefinitions", description: "Définitions de propriétés" },
-    { name: "Users",              description: "Gestion des utilisateurs" },
-    { name: "Roles",              description: "Rôles et permissions RBAC" },
-    { name: "MCP",                description: "Transport MCP (streamable-http)" },
+    { name: "Users",               description: "Gestion des utilisateurs" },
+    { name: "Roles",               description: "Rôles et permissions RBAC" },
+    { name: "MCP",                 description: "Transport MCP (streamable-http)" },
   ],
+});
 
-  paths: {
-    "/": {
-      get: {
-        tags: ["Model"],
-        summary: "Métadonnées du modèle",
-        operationId: "getModelInfo",
-        responses: {
-          "200": {
-            description: "Informations globales du modèle",
-            content: { "application/json": { schema: { $ref: "#/components/schemas/ModelInfo" } } },
-          },
-        },
-      },
-    },
-
-    "/save": {
-      post: {
-        tags: ["Model"],
-        summary: "Sauvegarder le modèle sur disque",
-        operationId: "saveModel",
-        description: "Sérialise le modèle en mémoire et l'écrit dans son fichier .xml (Open Exchange File).",
-        responses: {
-          "200": {
-            description: "Modèle sauvegardé",
-            content: { "application/json": { schema: { $ref: "#/components/schemas/SaveResult" } } },
-          },
-          "500": { description: "Erreur d'écriture", content: { "application/json": { schema: { $ref: "#/components/schemas/ErrorDetail" } } } },
-        },
-      },
-    },
-
-    "/elements/types": {
-      get: {
-        tags: ["Elements"],
-        summary: "Types d'éléments présents",
-        operationId: "listElementTypes",
-        responses: {
-          "200": {
-            description: "Liste triée des types d'éléments ArchiMate 3.1 présents",
-            content: {
-              "application/json": {
-                schema: { type: "array", items: { type: "string" }, example: ["ApplicationComponent", "BusinessActor"] },
-              },
-            },
-          },
-        },
-      },
-    },
-
-    "/elements": {
-      get: {
-        tags: ["Elements"],
-        summary: "Lister les éléments",
-        operationId: "listElements",
-        parameters: [
-          {
-            name: "type",
-            in: "query",
-            required: false,
-            schema: { type: "string", enum: elementTypesEnum },
-            description: "Filtrer par type ArchiMate 3.1",
-          },
-          {
-            name: "name",
-            in: "query",
-            required: false,
-            schema: { type: "string" },
-            description: "Filtrer par nom (insensible a la casse, sous-chaine)",
-          },
-        ],
-        responses: {
-          "200": {
-            description: "Liste des éléments",
-            content: {
-              "application/json": {
-                schema: { type: "array", items: { $ref: "#/components/schemas/Element" } },
-              },
-            },
-          },
-          "422": { $ref: "#/components/responses/UnprocessableType" },
-        },
-      },
-      post: {
-        tags: ["Elements"],
-        summary: "Créer un élément",
-        operationId: "createElement",
-        requestBody: {
-          required: true,
-          content: { "application/json": { schema: { $ref: "#/components/schemas/ElementCreateInput" } } },
-        },
-        responses: {
-          "201": {
-            description: "Élément créé",
-            content: { "application/json": { schema: { $ref: "#/components/schemas/Element" } } },
-          },
-          "422": { $ref: "#/components/responses/UnprocessableType" },
-        },
-      },
-    },
-
-    "/elements/{identifier}": {
-      get: {
-        tags: ["Elements"],
-        summary: "Détail d'un élément",
-        operationId: "getElementById",
-        parameters: [
-          {
-            name: "identifier",
-            in: "path",
-            required: true,
-            schema: { type: "string" },
-            description: "Identifiant de l'élément",
-          },
-        ],
-        responses: {
-          "200": {
-            description: "Élément ArchiMate",
-            content: { "application/json": { schema: { $ref: "#/components/schemas/Element" } } },
-          },
-          "404": { $ref: "#/components/responses/NotFound" },
-        },
-      },
-      put: {
-        tags: ["Elements"],
-        summary: "Modifier un élément",
-        operationId: "updateElement",
-        parameters: [
-          { name: "identifier", in: "path", required: true, schema: { type: "string" } },
-        ],
-        requestBody: {
-          required: true,
-          content: { "application/json": { schema: { $ref: "#/components/schemas/ElementUpdateInput" } } },
-        },
-        responses: {
-          "200": {
-            description: "Élément mis à jour",
-            content: { "application/json": { schema: { $ref: "#/components/schemas/Element" } } },
-          },
-          "404": { $ref: "#/components/responses/NotFound" },
-          "422": { $ref: "#/components/responses/UnprocessableType" },
-        },
-      },
-      delete: {
-        tags: ["Elements"],
-        summary: "Supprimer un élément",
-        operationId: "deleteElement",
-        parameters: [
-          { name: "identifier", in: "path", required: true, schema: { type: "string" } },
-        ],
-        responses: {
-          "204": { description: "Élément supprimé (et relations associées)" },
-          "404": { $ref: "#/components/responses/NotFound" },
-        },
-      },
-    },
-
-    "/relationships/types": {
-      get: {
-        tags: ["Relationships"],
-        summary: "Types de relations présents",
-        operationId: "listRelationshipTypes",
-        responses: {
-          "200": {
-            description: "Liste triée des types de relations ArchiMate 3.1 présents",
-            content: {
-              "application/json": {
-                schema: { type: "array", items: { type: "string" }, example: ["Association", "Flow"] },
-              },
-            },
-          },
-        },
-      },
-    },
-
-    "/relationships": {
-      get: {
-        tags: ["Relationships"],
-        summary: "Lister les relations",
-        operationId: "listRelationships",
-        parameters: [
-          {
-            name: "type",
-            in: "query",
-            required: false,
-            schema: { type: "string", enum: relationshipTypesEnum },
-            description: "Filtrer par type de relation",
-          },
-          {
-            name: "source_id",
-            in: "query",
-            required: false,
-            schema: { type: "string" },
-            description: "Filtrer par identifiant de l'élément source",
-          },
-          {
-            name: "target_id",
-            in: "query",
-            required: false,
-            schema: { type: "string" },
-            description: "Filtrer par identifiant de l'élément cible",
-          },
-        ],
-        responses: {
-          "200": {
-            description: "Liste des relations",
-            content: {
-              "application/json": {
-                schema: { type: "array", items: { $ref: "#/components/schemas/Relationship" } },
-              },
-            },
-          },
-          "422": { $ref: "#/components/responses/UnprocessableType" },
-        },
-      },
-      post: {
-        tags: ["Relationships"],
-        summary: "Créer une relation",
-        operationId: "createRelationship",
-        requestBody: {
-          required: true,
-          content: { "application/json": { schema: { $ref: "#/components/schemas/RelationshipCreateInput" } } },
-        },
-        responses: {
-          "201": {
-            description: "Relation créée",
-            content: { "application/json": { schema: { $ref: "#/components/schemas/Relationship" } } },
-          },
-          "404": { $ref: "#/components/responses/NotFound" },
-          "422": { $ref: "#/components/responses/UnprocessableType" },
-        },
-      },
-    },
-
-    "/relationships/{identifier}": {
-      get: {
-        tags: ["Relationships"],
-        summary: "Détail d'une relation",
-        operationId: "getRelationshipById",
-        parameters: [
-          {
-            name: "identifier",
-            in: "path",
-            required: true,
-            schema: { type: "string" },
-            description: "Identifiant de la relation",
-          },
-        ],
-        responses: {
-          "200": {
-            description: "Relation ArchiMate",
-            content: { "application/json": { schema: { $ref: "#/components/schemas/Relationship" } } },
-          },
-          "404": { $ref: "#/components/responses/NotFound" },
-        },
-      },
-      put: {
-        tags: ["Relationships"],
-        summary: "Modifier une relation",
-        operationId: "updateRelationship",
-        parameters: [
-          { name: "identifier", in: "path", required: true, schema: { type: "string" } },
-        ],
-        requestBody: {
-          required: true,
-          content: { "application/json": { schema: { $ref: "#/components/schemas/RelationshipUpdateInput" } } },
-        },
-        responses: {
-          "200": {
-            description: "Relation mise à jour",
-            content: { "application/json": { schema: { $ref: "#/components/schemas/Relationship" } } },
-          },
-          "404": { $ref: "#/components/responses/NotFound" },
-          "422": { $ref: "#/components/responses/UnprocessableType" },
-        },
-      },
-      delete: {
-        tags: ["Relationships"],
-        summary: "Supprimer une relation",
-        operationId: "deleteRelationship",
-        parameters: [
-          { name: "identifier", in: "path", required: true, schema: { type: "string" } },
-        ],
-        responses: {
-          "204": { description: "Relation supprimée" },
-          "404": { $ref: "#/components/responses/NotFound" },
-        },
-      },
-    },
-
-    "/views": {
-      get: {
-        tags: ["Views"],
-        summary: "Lister les vues",
-        operationId: "listViews",
-        responses: {
-          "200": {
-            description: "Liste des vues avec compteurs",
-            content: {
-              "application/json": {
-                schema: { type: "array", items: { $ref: "#/components/schemas/View" } },
-              },
-            },
-          },
-        },
-      },
-      post: {
-        tags: ["Views"],
-        summary: "Créer une vue",
-        operationId: "createView",
-        requestBody: {
-          required: true,
-          content: { "application/json": { schema: { $ref: "#/components/schemas/ViewCreateInput" } } },
-        },
-        responses: {
-          "201": {
-            description: "Vue créée",
-            content: { "application/json": { schema: { $ref: "#/components/schemas/ViewDetail" } } },
-          },
-          "422": { $ref: "#/components/responses/UnprocessableType" },
-        },
-      },
-    },
-
-    "/views/{view_id}/nodes": {
-      post: {
-        tags: ["Views"],
-        summary: "Ajouter un nœud à une vue",
-        operationId: "createNode",
-        parameters: [
-          { name: "view_id", in: "path", required: true, schema: { type: "string" }, description: "Identifiant de la vue" },
-        ],
-        requestBody: {
-          required: true,
-          content: { "application/json": { schema: { $ref: "#/components/schemas/NodeCreateInput" } } },
-        },
-        responses: {
-          "201": {
-            description: "Nœud créé",
-            content: { "application/json": { schema: { $ref: "#/components/schemas/Node" } } },
-          },
-          "404": { $ref: "#/components/responses/NotFound" },
-          "422": { $ref: "#/components/responses/UnprocessableType" },
-        },
-      },
-    },
-
-    "/views/{view_id}/image": {
-      get: {
-        tags: ["Views"],
-        summary: "Rendu SVG d'une vue",
-        operationId: "renderView",
-        parameters: [
-          {
-            name: "view_id",
-            in: "path",
-            required: true,
-            schema: { type: "string" },
-            description: "Identifiant de la vue",
-          },
-          {
-            name: "format",
-            in: "query",
-            required: false,
-            schema: { type: "string", enum: ["svg"], default: "svg" },
-            description: "Format de sortie (svg uniquement ; l'export PNG se fait côté client)",
-          },
-        ],
-        responses: {
-          "200": {
-            description: "Image SVG de la vue",
-            content: {
-              "image/svg+xml": { schema: { type: "string", format: "binary" } },
-            },
-          },
-          "404": { $ref: "#/components/responses/NotFound" },
-          "422": { $ref: "#/components/responses/UnprocessableType" },
-        },
-      },
-    },
-
-    "/views/{identifier}": {
-      get: {
-        tags: ["Views"],
-        summary: "Détail d'une vue",
-        operationId: "getViewById",
-        parameters: [
-          {
-            name: "identifier",
-            in: "path",
-            required: true,
-            schema: { type: "string" },
-            description: "Identifiant de la vue",
-          },
-        ],
-        responses: {
-          "200": {
-            description: "Vue avec nœuds et connexions",
-            content: { "application/json": { schema: { $ref: "#/components/schemas/ViewDetail" } } },
-          },
-          "404": { $ref: "#/components/responses/NotFound" },
-        },
-      },
-    },
-
-    "/me": {
-      get: {
-        tags: ["Auth"],
-        summary: "Utilisateur courant",
-        operationId: "getMe",
-        security: [{ cookieAuth: [] }],
-        responses: {
-          "200": { description: "Utilisateur connecté", content: { "application/json": { schema: { $ref: "#/components/schemas/UserOut" } } } },
-          "401": { $ref: "#/components/responses/Unauthorized" },
-        },
-      },
-    },
-
-    "/workspaces": {
-      get: {
-        tags: ["Workspaces"],
-        summary: "Lister les workspaces",
-        operationId: "listWorkspaces",
-        security: [{ cookieAuth: [] }],
-        responses: {
-          "200": { description: "Liste des workspaces", content: { "application/json": { schema: { type: "array", items: { $ref: "#/components/schemas/WorkspaceInfo" } } } } },
-          "401": { $ref: "#/components/responses/Unauthorized" },
-        },
-      },
-      post: {
-        tags: ["Workspaces"],
-        summary: "Créer un workspace",
-        operationId: "createWorkspace",
-        security: [{ cookieAuth: [] }],
-        requestBody: {
-          required: true,
-          content: { "application/json": { schema: WorkspaceCreateInput } },
-        },
-        responses: {
-          "201": { description: "Workspace créé", content: { "application/json": { schema: { $ref: "#/components/schemas/WorkspaceInfo" } } } },
-          "401": { $ref: "#/components/responses/Unauthorized" },
-          "422": { $ref: "#/components/responses/UnprocessableType" },
-        },
-      },
-    },
-
-    "/workspaces/{id}": {
-      put: {
-        tags: ["Workspaces"],
-        summary: "Renommer un workspace",
-        operationId: "updateWorkspace",
-        security: [{ cookieAuth: [] }],
-        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
-        requestBody: { required: true, content: { "application/json": { schema: WorkspaceUpdateInput } } },
-        responses: {
-          "200": { description: "Workspace mis à jour", content: { "application/json": { schema: { $ref: "#/components/schemas/WorkspaceInfo" } } } },
-          "401": { $ref: "#/components/responses/Unauthorized" },
-          "404": { $ref: "#/components/responses/NotFound" },
-        },
-      },
-      delete: {
-        tags: ["Workspaces"],
-        summary: "Supprimer un workspace",
-        operationId: "deleteWorkspace",
-        security: [{ cookieAuth: [] }],
-        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
-        responses: {
-          "204": { description: "Workspace supprimé" },
-          "401": { $ref: "#/components/responses/Unauthorized" },
-          "404": { $ref: "#/components/responses/NotFound" },
-        },
-      },
-    },
-
-    "/workspaces/{id}/activate": {
-      post: {
-        tags: ["Workspaces"],
-        summary: "Activer un workspace",
-        operationId: "activateWorkspace",
-        security: [{ cookieAuth: [] }],
-        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
-        responses: {
-          "200": { description: "Workspace activé", content: { "application/json": { schema: { $ref: "#/components/schemas/WorkspaceInfo" } } } },
-          "401": { $ref: "#/components/responses/Unauthorized" },
-          "404": { $ref: "#/components/responses/NotFound" },
-        },
-      },
-    },
-
-    "/users": {
-      get: {
-        tags: ["Users"],
-        summary: "Lister les utilisateurs",
-        operationId: "listUsers",
-        security: [{ cookieAuth: [] }],
-        responses: {
-          "200": { description: "Liste des utilisateurs", content: { "application/json": { schema: { type: "array", items: { $ref: "#/components/schemas/UserOut" } } } } },
-          "401": { $ref: "#/components/responses/Unauthorized" },
-          "403": { $ref: "#/components/responses/Forbidden" },
-        },
-      },
-    },
-
-    "/users/{uid}/roles": {
-      get: {
-        tags: ["Users"],
-        summary: "Rôles d'un utilisateur",
-        operationId: "listUserRoles",
-        security: [{ cookieAuth: [] }],
-        parameters: [{ name: "uid", in: "path", required: true, schema: { type: "string" } }],
-        responses: {
-          "200": { description: "Rôles assignés", content: { "application/json": { schema: { type: "array", items: { $ref: "#/components/schemas/RoleOut" } } } } },
-          "401": { $ref: "#/components/responses/Unauthorized" },
-        },
-      },
-    },
-
-    "/roles": {
-      get: {
-        tags: ["Roles"],
-        summary: "Lister les rôles",
-        operationId: "listRoles",
-        security: [{ cookieAuth: [] }],
-        responses: {
-          "200": { description: "Liste des rôles RBAC", content: { "application/json": { schema: { type: "array", items: { $ref: "#/components/schemas/RoleOut" } } } } },
-          "401": { $ref: "#/components/responses/Unauthorized" },
-        },
-      },
-      post: {
-        tags: ["Roles"],
-        summary: "Créer un rôle",
-        operationId: "createRole",
-        security: [{ cookieAuth: [] }],
-        requestBody: {
-          required: true,
-          content: { "application/json": { schema: { type: "object", required: ["name"], properties: { name: { type: "string" }, description: { type: "string", nullable: true }, permissions: { type: "object", additionalProperties: { type: "array", items: { type: "string" } } } } } } },
-        },
-        responses: {
-          "201": { description: "Rôle créé", content: { "application/json": { schema: { $ref: "#/components/schemas/RoleOut" } } } },
-          "401": { $ref: "#/components/responses/Unauthorized" },
-          "403": { $ref: "#/components/responses/Forbidden" },
-        },
-      },
-    },
-
-    "/roles/{id}": {
-      get: {
-        tags: ["Roles"],
-        summary: "Détail d'un rôle",
-        operationId: "getRole",
-        security: [{ cookieAuth: [] }],
-        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
-        responses: {
-          "200": { description: "Rôle", content: { "application/json": { schema: { $ref: "#/components/schemas/RoleOut" } } } },
-          "401": { $ref: "#/components/responses/Unauthorized" },
-          "404": { $ref: "#/components/responses/NotFound" },
-        },
-      },
-      put: {
-        tags: ["Roles"],
-        summary: "Modifier un rôle",
-        operationId: "updateRole",
-        security: [{ cookieAuth: [] }],
-        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
-        requestBody: { required: true, content: { "application/json": { schema: { type: "object", properties: { name: { type: "string" }, description: { type: "string", nullable: true }, permissions: { type: "object" } } } } } },
-        responses: {
-          "200": { description: "Rôle mis à jour", content: { "application/json": { schema: { $ref: "#/components/schemas/RoleOut" } } } },
-          "401": { $ref: "#/components/responses/Unauthorized" },
-          "403": { $ref: "#/components/responses/Forbidden" },
-          "404": { $ref: "#/components/responses/NotFound" },
-        },
-      },
-      delete: {
-        tags: ["Roles"],
-        summary: "Supprimer un rôle",
-        operationId: "deleteRole",
-        security: [{ cookieAuth: [] }],
-        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
-        responses: {
-          "204": { description: "Rôle supprimé" },
-          "401": { $ref: "#/components/responses/Unauthorized" },
-          "403": { $ref: "#/components/responses/Forbidden" },
-          "404": { $ref: "#/components/responses/NotFound" },
-        },
-      },
-    },
-
-    "/roles/{id}/layers/{layer}": {
-      get: {
-        tags: ["Roles"],
-        summary: "Permissions d'un rôle sur une couche",
-        operationId: "getRoleLayer",
-        security: [{ cookieAuth: [] }],
-        parameters: [
-          { name: "id", in: "path", required: true, schema: { type: "string" } },
-          { name: "layer", in: "path", required: true, schema: { type: "string" }, description: "Couche ArchiMate ou 'Relations'/'Views'" },
-        ],
-        responses: {
-          "200": { description: "Permissions", content: { "application/json": { schema: { type: "array", items: { type: "string" } } } } },
-          "401": { $ref: "#/components/responses/Unauthorized" },
-        },
-      },
-      put: {
-        tags: ["Roles"],
-        summary: "Définir permissions sur une couche",
-        operationId: "setRoleLayer",
-        security: [{ cookieAuth: [] }],
-        parameters: [
-          { name: "id", in: "path", required: true, schema: { type: "string" } },
-          { name: "layer", in: "path", required: true, schema: { type: "string" } },
-        ],
-        requestBody: { required: true, content: { "application/json": { schema: { type: "object", properties: { permissions: { type: "array", items: { type: "string", enum: ["read", "create", "update", "delete"] } } } } } } },
-        responses: {
-          "200": { description: "Permissions mises à jour" },
-          "401": { $ref: "#/components/responses/Unauthorized" },
-          "403": { $ref: "#/components/responses/Forbidden" },
-        },
-      },
-      delete: {
-        tags: ["Roles"],
-        summary: "Supprimer permissions sur une couche",
-        operationId: "deleteRoleLayer",
-        security: [{ cookieAuth: [] }],
-        parameters: [
-          { name: "id", in: "path", required: true, schema: { type: "string" } },
-          { name: "layer", in: "path", required: true, schema: { type: "string" } },
-        ],
-        responses: {
-          "204": { description: "Permissions supprimées" },
-          "401": { $ref: "#/components/responses/Unauthorized" },
-          "403": { $ref: "#/components/responses/Forbidden" },
-        },
-      },
-    },
-
-    "/roles/{id}/users/{uid}": {
-      put: {
-        tags: ["Roles"],
-        summary: "Assigner un utilisateur à un rôle",
-        operationId: "assignUserToRole",
-        security: [{ cookieAuth: [] }],
-        parameters: [
-          { name: "id", in: "path", required: true, schema: { type: "string" } },
-          { name: "uid", in: "path", required: true, schema: { type: "string" } },
-        ],
-        responses: {
-          "200": { description: "Assignation effectuée" },
-          "401": { $ref: "#/components/responses/Unauthorized" },
-          "403": { $ref: "#/components/responses/Forbidden" },
-          "404": { $ref: "#/components/responses/NotFound" },
-        },
-      },
-      delete: {
-        tags: ["Roles"],
-        summary: "Retirer un utilisateur d'un rôle",
-        operationId: "unassignUserFromRole",
-        security: [{ cookieAuth: [] }],
-        parameters: [
-          { name: "id", in: "path", required: true, schema: { type: "string" } },
-          { name: "uid", in: "path", required: true, schema: { type: "string" } },
-        ],
-        responses: {
-          "204": { description: "Désassignation effectuée" },
-          "401": { $ref: "#/components/responses/Unauthorized" },
-          "403": { $ref: "#/components/responses/Forbidden" },
-          "404": { $ref: "#/components/responses/NotFound" },
-        },
-      },
-    },
-
-    "/property-definitions": {
-      get: {
-        tags: ["PropertyDefinitions"],
-        summary: "Lister les définitions de propriétés",
-        operationId: "listPropertyDefinitions",
-        security: [{ cookieAuth: [] }],
-        responses: {
-          "200": { description: "Définitions de propriétés", content: { "application/json": { schema: { type: "array", items: { $ref: "#/components/schemas/PropertyDefinition" } } } } },
-          "401": { $ref: "#/components/responses/Unauthorized" },
-        },
-      },
-    },
-
-    "/views/{view_id}/nodes/{node_id}": {
-      put: {
-        tags: ["Views"],
-        summary: "Déplacer / redimensionner un nœud",
-        operationId: "updateNode",
-        security: [{ cookieAuth: [] }],
-        parameters: [
-          { name: "view_id", in: "path", required: true, schema: { type: "string" } },
-          { name: "node_id", in: "path", required: true, schema: { type: "string" } },
-        ],
-        requestBody: { required: true, content: { "application/json": { schema: { $ref: "#/components/schemas/NodeUpdateInput" } } } },
-        responses: {
-          "200": { description: "Nœud mis à jour", content: { "application/json": { schema: { $ref: "#/components/schemas/Node" } } } },
-          "401": { $ref: "#/components/responses/Unauthorized" },
-          "403": { $ref: "#/components/responses/Forbidden" },
-          "404": { $ref: "#/components/responses/NotFound" },
-        },
-      },
-      delete: {
-        tags: ["Views"],
-        summary: "Retirer un nœud d'une vue",
-        operationId: "deleteNode",
-        security: [{ cookieAuth: [] }],
-        parameters: [
-          { name: "view_id", in: "path", required: true, schema: { type: "string" } },
-          { name: "node_id", in: "path", required: true, schema: { type: "string" } },
-        ],
-        responses: {
-          "204": { description: "Nœud retiré" },
-          "401": { $ref: "#/components/responses/Unauthorized" },
-          "403": { $ref: "#/components/responses/Forbidden" },
-          "404": { $ref: "#/components/responses/NotFound" },
-        },
-      },
-    },
-
-    "/views/{view_id}/connections": {
-      post: {
-        tags: ["Views"],
-        summary: "Créer une connexion dans une vue",
-        operationId: "createConnection",
-        security: [{ cookieAuth: [] }],
-        parameters: [{ name: "view_id", in: "path", required: true, schema: { type: "string" } }],
-        requestBody: { required: true, content: { "application/json": { schema: { $ref: "#/components/schemas/ConnectionCreateInput" } } } },
-        responses: {
-          "201": { description: "Connexion créée", content: { "application/json": { schema: { $ref: "#/components/schemas/Connection" } } } },
-          "401": { $ref: "#/components/responses/Unauthorized" },
-          "403": { $ref: "#/components/responses/Forbidden" },
-          "404": { $ref: "#/components/responses/NotFound" },
-        },
-      },
-    },
-
-    "/views/{view_id}/connections/{conn_id}": {
-      put: {
-        tags: ["Views"],
-        summary: "Modifier une connexion",
-        operationId: "updateConnection",
-        security: [{ cookieAuth: [] }],
-        parameters: [
-          { name: "view_id", in: "path", required: true, schema: { type: "string" } },
-          { name: "conn_id", in: "path", required: true, schema: { type: "string" } },
-        ],
-        requestBody: { required: true, content: { "application/json": { schema: { $ref: "#/components/schemas/ConnectionUpdateInput" } } } },
-        responses: {
-          "200": { description: "Connexion mise à jour", content: { "application/json": { schema: { $ref: "#/components/schemas/Connection" } } } },
-          "401": { $ref: "#/components/responses/Unauthorized" },
-          "403": { $ref: "#/components/responses/Forbidden" },
-          "404": { $ref: "#/components/responses/NotFound" },
-        },
-      },
-      delete: {
-        tags: ["Views"],
-        summary: "Supprimer une connexion",
-        operationId: "deleteConnection",
-        security: [{ cookieAuth: [] }],
-        parameters: [
-          { name: "view_id", in: "path", required: true, schema: { type: "string" } },
-          { name: "conn_id", in: "path", required: true, schema: { type: "string" } },
-        ],
-        responses: {
-          "204": { description: "Connexion supprimée" },
-          "401": { $ref: "#/components/responses/Unauthorized" },
-          "403": { $ref: "#/components/responses/Forbidden" },
-          "404": { $ref: "#/components/responses/NotFound" },
-        },
-      },
-    },
-
-    "/mcp/": {
-      post: {
-        tags: ["MCP"],
-        summary: "Requête MCP (JSON-RPC)",
-        operationId: "mcpPost",
-        description:
-          "Point d'entrée JSON-RPC 2.0 du transport streamable-http MCP. " +
-          "La première requête doit être une `initialize`. " +
-          "Les requêtes suivantes doivent inclure l'en-tête `mcp-session-id` retourné par `initialize`.",
-        requestBody: {
-          required: true,
-          content: { "application/json": { schema: { type: "object" } } },
-        },
-        responses: {
-          "200": { description: "Réponse JSON-RPC (text/event-stream ou application/json)" },
-          "400": { description: "Session invalide ou requête non-initialize sans session" },
-        },
-      },
-      get: {
-        tags: ["MCP"],
-        summary: "Flux SSE MCP",
-        operationId: "mcpGet",
-        parameters: [
-          { name: "mcp-session-id", in: "header", required: true, schema: { type: "string" } },
-        ],
-        responses: {
-          "200": { description: "Flux d'événements SSE" },
-          "405": { description: "Session non trouvée" },
-        },
-      },
-      delete: {
-        tags: ["MCP"],
-        summary: "Fermer une session MCP",
-        operationId: "mcpDelete",
-        parameters: [
-          { name: "mcp-session-id", in: "header", required: true, schema: { type: "string" } },
-        ],
-        responses: {
-          "200": { description: "Session fermée" },
-          "404": { description: "Session non trouvée" },
-        },
-      },
-    },
-  },
-
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const openApiSpec: Record<string, any> = {
+  ..._doc,
   components: {
-    schemas: {
-      RGBColor,
-      Font,
-      Style,
-      Property,
-      SaveResult,
-      ModelInfo,
-      Element,
-      ElementCreateInput,
-      ElementUpdateInput,
-      Relationship,
-      RelationshipCreateInput,
-      RelationshipUpdateInput,
-      Node,
-      NodeCreateInput,
-      NodeUpdateInput,
-      Connection,
-      ConnectionCreateInput,
-      ConnectionUpdateInput,
-      View,
-      ViewDetail,
-      ViewCreateInput,
-      ViewUpdateInput,
-      WorkspaceInfo,
-      WorkspaceCreateInput,
-      WorkspaceUpdateInput,
-      UserOut,
-      RoleOut,
-      RoleCreateInput,
-      RoleUpdateInput,
-      PropertyDefinition,
-      PropertyDefinitionCreateInput,
-      PropertyDefinitionUpdateInput,
-      ErrorDetail,
-    },
+    ..._doc.components,
     securitySchemes: {
       cookieAuth: {
         type: "apiKey",
@@ -1157,23 +792,10 @@ export const openApiSpec = {
         name: "better-auth.session_token",
         description: "Cookie de session httpOnly défini par Better Auth après /auth/sign-in/username",
       },
-    },
-    responses: {
-      NotFound: {
-        description: "Ressource introuvable",
-        content: { "application/json": { schema: { $ref: "#/components/schemas/ErrorDetail" } } },
-      },
-      UnprocessableType: {
-        description: "Type ArchiMate invalide",
-        content: { "application/json": { schema: { $ref: "#/components/schemas/ErrorDetail" } } },
-      },
-      Unauthorized: {
-        description: "Non authentifié",
-        content: { "application/json": { schema: { $ref: "#/components/schemas/ErrorDetail" } } },
-      },
-      Forbidden: {
-        description: "Permission insuffisante",
-        content: { "application/json": { schema: { $ref: "#/components/schemas/ErrorDetail" } } },
+      bearerAuth: {
+        type: "http",
+        scheme: "bearer",
+        description: "Token personnel généré depuis Mon compte → Token.",
       },
     },
   },

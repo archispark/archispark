@@ -26,3 +26,5 @@ export type {
   ConnectionCreateIn,
   ConnectionUpdateIn,
 } from "./schemas.js";
+export { lookupApiToken, userHasPermission } from "./auth.js";
+export type { TokenUser, PermissionFlag } from "./auth.js";

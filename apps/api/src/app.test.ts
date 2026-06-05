@@ -1303,9 +1303,11 @@ describe("POST /relationships – source and target field validation", () => {
 });
 
 describe("GET /docs", () => {
-  it("returns 404 — Swagger UI is now served by the docs app", async () => {
+  it("returns Swagger UI HTML without auth", async () => {
     const res = await request(app).get("/docs");
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(200);
+    expect(res.headers["content-type"]).toMatch(/text\/html/);
+    expect(res.text).toContain("swagger-ui");
   });
 });
 
@@ -1939,41 +1941,3 @@ describe("POST /settings/providers validation", () => {
   });
 });
 
-// ===========================================================================
-// Integration tests – /settings/mcp-token
-// ===========================================================================
-
-describe("GET /settings/mcp-token", () => {
-  it("returns null when no token has been generated", async () => {
-    const res = await request(app).get("/settings/mcp-token");
-    expect(res.status).toBe(200);
-    expect(res.body).toBeNull();
-  });
-});
-
-describe("POST /settings/mcp-token/regenerate + GET lifecycle", () => {
-  it("generates a token and returns it", async () => {
-    const res = await request(app).post("/settings/mcp-token/regenerate").send({});
-    expect(res.status).toBe(200);
-    expect(typeof res.body.token).toBe("string");
-    expect(res.body.token.length).toBeGreaterThan(20);
-    expect(typeof res.body.created_at).toBe("number");
-  });
-
-  it("GET returns the generated token", async () => {
-    const gen = await request(app).post("/settings/mcp-token/regenerate").send({});
-    const token = gen.body.token as string;
-
-    const res = await request(app).get("/settings/mcp-token");
-    expect(res.status).toBe(200);
-    expect(res.body.token).toBe(token);
-  });
-
-  it("regenerate replaces the previous token", async () => {
-    const first = (await request(app).post("/settings/mcp-token/regenerate").send({})).body.token as string;
-    const second = (await request(app).post("/settings/mcp-token/regenerate").send({})).body.token as string;
-    expect(second).not.toBe(first);
-    const res = await request(app).get("/settings/mcp-token");
-    expect(res.body.token).toBe(second);
-  });
-});

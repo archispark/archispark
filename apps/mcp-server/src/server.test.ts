@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeAll } from "vitest";
+import { describe, it, expect, vi, beforeAll, afterAll } from "vitest";
 import { elementCreationHints, relationshipCreationHints } from "./archimate-guide.js";
 import request from "supertest";
 
@@ -87,11 +87,18 @@ vi.mock("api/src/schemas.js", () => ({
   VIEWPOINTS: new Set(["Layered", "Application Structure", "Technology"]),
 }));
 
-// Set the MCP token env var before the app module is loaded so the auth middleware uses it
-const TEST_TOKEN = vi.hoisted(() => {
-  process.env["MCP_AUTH_TOKEN"] = "test-mcp-bearer-token-fixture";
-  return "test-mcp-bearer-token-fixture";
-});
+// TEST_TOKEN is the fixed Bearer token used across all auth tests.
+const TEST_TOKEN = vi.hoisted(() => "test-mcp-bearer-token-fixture");
+
+// Mock the local token-auth wrapper (simpler than mocking api sub-modules through
+// package wildcard exports, which Vitest resolves inconsistently in fork mode).
+vi.mock("./token-auth.js", () => ({
+  lookupApiToken: vi.fn().mockImplementation((token: string) => {
+    if (token === TEST_TOKEN) return Promise.resolve({ id: "user-admin", username: "admin", role: "admin" });
+    return Promise.resolve(null);
+  }),
+  userHasPermission: vi.fn().mockResolvedValue(true),
+}));
 
 // ---------------------------------------------------------------------------
 // Mock MCP SDK — capture registered tool handlers for direct testing
@@ -145,6 +152,7 @@ import {
 } from "api/src/store.js";
 import { getWorkspaces, activateWorkspace } from "api/src/registry.js";
 import { renderViewToSvg } from "api/src/renderer.js";
+import { lookupApiToken, userHasPermission } from "./token-auth.js";
 
 // ---------------------------------------------------------------------------
 // Helper: a POST request triggers createMcpServer() → registers tools
@@ -211,7 +219,7 @@ describe("POST /mcp/ (stateless)", () => {
   it("returns 401 when Authorization header is wrong", async () => {
     const res = await request(app).post("/mcp/").set("Authorization", "Bearer wrong-token").send({ method: "initialize", params: {} });
     expect(res.status).toBe(401);
-    expect(res.body.error.message).toMatch(/authentifi/i);
+    expect(res.body.error.message).toMatch(/invalide|requis/i);
   });
 
   it("returns 401 when Authorization header is absent", async () => {
@@ -711,5 +719,86 @@ describe("relationshipCreationHints — unknown type", () => {
     expect(hints.semantics).toBe("");
     expect(hints.direction).toBe("");
     expect(hints.next_steps.length).toBeGreaterThan(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// RBAC: admin-only tools with non-admin user
+// ---------------------------------------------------------------------------
+
+describe("RBAC: admin-only tools (requireAdminUser)", () => {
+  beforeAll(async () => {
+    // Re-register tool handlers with a non-admin user
+    vi.mocked(lookupApiToken).mockResolvedValueOnce({ id: "u-viewer", username: "viewer", role: "user" });
+    await request(app).post("/mcp/").set("Authorization", `Bearer ${TEST_TOKEN}`).send({ jsonrpc: "2.0", method: "initialize", id: 1 });
+  });
+
+  afterAll(async () => {
+    // Restore admin handlers for subsequent test suites
+    await initSession();
+  });
+
+  it("create_element throws for non-admin", async () => {
+    await expect(callTool("create_element", { name: "X", type: "ApplicationComponent" }))
+      .rejects.toThrow(/administrateur/i);
+  });
+
+  it("update_element throws for non-admin", async () => {
+    await expect(callTool("update_element", { element_id: "e1", name: "Y" }))
+      .rejects.toThrow(/administrateur/i);
+  });
+
+  it("delete_element throws for non-admin", async () => {
+    await expect(callTool("delete_element", { element_id: "e1" }))
+      .rejects.toThrow(/administrateur/i);
+  });
+
+  it("import_model throws for non-admin", async () => {
+    await expect(callTool("import_model", { xml: "<model/>" }))
+      .rejects.toThrow(/administrateur/i);
+  });
+
+  it("activate_workspace throws for non-admin", async () => {
+    await expect(callTool("activate_workspace", { workspace_id: "2" }))
+      .rejects.toThrow(/administrateur/i);
+  });
+
+  it("create_property_definition throws for non-admin", async () => {
+    await expect(callTool("create_property_definition", { name: "Cost", type: "number" }))
+      .rejects.toThrow(/administrateur/i);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// RBAC: layer permission checks (checkPerm with userHasPermission=false)
+// ---------------------------------------------------------------------------
+
+describe("RBAC: layer permission checks", () => {
+  beforeAll(async () => {
+    vi.mocked(lookupApiToken).mockResolvedValueOnce({ id: "u-viewer", username: "viewer", role: "user" });
+    vi.mocked(userHasPermission).mockResolvedValue(false);
+    await request(app).post("/mcp/").set("Authorization", `Bearer ${TEST_TOKEN}`).send({ jsonrpc: "2.0", method: "initialize", id: 1 });
+  });
+
+  afterAll(async () => {
+    vi.mocked(userHasPermission).mockResolvedValue(true);
+    await initSession();
+  });
+
+  it("list_relationships throws when Relations read is denied", async () => {
+    await expect(callTool("list_relationships")).rejects.toThrow(/permission/i);
+  });
+
+  it("create_view throws when Views create is denied", async () => {
+    await expect(callTool("create_view", { name: "test" })).rejects.toThrow(/permission/i);
+  });
+
+  it("delete_view throws when Views delete is denied", async () => {
+    await expect(callTool("delete_view", { view_id: "v1" })).rejects.toThrow(/permission/i);
+  });
+
+  it("create_relationship throws when Relations create is denied", async () => {
+    await expect(callTool("create_relationship", { type: "Association", source: "e1", target: "e2" }))
+      .rejects.toThrow(/permission/i);
   });
 });

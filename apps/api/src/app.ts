@@ -25,7 +25,7 @@
  */
 
 import express, { Request, Response, NextFunction } from "express";
-import { randomUUID } from "crypto";
+import { randomUUID, randomBytes } from "crypto";
 import cors from "cors";
 import helmet from "helmet";
 import { rateLimit } from "express-rate-limit";
@@ -42,8 +42,8 @@ import type { Archiver, ZipOptions } from "archiver";
 import * as archiverNs from "archiver";
 const ZipArchive = (archiverNs as unknown as { ZipArchive: new (opts?: ZipOptions) => Archiver }).ZipArchive;
 import { AppError, ValidationError } from "./errors.js";
-import { db, oauthProviders, mcpTokens, modelFromDb, modelToDb } from "@workspace/db";
-import { desc, eq } from "drizzle-orm";
+import { db, oauthProviders, apiTokens, mcpTokens, modelFromDb, modelToDb } from "@workspace/db";
+import { eq } from "drizzle-orm";
 import * as store from "./store.js";
 import {
   getActiveWorkspaceId,
@@ -189,17 +189,20 @@ app.all("/auth/*path", authRateLimit, (req, res) => toNodeHandler(getAuth())(req
 app.use((req: AuthRequest, res, next) => {
   if (
     req.path.startsWith("/auth") ||
-    req.path === "/openapi.json"
+    req.path === "/openapi.json" ||
+    req.path === "/docs"
   ) return next();
   requireAuth(req, res, next);
 });
 
-// Write operations (POST/PUT/DELETE) reserved for admin, except /auth/* and /users (already requireAdmin)
+// Write operations (POST/PUT/DELETE) reserved for admin, except /auth/*, /users and
+// /settings/api-tokens (users manage their own tokens).
 app.use((req: AuthRequest, res, next) => {
   if (
     ["POST", "PUT", "DELETE"].includes(req.method) &&
     !req.path.startsWith("/auth/") &&
-    !req.path.startsWith("/users")
+    !req.path.startsWith("/users") &&
+    !req.path.startsWith("/settings/api-tokens")
   ) {
     if (req.user?.role !== "admin") {
       res.status(403).json({ detail: "Modifications réservées aux administrateurs." });
@@ -481,19 +484,56 @@ app.get("/settings/redis", requireAdmin as express.RequestHandler, async (_req: 
 });
 
 // ---------------------------------------------------------------------------
-// MCP token routes
+// MCP token routes (admin only — single shared bearer token for MCP clients)
 // ---------------------------------------------------------------------------
 
 app.get("/settings/mcp-token", requireAdmin as express.RequestHandler, async (_req: Request, res: Response) => {
-  const [row] = await db.select({ token: mcpTokens.token, created_at: mcpTokens.createdAt }).from(mcpTokens).orderBy(desc(mcpTokens.id)).limit(1);
-  res.json(row ?? null);
+  const [row] = await db.select({ token: mcpTokens.token, createdAt: mcpTokens.createdAt }).from(mcpTokens).limit(1);
+  if (!row) { res.json(null); return; }
+  res.json({ token: row.token, created_at: row.createdAt });
 });
 
-app.post("/settings/mcp-token/regenerate", requireAdmin as express.RequestHandler, async (_req: Request, res: Response) => {
-  const token = randomUUID().replace(/-/g, "") + randomUUID().replace(/-/g, "");
+app.post("/settings/mcp-token/regenerate", requireAdmin as express.RequestHandler, async (req: AuthRequest, res: Response) => {
+  const token = randomBytes(32).toString("hex");
+  const now   = Math.floor(Date.now() / 1000);
   await db.delete(mcpTokens);
-  const [row] = await db.insert(mcpTokens).values({ token }).returning({ token: mcpTokens.token, created_at: mcpTokens.createdAt });
-  res.json(row);
+  await db.insert(mcpTokens).values({ token, createdAt: now, createdBy: req.user?.id ?? null });
+  res.json({ token, created_at: now });
+});
+
+// ---------------------------------------------------------------------------
+// API token routes (personal access tokens — any authenticated user)
+// ---------------------------------------------------------------------------
+
+app.get("/settings/api-tokens", requireAuth as express.RequestHandler, async (req: AuthRequest, res: Response) => {
+  const rows = req.user?.role === "admin"
+    ? await db.select({ id: apiTokens.id, name: apiTokens.name, userId: apiTokens.userId, createdAt: apiTokens.createdAt, lastUsedAt: apiTokens.lastUsedAt }).from(apiTokens)
+    : await db.select({ id: apiTokens.id, name: apiTokens.name, userId: apiTokens.userId, createdAt: apiTokens.createdAt, lastUsedAt: apiTokens.lastUsedAt }).from(apiTokens).where(eq(apiTokens.userId, req.user!.id));
+  res.json(rows.map((r) => ({ id: r.id, name: r.name, user_id: r.userId, created_at: r.createdAt, last_used_at: r.lastUsedAt ?? null })));
+});
+
+app.post("/settings/api-tokens", requireAuth as express.RequestHandler, async (req: AuthRequest, res: Response) => {
+  const { name } = req.body as { name?: unknown };
+  if (!name || typeof name !== "string" || !name.trim()) {
+    res.status(422).json({ detail: "Le champ 'name' est requis." });
+    return;
+  }
+  const token = randomUUID().replace(/-/g, "") + randomUUID().replace(/-/g, "");
+  const [row] = await db.insert(apiTokens).values({ token, name: name.trim(), userId: req.user!.id })
+    .returning({ id: apiTokens.id, name: apiTokens.name, userId: apiTokens.userId, createdAt: apiTokens.createdAt });
+  res.status(201).json({ id: row!.id, name: row!.name, user_id: row!.userId, created_at: row!.createdAt, token });
+});
+
+app.delete("/settings/api-tokens/:id", requireAuth as express.RequestHandler, async (req: AuthRequest, res: Response) => {
+  const id = parseInt(req.params["id"] as string, 10);
+  if (isNaN(id)) { res.status(422).json({ detail: "ID invalide." }); return; }
+  const [existing] = await db.select({ userId: apiTokens.userId }).from(apiTokens).where(eq(apiTokens.id, id));
+  if (!existing) { res.status(404).json({ detail: "Token introuvable." }); return; }
+  if (req.user?.role !== "admin" && existing.userId !== req.user?.id) {
+    res.status(403).json({ detail: "Accès refusé." }); return;
+  }
+  await db.delete(apiTokens).where(eq(apiTokens.id, id));
+  res.status(204).send();
 });
 
 // ---------------------------------------------------------------------------
@@ -528,6 +568,33 @@ app.post("/workspaces/:id/activate", async (req: Request, res: Response) => {
 // OpenAPI spec and Swagger UI
 app.get("/openapi.json", (_req: Request, res: Response) => {
   res.json(openApiSpec);
+});
+
+app.get("/docs", (_req: Request, res: Response) => {
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.send(`<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8"/>
+  <title>ArchiSpark API — Documentation</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css"/>
+</head>
+<body>
+<div id="swagger-ui"></div>
+<script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+<script>
+  SwaggerUIBundle({
+    url: "/openapi.json",
+    dom_id: "#swagger-ui",
+    presets: [SwaggerUIBundle.presets.apis, SwaggerUIBundle.SwaggerUIStandalonePreset],
+    layout: "BaseLayout",
+    persistAuthorization: true,
+    tryItOutEnabled: true,
+  });
+</script>
+</body>
+</html>`);
 });
 
 app.get("/viewpoints", (_req: Request, res: Response) => {

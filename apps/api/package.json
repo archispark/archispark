@@ -18,7 +18,7 @@
   },
   "scripts": {
     "start": "TSX_TSCONFIG_PATH=./tsconfig.dev.json tsx src/main.ts",
-    "dev": "TSX_TSCONFIG_PATH=./tsconfig.dev.json tsx watch --import ./src/load-env.ts src/main.ts",
+    "dev": "TSX_TSCONFIG_PATH=./tsconfig.dev.json tsx watch src/main.ts",
     "build": "tsc",
     "start:dist": "node dist/main.js",
     "test": "vitest run",
@@ -42,6 +42,7 @@
     "url": "https://github.com/archispark/mcp-archimate"
   },
   "dependencies": {
+    "@asteasolutions/zod-to-openapi": "^8.5.0",
     "@codecov/vite-plugin": "^2.0.1",
     "@eslint/js": "^10.0.1",
     "@modelcontextprotocol/sdk": "^1.12.0",
@@ -61,8 +62,7 @@
     "lru-cache": "^11.5.1",
     "multer": "^2.1.1",
     "rate-limit-redis": "^5.0.0",
-    "zod": "^4.4.3",
-    "zod-to-json-schema": "^3.25.2"
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/archiver": "^7.0.0",

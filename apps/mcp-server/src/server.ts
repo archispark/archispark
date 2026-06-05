@@ -3,6 +3,8 @@
  *
  * Exposes ArchiMate MCP tools via streamable-HTTP transport.
  * Reads from (and writes to) the same PostgreSQL database as the REST API.
+ * Authentication: Bearer token from api_tokens table (same tokens as the REST API).
+ * RBAC: each tool checks the authenticated user's layer permissions before acting.
  */
 
 import express, { type Request, type Response, type NextFunction } from "express";
@@ -32,6 +34,9 @@ import {
   type ConnectionCreateIn,
   type ConnectionUpdateIn,
 } from "api";
+// Auth helpers in a local wrapper so tests can mock them with a simple relative path
+// (mocking api sub-modules via wildcard package exports is unreliable in Vitest).
+import { lookupApiToken, userHasPermission, type TokenUser, type PermissionFlag } from "./token-auth.js";
 
 import {
   ELEMENT_TYPES_BY_LAYER,
@@ -69,7 +74,19 @@ const { version } = packageJson;
 // McpServer can only be connected to one transport at a time, so sharing one
 // instance across sessions throws "Already connected to a transport" — which on
 // serverless means every request after the first on a warm instance 500s.
-function createMcpServer(): McpServer {
+function createMcpServer(user: TokenUser): McpServer {
+  const isAdmin = user.role === "admin";
+
+  async function checkPerm(resource: string, flag: PermissionFlag): Promise<void> {
+    if (isAdmin) return;
+    const ok = await userHasPermission(user.id, user.role, resource, flag);
+    if (!ok) throw new Error(`Permission '${flag}' requise sur '${resource}'.`);
+  }
+
+  function requireAdminUser(): void {
+    if (!isAdmin) throw new Error("Opération réservée aux administrateurs.");
+  }
+
   const mcpServer = new McpServer({
     name: "ArchiSpark",
     version,
@@ -258,6 +275,7 @@ mcpServer.registerTool(
     inputSchema: {},
   },
   async () => {
+    await checkPerm("Relations", "read");
     const types = await store.listRelationshipTypes(await getActiveWorkspaceId());
     const withSemantics = types.map((t: string) => ({
       type: t,
@@ -282,6 +300,7 @@ mcpServer.registerTool(
     },
   },
   async ({ rel_type, source_id_filter, target_id }) => {
+    await checkPerm("Relations", "read");
     if (rel_type && !RELATIONSHIP_TYPES.has(rel_type)) {
       throw new Error(relationshipTypeError(rel_type));
     }
@@ -297,7 +316,10 @@ mcpServer.registerTool(
       "type, source, cible, nom et propriétés.",
     inputSchema: { relationship_id: z.string().describe("Identifiant de la relation (champ 'identifier')") },
   },
-  async ({ relationship_id }) => toContent(await store.getRelationshipById(await getActiveWorkspaceId(), relationship_id))
+  async ({ relationship_id }) => {
+    await checkPerm("Relations", "read");
+    return toContent(await store.getRelationshipById(await getActiveWorkspaceId(), relationship_id));
+  }
 );
 
 mcpServer.registerTool(
@@ -308,7 +330,10 @@ mcpServer.registerTool(
       "Chaque vue correspond à un diagramme ArchiMate ciblant un public précis.",
     inputSchema: {},
   },
-  async () => toContent(await store.listViews(await getActiveWorkspaceId()))
+  async () => {
+    await checkPerm("Views", "read");
+    return toContent(await store.listViews(await getActiveWorkspaceId()));
+  }
 );
 
 mcpServer.registerTool(
@@ -320,7 +345,10 @@ mcpServer.registerTool(
       "Utiliser render_view pour obtenir le SVG visuel.",
     inputSchema: { view_id: z.string().describe("Identifiant de la vue (champ 'identifier')") },
   },
-  async ({ view_id }) => toContent(await store.getViewById(await getActiveWorkspaceId(), view_id))
+  async ({ view_id }) => {
+    await checkPerm("Views", "read");
+    return toContent(await store.getViewById(await getActiveWorkspaceId(), view_id));
+  }
 );
 
 // ---------------------------------------------------------------------------
@@ -344,6 +372,7 @@ mcpServer.registerTool(
     },
   },
   async ({ name, viewpoint, documentation }) => {
+    await checkPerm("Views", "create");
     const view = await store.createView(await getActiveWorkspaceId(), { name, viewpoint, documentation });
     return toContent({
       ...view,
@@ -375,8 +404,10 @@ mcpServer.registerTool(
       h: z.number().optional().nullable().describe("Hauteur en pixels (optionnel, défaut ~55)"),
     },
   },
-  async ({ view_id, element_id, x, y, w, h }) =>
-    toContent(await store.createNode(await getActiveWorkspaceId(), view_id, { element_id, x, y, w, h }))
+  async ({ view_id, element_id, x, y, w, h }) => {
+    await checkPerm("Views", "update");
+    return toContent(await store.createNode(await getActiveWorkspaceId(), view_id, { element_id, x, y, w, h }));
+  }
 );
 
 mcpServer.registerTool(
@@ -393,6 +424,7 @@ mcpServer.registerTool(
     },
   },
   async ({ view_id, name, viewpoint, documentation }) => {
+    await checkPerm("Views", "update");
     const input: ViewUpdateIn = {};
     if (name !== undefined) input.name = name;
     if (viewpoint !== undefined) input.viewpoint = viewpoint;
@@ -411,6 +443,7 @@ mcpServer.registerTool(
     inputSchema: { view_id: z.string().describe("Identifiant de la vue à supprimer") },
   },
   async ({ view_id }) => {
+    await checkPerm("Views", "delete");
     await store.deleteView(await getActiveWorkspaceId(), view_id);
     return toContent({ deleted: true, identifier: view_id });
   }
@@ -433,6 +466,7 @@ mcpServer.registerTool(
     },
   },
   async ({ view_id, node_id, x, y, w, h, name }) => {
+    await checkPerm("Views", "update");
     const input: NodeUpdateIn = {};
     if (x !== undefined) input.x = x;
     if (y !== undefined) input.y = y;
@@ -456,6 +490,7 @@ mcpServer.registerTool(
     },
   },
   async ({ view_id, node_id }) => {
+    await checkPerm("Views", "update");
     await store.deleteViewNode(await getActiveWorkspaceId(), view_id, node_id);
     return toContent({ deleted: true, identifier: node_id });
   }
@@ -479,12 +514,14 @@ mcpServer.registerTool(
       target_side: z.string().optional().nullable().describe(`Côté du nœud cible: ${_EDGE_SIDES_STR}`),
     },
   },
-  async ({ view_id, source, target, relationship_id, name, source_side, target_side }) =>
-    toContent(await store.createViewConnection(await getActiveWorkspaceId(), view_id, {
+  async ({ view_id, source, target, relationship_id, name, source_side, target_side }) => {
+    await checkPerm("Views", "update");
+    return toContent(await store.createViewConnection(await getActiveWorkspaceId(), view_id, {
       source, target, relationship_id, name,
       source_side: source_side as ConnectionCreateIn["source_side"],
       target_side: target_side as ConnectionCreateIn["target_side"],
-    }))
+    }));
+  }
 );
 
 mcpServer.registerTool(
@@ -504,6 +541,7 @@ mcpServer.registerTool(
     },
   },
   async ({ view_id, connection_id, name, source, target, source_side, target_side }) => {
+    await checkPerm("Views", "update");
     const input: ConnectionUpdateIn = {};
     if (name !== undefined) input.name = name;
     if (source !== undefined) input.source = source;
@@ -526,6 +564,7 @@ mcpServer.registerTool(
     },
   },
   async ({ view_id, connection_id }) => {
+    await checkPerm("Views", "update");
     await store.deleteViewConnection(await getActiveWorkspaceId(), view_id, connection_id);
     return toContent({ deleted: true, identifier: connection_id });
   }
@@ -563,6 +602,7 @@ mcpServer.registerTool(
     },
   },
   async ({ name, type, documentation, properties }) => {
+    requireAdminUser();
     if (!ELEMENT_TYPES.has(type)) {
       throw new Error(elementTypeError(type));
     }
@@ -588,6 +628,7 @@ mcpServer.registerTool(
     },
   },
   async ({ element_id, name, type, documentation, properties }) => {
+    requireAdminUser();
     if (type && !ELEMENT_TYPES.has(type)) {
       throw new Error(elementTypeError(type));
     }
@@ -612,6 +653,7 @@ mcpServer.registerTool(
     },
   },
   async ({ element_id }) => {
+    requireAdminUser();
     await store.deleteElement(await getActiveWorkspaceId(), element_id);
     return toContent({ deleted: true, identifier: element_id });
   }
@@ -651,6 +693,7 @@ mcpServer.registerTool(
     },
   },
   async ({ type, source, target, name, documentation, properties, access_type, is_directed, influence_strength }) => {
+    await checkPerm("Relations", "create");
     if (!RELATIONSHIP_TYPES.has(type)) {
       throw new Error(relationshipTypeError(type));
     }
@@ -682,6 +725,7 @@ mcpServer.registerTool(
     },
   },
   async ({ relationship_id, name, type, source, target, documentation, properties, access_type, is_directed, influence_strength }) => {
+    await checkPerm("Relations", "update");
     if (type && !RELATIONSHIP_TYPES.has(type)) {
       throw new Error(relationshipTypeError(type));
     }
@@ -710,6 +754,7 @@ mcpServer.registerTool(
     },
   },
   async ({ relationship_id }) => {
+    await checkPerm("Relations", "delete");
     await store.deleteRelationship(await getActiveWorkspaceId(), relationship_id);
     return toContent({ deleted: true, identifier: relationship_id });
   }
@@ -723,8 +768,10 @@ mcpServer.registerTool(
       "Utile pour vérifier la cohérence sémantique d'un élément avant de le modifier ou supprimer.",
     inputSchema: { element_id: z.string().describe("Identifiant de l'élément") },
   },
-  async ({ element_id }) =>
-    toContent(await store.getElementRelationships(await getActiveWorkspaceId(), element_id))
+  async ({ element_id }) => {
+    await checkPerm("Relations", "read");
+    return toContent(await store.getElementRelationships(await getActiveWorkspaceId(), element_id));
+  }
 );
 
 mcpServer.registerTool(
@@ -764,7 +811,10 @@ mcpServer.registerTool(
       "L'identifiant est le champ 'id' retourné par list_workspaces.",
     inputSchema: { workspace_id: z.string().describe("Identifiant numérique du workspace (champ 'id' de list_workspaces)") },
   },
-  async ({ workspace_id }) => toContent(await activateWorkspace(workspace_id))
+  async ({ workspace_id }) => {
+    requireAdminUser();
+    return toContent(await activateWorkspace(workspace_id));
+  }
 );
 
 // ---------------------------------------------------------------------------
@@ -794,7 +844,10 @@ mcpServer.registerTool(
       "Retourne les métadonnées du modèle importé.",
     inputSchema: { xml: z.string().describe("Contenu XML au format Open Exchange ArchiMate 3.1") },
   },
-  async ({ xml }) => toContent(await store.importModelFromXml(await getActiveWorkspaceId(), xml))
+  async ({ xml }) => {
+    requireAdminUser();
+    return toContent(await store.importModelFromXml(await getActiveWorkspaceId(), xml));
+  }
 );
 
 // ---------------------------------------------------------------------------
@@ -849,6 +902,7 @@ mcpServer.registerTool(
     },
   },
   async ({ name, type }) => {
+    requireAdminUser();
     if (type && !PROPERTY_DEFINITION_TYPES.has(type)) {
       throw new Error(`Type invalide: '${type}'. Types valides: ${_PROPERTY_DEFINITION_TYPES_STR}`);
     }
@@ -867,6 +921,7 @@ mcpServer.registerTool(
     },
   },
   async ({ id, name, type }) => {
+    requireAdminUser();
     if (type && !PROPERTY_DEFINITION_TYPES.has(type)) {
       throw new Error(`Type invalide: '${type}'. Types valides: ${_PROPERTY_DEFINITION_TYPES_STR}`);
     }
@@ -886,6 +941,7 @@ mcpServer.registerTool(
     inputSchema: { id: z.string().describe("Identifiant de la définition à supprimer") },
   },
   async ({ id }) => {
+    requireAdminUser();
     await store.deletePropertyDefinition(await getActiveWorkspaceId(), id);
     return toContent({ deleted: true, identifier: id });
   }
@@ -916,6 +972,7 @@ mcpServer.registerTool(
     },
   },
   async ({ view_id }) => {
+    await checkPerm("Views", "read");
     const model = await store.loadModel(await getActiveWorkspaceId());
     const view = model.views.find((v) => v.uuid === view_id);
     if (!view) throw new Error(`Vue '${view_id}' introuvable.`);
@@ -968,22 +1025,34 @@ const methodNotAllowed = (_req: Request, res: Response): void => {
 app.get("/mcp/", methodNotAllowed);
 app.delete("/mcp/", methodNotAllowed);
 
-app.use("/mcp/", (req: Request, res: Response, next: NextFunction) => {
-  const secret = process.env["MCP_AUTH_TOKEN"];
-  if (!secret) { next(); return; }
-  const provided = req.headers.authorization?.replace(/^Bearer\s+/i, "").trim();
-  if (provided !== secret) {
-    res.status(401).json({ jsonrpc: "2.0", error: { code: -32000, message: "Non authentifié." }, id: null });
+interface McpRequest extends Request {
+  mcpUser?: TokenUser;
+}
+
+app.use("/mcp/", async (req: McpRequest, res: Response, next: NextFunction) => {
+  const token = req.headers.authorization?.replace(/^Bearer\s+/i, "").trim();
+  if (!token) {
+    res.status(401).json({ jsonrpc: "2.0", error: { code: -32000, message: "Token requis." }, id: null });
     return;
   }
-  next();
+  try {
+    const user = await lookupApiToken(token);
+    if (!user) {
+      res.status(401).json({ jsonrpc: "2.0", error: { code: -32000, message: "Token invalide." }, id: null });
+      return;
+    }
+    req.mcpUser = user;
+    next();
+  } catch {
+    res.status(401).json({ jsonrpc: "2.0", error: { code: -32000, message: "Erreur d'authentification." }, id: null });
+  }
 });
 
-app.post("/mcp/", async (req: Request, res: Response) => {
+app.post("/mcp/", async (req: McpRequest, res: Response) => {
   try {
     const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
     res.on("close", () => { void transport.close(); });
-    const mcpServer = createMcpServer();
+    const mcpServer = createMcpServer(req.mcpUser!);
     await mcpServer.connect(transport);
     await transport.handleRequest(req, res, req.body);
   } catch (err) {

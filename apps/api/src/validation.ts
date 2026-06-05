@@ -1,6 +1,9 @@
 import { z } from "zod";
+import { extendZodWithOpenApi } from "@asteasolutions/zod-to-openapi";
 import type { Response } from "express";
 import { ELEMENT_TYPES, RELATIONSHIP_TYPES, PROPERTY_DEFINITION_TYPES, VIEWPOINTS } from "./schemas.js";
+
+extendZodWithOpenApi(z);
 
 // ---------------------------------------------------------------------------
 // Reusable field schemas

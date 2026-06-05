@@ -9,6 +9,9 @@
 #  OS variants : alpine (défaut) | trixie-slim
 # =============================================================================
 
+SHELL     := /bin/bash
+NVM_DIR   ?= $(HOME)/.nvm
+
 REGISTRY  ?= archispark
 VERSION   ?= $(shell node -p "require('./package.json').version" 2>/dev/null \
                || grep '"version"' package.json | cut -d'"' -f4)
@@ -17,9 +20,8 @@ OS        ?= alpine
 SERVICES  := api web mcp-server
 
 DC        := docker compose
-DC_PROD   := $(DC) -f docker-compose.yml
-DC_BUILD  := $(DC) -f docker-compose.build.yml
-DC_DEV    := $(DC) -f docker-compose.dev.yml
+DC_PROD   := $(DC) -f .docker/docker-compose.yml
+DC_DEV    := $(DC) -f .docker/docker-compose.dev.yml
 
 .DEFAULT_GOAL := help
 
@@ -94,10 +96,10 @@ pull:
 .PHONY: dev dev-infra dev-down dev-logs dev-ps
 
 dev: dev-infra
-	pnpm dev
+	. $(NVM_DIR)/nvm.sh && nvm use 24 && set -a && . ./.env && set +a && pnpm dev
 
 dev-infra:
-	$(DC_DEV) up -d
+	$(DC_DEV) up -d --wait
 
 dev-down:
 	$(DC_DEV) down

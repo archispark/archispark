@@ -4,7 +4,8 @@
  * Usage:
  *   pnpm --filter @workspace/db seed:demo
  *
- * Each workspace is skipped if one with the same name already exists (idempotent).
+ * Destructive reset: deletes existing ArchiSurance/ArchiMetal workspaces (CASCADE)
+ * then reimports from the generated SQL. Safe to run multiple times.
  * Requires DATABASE_URL (or POSTGRES_URL) to point to the target Postgres instance.
  */
 

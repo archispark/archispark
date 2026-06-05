@@ -234,3 +234,148 @@ describe("requireAuth catch path", () => {
     expect(res.status).toBe(401);
   });
 });
+
+// ---------------------------------------------------------------------------
+// API tokens — CRUD routes and Bearer token authentication
+// ---------------------------------------------------------------------------
+
+describe("GET /settings/api-tokens", () => {
+  it("returns 401 when unauthenticated", async () => {
+    const res = await _request(app).get("/settings/api-tokens");
+    expect(res.status).toBe(401);
+  });
+
+  it("returns array for admin user", async () => {
+    const res = await request(app).get("/settings/api-tokens");
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+  });
+});
+
+describe("POST /settings/api-tokens", () => {
+  it("returns 422 when name is missing", async () => {
+    const res = await request(app).post("/settings/api-tokens").send({});
+    expect(res.status).toBe(422);
+  });
+
+  it("returns 422 when name is empty string", async () => {
+    const res = await request(app).post("/settings/api-tokens").send({ name: "   " });
+    expect(res.status).toBe(422);
+  });
+
+  it("creates a token and returns it with token value", async () => {
+    const res = await request(app).post("/settings/api-tokens").send({ name: "CI token" });
+    expect(res.status).toBe(201);
+    expect(res.body).toHaveProperty("id");
+    expect(res.body).toHaveProperty("token");
+    expect(res.body.name).toBe("CI token");
+    expect(typeof res.body.token).toBe("string");
+    expect(res.body.token.length).toBeGreaterThan(20);
+  });
+
+  it("returns 401 when unauthenticated", async () => {
+    const res = await _request(app).post("/settings/api-tokens").send({ name: "x" });
+    expect(res.status).toBe(401);
+  });
+});
+
+describe("DELETE /settings/api-tokens/:id", () => {
+  let tokenId: number;
+
+  beforeAll(async () => {
+    const res = await request(app).post("/settings/api-tokens").send({ name: "to delete" });
+    tokenId = (res.body as { id: number }).id;
+  });
+
+  it("returns 422 for non-numeric id", async () => {
+    const res = await request(app).delete("/settings/api-tokens/notanumber");
+    expect(res.status).toBe(422);
+  });
+
+  it("returns 404 for unknown id", async () => {
+    const res = await request(app).delete("/settings/api-tokens/999999");
+    expect(res.status).toBe(404);
+  });
+
+  it("deletes own token and returns 204", async () => {
+    const res = await request(app).delete(`/settings/api-tokens/${tokenId}`);
+    expect(res.status).toBe(204);
+  });
+
+  it("returns 401 when unauthenticated", async () => {
+    const res = await _request(app).delete("/settings/api-tokens/1");
+    expect(res.status).toBe(401);
+  });
+});
+
+describe("Bearer token authentication", () => {
+  let token: string;
+  let tokenId: number;
+
+  beforeAll(async () => {
+    const res = await request(app).post("/settings/api-tokens").send({ name: "bearer test" });
+    token = (res.body as { token: string }).token;
+    tokenId = (res.body as { id: number }).id;
+  });
+
+  it("returns 401 for an invalid Bearer token", async () => {
+    const res = await _request(app).get("/me").set("Authorization", "Bearer invalidtoken");
+    expect(res.status).toBe(401);
+  });
+
+  it("authenticates successfully with a valid Bearer token", async () => {
+    const res = await _request(app).get("/me").set("Authorization", `Bearer ${token}`);
+    expect(res.status).toBe(200);
+    expect(res.body.username).toBe("admin");
+  });
+
+  it("can access protected routes via Bearer token", async () => {
+    const res = await _request(app).get("/workspaces").set("Authorization", `Bearer ${token}`);
+    expect(res.status).toBe(200);
+  });
+
+  it("cleans up bearer test token", async () => {
+    const res = await request(app).delete(`/settings/api-tokens/${tokenId}`);
+    expect(res.status).toBe(204);
+  });
+});
+
+describe("API token isolation between users", () => {
+  let userTokenId: number;
+
+  beforeAll(async () => {
+    // Create a token as the regular user
+    const res = await _request.agent(app).set("Cookie", userCookie)
+      .post("/settings/api-tokens").send({ name: "user token" });
+    userTokenId = (res.body as { id: number }).id;
+  });
+
+  it("regular user only sees their own tokens", async () => {
+    const res = await _request.agent(app).set("Cookie", userCookie).get("/settings/api-tokens");
+    expect(res.status).toBe(200);
+    const ids = (res.body as Array<{ id: number }>).map((t) => t.id);
+    expect(ids).toContain(userTokenId);
+  });
+
+  it("admin sees all tokens including other users'", async () => {
+    const res = await request(app).get("/settings/api-tokens");
+    expect(res.status).toBe(200);
+    const ids = (res.body as Array<{ id: number }>).map((t) => t.id);
+    expect(ids).toContain(userTokenId);
+  });
+
+  it("regular user cannot delete another user's token", async () => {
+    // Create an admin token, then try to delete it as regular user
+    const createRes = await request(app).post("/settings/api-tokens").send({ name: "admin-only" });
+    const adminTokenId = (createRes.body as { id: number }).id;
+    const deleteRes = await _request.agent(app).set("Cookie", userCookie).delete(`/settings/api-tokens/${adminTokenId}`);
+    expect(deleteRes.status).toBe(403);
+    // Cleanup
+    await request(app).delete(`/settings/api-tokens/${adminTokenId}`);
+  });
+
+  it("cleans up user token", async () => {
+    const res = await request(app).delete(`/settings/api-tokens/${userTokenId}`);
+    expect(res.status).toBe(204);
+  });
+});

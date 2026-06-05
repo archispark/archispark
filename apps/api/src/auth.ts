@@ -1,7 +1,7 @@
 import { randomUUID } from "crypto";
 import type { Request, Response, NextFunction } from "express";
 import { and, eq, inArray } from "drizzle-orm";
-import { db, users as usersTable, accounts, roles as rolesTable, roleLayerPermissions as rolePermsTable, userRoles as userRolesTable } from "@workspace/db";
+import { db, users as usersTable, accounts, roles as rolesTable, roleLayerPermissions as rolePermsTable, userRoles as userRolesTable, apiTokens } from "@workspace/db";
 import { getAuth } from "./better-auth.js";
 import { fromNodeHeaders } from "better-auth/node";
 import bcrypt from "bcryptjs";
@@ -176,10 +176,38 @@ export async function deleteUserById(id: string): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// Middleware — uses Better Auth session (httpOnly cookie)
+// API token lookup (used by REST middleware and MCP server)
+// ---------------------------------------------------------------------------
+
+export interface TokenUser { id: string; username: string; role: string }
+
+export async function lookupApiToken(token: string): Promise<TokenUser | null> {
+  const [row] = await db.select({ id: apiTokens.id, userId: apiTokens.userId })
+    .from(apiTokens).where(eq(apiTokens.token, token));
+  if (!row) return null;
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, row.userId));
+  if (!user) return null;
+  db.update(apiTokens).set({ lastUsedAt: Math.floor(Date.now() / 1000) })
+    .where(eq(apiTokens.id, row.id)).catch(() => {});
+  return { id: user.id, username: user.username, role: user.role };
+}
+
+// ---------------------------------------------------------------------------
+// Middleware — uses Better Auth session (httpOnly cookie) or API Bearer token
 // ---------------------------------------------------------------------------
 
 export function requireAuth(req: AuthRequest, res: Response, next: NextFunction): void {
+  const authHeader = req.headers["authorization"];
+  if (authHeader?.startsWith("Bearer ")) {
+    lookupApiToken(authHeader.slice(7).trim())
+      .then((tokenUser) => {
+        if (!tokenUser) { res.status(401).json({ detail: "Token invalide." }); return; }
+        req.user = tokenUser;
+        next();
+      })
+      .catch(() => { res.status(401).json({ detail: "Erreur d'authentification." }); });
+    return;
+  }
   getAuth().api.getSession({ headers: fromNodeHeaders(req.headers) })
     .then((session: { user: { id: string; name: string; email?: string | null; [k: string]: unknown } } | null) => {
       if (!session?.user) {
@@ -197,6 +225,8 @@ export function requireAuth(req: AuthRequest, res: Response, next: NextFunction)
       res.status(401).json({ detail: "Session invalide." });
     });
 }
+
+export { userHasPermission };
 
 export function requireAdmin(req: AuthRequest, res: Response, next: NextFunction): void {
   requireAuth(req, res, () => {
