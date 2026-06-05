@@ -33,14 +33,14 @@
     {
       "idx": 4,
       "version": "7",
-      "when": 1749168000000,
+      "when": 1780600000000,
       "tag": "0004_drop_mcp_tokens",
       "breakpoints": true
     },
     {
       "idx": 5,
       "version": "7",
-      "when": 1749254400000,
+      "when": 1780610000000,
       "tag": "0005_api_tokens_expiry",
       "breakpoints": true
     }

@@ -1,1 +1,1 @@
-ALTER TABLE "api_tokens" ADD COLUMN "expires_at" integer;
+ALTER TABLE "api_tokens" ADD COLUMN IF NOT EXISTS "expires_at" integer;
