@@ -25,7 +25,20 @@
     },
     "dev": {
       "cache": false,
-      "persistent": true
+      "persistent": true,
+      "passThroughEnv": [
+        "DATABASE_URL",
+        "REDIS_URL",
+        "BETTER_AUTH_SECRET",
+        "WEB_URL",
+        "TRUSTED_ORIGINS",
+        "SEED_ADMIN_PASSWORD",
+        "SEED_USER_PASSWORD",
+        "ARCHIMATE_API_URL",
+        "NODE_OPTIONS",
+        "PORT",
+        "HOST"
+      ]
     }
   }
 }

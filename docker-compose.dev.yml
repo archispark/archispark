@@ -75,7 +75,6 @@ services:
       - "8000:8000"   # Next.js web
     volumes:
       - .:/app
-      - ./.docker/api-dev.env:/app/apps/api/.env:ro  # Écrase apps/api/.env (localhost) par les noms de services Docker
       - app_node_modules:/app/node_modules   # modules natifs compilés pour Alpine
     environment:
       # Connexion PostgreSQL (réseau Docker interne, nom de service)
@@ -94,6 +93,8 @@ services:
       # Le proxy Next.js rewrites /api/* → API ; localhost:3000 fonctionne car
       # web et api tournent dans le même conteneur.
       ARCHIMATE_API_URL:   http://localhost:3000
+      # Augmente le tas V8 pour le serveur de dev Next.js (compilation TypeScript + HMR)
+      NODE_OPTIONS:        --max-old-space-size=4096
     healthcheck:
       test:     ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/health || exit 1"]
       interval: 10s

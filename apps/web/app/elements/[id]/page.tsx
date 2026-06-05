@@ -394,10 +394,10 @@ export default function ElementDetailPage() {
   );
 
   // ── Loading / error ────────────────────────────────────────────────────────
-  if (elLoading) return <div className="p-7 text-muted-foreground text-sm">{t("common.loading")}</div>;
+  if (elLoading) return <div className="px-4 sm:px-7 pt-6 text-muted-foreground text-sm">{t("common.loading")}</div>;
   if (elError || !element) {
     return (
-      <div className="p-7">
+      <div className="px-4 sm:px-7 pt-6">
         <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">
           {t("common.error")}: {(elError as Error | null)?.message ?? "Élément introuvable"}
         </div>
@@ -415,17 +415,17 @@ export default function ElementDetailPage() {
   ];
 
   return (
-    <div className="p-7 space-y-6 max-w-4xl">
+    <div className="flex flex-col h-[calc(100vh-var(--nav-h))] overflow-hidden px-4 sm:px-7 pt-4 sm:pt-6 pb-0">
 
       {/* Back */}
-      <Link href="/elements" className="inline-flex items-center gap-1 text-[13px] text-muted-foreground hover:text-foreground transition-colors">
+      <Link href="/elements" className="inline-flex items-center gap-1 text-[13px] text-muted-foreground hover:text-foreground transition-colors shrink-0 mb-3">
         <ChevronLeft className="size-3.5" />{t("breadcrumb.elements")}
       </Link>
 
       {/* Header */}
-      <div className="space-y-3">
-        <div className="flex items-start justify-between gap-4">
-          <div className="space-y-2 flex-1 min-w-0">
+      <div className="space-y-2 shrink-0">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div className="space-y-1.5 flex-1 min-w-0">
 
             {/* Badges: type (inline-editable) + layer + status */}
             <div className="flex flex-wrap items-center gap-2">
@@ -471,7 +471,7 @@ export default function ElementDetailPage() {
             <InlineText
               value={element.name}
               onSave={(v) => saveField({ name: v })}
-              className="text-2xl font-semibold leading-tight block w-full"
+              className="text-xl sm:text-2xl font-semibold leading-tight block w-full"
               placeholder={t("elements.placeholder")}
               disabled={!isAdmin}
             />
@@ -493,20 +493,18 @@ export default function ElementDetailPage() {
         </div>
 
         {/* Description */}
-        <div className="max-w-2xl">
-          <InlineText
-            value={element.documentation ?? ""}
-            onSave={(v) => saveField({ documentation: v || null })}
-            className="text-sm text-muted-foreground leading-relaxed block w-full"
-            placeholder={t("elements.no_documentation")}
-            multiline
-            disabled={!isAdmin}
-          />
-        </div>
+        <InlineText
+          value={element.documentation ?? ""}
+          onSave={(v) => saveField({ documentation: v || null })}
+          className="text-sm text-muted-foreground leading-relaxed block w-full"
+          placeholder={t("elements.no_documentation")}
+          multiline
+          disabled={!isAdmin}
+        />
 
         {/* Not-in-views warning */}
         {!isInViews && (
-          <div className="flex items-center gap-2 rounded-md border border-amber-300/50 bg-amber-50/50 dark:bg-amber-900/10 dark:border-amber-700/30 px-3 py-2 text-sm text-amber-700 dark:text-amber-400 max-w-2xl">
+          <div className="flex items-center gap-2 rounded-md border border-amber-300/50 bg-amber-50/50 dark:bg-amber-900/10 dark:border-amber-700/30 px-3 py-2 text-sm text-amber-700 dark:text-amber-400">
             <span className="shrink-0">⚠</span>
             {t("elements.not_in_views_hint")}
           </div>
@@ -545,127 +543,135 @@ export default function ElementDetailPage() {
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="space-y-3">
+      {/* Tabs — fills remaining vertical space */}
+      <div className="flex flex-col flex-1 min-h-0 mt-4">
         <Tabs tabs={tabs} active={activeTab} onChange={(v) => setActiveTab(v as "properties" | "relations" | "canvas" | "views")} />
 
         {/* ── Properties tab ──────────────────────────────────────────────── */}
         {activeTab === "properties" && (
-          <div className="space-y-3">
-            {isAdmin && (
-              <div className="flex justify-end">
-                <Button size="sm" variant="outline" onClick={() => setAddingProp(true)} disabled={addingProp || availableDefs.length === 0}>
-                  <Plus className="size-3.5 mr-1" />{t("common.create")}
-                </Button>
-              </div>
-            )}
+          <div className="flex-1 min-h-0 overflow-y-auto pt-3 pb-4">
+            <div className="space-y-3">
+              {isAdmin && (
+                <div className="flex justify-end">
+                  <Button size="sm" variant="outline" onClick={() => setAddingProp(true)} disabled={addingProp || availableDefs.length === 0}>
+                    <Plus className="size-3.5 mr-1" />{t("common.create")}
+                  </Button>
+                </div>
+              )}
 
-            {addingProp && (
-              <div className="flex items-center gap-2 p-3 rounded-lg border border-border bg-muted/30">
-                <Select value={newPropRef} onValueChange={(v) => setNewPropRef(v ?? "")}>
-                  <SelectTrigger className="flex-1 h-8 text-sm">
-                    <SelectValue placeholder={t("properties.property_placeholder")} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableDefs.map((d) => (
-                      <SelectItem key={d.identifier} value={d.identifier}>
-                        {d.name}<span className="ml-1.5 text-[10px] text-muted-foreground">{d.type}</span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Input
-                  className="flex-1 h-8 text-sm"
-                  placeholder={t("properties.value_placeholder")}
-                  value={newPropVal}
-                  onChange={(e) => setNewPropVal(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter") savePropAdd(); if (e.key === "Escape") setAddingProp(false); }}
-                />
-                <Button size="sm" onClick={savePropAdd} disabled={!newPropRef || updateMutation.isPending}>
-                  {t("common.create")}
-                </Button>
-                <Button size="sm" variant="outline" onClick={() => { setAddingProp(false); setNewPropRef(""); setNewPropVal(""); }}>
-                  {t("common.cancel")}
-                </Button>
-              </div>
-            )}
+              {addingProp && (
+                <div className="flex flex-wrap items-center gap-2 p-3 rounded-lg border border-border bg-muted/30">
+                  <Select value={newPropRef} onValueChange={(v) => setNewPropRef(v ?? "")}>
+                    <SelectTrigger className="flex-1 min-w-[140px] h-8 text-sm">
+                      <SelectValue placeholder={t("properties.property_placeholder")} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableDefs.map((d) => (
+                        <SelectItem key={d.identifier} value={d.identifier}>
+                          {d.name}<span className="ml-1.5 text-[10px] text-muted-foreground">{d.type}</span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    className="flex-1 min-w-[140px] h-8 text-sm"
+                    placeholder={t("properties.value_placeholder")}
+                    value={newPropVal}
+                    onChange={(e) => setNewPropVal(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") savePropAdd(); if (e.key === "Escape") setAddingProp(false); }}
+                  />
+                  <Button size="sm" onClick={savePropAdd} disabled={!newPropRef || updateMutation.isPending}>
+                    {t("common.create")}
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => { setAddingProp(false); setNewPropRef(""); setNewPropVal(""); }}>
+                    {t("common.cancel")}
+                  </Button>
+                </div>
+              )}
 
-            <DataTable<PropRow, unknown>
-              columns={propColumns}
-              data={properties as PropRow[]}
-              pageSize={25}
-            />
+              <DataTable<PropRow, unknown>
+                columns={propColumns}
+                data={properties as PropRow[]}
+                pageSize={25}
+              />
+            </div>
           </div>
         )}
 
         {/* ── Relations tab ────────────────────────────────────────────────── */}
         {activeTab === "relations" && (
-          <div className="space-y-3">
-            {isAdmin && (
-              <div className="flex justify-end">
-                <Button size="sm" variant="outline" onClick={openCreateRel}>
-                  <Plus className="size-3.5 mr-1" />{t("common.create")}
-                </Button>
-              </div>
-            )}
-            <DataTable<RelationshipOut, unknown>
-              columns={relColumns}
-              data={relationships}
-              loading={relLoading}
-              pageSize={25}
-              searchable
-              renderSubRow={(row) => {
-                const rel = row.original as RelationshipOut;
-                const src = byId.get(rel.source); const tgt = byId.get(rel.target);
-                const allowed = allowedRelationships(src?.type, tgt?.type);
-                const ok = allowed.includes(rel.type);
-                return (
-                  <div className="text-[12px] text-muted-foreground space-y-0.5">
-                    {ok ? (
-                      <p><span className="text-emerald-700 font-medium">{t("relationships.allowed")}</span>{" — "}{rel.type} entre {src?.type ?? "?"} et {tgt?.type ?? "?"}</p>
-                    ) : (
-                      <>
-                        <p><span className="text-destructive font-medium">{t("relationships.not_allowed")}</span>{" — "}{rel.type} entre {src?.type ?? "?"} et {tgt?.type ?? "?"}</p>
-                        <p>{t("relationships.suggestions")} : {allowed.length > 0 ? allowed.join(", ") : t("common.none")}</p>
-                      </>
-                    )}
-                  </div>
-                );
-              }}
-            />
+          <div className="flex-1 min-h-0 overflow-y-auto pt-3 pb-4">
+            <div className="space-y-3">
+              {isAdmin && (
+                <div className="flex justify-end">
+                  <Button size="sm" variant="outline" onClick={openCreateRel}>
+                    <Plus className="size-3.5 mr-1" />{t("common.create")}
+                  </Button>
+                </div>
+              )}
+              <DataTable<RelationshipOut, unknown>
+                columns={relColumns}
+                data={relationships}
+                loading={relLoading}
+                pageSize={25}
+                searchable
+                renderSubRow={(row) => {
+                  const rel = row.original as RelationshipOut;
+                  const src = byId.get(rel.source); const tgt = byId.get(rel.target);
+                  const allowed = allowedRelationships(src?.type, tgt?.type);
+                  const ok = allowed.includes(rel.type);
+                  return (
+                    <div className="text-[12px] text-muted-foreground space-y-0.5">
+                      {ok ? (
+                        <p><span className="text-emerald-700 font-medium">{t("relationships.allowed")}</span>{" — "}{rel.type} entre {src?.type ?? "?"} et {tgt?.type ?? "?"}</p>
+                      ) : (
+                        <>
+                          <p><span className="text-destructive font-medium">{t("relationships.not_allowed")}</span>{" — "}{rel.type} entre {src?.type ?? "?"} et {tgt?.type ?? "?"}</p>
+                          <p>{t("relationships.suggestions")} : {allowed.length > 0 ? allowed.join(", ") : t("common.none")}</p>
+                        </>
+                      )}
+                    </div>
+                  );
+                }}
+              />
+            </div>
           </div>
         )}
 
         {/* ── Canvas tab ───────────────────────────────────────────────────── */}
         {activeTab === "canvas" && (
-          <ElementGraphTab element={element} relationships={relationships} byId={byId} />
+          <div className="flex-1 min-h-0 pt-3 pb-4 flex flex-col">
+            <ElementGraphTab element={element} relationships={relationships} byId={byId} />
+          </div>
         )}
 
         {/* ── Views tab ────────────────────────────────────────────────────── */}
         {activeTab === "views" && (
-          <div className="space-y-1">
-            {elementViews.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-4 text-center">{t("elements.not_in_views_hint")}</p>
-            ) : (
-              elementViews.map((view: ViewOut) => (
-                <Link
-                  key={view.identifier}
-                  href={`/views/${encodeURIComponent(view.identifier)}`}
-                  className="flex items-center justify-between rounded-md border border-border px-4 py-3 hover:bg-muted/40 transition-colors group"
-                >
-                  <div className="space-y-0.5 min-w-0">
-                    <div className="text-sm font-medium truncate">{view.name || view.identifier}</div>
-                    {view.viewpoint && (
-                      <div className="text-[11px] text-muted-foreground">{view.viewpoint}</div>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-3 shrink-0 ml-4">
-                    <span className="text-[11px] text-muted-foreground tabular-nums">{view.node_count} nodes</span>
-                    <ChevronRight className="size-3.5 text-muted-foreground group-hover:text-foreground transition-colors" />
-                  </div>
-                </Link>
-              ))
-            )}
+          <div className="flex-1 min-h-0 overflow-y-auto pt-3 pb-4">
+            <div className="space-y-1">
+              {elementViews.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-4 text-center">{t("elements.not_in_views_hint")}</p>
+              ) : (
+                elementViews.map((view: ViewOut) => (
+                  <Link
+                    key={view.identifier}
+                    href={`/views/${encodeURIComponent(view.identifier)}`}
+                    className="flex items-center justify-between rounded-md border border-border px-4 py-3 hover:bg-muted/40 transition-colors group"
+                  >
+                    <div className="space-y-0.5 min-w-0">
+                      <div className="text-sm font-medium truncate">{view.name || view.identifier}</div>
+                      {view.viewpoint && (
+                        <div className="text-[11px] text-muted-foreground">{view.viewpoint}</div>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0 ml-4">
+                      <span className="text-[11px] text-muted-foreground tabular-nums">{view.node_count} nodes</span>
+                      <ChevronRight className="size-3.5 text-muted-foreground group-hover:text-foreground transition-colors" />
+                    </div>
+                  </Link>
+                ))
+              )}
+            </div>
           </div>
         )}
       </div>

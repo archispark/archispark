@@ -39,6 +39,7 @@ help:
 	@printf "  \033[36mpull\033[0m            Mettre à jour les images Hub\n"
 	@printf "\n\033[4mDéveloppement\033[0m\n"
 	@printf "  \033[36mdev\033[0m             Stack complet en mode dev (hot-reload)\n"
+	@printf "  \033[36mdev-restart\033[0m     Redémarrer le conteneur app (force-recreate)\n"
 	@printf "  \033[36mdev-infra\033[0m       Postgres + Redis seulement (pour pnpm dev en local)\n"
 	@printf "  \033[36mdev-down\033[0m        Arrêter le stack de dev\n"
 	@printf "  \033[36mdev-logs\033[0m        Suivre les logs de dev\n"
@@ -91,10 +92,13 @@ pull:
 #  Développement
 # =============================================================================
 
-.PHONY: dev dev-infra dev-down dev-logs dev-ps
+.PHONY: dev dev-restart dev-infra dev-down dev-logs dev-ps
 
 dev:
 	$(DC_DEV) up -d
+
+dev-restart:
+	$(DC_DEV) up -d --force-recreate app
 
 dev-infra:
 	$(DC_DEV) up -d postgres redis

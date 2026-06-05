@@ -198,13 +198,13 @@ function GraphCanvas({ element, relationships, byId }: ElementGraphTabProps) {
   }
 
   return (
-    <div className="space-y-2">
-      <div className="flex justify-end">
+    <div className="flex flex-col flex-1 min-h-0 gap-2">
+      <div className="flex justify-end shrink-0">
         <Button size="sm" variant="outline" onClick={toggleDirection}>
           {direction === "TB" ? "→ Horizontal" : "↓ Vertical"}
         </Button>
       </div>
-      <div style={{ width: "100%", height: 500 }} className="rounded-lg border border-border overflow-hidden">
+      <div className="flex-1 min-h-0 rounded-lg border border-border overflow-hidden" style={{ height: "100%" }}>
         <ReactFlow
           nodes={nodes}
           edges={edges}

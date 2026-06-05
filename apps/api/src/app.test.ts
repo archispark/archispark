@@ -643,6 +643,58 @@ describe("GET /elements/in-views", () => {
 });
 
 // ===========================================================================
+// Integration tests – GET /elements/:id/views
+// ===========================================================================
+
+describe("GET /elements/:id/views", () => {
+  it("returns 200 for a known element", async () => {
+    const res = await request(app).get(`/elements/${knownElement.identifier}/views`);
+    expect(res.status).toBe(200);
+  });
+
+  it("returns an array", async () => {
+    const data = (await request(app).get(`/elements/${knownElement.identifier}/views`)).body;
+    expect(Array.isArray(data)).toBe(true);
+  });
+
+  it("each result has ViewOut shape", async () => {
+    const inViews = (await request(app).get("/elements/in-views")).body as string[];
+    if (inViews.length === 0) return;
+    const id = inViews[0]!;
+    const data = (await request(app).get(`/elements/${id}/views`)).body as ViewOut[];
+    expect(data.length).toBeGreaterThan(0);
+    for (const v of data) {
+      expect(typeof v.identifier).toBe("string");
+      expect(typeof v.name).toBe("string");
+      expect(typeof v.node_count).toBe("number");
+      expect(typeof v.connection_count).toBe("number");
+    }
+  });
+
+  it("returns empty array for element not in any view", async () => {
+    const el = (await request(app).post("/elements").send({ type: "BusinessActor", name: "NoViewEl" })).body as ElementOut;
+    const data = (await request(app).get(`/elements/${el.identifier}/views`)).body;
+    expect(Array.isArray(data)).toBe(true);
+    expect(data).toHaveLength(0);
+    await request(app).delete(`/elements/${el.identifier}`);
+  });
+
+  it("deduplicates views when element appears as multiple nodes in the same view", async () => {
+    const el = (await request(app).post("/elements").send({ type: "BusinessActor", name: "DedupEl" })).body as ElementOut;
+    const view = (await request(app).post("/views").send({ name: "DedupView" })).body as ViewOut;
+    // Add same element twice as two distinct nodes
+    await request(app).post(`/views/${view.identifier}/nodes`).send({ element_id: el.identifier, x: 0, y: 0, w: 120, h: 55 });
+    await request(app).post(`/views/${view.identifier}/nodes`).send({ element_id: el.identifier, x: 200, y: 0, w: 120, h: 55 });
+    const data = (await request(app).get(`/elements/${el.identifier}/views`)).body as ViewOut[];
+    // Despite two nodes, only one view entry is returned
+    expect(data).toHaveLength(1);
+    expect(data[0]!.identifier).toBe(view.identifier);
+    await request(app).delete(`/views/${view.identifier}`);
+    await request(app).delete(`/elements/${el.identifier}`);
+  });
+});
+
+// ===========================================================================
 // Integration tests – GET /elements/:id/relationships
 // ===========================================================================
 
