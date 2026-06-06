@@ -87,9 +87,9 @@ function InfoTab() {
     <div className="space-y-8">
       {/* Informations */}
       <div className="space-y-4">
-        <h3 className="text-[13px] font-semibold text-muted-foreground uppercase tracking-wide">
+        <h2 className="text-[13px] font-semibold text-muted-foreground uppercase tracking-wide">
           Informations
-        </h3>
+        </h2>
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <Label htmlFor="profile-username">Nom d&apos;utilisateur</Label>
@@ -141,9 +141,9 @@ function InfoTab() {
 
       {/* Mot de passe */}
       <div className="space-y-4">
-        <h3 className="text-[13px] font-semibold text-muted-foreground uppercase tracking-wide">
+        <h2 className="text-[13px] font-semibold text-muted-foreground uppercase tracking-wide">
           Mot de passe
-        </h3>
+        </h2>
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2">
             <Label htmlFor="current-pw">Mot de passe actuel</Label>
