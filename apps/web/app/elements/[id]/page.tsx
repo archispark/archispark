@@ -406,6 +406,62 @@ export default function ElementDetailPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   ], [isAdmin, byId, id]);
 
+  const viewColumns: ColumnDef<ViewOut>[] = useMemo(() => [
+    {
+      id: "expand", header: "", enableSorting: false,
+      cell: ({ row }) => (
+        <button type="button" onClick={() => row.toggleExpanded()}
+          className="text-muted-foreground hover:text-foreground transition-colors"
+          aria-label={row.getIsExpanded() ? t("common.collapse") : t("common.expand")}>
+          {row.getIsExpanded() ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
+        </button>
+      ),
+    },
+    {
+      id: "status", header: t("relationships.status"), enableSorting: true,
+      accessorFn: (row) => row.conflict_count,
+      cell: ({ row }) => {
+        const { connection_count, ok_count, conflict_count } = row.original;
+        if (connection_count === 0) {
+          return <span className="text-[13px] text-muted-foreground">—</span>;
+        }
+        if (conflict_count === 0) {
+          return (
+            <span className="inline-flex items-center justify-center size-5 rounded-full bg-emerald-500/15 text-emerald-700 text-[11px]" title={`${ok_count} relations valides`}>
+              ✓
+            </span>
+          );
+        }
+        return (
+          <span className="inline-flex items-center justify-center size-5 rounded-full bg-destructive/15 text-destructive text-[11px]" title={`${conflict_count} conflit(s)`}>
+            ✕
+          </span>
+        );
+      },
+    },
+    {
+      accessorKey: "name", header: t("common.name"),
+      cell: ({ row }) => (
+        <Link href={`/views/${encodeURIComponent(row.original.identifier)}`} className="font-medium text-foreground hover:text-primary no-underline">
+          {row.original.name || t("views.unnamed")}
+        </Link>
+      ),
+    },
+    {
+      accessorKey: "viewpoint", header: t("views.viewpoint"),
+      cell: ({ row }) => <span className="text-[13px] text-muted-foreground">{row.original.viewpoint || "—"}</span>,
+    },
+    {
+      accessorKey: "node_count", header: t("views.nodes"),
+      cell: ({ row }) => <span className="text-[13px] text-muted-foreground">{row.original.node_count}</span>,
+    },
+    {
+      accessorKey: "connection_count", header: t("views.connections"),
+      cell: ({ row }) => <span className="text-[13px] text-muted-foreground">{row.original.connection_count}</span>,
+    },
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  ], [t]);
+
   // ── Element select options (excludes self) ────────────────────────────────
   const elementSelectOpts = useMemo(
     () => allElements.filter((e) => e.identifier !== id),
@@ -671,38 +727,38 @@ export default function ElementDetailPage() {
         {/* ── Views tab ────────────────────────────────────────────────────── */}
         {activeTab === "views" && (
           <div className="flex-1 min-h-0 overflow-y-auto pt-3 pb-4">
-            <div className="space-y-1">
-              {elementViews.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-4 text-center">{t("elements.not_in_views_hint")}</p>
-              ) : (
-                elementViews.map((view: ViewOut) => (
-                  <Link
-                    key={view.identifier}
-                    href={`/views/${encodeURIComponent(view.identifier)}`}
-                    className="flex items-center justify-between rounded-md border border-border px-4 py-3 hover:bg-muted/40 transition-colors group"
-                  >
-                    <div className="space-y-0.5 min-w-0">
-                      <div className="text-sm font-medium truncate">{view.name || view.identifier}</div>
-                      {view.viewpoint && (
-                        <div className="text-[11px] text-muted-foreground">{view.viewpoint}</div>
-                      )}
+            {elementViews.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-4 text-center">{t("elements.not_in_views_hint")}</p>
+            ) : (
+              <DataTable<ViewOut, unknown>
+                columns={viewColumns}
+                data={elementViews}
+                pageSize={10}
+                searchable
+                searchPlaceholder={t("views.search")}
+                initialSorting={[{ id: "status", desc: true }]}
+                getRowId={(row) => row.identifier}
+                footerStats={<>
+                  <span className="text-emerald-600">{viewCounts.ok} {t("common.ok")}</span>
+                  {viewCounts.bad > 0 && <> · <span className="text-destructive">{viewCounts.bad} {t("common.conflicts").toLowerCase()}</span></>}
+                </>}
+                renderSubRow={(row) => {
+                  const { ok_count, conflict_count } = row.original;
+                  return (
+                    <div className="flex items-center gap-2 text-[12px] text-muted-foreground py-0.5">
+                      <span className="font-medium">Relations :</span>
+                      <span className="flex items-center gap-1">
+                        <span className="inline-flex items-center justify-center size-4 rounded-full bg-emerald-500/15 text-emerald-700 text-[10px]">✓</span>
+                        <span className="text-emerald-700 font-medium">{ok_count} valide{ok_count !== 1 ? "s" : ""}</span>
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <span className="inline-flex items-center justify-center size-4 rounded-full bg-destructive/15 text-destructive text-[10px]">✕</span>
+                        <span className={conflict_count > 0 ? "text-destructive font-medium" : ""}>{conflict_count} conflit{conflict_count !== 1 ? "s" : ""}</span>
+                      </span>
                     </div>
-                    <div className="flex items-center gap-3 shrink-0 ml-4">
-                      <span className="text-[11px] text-muted-foreground tabular-nums">{view.node_count} nodes</span>
-                      <ChevronRight className="size-3.5 text-muted-foreground group-hover:text-foreground transition-colors" />
-                    </div>
-                  </Link>
-                ))
-              )}
-            </div>
-            {elementViews.length > 0 && (
-              <div className="flex items-center gap-1.5 px-1 pt-3 text-sm text-muted-foreground flex-wrap">
-                {t("common.results", { n: elementViews.length, s: elementViews.length !== 1 ? "s" : "" })}
-                {" · "}
-                <span className="text-emerald-600">{viewCounts.ok} OK</span>
-                {" · "}
-                <span className={viewCounts.bad > 0 ? "text-destructive" : ""}>{viewCounts.bad} {t("common.conflicts").toLowerCase()}</span>
-              </div>
+                  );
+                }}
+              />
             )}
           </div>
         )}

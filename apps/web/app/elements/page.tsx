@@ -41,10 +41,11 @@ import {
 } from "@workspace/ui/components/dialog";
 import { DataTable } from "@/components/data-table";
 import { PropertiesEditor } from "@/components/properties-editor";
-import { Plus, ChevronDown, ChevronRight } from "lucide-react";
+import { Plus, ChevronDown, ChevronRight, Trash2 } from "lucide-react";
 import type { Property } from "@/lib/api";
 import { allowedRelationships } from "@/lib/archimate-rules";
 import { useIsAdmin } from "@/hooks/use-current-user";
+import { useFormModal } from "@/hooks/use-form-modal";
 import { useKeyboardShortcut } from "@/hooks/use-keyboard-shortcut";
 import { useT } from "@/lib/i18n";
 const LAYER_COLORS = LAYER_BADGE_COLORS;
@@ -97,9 +98,17 @@ function ElementsPageInner() {
   }, [allRelationships, byId]);
 
   const deleteMutation = useDeleteElement();
+  const [deleteModal, deleteActions] = useFormModal<ElementOut>();
 
   async function handleBulkDelete(rows: ElementOut[]) {
     await Promise.all(rows.map((el) => deleteMutation.mutateAsync(el.identifier)));
+  }
+
+  async function handleDeleteSingle() {
+    if (!deleteModal.target) return;
+    await deleteActions.run(async () => {
+      await deleteMutation.mutateAsync(deleteModal.target!.identifier);
+    });
   }
 
   // Create dialog
@@ -207,8 +216,23 @@ function ElementsPageInner() {
         );
       },
     },
+    ...(isAdmin ? [{
+      id: "actions",
+      header: "",
+      enableSorting: false,
+      cell: ({ row }: { row: { original: ElementOut } }) => (
+        <button
+          type="button"
+          onClick={(e) => { e.preventDefault(); e.stopPropagation(); deleteActions.openWith(row.original); }}
+          className="p-1 rounded text-destructive hover:bg-destructive/10 transition-colors"
+          aria-label={t("common.delete")}
+        >
+          <Trash2 className="size-3.5" />
+        </button>
+      ),
+    } as ColumnDef<ElementOut>] : []),
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  ], [inViewsSet, relStats]);
+  ], [inViewsSet, relStats, isAdmin]);
 
   const filteredElements = useMemo(() => {
     let result = layerFilter ? elements.filter((el) => getLayer(el.type) === layerFilter) : elements;
@@ -388,6 +412,22 @@ function ElementsPageInner() {
           );
         }}
       />
+
+      <Dialog open={deleteModal.open} onOpenChange={(o) => !o && deleteActions.close()}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{t("elements.delete_title")}</DialogTitle>
+            <DialogDescription>{t("elements.delete_desc", { name: deleteModal.target?.name || "?" })}</DialogDescription>
+          </DialogHeader>
+          {deleteModal.error && <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">{deleteModal.error}</div>}
+          <DialogFooter>
+            <DialogClose render={<Button variant="outline" />}>{t("common.cancel")}</DialogClose>
+            <Button variant="destructive" onClick={handleDeleteSingle} disabled={deleteModal.isPending}>
+              {deleteModal.isPending ? t("common.deleting") : t("common.delete")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
