@@ -587,6 +587,13 @@ function GraphCanvas({ element, allRelationships, byId }: ElementGraphTabProps) 
     layout(direction, depth, hiddenElRef.current, hiddenRelRef.current, indirect);
   }
 
+  function changeDepth(d: number) {
+    setDepth(d);
+    if (d > 1 && !showIndirect) {
+      setShowIndirect(true);
+    }
+  }
+
   const EDGE_PATH_LABELS: Record<EdgePathType, string> = {
     smoothstep: "Lisse",
     bezier: "Bezier",
@@ -614,7 +621,7 @@ function GraphCanvas({ element, allRelationships, byId }: ElementGraphTabProps) 
               <button
                 key={d}
                 type="button"
-                onClick={() => setDepth(d)}
+                onClick={() => changeDepth(d)}
                 className={`w-6 h-6 text-xs rounded border transition-colors ${
                   depth === d
                     ? "bg-primary text-primary-foreground border-primary"
@@ -627,20 +634,26 @@ function GraphCanvas({ element, allRelationships, byId }: ElementGraphTabProps) 
           </div>
           <div className="flex items-center gap-1.5">
             <span className="text-xs text-muted-foreground">Relations</span>
-            {([false, true] as const).map((indirect) => (
-              <button
-                key={String(indirect)}
-                type="button"
-                onClick={() => changeShowIndirect(indirect)}
-                className={`text-xs px-2 h-6 rounded border transition-colors ${
-                  showIndirect === indirect
-                    ? "bg-primary text-primary-foreground border-primary"
-                    : "border-border text-muted-foreground hover:text-foreground hover:border-ring"
-                }`}
-              >
-                {indirect ? "Indirect" : "Direct"}
-              </button>
-            ))}
+            {([false, true] as const).map((indirect) => {
+              const isDisabled = !indirect && depth > 1;
+              return (
+                <button
+                  key={String(indirect)}
+                  type="button"
+                  onClick={() => changeShowIndirect(indirect)}
+                  disabled={isDisabled}
+                  className={`text-xs px-2 h-6 rounded border transition-colors ${
+                    showIndirect === indirect
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : isDisabled
+                        ? "border-border text-muted-foreground opacity-40 cursor-not-allowed"
+                        : "border-border text-muted-foreground hover:text-foreground hover:border-ring"
+                  }`}
+                >
+                  {indirect ? "Indirect" : "Direct"}
+                </button>
+              );
+            })}
           </div>
         </div>
 
