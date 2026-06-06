@@ -161,6 +161,25 @@ const UserOutSchema = registry.register("UserOut", z.object({
   created_at: z.string().datetime(),
 }).openapi("UserOut"));
 
+const ApiTokenOutSchema = registry.register("ApiTokenOut", z.object({
+  id:           z.number().int(),
+  name:         z.string(),
+  user_id:      z.string(),
+  created_at:   z.number().int().openapi({ description: "Timestamp Unix (secondes)" }),
+  last_used_at: z.number().int().nullable().openapi({ description: "Timestamp Unix, null si jamais utilisé" }),
+  expires_at:   z.number().int().nullable().openapi({ description: "Timestamp Unix d'expiration, null = aucune expiration" }),
+}).openapi("ApiTokenOut"));
+
+const ApiTokenCreateSchema = registry.register("ApiTokenCreate", z.object({
+  name:       z.string().openapi({ example: "CI pipeline" }),
+  expires_at: z.number().int().nullable().optional()
+               .openapi({ description: "Timestamp Unix d'expiration. Null ou absent = aucune expiration." }),
+}).openapi("ApiTokenCreate"));
+
+const ApiTokenCreatedSchema = registry.register("ApiTokenCreated", ApiTokenOutSchema.extend({
+  token: z.string().openapi({ description: "Valeur du token (retournée une seule fois à la création)" }),
+}).openapi("ApiTokenCreated"));
+
 const RoleOutSchema = registry.register("RoleOut", z.object({
   id:          z.string(),
   name:        z.string(),
@@ -200,13 +219,16 @@ const RoleCreateInput      = registry.register("RoleCreateInput",      RoleCreat
 const RoleUpdateInput      = registry.register("RoleUpdateInput",      RoleUpdateSchema.openapi("RoleUpdateInput"));
 
 // ---------------------------------------------------------------------------
-// Reusable responses
+// Reusable responses & security
 // ---------------------------------------------------------------------------
 
 const NotFound        = { description: "Ressource introuvable",       content: { "application/json": { schema: ErrorDetailSchema } } };
 const UnprocessableType = { description: "Type ArchiMate invalide",   content: { "application/json": { schema: ErrorDetailSchema } } };
 const Unauthorized    = { description: "Non authentifié",             content: { "application/json": { schema: ErrorDetailSchema } } };
 const Forbidden       = { description: "Permission insuffisante",     content: { "application/json": { schema: ErrorDetailSchema } } };
+
+// Cookie session OR Bearer token — either is accepted on all protected routes.
+const BothAuth: Array<Record<string, string[]>> = [{ cookieAuth: [] }, { bearerAuth: [] }];
 
 // ---------------------------------------------------------------------------
 // Paths
@@ -215,12 +237,14 @@ const Forbidden       = { description: "Permission insuffisante",     content: {
 registry.registerPath({
   method: "get", path: "/", tags: ["Model"],
   summary: "Métadonnées du modèle", operationId: "getModelInfo",
+  security: BothAuth,
   responses: { 200: { description: "Informations globales du modèle", content: { "application/json": { schema: ModelInfoSchema } } } },
 });
 
 registry.registerPath({
   method: "post", path: "/save", tags: ["Model"],
   summary: "Sauvegarder le modèle sur disque", operationId: "saveModel",
+  security: BothAuth,
   description: "Sérialise le modèle en mémoire et l'écrit dans son fichier .xml (Open Exchange File).",
   responses: {
     200: { description: "Modèle sauvegardé", content: { "application/json": { schema: SaveResultSchema } } },
@@ -231,6 +255,7 @@ registry.registerPath({
 registry.registerPath({
   method: "get", path: "/elements/types", tags: ["Elements"],
   summary: "Types d'éléments présents", operationId: "listElementTypes",
+  security: BothAuth,
   responses: {
     200: {
       description: "Liste triée des types d'éléments ArchiMate 3.1 présents",
@@ -242,6 +267,7 @@ registry.registerPath({
 registry.registerPath({
   method: "get", path: "/elements", tags: ["Elements"],
   summary: "Lister les éléments", operationId: "listElements",
+  security: BothAuth,
   request: {
     query: z.object({
       type: z.enum(elementTypesEnum).optional().openapi({ description: "Filtrer par type ArchiMate 3.1" }),
@@ -257,6 +283,7 @@ registry.registerPath({
 registry.registerPath({
   method: "post", path: "/elements", tags: ["Elements"],
   summary: "Créer un élément", operationId: "createElement",
+  security: BothAuth,
   request: { body: { required: true, content: { "application/json": { schema: ElementCreateInput } } } },
   responses: {
     201: { description: "Élément créé", content: { "application/json": { schema: ElementSchema } } },
@@ -267,6 +294,7 @@ registry.registerPath({
 registry.registerPath({
   method: "get", path: "/elements/{identifier}", tags: ["Elements"],
   summary: "Détail d'un élément", operationId: "getElementById",
+  security: BothAuth,
   request: { params: z.object({ identifier: z.string().openapi({ description: "Identifiant de l'élément" }) }) },
   responses: {
     200: { description: "Élément ArchiMate", content: { "application/json": { schema: ElementSchema } } },
@@ -277,6 +305,7 @@ registry.registerPath({
 registry.registerPath({
   method: "put", path: "/elements/{identifier}", tags: ["Elements"],
   summary: "Modifier un élément", operationId: "updateElement",
+  security: BothAuth,
   request: {
     params: z.object({ identifier: z.string() }),
     body: { required: true, content: { "application/json": { schema: ElementUpdateInput } } },
@@ -290,6 +319,7 @@ registry.registerPath({
 registry.registerPath({
   method: "delete", path: "/elements/{identifier}", tags: ["Elements"],
   summary: "Supprimer un élément", operationId: "deleteElement",
+  security: BothAuth,
   request: { params: z.object({ identifier: z.string() }) },
   responses: {
     204: { description: "Élément supprimé (et relations associées)" },
@@ -300,6 +330,7 @@ registry.registerPath({
 registry.registerPath({
   method: "get", path: "/relationships/types", tags: ["Relationships"],
   summary: "Types de relations présents", operationId: "listRelationshipTypes",
+  security: BothAuth,
   responses: {
     200: {
       description: "Liste triée des types de relations ArchiMate 3.1 présents",
@@ -311,6 +342,7 @@ registry.registerPath({
 registry.registerPath({
   method: "get", path: "/relationships", tags: ["Relationships"],
   summary: "Lister les relations", operationId: "listRelationships",
+  security: BothAuth,
   request: {
     query: z.object({
       type:      z.enum(relationshipTypesEnum).optional().openapi({ description: "Filtrer par type de relation" }),
@@ -327,6 +359,7 @@ registry.registerPath({
 registry.registerPath({
   method: "post", path: "/relationships", tags: ["Relationships"],
   summary: "Créer une relation", operationId: "createRelationship",
+  security: BothAuth,
   request: { body: { required: true, content: { "application/json": { schema: RelationshipCreateInput } } } },
   responses: {
     201: { description: "Relation créée", content: { "application/json": { schema: RelationshipSchema } } },
@@ -337,6 +370,7 @@ registry.registerPath({
 registry.registerPath({
   method: "get", path: "/relationships/{identifier}", tags: ["Relationships"],
   summary: "Détail d'une relation", operationId: "getRelationshipById",
+  security: BothAuth,
   request: { params: z.object({ identifier: z.string().openapi({ description: "Identifiant de la relation" }) }) },
   responses: {
     200: { description: "Relation ArchiMate", content: { "application/json": { schema: RelationshipSchema } } },
@@ -347,6 +381,7 @@ registry.registerPath({
 registry.registerPath({
   method: "put", path: "/relationships/{identifier}", tags: ["Relationships"],
   summary: "Modifier une relation", operationId: "updateRelationship",
+  security: BothAuth,
   request: {
     params: z.object({ identifier: z.string() }),
     body: { required: true, content: { "application/json": { schema: RelationshipUpdateInput } } },
@@ -360,6 +395,7 @@ registry.registerPath({
 registry.registerPath({
   method: "delete", path: "/relationships/{identifier}", tags: ["Relationships"],
   summary: "Supprimer une relation", operationId: "deleteRelationship",
+  security: BothAuth,
   request: { params: z.object({ identifier: z.string() }) },
   responses: {
     204: { description: "Relation supprimée" },
@@ -370,6 +406,7 @@ registry.registerPath({
 registry.registerPath({
   method: "get", path: "/views", tags: ["Views"],
   summary: "Lister les vues", operationId: "listViews",
+  security: BothAuth,
   responses: {
     200: { description: "Liste des vues avec compteurs", content: { "application/json": { schema: z.array(ViewSchema) } } },
   },
@@ -378,6 +415,7 @@ registry.registerPath({
 registry.registerPath({
   method: "post", path: "/views", tags: ["Views"],
   summary: "Créer une vue", operationId: "createView",
+  security: BothAuth,
   request: { body: { required: true, content: { "application/json": { schema: ViewCreateInput } } } },
   responses: {
     201: { description: "Vue créée", content: { "application/json": { schema: ViewDetailSchema } } },
@@ -388,6 +426,7 @@ registry.registerPath({
 registry.registerPath({
   method: "get", path: "/views/{identifier}", tags: ["Views"],
   summary: "Détail d'une vue", operationId: "getViewById",
+  security: BothAuth,
   request: { params: z.object({ identifier: z.string().openapi({ description: "Identifiant de la vue" }) }) },
   responses: {
     200: { description: "Vue avec nœuds et connexions", content: { "application/json": { schema: ViewDetailSchema } } },
@@ -398,6 +437,7 @@ registry.registerPath({
 registry.registerPath({
   method: "get", path: "/views/{view_id}/image", tags: ["Views"],
   summary: "Rendu SVG d'une vue", operationId: "renderView",
+  security: BothAuth,
   request: {
     params: z.object({ view_id: z.string().openapi({ description: "Identifiant de la vue" }) }),
     query: z.object({
@@ -414,6 +454,7 @@ registry.registerPath({
 registry.registerPath({
   method: "post", path: "/views/{view_id}/nodes", tags: ["Views"],
   summary: "Ajouter un nœud à une vue", operationId: "createNode",
+  security: BothAuth,
   request: {
     params: z.object({ view_id: z.string().openapi({ description: "Identifiant de la vue" }) }),
     body: { required: true, content: { "application/json": { schema: NodeCreateInput } } },
@@ -450,6 +491,7 @@ registry.registerPath({
 registry.registerPath({
   method: "post", path: "/views/{view_id}/connections", tags: ["Views"],
   summary: "Créer une connexion dans une vue", operationId: "createConnection",
+  security: BothAuth,
   request: {
     params: z.object({ view_id: z.string() }),
     body: { required: true, content: { "application/json": { schema: ConnectionCreateInput } } },
@@ -486,7 +528,8 @@ registry.registerPath({
 registry.registerPath({
   method: "get", path: "/me", tags: ["Auth"],
   summary: "Utilisateur courant", operationId: "getMe",
-  security: [{ cookieAuth: [] }],
+  security: BothAuth,
+  description: "Retourne les informations de l'utilisateur authentifié (cookie de session ou Bearer token).",
   responses: {
     200: { description: "Utilisateur connecté", content: { "application/json": { schema: UserOutSchema } } },
     401: Unauthorized,
@@ -496,7 +539,7 @@ registry.registerPath({
 registry.registerPath({
   method: "get", path: "/workspaces", tags: ["Workspaces"],
   summary: "Lister les workspaces", operationId: "listWorkspaces",
-  security: [{ cookieAuth: [] }],
+  security: BothAuth,
   responses: {
     200: { description: "Liste des workspaces", content: { "application/json": { schema: z.array(WorkspaceInfoSchema) } } },
     401: Unauthorized,
@@ -506,7 +549,7 @@ registry.registerPath({
 registry.registerPath({
   method: "post", path: "/workspaces", tags: ["Workspaces"],
   summary: "Créer un workspace", operationId: "createWorkspace",
-  security: [{ cookieAuth: [] }],
+  security: BothAuth,
   request: { body: { required: true, content: { "application/json": { schema: WorkspaceCreateInput } } } },
   responses: {
     201: { description: "Workspace créé", content: { "application/json": { schema: WorkspaceInfoSchema } } },
@@ -517,7 +560,7 @@ registry.registerPath({
 registry.registerPath({
   method: "put", path: "/workspaces/{id}", tags: ["Workspaces"],
   summary: "Renommer un workspace", operationId: "updateWorkspace",
-  security: [{ cookieAuth: [] }],
+  security: BothAuth,
   request: {
     params: z.object({ id: z.string() }),
     body: { required: true, content: { "application/json": { schema: WorkspaceUpdateInput } } },
@@ -531,7 +574,7 @@ registry.registerPath({
 registry.registerPath({
   method: "delete", path: "/workspaces/{id}", tags: ["Workspaces"],
   summary: "Supprimer un workspace", operationId: "deleteWorkspace",
-  security: [{ cookieAuth: [] }],
+  security: BothAuth,
   request: { params: z.object({ id: z.string() }) },
   responses: {
     204: { description: "Workspace supprimé" },
@@ -542,7 +585,7 @@ registry.registerPath({
 registry.registerPath({
   method: "post", path: "/workspaces/{id}/activate", tags: ["Workspaces"],
   summary: "Activer un workspace", operationId: "activateWorkspace",
-  security: [{ cookieAuth: [] }],
+  security: BothAuth,
   request: { params: z.object({ id: z.string() }) },
   responses: {
     200: { description: "Workspace activé", content: { "application/json": { schema: WorkspaceInfoSchema } } },
@@ -553,7 +596,7 @@ registry.registerPath({
 registry.registerPath({
   method: "get", path: "/users", tags: ["Users"],
   summary: "Lister les utilisateurs", operationId: "listUsers",
-  security: [{ cookieAuth: [] }],
+  security: BothAuth,
   responses: {
     200: { description: "Liste des utilisateurs", content: { "application/json": { schema: z.array(UserOutSchema) } } },
     401: Unauthorized, 403: Forbidden,
@@ -563,7 +606,7 @@ registry.registerPath({
 registry.registerPath({
   method: "get", path: "/users/{uid}/roles", tags: ["Users"],
   summary: "Rôles d'un utilisateur", operationId: "listUserRoles",
-  security: [{ cookieAuth: [] }],
+  security: BothAuth,
   request: { params: z.object({ uid: z.string() }) },
   responses: {
     200: { description: "Rôles assignés", content: { "application/json": { schema: z.array(RoleOutSchema) } } },
@@ -574,7 +617,7 @@ registry.registerPath({
 registry.registerPath({
   method: "get", path: "/roles", tags: ["Roles"],
   summary: "Lister les rôles", operationId: "listRoles",
-  security: [{ cookieAuth: [] }],
+  security: BothAuth,
   responses: {
     200: { description: "Liste des rôles RBAC", content: { "application/json": { schema: z.array(RoleOutSchema) } } },
     401: Unauthorized,
@@ -584,7 +627,7 @@ registry.registerPath({
 registry.registerPath({
   method: "post", path: "/roles", tags: ["Roles"],
   summary: "Créer un rôle", operationId: "createRole",
-  security: [{ cookieAuth: [] }],
+  security: BothAuth,
   request: { body: { required: true, content: { "application/json": { schema: RoleCreateInput } } } },
   responses: {
     201: { description: "Rôle créé", content: { "application/json": { schema: RoleOutSchema } } },
@@ -595,7 +638,7 @@ registry.registerPath({
 registry.registerPath({
   method: "get", path: "/roles/{id}", tags: ["Roles"],
   summary: "Détail d'un rôle", operationId: "getRole",
-  security: [{ cookieAuth: [] }],
+  security: BothAuth,
   request: { params: z.object({ id: z.string() }) },
   responses: {
     200: { description: "Rôle", content: { "application/json": { schema: RoleOutSchema } } },
@@ -606,7 +649,7 @@ registry.registerPath({
 registry.registerPath({
   method: "put", path: "/roles/{id}", tags: ["Roles"],
   summary: "Modifier un rôle", operationId: "updateRole",
-  security: [{ cookieAuth: [] }],
+  security: BothAuth,
   request: {
     params: z.object({ id: z.string() }),
     body: { required: true, content: { "application/json": { schema: RoleUpdateInput } } },
@@ -620,7 +663,7 @@ registry.registerPath({
 registry.registerPath({
   method: "delete", path: "/roles/{id}", tags: ["Roles"],
   summary: "Supprimer un rôle", operationId: "deleteRole",
-  security: [{ cookieAuth: [] }],
+  security: BothAuth,
   request: { params: z.object({ id: z.string() }) },
   responses: {
     204: { description: "Rôle supprimé" },
@@ -631,7 +674,7 @@ registry.registerPath({
 registry.registerPath({
   method: "get", path: "/roles/{id}/layers/{layer}", tags: ["Roles"],
   summary: "Permissions d'un rôle sur une couche", operationId: "getRoleLayer",
-  security: [{ cookieAuth: [] }],
+  security: BothAuth,
   request: {
     params: z.object({
       id:    z.string(),
@@ -647,7 +690,7 @@ registry.registerPath({
 registry.registerPath({
   method: "put", path: "/roles/{id}/layers/{layer}", tags: ["Roles"],
   summary: "Définir permissions sur une couche", operationId: "setRoleLayer",
-  security: [{ cookieAuth: [] }],
+  security: BothAuth,
   request: {
     params: z.object({ id: z.string(), layer: z.string() }),
     body: {
@@ -670,7 +713,7 @@ registry.registerPath({
 registry.registerPath({
   method: "delete", path: "/roles/{id}/layers/{layer}", tags: ["Roles"],
   summary: "Supprimer permissions sur une couche", operationId: "deleteRoleLayer",
-  security: [{ cookieAuth: [] }],
+  security: BothAuth,
   request: { params: z.object({ id: z.string(), layer: z.string() }) },
   responses: {
     204: { description: "Permissions supprimées" },
@@ -681,7 +724,7 @@ registry.registerPath({
 registry.registerPath({
   method: "put", path: "/roles/{id}/users/{uid}", tags: ["Roles"],
   summary: "Assigner un utilisateur à un rôle", operationId: "assignUserToRole",
-  security: [{ cookieAuth: [] }],
+  security: BothAuth,
   request: { params: z.object({ id: z.string(), uid: z.string() }) },
   responses: {
     200: { description: "Assignation effectuée" },
@@ -692,7 +735,7 @@ registry.registerPath({
 registry.registerPath({
   method: "delete", path: "/roles/{id}/users/{uid}", tags: ["Roles"],
   summary: "Retirer un utilisateur d'un rôle", operationId: "unassignUserFromRole",
-  security: [{ cookieAuth: [] }],
+  security: BothAuth,
   request: { params: z.object({ id: z.string(), uid: z.string() }) },
   responses: {
     204: { description: "Désassignation effectuée" },
@@ -703,12 +746,56 @@ registry.registerPath({
 registry.registerPath({
   method: "get", path: "/property-definitions", tags: ["PropertyDefinitions"],
   summary: "Lister les définitions de propriétés", operationId: "listPropertyDefinitions",
-  security: [{ cookieAuth: [] }],
+  security: BothAuth,
   responses: {
     200: { description: "Définitions de propriétés", content: { "application/json": { schema: z.array(PropertyDefinitionSchema) } } },
     401: Unauthorized,
   },
 });
+
+// ---------------------------------------------------------------------------
+// Settings — API tokens
+// ---------------------------------------------------------------------------
+
+registry.registerPath({
+  method: "get", path: "/settings/api-tokens", tags: ["Settings"],
+  summary: "Lister les tokens API", operationId: "listApiTokens",
+  security: BothAuth,
+  description: "Retourne les tokens de l'utilisateur courant. Les administrateurs voient tous les tokens.",
+  responses: {
+    200: { description: "Liste des tokens", content: { "application/json": { schema: z.array(ApiTokenOutSchema) } } },
+    401: Unauthorized,
+  },
+});
+
+registry.registerPath({
+  method: "post", path: "/settings/api-tokens", tags: ["Settings"],
+  summary: "Créer un token API", operationId: "createApiToken",
+  security: BothAuth,
+  description:
+    "Crée un nouveau token personnel. La valeur du token (champ `token`) n'est retournée qu'à la création — elle ne peut plus être récupérée ensuite.",
+  request: { body: { required: true, content: { "application/json": { schema: ApiTokenCreateSchema } } } },
+  responses: {
+    201: { description: "Token créé (contient la valeur en clair)", content: { "application/json": { schema: ApiTokenCreatedSchema } } },
+    401: Unauthorized,
+    422: { description: "Champ 'name' manquant ou vide", content: { "application/json": { schema: ErrorDetailSchema } } },
+  },
+});
+
+registry.registerPath({
+  method: "delete", path: "/settings/api-tokens/{id}", tags: ["Settings"],
+  summary: "Supprimer un token API", operationId: "deleteApiToken",
+  security: BothAuth,
+  request: { params: z.object({ id: z.string().openapi({ description: "ID numérique du token" }) }) },
+  responses: {
+    204: { description: "Token supprimé" },
+    401: Unauthorized,
+    403: Forbidden,
+    404: NotFound,
+    422: { description: "ID non numérique", content: { "application/json": { schema: ErrorDetailSchema } } },
+  },
+});
+
 
 registry.registerPath({
   method: "post", path: "/mcp/", tags: ["MCP"],
@@ -762,7 +849,8 @@ const _doc: Record<string, any> = generator.generateDocument({
     version,
     description:
       "API REST pour interroger et modifier un modèle ArchiMate 3.1. " +
-      "Authentification via Better Auth (cookie httpOnly). Permissions RBAC par couche ArchiMate.",
+      "Authentification via cookie de session (Better Auth) ou Bearer token (token API personnel). " +
+      "Permissions RBAC par couche ArchiMate.",
     contact: { name: "GitHub", url: "https://github.com/archispark/archispark" },
   },
   servers: [{ url: "http://localhost:3000", description: "Serveur local" }],
@@ -776,6 +864,7 @@ const _doc: Record<string, any> = generator.generateDocument({
     { name: "PropertyDefinitions", description: "Définitions de propriétés" },
     { name: "Users",               description: "Gestion des utilisateurs" },
     { name: "Roles",               description: "Rôles et permissions RBAC" },
+    { name: "Settings",            description: "Tokens API personnels" },
     { name: "MCP",                 description: "Transport MCP (streamable-http)" },
   ],
 });
@@ -795,7 +884,9 @@ export const openApiSpec: Record<string, any> = {
       bearerAuth: {
         type: "http",
         scheme: "bearer",
-        description: "Token personnel généré depuis Mon compte → Token.",
+        description:
+          "Token API personnel. Créez-en un via POST /settings/api-tokens (Mon compte → Tokens dans l'interface). " +
+          "Envoyez-le dans l'en-tête : Authorization: Bearer <token>.",
       },
     },
   },

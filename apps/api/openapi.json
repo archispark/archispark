@@ -3,7 +3,7 @@
   "info": {
     "title": "ArchiSpark API",
     "version": "0.1.0",
-    "description": "API REST pour interroger et modifier un modèle ArchiMate 3.1. Authentification via Better Auth (cookie httpOnly). Permissions RBAC par couche ArchiMate.",
+    "description": "API REST pour interroger et modifier un modèle ArchiMate 3.1. Authentification via cookie de session (Better Auth) ou Bearer token (token API personnel). Permissions RBAC par couche ArchiMate.",
     "contact": {
       "name": "GitHub",
       "url": "https://github.com/archispark/archispark"
@@ -51,6 +51,10 @@
     {
       "name": "Roles",
       "description": "Rôles et permissions RBAC"
+    },
+    {
+      "name": "Settings",
+      "description": "Tokens API personnels"
     },
     {
       "name": "MCP",
@@ -636,6 +640,78 @@
           "created_at"
         ]
       },
+      "ApiTokenOut": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "integer",
+            "description": "Timestamp Unix (secondes)"
+          },
+          "last_used_at": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Timestamp Unix, null si jamais utilisé"
+          },
+          "expires_at": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Timestamp Unix d'expiration, null = aucune expiration"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "user_id",
+          "created_at",
+          "last_used_at",
+          "expires_at"
+        ]
+      },
+      "ApiTokenCreate": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "CI pipeline"
+          },
+          "expires_at": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Timestamp Unix d'expiration. Null ou absent = aucune expiration."
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "ApiTokenCreated": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiTokenOut"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "token": {
+                "type": "string",
+                "description": "Valeur du token (retournée une seule fois à la création)"
+              }
+            },
+            "required": [
+              "token"
+            ]
+          }
+        ]
+      },
       "RoleOut": {
         "type": "object",
         "properties": {
@@ -1171,7 +1247,7 @@
       "bearerAuth": {
         "type": "http",
         "scheme": "bearer",
-        "description": "Token personnel généré depuis Mon compte → Token."
+        "description": "Token API personnel. Créez-en un via POST /settings/api-tokens (Mon compte → Tokens dans l'interface). Envoyez-le dans l'en-tête : Authorization: Bearer <token>."
       }
     }
   },
@@ -1183,6 +1259,14 @@
         ],
         "summary": "Métadonnées du modèle",
         "operationId": "getModelInfo",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
         "responses": {
           "200": {
             "description": "Informations globales du modèle",
@@ -1204,6 +1288,14 @@
         ],
         "summary": "Sauvegarder le modèle sur disque",
         "operationId": "saveModel",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
         "description": "Sérialise le modèle en mémoire et l'écrit dans son fichier .xml (Open Exchange File).",
         "responses": {
           "200": {
@@ -1236,6 +1328,14 @@
         ],
         "summary": "Types d'éléments présents",
         "operationId": "listElementTypes",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
         "responses": {
           "200": {
             "description": "Liste triée des types d'éléments ArchiMate 3.1 présents",
@@ -1264,6 +1364,14 @@
         ],
         "summary": "Lister les éléments",
         "operationId": "listElements",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
         "parameters": [
           {
             "schema": {
@@ -1382,6 +1490,14 @@
         ],
         "summary": "Créer un élément",
         "operationId": "createElement",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -1423,6 +1539,14 @@
         ],
         "summary": "Détail d'un élément",
         "operationId": "getElementById",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
         "parameters": [
           {
             "schema": {
@@ -1464,6 +1588,14 @@
         ],
         "summary": "Modifier un élément",
         "operationId": "updateElement",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
         "parameters": [
           {
             "schema": {
@@ -1523,6 +1655,14 @@
         ],
         "summary": "Supprimer un élément",
         "operationId": "deleteElement",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
         "parameters": [
           {
             "schema": {
@@ -1557,6 +1697,14 @@
         ],
         "summary": "Types de relations présents",
         "operationId": "listRelationshipTypes",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
         "responses": {
           "200": {
             "description": "Liste triée des types de relations ArchiMate 3.1 présents",
@@ -1585,6 +1733,14 @@
         ],
         "summary": "Lister les relations",
         "operationId": "listRelationships",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
         "parameters": [
           {
             "schema": {
@@ -1662,6 +1818,14 @@
         ],
         "summary": "Créer une relation",
         "operationId": "createRelationship",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -1713,6 +1877,14 @@
         ],
         "summary": "Détail d'une relation",
         "operationId": "getRelationshipById",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
         "parameters": [
           {
             "schema": {
@@ -1754,6 +1926,14 @@
         ],
         "summary": "Modifier une relation",
         "operationId": "updateRelationship",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
         "parameters": [
           {
             "schema": {
@@ -1813,6 +1993,14 @@
         ],
         "summary": "Supprimer une relation",
         "operationId": "deleteRelationship",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
         "parameters": [
           {
             "schema": {
@@ -1847,6 +2035,14 @@
         ],
         "summary": "Lister les vues",
         "operationId": "listViews",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
         "responses": {
           "200": {
             "description": "Liste des vues avec compteurs",
@@ -1869,6 +2065,14 @@
         ],
         "summary": "Créer une vue",
         "operationId": "createView",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -1910,6 +2114,14 @@
         ],
         "summary": "Détail d'une vue",
         "operationId": "getViewById",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
         "parameters": [
           {
             "schema": {
@@ -1953,6 +2165,14 @@
         ],
         "summary": "Rendu SVG d'une vue",
         "operationId": "renderView",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
         "parameters": [
           {
             "schema": {
@@ -2020,6 +2240,14 @@
         ],
         "summary": "Ajouter un nœud à une vue",
         "operationId": "createNode",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
         "parameters": [
           {
             "schema": {
@@ -2222,6 +2450,14 @@
         ],
         "summary": "Créer une connexion dans une vue",
         "operationId": "createConnection",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
         "parameters": [
           {
             "schema": {
@@ -2435,8 +2671,12 @@
         "security": [
           {
             "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
           }
         ],
+        "description": "Retourne les informations de l'utilisateur authentifié (cookie de session ou Bearer token).",
         "responses": {
           "200": {
             "description": "Utilisateur connecté",
@@ -2471,6 +2711,9 @@
         "security": [
           {
             "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
           }
         ],
         "responses": {
@@ -2508,6 +2751,9 @@
         "security": [
           {
             "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
           }
         ],
         "requestBody": {
@@ -2564,6 +2810,9 @@
         "security": [
           {
             "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
           }
         ],
         "parameters": [
@@ -2628,6 +2877,9 @@
         "security": [
           {
             "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
           }
         ],
         "parameters": [
@@ -2677,6 +2929,9 @@
         "security": [
           {
             "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
           }
         ],
         "parameters": [
@@ -2733,6 +2988,9 @@
         "security": [
           {
             "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
           }
         ],
         "responses": {
@@ -2782,6 +3040,9 @@
         "security": [
           {
             "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
           }
         ],
         "parameters": [
@@ -2831,6 +3092,9 @@
         "security": [
           {
             "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
           }
         ],
         "responses": {
@@ -2868,6 +3132,9 @@
         "security": [
           {
             "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
           }
         ],
         "requestBody": {
@@ -2924,6 +3191,9 @@
         "security": [
           {
             "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
           }
         ],
         "parameters": [
@@ -2978,6 +3248,9 @@
         "security": [
           {
             "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
           }
         ],
         "parameters": [
@@ -3052,6 +3325,9 @@
         "security": [
           {
             "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
           }
         ],
         "parameters": [
@@ -3111,6 +3387,9 @@
         "security": [
           {
             "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
           }
         ],
         "parameters": [
@@ -3168,6 +3447,9 @@
         "security": [
           {
             "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
           }
         ],
         "parameters": [
@@ -3250,6 +3532,9 @@
         "security": [
           {
             "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
           }
         ],
         "parameters": [
@@ -3307,6 +3592,9 @@
         "security": [
           {
             "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
           }
         ],
         "parameters": [
@@ -3372,6 +3660,9 @@
         "security": [
           {
             "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
           }
         ],
         "parameters": [
@@ -3439,6 +3730,9 @@
         "security": [
           {
             "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
           }
         ],
         "responses": {
@@ -3457,6 +3751,181 @@
           },
           "401": {
             "description": "Non authentifié",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/settings/api-tokens": {
+      "get": {
+        "tags": [
+          "Settings"
+        ],
+        "summary": "Lister les tokens API",
+        "operationId": "listApiTokens",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "description": "Retourne les tokens de l'utilisateur courant. Les administrateurs voient tous les tokens.",
+        "responses": {
+          "200": {
+            "description": "Liste des tokens",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ApiTokenOut"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Non authentifié",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Settings"
+        ],
+        "summary": "Créer un token API",
+        "operationId": "createApiToken",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "description": "Crée un nouveau token personnel. La valeur du token (champ `token`) n'est retournée qu'à la création — elle ne peut plus être récupérée ensuite.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApiTokenCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Token créé (contient la valeur en clair)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiTokenCreated"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Non authentifié",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Champ 'name' manquant ou vide",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/settings/api-tokens/{id}": {
+      "delete": {
+        "tags": [
+          "Settings"
+        ],
+        "summary": "Supprimer un token API",
+        "operationId": "deleteApiToken",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "ID numérique du token"
+            },
+            "required": true,
+            "description": "ID numérique du token",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Token supprimé"
+          },
+          "401": {
+            "description": "Non authentifié",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission insuffisante",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Ressource introuvable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "ID non numérique",
             "content": {
               "application/json": {
                 "schema": {
