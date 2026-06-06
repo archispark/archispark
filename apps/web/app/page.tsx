@@ -1,7 +1,9 @@
 "use client";
 
-import { useModel, useElements, useRelationships } from "@/lib/queries";
+import { useMemo } from "react";
+import { useModel, useElements, useRelationships, useElementsInViews } from "@/lib/queries";
 import { getLayer, LAYER_HEX_COLORS as LAYER_COLORS } from "@/lib/archimate-helpers";
+import { allowedRelationships } from "@/lib/archimate-rules";
 import type { ElementOut, RelationshipOut } from "@/lib/api";
 import { useT } from "@/lib/i18n";
 
@@ -10,6 +12,7 @@ export default function OverviewPage() {
   const { data: model, isLoading: modelLoading, error: modelError } = useModel();
   const { data: elements = [], isLoading: elementsLoading } = useElements();
   const { data: relationships = [], isLoading: relsLoading } = useRelationships();
+  const { data: inViews = [] } = useElementsInViews();
 
   const loading = modelLoading || elementsLoading || relsLoading;
   const error = modelError;
@@ -19,6 +22,29 @@ export default function OverviewPage() {
     acc[layer] = (acc[layer] || 0) + 1;
     return acc;
   }, {});
+
+  const byId = useMemo(() => new Map(elements.map((e) => [e.identifier, e])), [elements]);
+  const inViewsSet = useMemo(() => new Set(inViews), [inViews]);
+
+  const conflictingRels = useMemo(() =>
+    relationships.filter((r) => {
+      const src = byId.get(r.source);
+      const tgt = byId.get(r.target);
+      return !allowedRelationships(src?.type, tgt?.type).includes(r.type);
+    }),
+  [relationships, byId]);
+
+  const absentElements = useMemo(() =>
+    elements.filter((e) => !inViewsSet.has(e.identifier)),
+  [elements, inViewsSet]);
+
+  const absentByLayer = useMemo(() =>
+    absentElements.reduce<Record<string, number>>((acc, el) => {
+      const layer = getLayer(el.type);
+      acc[layer] = (acc[layer] || 0) + 1;
+      return acc;
+    }, {}),
+  [absentElements]);
 
   if (loading) {
     return (
@@ -59,18 +85,26 @@ export default function OverviewPage() {
         {t("overview.model_apercu")}
       </div>
       <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-3 mb-7">
-        <StatCard label={t("overview.total_elements")} value={model?.element_count ?? 0} />
+        <StatCard
+          label={t("overview.total_elements")}
+          value={model?.element_count ?? 0}
+          sub={absentElements.length > 0 ? { label: "absents des vues", value: absentElements.length, total: model?.element_count ?? 0, color: "#d97706" } : undefined}
+        />
         {Object.entries(layerCounts)
           .sort(([, a], [, b]) => b - a)
-          .map(([layer, count]) => (
-            <StatCard
-              key={layer}
-              label={t(`layer.${layer}` as Parameters<typeof t>[0]) || layer}
-              value={count}
-              color={LAYER_COLORS[layer]}
-            />
-          ))}
-        <StatCard label={t("overview.relationships")} value={model?.relationship_count ?? 0} />
+          .map(([layer, count]) => {
+            const absent = absentByLayer[layer] ?? 0;
+            return (
+              <StatCard
+                key={layer}
+                label={t(`layer.${layer}` as Parameters<typeof t>[0]) || layer}
+                value={count}
+                color={LAYER_COLORS[layer]}
+                sub={absent > 0 ? { label: "absents", value: absent, total: count, color: "#d97706" } : undefined}
+              />
+            );
+          })}
+        <StatCard label={t("overview.relationships")} value={model?.relationship_count ?? 0} sub={conflictingRels.length > 0 ? { label: "en erreur", value: conflictingRels.length, total: model?.relationship_count ?? 0, color: "#dc2626" } : undefined} />
         <StatCard label={t("overview.views")} value={model?.view_count ?? 0} />
       </div>
 
@@ -83,13 +117,25 @@ export default function OverviewPage() {
   );
 }
 
-function StatCard({ label, value, color }: { label: string; value: number; color?: string }) {
+function StatCard({ label, value, color, sub }: { label: string; value: number; color?: string; sub?: { label: string; value: number; total: number; color: string } }) {
+  const ratio = sub && sub.total > 0 ? Math.min(sub.value / sub.total, 1) : 0;
   return (
-    <div className="bg-card border border-border rounded-lg p-4">
-      <div className="text-[11px] text-muted-foreground uppercase tracking-wide mb-1.5">{label}</div>
-      <div className="text-2xl font-bold" style={color ? { color } : undefined}>
-        {value}
-      </div>
+    <div className="bg-card border border-border rounded-lg p-4 flex flex-col gap-2">
+      <div className="text-[11px] text-muted-foreground uppercase tracking-wide">{label}</div>
+      <div className="text-2xl font-bold" style={color ? { color } : undefined}>{value}</div>
+      {sub && (
+        <div className="space-y-1">
+          <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+            <div
+              className="h-full rounded-full transition-all"
+              style={{ width: `${ratio * 100}%`, backgroundColor: sub.color }}
+            />
+          </div>
+          <div className="text-[10px] font-medium" style={{ color: sub.color }}>
+            {sub.value} {sub.label}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

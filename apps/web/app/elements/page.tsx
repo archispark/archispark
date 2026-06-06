@@ -12,7 +12,9 @@ import {
   useElementTypes,
   useCreateElement,
   useElementsInViews,
+  useRelationships,
 } from "@/lib/queries";
+import { isRelationshipAllowed } from "@/lib/archimate-rules";
 import { Input } from "@workspace/ui/components/input";
 import { Badge } from "@workspace/ui/components/badge";
 import { Button } from "@workspace/ui/components/button";
@@ -23,6 +25,8 @@ import {
   SelectValue,
   SelectContent,
   SelectItem,
+  SelectGroup,
+  SelectLabel,
 } from "@workspace/ui/components/select";
 import {
   Dialog,
@@ -36,8 +40,9 @@ import {
 } from "@workspace/ui/components/dialog";
 import { DataTable } from "@/components/data-table";
 import { PropertiesEditor } from "@/components/properties-editor";
-import { Plus } from "lucide-react";
+import { Plus, ChevronDown, ChevronRight } from "lucide-react";
 import type { Property } from "@/lib/api";
+import { allowedRelationships } from "@/lib/archimate-rules";
 import { useIsAdmin } from "@/hooks/use-current-user";
 import { useT } from "@/lib/i18n";
 const LAYER_COLORS = LAYER_BADGE_COLORS;
@@ -62,8 +67,31 @@ function ElementsPageInner() {
 
   const { data: types = [] } = useElementTypes();
   const { data: elements = [], isLoading: loading, error } = useElements(typeFilter, debouncedSearch || null);
+  const { data: allElements = [] } = useElements();
+  const { data: allRelationships = [] } = useRelationships();
   const { data: inViews = [] } = useElementsInViews();
   const inViewsSet = useMemo(() => new Set(inViews), [inViews]);
+
+  const byId = useMemo(
+    () => new Map(allElements.map((e) => [e.identifier, e])),
+    [allElements],
+  );
+
+  // Per-element relationship counts (ok / conflict)
+  const relStats = useMemo(() => {
+    const map = new Map<string, { ok: number; conflict: number }>();
+    for (const rel of allRelationships) {
+      const src = byId.get(rel.source);
+      const tgt = byId.get(rel.target);
+      const ok = isRelationshipAllowed(rel.type, src?.type, tgt?.type);
+      for (const id of [rel.source, rel.target]) {
+        const entry = map.get(id) ?? { ok: 0, conflict: 0 };
+        if (ok) entry.ok += 1; else entry.conflict += 1;
+        map.set(id, entry);
+      }
+    }
+    return map;
+  }, [allRelationships, byId]);
 
   // Create dialog
   const [createOpen, setCreateOpen] = useState(false);
@@ -100,6 +128,41 @@ function ElementsPageInner() {
 
   const columns: ColumnDef<ElementOut>[] = useMemo(() => [
     {
+      id: "expand",
+      header: "",
+      enableSorting: false,
+      cell: ({ row }) => (
+        <button
+          type="button"
+          onClick={() => row.toggleExpanded()}
+          className="text-muted-foreground hover:text-foreground transition-colors"
+          aria-label={row.getIsExpanded() ? t("common.collapse") : t("common.expand")}
+        >
+          {row.getIsExpanded() ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
+        </button>
+      ),
+    },
+    {
+      id: "status",
+      header: "Statut",
+      enableSorting: true,
+      accessorFn: (row) => {
+        const stats = relStats.get(row.identifier);
+        return (stats?.conflict ?? 0) * 1000 + (inViewsSet.has(row.identifier) ? 0 : 100);
+      },
+      cell: ({ row }) => {
+        const inView = inViewsSet.has(row.original.identifier);
+        const stats = relStats.get(row.original.identifier) ?? { ok: 0, conflict: 0 };
+        if (stats.conflict > 0) {
+          return <span className="inline-flex items-center justify-center size-5 rounded-full bg-destructive/15 text-destructive text-[11px]" title={t("elements.not_in_views")}>✕</span>;
+        }
+        if (!inView) {
+          return <span className="inline-flex items-center justify-center size-5 rounded-full bg-amber-500/15 text-amber-600 text-[11px]" title={t("elements.not_in_views")}>⚠</span>;
+        }
+        return <span className="inline-flex items-center justify-center size-5 rounded-full bg-emerald-500/15 text-emerald-700 text-[11px]" title={t("elements.in_views")}>✓</span>;
+      },
+    },
+    {
       accessorKey: "name",
       header: t("common.name"),
       cell: ({ row }) => (
@@ -131,28 +194,8 @@ function ElementsPageInner() {
         );
       },
     },
-    {
-      id: "in_views",
-      header: t("elements.in_views"),
-      enableSorting: true,
-      accessorFn: (row) => inViewsSet.has(row.identifier) ? "ok" : "warning",
-      cell: ({ row }) => {
-        const ok = inViewsSet.has(row.original.identifier);
-        return ok ? (
-          <span
-            className="inline-flex items-center justify-center size-5 rounded-full bg-emerald-500/15 text-emerald-700 text-[11px]"
-            title={t("elements.in_views")}
-          >✓</span>
-        ) : (
-          <span
-            className="inline-flex items-center justify-center size-5 rounded-full bg-amber-500/15 text-amber-600 text-[11px]"
-            title={t("elements.not_in_views")}
-          >⚠</span>
-        );
-      },
-    },
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  ], [inViewsSet]);
+  ], [inViewsSet, relStats]);
 
   const filteredElements = useMemo(() => {
     if (!layerFilter) return elements;
@@ -205,9 +248,19 @@ function ElementsPageInner() {
                 <Select value={newType} onValueChange={(v) => setNewType(v ?? "")}>
                   <SelectTrigger><SelectValue placeholder={t("elements.choose_type")} /></SelectTrigger>
                   <SelectContent>
-                    {ALL_ELEMENT_TYPES.map((typ) => (
-                      <SelectItem key={typ} value={typ}>{typ}</SelectItem>
-                    ))}
+                    {layerFilter
+                      ? (grouped[layerFilter] ?? []).map((typ) => (
+                          <SelectItem key={typ} value={typ}>{typ}</SelectItem>
+                        ))
+                      : Object.entries(grouped).map(([layer, typs]) => (
+                          <SelectGroup key={layer}>
+                            <SelectLabel>{layer}</SelectLabel>
+                            {typs.map((typ) => (
+                              <SelectItem key={typ} value={typ}>{typ}</SelectItem>
+                            ))}
+                          </SelectGroup>
+                        ))
+                    }
                   </SelectContent>
                 </Select>
               </div>
@@ -242,7 +295,48 @@ function ElementsPageInner() {
         </Select>
       </div>
 
-      <DataTable columns={columns} data={filteredElements} loading={loading} />
+      <DataTable
+        columns={columns}
+        data={filteredElements}
+        loading={loading}
+        renderSubRow={(row) => {
+          const el = row.original as ElementOut;
+          const inView = inViewsSet.has(el.identifier);
+          const rels = allRelationships.filter((r) => r.source === el.identifier || r.target === el.identifier);
+          const conflictCount = rels.filter((r) => {
+            const src = byId.get(r.source);
+            const tgt = byId.get(r.target);
+            return !allowedRelationships(src?.type, tgt?.type).includes(r.type);
+          }).length;
+          const okCount = rels.length - conflictCount;
+          return (
+            <div className="flex items-center gap-3 text-[12px] py-0.5">
+              <span className="font-medium text-muted-foreground">Vues :</span>
+              {inView ? (
+                <span className="flex items-center gap-1">
+                  <span className="inline-flex items-center justify-center size-4 rounded-full bg-emerald-500/15 text-emerald-700 text-[10px]">✓</span>
+                  <span className="text-emerald-700 font-medium">présent</span>
+                </span>
+              ) : (
+                <span className="flex items-center gap-1">
+                  <span className="inline-flex items-center justify-center size-4 rounded-full bg-amber-500/15 text-amber-600 text-[10px]">⚠</span>
+                  <span className="text-amber-600 font-medium">absent</span>
+                </span>
+              )}
+              <span className="text-muted-foreground">—</span>
+              <span className="font-medium text-muted-foreground">Relations :</span>
+              <span className="flex items-center gap-1">
+                <span className="inline-flex items-center justify-center size-4 rounded-full bg-emerald-500/15 text-emerald-700 text-[10px]">✓</span>
+                <span className="text-emerald-700 font-medium">{okCount} valide{okCount !== 1 ? "s" : ""}</span>
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="inline-flex items-center justify-center size-4 rounded-full bg-destructive/15 text-destructive text-[10px]">✕</span>
+                <span className={conflictCount > 0 ? "text-destructive font-medium" : "text-muted-foreground"}>{conflictCount} conflit{conflictCount !== 1 ? "s" : ""}</span>
+              </span>
+            </div>
+          );
+        }}
+      />
     </div>
   );
 }

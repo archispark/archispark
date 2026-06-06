@@ -19,7 +19,7 @@ import {
   Dialog, DialogTrigger, DialogContent, DialogHeader,
   DialogTitle, DialogDescription, DialogFooter, DialogClose,
 } from "@workspace/ui/components/dialog";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2, ChevronDown, ChevronRight } from "lucide-react";
 import { useIsAdmin } from "@/hooks/use-current-user";
 import { useT } from "@/lib/i18n";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -93,6 +93,47 @@ export default function ViewsPage() {
   }
 
   const viewColumns: ColumnDef<ViewOut>[] = useMemo(() => [
+    {
+      id: "expand",
+      header: "",
+      enableSorting: false,
+      cell: ({ row }) => (
+        <button
+          type="button"
+          onClick={(e) => { e.preventDefault(); e.stopPropagation(); row.toggleExpanded(); }}
+          className="text-muted-foreground hover:text-foreground transition-colors"
+          aria-label={row.getIsExpanded() ? t("common.collapse") : t("common.expand")}
+        >
+          {row.getIsExpanded()
+            ? <ChevronDown className="size-3.5" />
+            : <ChevronRight className="size-3.5" />}
+        </button>
+      ),
+    },
+    {
+      id: "status",
+      header: "Statut",
+      enableSorting: true,
+      accessorFn: (row) => row.conflict_count,
+      cell: ({ row }) => {
+        const { connection_count, ok_count, conflict_count } = row.original;
+        if (connection_count === 0) {
+          return <span className="text-[13px] text-muted-foreground">—</span>;
+        }
+        if (conflict_count === 0) {
+          return (
+            <span className="inline-flex items-center justify-center size-5 rounded-full bg-emerald-500/15 text-emerald-700 text-[11px]" title={`${ok_count} relations valides`}>
+              ✓
+            </span>
+          );
+        }
+        return (
+          <span className="inline-flex items-center justify-center size-5 rounded-full bg-destructive/15 text-destructive text-[11px]" title={`${conflict_count} conflit(s)`}>
+            ✕
+          </span>
+        );
+      },
+    },
     {
       accessorKey: "name",
       header: t("common.name"),
@@ -217,7 +258,29 @@ export default function ViewsPage() {
           <p className="text-sm">{t("views.empty")}</p>
         </div>
       ) : (
-        <DataTable columns={viewColumns} data={views} pageSize={10} searchable searchPlaceholder={t("views.search")} />
+        <DataTable
+          columns={viewColumns}
+          data={views}
+          pageSize={10}
+          searchable
+          searchPlaceholder={t("views.search")}
+          renderSubRow={(row) => {
+            const { ok_count, conflict_count } = row.original;
+            return (
+              <div className="flex items-center gap-2 text-[12px] text-muted-foreground py-0.5">
+                <span className="font-medium">Relations :</span>
+                <span className="flex items-center gap-1">
+                  <span className="inline-flex items-center justify-center size-4 rounded-full bg-emerald-500/15 text-emerald-700 text-[10px]">✓</span>
+                  <span className="text-emerald-700 font-medium">{ok_count} valide{ok_count !== 1 ? "s" : ""}</span>
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="inline-flex items-center justify-center size-4 rounded-full bg-destructive/15 text-destructive text-[10px]">✕</span>
+                  <span className={conflict_count > 0 ? "text-destructive font-medium" : ""}>{conflict_count} conflit{conflict_count !== 1 ? "s" : ""}</span>
+                </span>
+              </div>
+            );
+          }}
+        />
       )}
 
       {/* Edit dialog */}

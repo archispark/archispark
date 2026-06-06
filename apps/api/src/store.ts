@@ -47,6 +47,70 @@ function newId(): string {
 }
 
 // ---------------------------------------------------------------------------
+// ArchiMate relationship validation (mirrors apps/web/lib/archimate-rules.ts)
+// ---------------------------------------------------------------------------
+
+type ArchiCategory = "active" | "behavior" | "passive" | "motivation" | "strategy" | "implementation" | "composite" | "junction" | "other";
+
+const ARCHIMATE_CATEGORY: Record<string, ArchiCategory> = {
+  BusinessActor: "active", BusinessRole: "active", BusinessCollaboration: "active", BusinessInterface: "active",
+  ApplicationComponent: "active", ApplicationCollaboration: "active", ApplicationInterface: "active",
+  Node: "active", Device: "active", SystemSoftware: "active", TechnologyCollaboration: "active",
+  TechnologyInterface: "active", Path: "active", CommunicationNetwork: "active",
+  Equipment: "active", Facility: "active", DistributionNetwork: "active",
+  BusinessProcess: "behavior", BusinessFunction: "behavior", BusinessInteraction: "behavior",
+  BusinessEvent: "behavior", BusinessService: "behavior",
+  ApplicationFunction: "behavior", ApplicationInteraction: "behavior", ApplicationProcess: "behavior",
+  ApplicationEvent: "behavior", ApplicationService: "behavior",
+  TechnologyFunction: "behavior", TechnologyProcess: "behavior", TechnologyInteraction: "behavior",
+  TechnologyEvent: "behavior", TechnologyService: "behavior",
+  BusinessObject: "passive", Contract: "passive", Representation: "passive", Product: "passive",
+  DataObject: "passive", Artifact: "passive", Material: "passive",
+  Stakeholder: "motivation", Driver: "motivation", Assessment: "motivation", Goal: "motivation",
+  Outcome: "motivation", Principle: "motivation", Requirement: "motivation",
+  Constraint: "motivation", Meaning: "motivation", Value: "motivation",
+  Resource: "strategy", Capability: "strategy", ValueStream: "strategy", CourseOfAction: "strategy",
+  WorkPackage: "implementation", Deliverable: "implementation",
+  ImplementationEvent: "implementation", Plateau: "implementation", Gap: "implementation",
+  Grouping: "composite", Location: "composite",
+  Junction: "junction", AndJunction: "junction", OrJunction: "junction",
+};
+
+const STRUCTURAL: ArchiCategory[] = ["active", "passive", "composite", "strategy", "implementation", "behavior"];
+
+function isRelationshipAllowed(relType: string, srcType?: string, tgtType?: string): boolean {
+  if (!srcType || !tgtType) return true;
+  const s: ArchiCategory = ARCHIMATE_CATEGORY[srcType] ?? "other";
+  const t: ArchiCategory = ARCHIMATE_CATEGORY[tgtType] ?? "other";
+  if (relType === "Association") return true;
+  if (relType === "Specialization") return srcType === tgtType;
+  if (relType === "Composition" || relType === "Aggregation") return STRUCTURAL.includes(s) && STRUCTURAL.includes(t);
+  if (relType === "Assignment") {
+    if (s === "active" && (t === "behavior" || t === "passive" || t === "active")) return true;
+    if (s === "behavior" && t === "passive") return true;
+    return false;
+  }
+  if (relType === "Realization") {
+    if (s === "behavior" && (t === "behavior" || t === "passive")) return true;
+    if (s === "active" && t === "behavior") return true;
+    if (s === "implementation") return true;
+    if (s === "strategy" && (t === "strategy" || t === "motivation" || t === "behavior")) return true;
+    if (t === "motivation") return true;
+    return false;
+  }
+  if (relType === "Serving") return (s === "behavior" || s === "active") && (t === "active" || t === "behavior");
+  if (relType === "Triggering" || relType === "Flow") {
+    if (s === "behavior" && t === "behavior") return true;
+    if (relType === "Flow" && s === "active" && t === "active") return true;
+    if (s === "junction" || t === "junction") return true;
+    return false;
+  }
+  if (relType === "Access") return (s === "behavior" && t === "passive") || (s === "passive" && t === "behavior");
+  if (relType === "Influence") return s === "motivation" || t === "motivation";
+  return false;
+}
+
+// ---------------------------------------------------------------------------
 // Property loaders (element / relationship key-value metadata)
 // ---------------------------------------------------------------------------
 
@@ -369,6 +433,54 @@ async function buildView(v: typeof views.$inferSelect): Promise<ArchiView> {
   };
 }
 
+/** Compute ok_count / conflict_count for a list of view DB IDs. */
+async function computeStatusCounts(
+  wsId: number,
+  viewIds: number[],
+): Promise<Map<number, { ok: number; conflict: number }>> {
+  if (viewIds.length === 0) return new Map();
+
+  const connRows = await db
+    .select({ viewId: connections.viewId, relUuid: connections.relationshipUuid })
+    .from(connections)
+    .where(inArray(connections.viewId, viewIds));
+
+  const relUuids = [...new Set(connRows.map((c) => c.relUuid).filter((u): u is string => !!u))];
+  const relTypeMap = new Map<string, { type: string; srcUuid: string; tgtUuid: string }>();
+  if (relUuids.length > 0) {
+    const relRows = await db
+      .select({ uuid: relationships.uuid, type: relationships.type, srcUuid: relationships.sourceUuid, tgtUuid: relationships.targetUuid })
+      .from(relationships)
+      .where(and(eq(relationships.workspaceId, wsId), inArray(relationships.uuid, relUuids)));
+    for (const r of relRows) relTypeMap.set(r.uuid, { type: r.type, srcUuid: r.srcUuid, tgtUuid: r.tgtUuid });
+  }
+
+  const elementUuids = [...new Set([...relTypeMap.values()].flatMap((r) => [r.srcUuid, r.tgtUuid]))];
+  const elementTypeMap = new Map<string, string>();
+  if (elementUuids.length > 0) {
+    const elRows = await db
+      .select({ uuid: elements.uuid, type: elements.type })
+      .from(elements)
+      .where(and(eq(elements.workspaceId, wsId), inArray(elements.uuid, elementUuids)));
+    for (const e of elRows) elementTypeMap.set(e.uuid, e.type);
+  }
+
+  const result = new Map<number, { ok: number; conflict: number }>();
+  for (const c of connRows) {
+    if (!c.relUuid) continue;
+    const rel = relTypeMap.get(c.relUuid);
+    if (!rel) continue;
+    const entry = result.get(c.viewId) ?? { ok: 0, conflict: 0 };
+    if (isRelationshipAllowed(rel.type, elementTypeMap.get(rel.srcUuid), elementTypeMap.get(rel.tgtUuid))) {
+      entry.ok += 1;
+    } else {
+      entry.conflict += 1;
+    }
+    result.set(c.viewId, entry);
+  }
+  return result;
+}
+
 export async function getElementViews(wsId: number, elementId: string): Promise<ViewOut[]> {
   const rows = await db
     .select({ view: views })
@@ -376,40 +488,47 @@ export async function getElementViews(wsId: number, elementId: string): Promise<
     .innerJoin(views, eq(nodes.viewId, views.id))
     .where(and(eq(views.workspaceId, wsId), eq(nodes.elementUuid, elementId)));
   const seen = new Set<number>();
-  const out: ViewOut[] = [];
+  const viewRows: (typeof views.$inferSelect)[] = [];
   for (const { view: v } of rows) {
     if (seen.has(v.id)) continue;
     seen.add(v.id);
-    const [nc] = await db.select({ c: count() }).from(nodes).where(eq(nodes.viewId, v.id));
-    const [cc] = await db.select({ c: count() }).from(connections).where(eq(connections.viewId, v.id));
-    out.push({
-      identifier: v.uuid,
-      name: v.name || "",
-      documentation: v.description ?? null,
-      viewpoint: v.viewpoint ?? null,
-      node_count: Number(nc?.c ?? 0),
-      connection_count: Number(cc?.c ?? 0),
-    });
+    viewRows.push(v);
   }
-  return out;
+  if (viewRows.length === 0) return [];
+  return buildViewOutList(wsId, viewRows);
 }
 
 export async function listViews(wsId: number): Promise<ViewOut[]> {
   const viewRows = await db.select().from(views).where(eq(views.workspaceId, wsId));
-  const out: ViewOut[] = [];
-  for (const v of viewRows) {
-    const [nc] = await db.select({ c: count() }).from(nodes).where(eq(nodes.viewId, v.id));
-    const [cc] = await db.select({ c: count() }).from(connections).where(eq(connections.viewId, v.id));
-    out.push({
+  return buildViewOutList(wsId, viewRows);
+}
+
+async function buildViewOutList(wsId: number, viewRows: (typeof views.$inferSelect)[]): Promise<ViewOut[]> {
+  if (viewRows.length === 0) return [];
+  const viewIds = viewRows.map((v) => v.id);
+
+  const [nodeCounts, connCounts, statusMap] = await Promise.all([
+    db.select({ viewId: nodes.viewId, c: count() }).from(nodes).where(inArray(nodes.viewId, viewIds)).groupBy(nodes.viewId),
+    db.select({ viewId: connections.viewId, c: count() }).from(connections).where(inArray(connections.viewId, viewIds)).groupBy(connections.viewId),
+    computeStatusCounts(wsId, viewIds),
+  ]);
+
+  const nodeCountMap = new Map(nodeCounts.map((r) => [r.viewId, Number(r.c)]));
+  const connCountMap = new Map(connCounts.map((r) => [r.viewId, Number(r.c)]));
+
+  return viewRows.map((v) => {
+    const status = statusMap.get(v.id) ?? { ok: 0, conflict: 0 };
+    return {
       identifier: v.uuid,
       name: v.name || "",
       documentation: v.description ?? null,
       viewpoint: v.viewpoint ?? null,
-      node_count: Number(nc?.c ?? 0),
-      connection_count: Number(cc?.c ?? 0),
-    });
-  }
-  return out;
+      node_count: nodeCountMap.get(v.id) ?? 0,
+      connection_count: connCountMap.get(v.id) ?? 0,
+      ok_count: status.ok,
+      conflict_count: status.conflict,
+    };
+  });
 }
 
 export async function getViewById(wsId: number, viewId: string): Promise<ViewDetailOut> {

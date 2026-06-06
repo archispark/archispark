@@ -139,6 +139,8 @@ export function viewOut(v: ArchiView, detail = false): ViewOut | ViewDetailOut {
     viewpoint: v.primary_viewpoint || null,
     node_count: v.nodes.length,
     connection_count: v.conns.length,
+    ok_count: 0,
+    conflict_count: 0,
   };
   if (detail) {
     return { ...base, nodes: v.nodes.map(nodeOut), connections: v.conns.map(connectionOut) } as ViewDetailOut;

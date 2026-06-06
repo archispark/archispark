@@ -8,7 +8,7 @@ import {
   useElement, useElementRelationships, useElements, useElementTypes,
   useUpdateElement, useDeleteElement, useElementsInViews, useElementViews,
   useCreateRelationship, useUpdateRelationship, useDeleteRelationship,
-  useRelationshipTypes, usePropertyDefinitions,
+  useRelationshipTypes, usePropertyDefinitions, useRelationships,
 } from "@/lib/queries";
 import { type RelationshipOut, type Property, type RelationshipCreateIn, type RelationshipUpdateIn, type PropertyDefinitionOut, type ViewOut } from "@/lib/api";
 import { getLayer, LAYER_BADGE_COLORS } from "@/lib/archimate-helpers";
@@ -138,6 +138,7 @@ export default function ElementDetailPage() {
   const { data: element, isLoading: elLoading, error: elError } = useElement(id);
   const { data: relationships = [], isLoading: relLoading } = useElementRelationships(id);
   const { data: allElements = [] } = useElements();
+  const { data: allRelationships = [] } = useRelationships();
   const { data: elementTypes = [] } = useElementTypes();
   const { data: relTypes = [] } = useRelationshipTypes();
   const { data: propDefs = [] } = usePropertyDefinitions();
@@ -151,7 +152,7 @@ export default function ElementDetailPage() {
   const updateRelMutation = useUpdateRelationship();
   const deleteRelMutation = useDeleteRelationship();
 
-  const [activeTab, setActiveTab] = useState<"properties" | "relations" | "canvas" | "views">("properties");
+  const [activeTab, setActiveTab] = useState<"properties" | "relations" | "canvas" | "views">("canvas");
 
   // ── Delete element ────────────────────────────────────────────────────────
   const [deleteModal, deleteActions] = useFormModal<ElementOut>();
@@ -408,10 +409,10 @@ export default function ElementDetailPage() {
   const layer = getLayer(element.type);
   const layerColor = LAYER_BADGE_COLORS[layer] ?? "";
   const tabs = [
-    { id: "properties", label: t("elements.tab_properties"), count: properties.length },
-    { id: "relations",  label: t("elements.tab_relations"),  count: relationships.length },
-    { id: "views",      label: t("elements.tab_views"),      count: elementViews.length },
     { id: "canvas",     label: t("elements.tab_canvas") },
+    { id: "relations",  label: t("elements.tab_relations"),  count: relationships.length },
+    { id: "properties", label: t("elements.tab_properties"), count: properties.length },
+    { id: "views",      label: t("elements.tab_views"),      count: elementViews.length },
   ];
 
   return (
@@ -641,7 +642,7 @@ export default function ElementDetailPage() {
         {/* ── Canvas tab ───────────────────────────────────────────────────── */}
         {activeTab === "canvas" && (
           <div className="flex-1 min-h-0 pt-3 pb-4 flex flex-col">
-            <ElementGraphTab element={element} relationships={relationships} byId={byId} />
+            <ElementGraphTab element={element} allRelationships={allRelationships} byId={byId} />
           </div>
         )}
 

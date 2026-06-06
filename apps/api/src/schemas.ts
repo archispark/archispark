@@ -184,6 +184,8 @@ export interface ViewOut {
   viewpoint?: string | null;
   node_count: number;
   connection_count: number;
+  ok_count: number;
+  conflict_count: number;
 }
 
 export interface ViewDetailOut extends ViewOut {

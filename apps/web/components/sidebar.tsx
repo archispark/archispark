@@ -115,49 +115,6 @@ function SidebarInner({ open, onClose }: { open: boolean; onClose: () => void })
           {/* Separator */}
           <div className="mx-4 mt-3 mb-1 border-t border-border" />
 
-          {/* Landscape views */}
-          <Section title={t("sidebar.landscapes")}>
-            <Link
-              href="/capabilities"
-              onClick={onClose}
-              className={`flex items-center gap-2 px-2 py-1.5 rounded-md text-sm no-underline transition-colors ${
-                pathname === "/capabilities"
-                  ? "bg-card text-foreground font-medium shadow-sm"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
-              }`}
-            >
-              <span className="size-1.5 rounded-full shrink-0" style={{ background: "#2563eb" }} />
-              {t("sidebar.capabilities")}
-            </Link>
-            <Link
-              href="/strategy"
-              onClick={onClose}
-              className={`flex items-center gap-2 px-2 py-1.5 rounded-md text-sm no-underline transition-colors ${
-                pathname === "/strategy"
-                  ? "bg-card text-foreground font-medium shadow-sm"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
-              }`}
-            >
-              <span className="size-1.5 rounded-full shrink-0" style={{ background: "#dc2626" }} />
-              {t("sidebar.strategy")}
-            </Link>
-            <Link
-              href="/composition"
-              onClick={onClose}
-              className={`flex items-center gap-2 px-2 py-1.5 rounded-md text-sm no-underline transition-colors ${
-                pathname === "/composition"
-                  ? "bg-card text-foreground font-medium shadow-sm"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
-              }`}
-            >
-              <span className="size-1.5 rounded-full shrink-0" style={{ background: "#64748b" }} />
-              {t("sidebar.composition")}
-            </Link>
-          </Section>
-
-          {/* Separator */}
-          <div className="mx-4 mt-2 mb-1 border-t border-border" />
-
           {/* Layer sections */}
           <Section title={t("sidebar.elements")}>
             {/* Always-available entry to the elements list (and its create dialog),
