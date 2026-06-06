@@ -481,6 +481,23 @@ async function computeStatusCounts(
   return result;
 }
 
+export async function getRelationshipViews(wsId: number, relationshipId: string): Promise<ViewOut[]> {
+  const rows = await db
+    .select({ view: views })
+    .from(connections)
+    .innerJoin(views, eq(connections.viewId, views.id))
+    .where(and(eq(views.workspaceId, wsId), eq(connections.relationshipUuid, relationshipId)));
+  const seen = new Set<number>();
+  const viewRows: (typeof views.$inferSelect)[] = [];
+  for (const { view: v } of rows) {
+    if (seen.has(v.id)) continue;
+    seen.add(v.id);
+    viewRows.push(v);
+  }
+  if (viewRows.length === 0) return [];
+  return buildViewOutList(wsId, viewRows);
+}
+
 export async function getElementViews(wsId: number, elementId: string): Promise<ViewOut[]> {
   const rows = await db
     .select({ view: views })

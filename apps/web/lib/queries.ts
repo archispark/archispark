@@ -8,6 +8,8 @@ import {
   fetchElementRelationships,
   fetchElementViews,
   fetchElementsInViews,
+  fetchRelationship,
+  fetchRelationshipViews,
   fetchRelationships,
   fetchRelationshipTypes,
   fetchViews,
@@ -70,6 +72,8 @@ export const queryKeys = {
   elementViews: (id: string) => ["elementViews", id] as const,
   elementsInViews: () => ["elementsInViews"] as const,
   elementTypes: () => ["elementTypes"] as const,
+  relationship: (id: string) => ["relationship", id] as const,
+  relationshipViews: (id: string) => ["relationshipViews", id] as const,
   relationships: (type?: string | null, name?: string | null) => ["relationships", type, name] as const,
   relationshipTypes: () => ["relationshipTypes"] as const,
   views: () => ["views"] as const,
@@ -115,6 +119,14 @@ export function useElementsInViews() {
 
 export function useElementTypes() {
   return useQuery({ queryKey: queryKeys.elementTypes(), queryFn: fetchElementTypes, staleTime: Infinity });
+}
+
+export function useRelationship(id: string) {
+  return useQuery({ queryKey: queryKeys.relationship(id), queryFn: () => fetchRelationship(id), enabled: !!id });
+}
+
+export function useRelationshipViews(id: string) {
+  return useQuery({ queryKey: queryKeys.relationshipViews(id), queryFn: () => fetchRelationshipViews(id), enabled: !!id });
 }
 
 export function useRelationships(type?: string | null, name?: string | null) {
@@ -220,9 +232,10 @@ export function useUpdateRelationship() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, body }: { id: string; body: RelationshipUpdateIn }) => updateRelationship(id, body),
-    onSuccess: (r) => {
+    onSuccess: (r, { id }) => {
       qc.invalidateQueries({ queryKey: ["relationships"] });
       qc.invalidateQueries({ queryKey: ["elementRelationships"] });
+      qc.invalidateQueries({ queryKey: queryKeys.relationship(id) });
       toast.success(`Relation ${r.type} mise à jour`);
     },
     onError: (e) => toast.error((e as Error).message),

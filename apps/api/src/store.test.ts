@@ -326,3 +326,202 @@ describe("store – model info & loadModel", () => {
     expect(model.views).toHaveLength(1);
   });
 });
+
+// ---------------------------------------------------------------------------
+// XML export / import
+// ---------------------------------------------------------------------------
+
+describe("store – XML export/import", () => {
+  it("exportModelToXml returns valid XML string", async () => {
+    await store.createElement(wsId, { name: "App", type: "ApplicationComponent" });
+    const xml = await store.exportModelToXml(wsId);
+    expect(xml).toContain("<?xml");
+    expect(xml).toContain("App");
+  });
+
+  it("importModelFromXml round-trips a model", async () => {
+    await store.createElement(wsId, { name: "Srv", type: "ApplicationService" });
+    const xml = await store.exportModelToXml(wsId);
+    const info = await store.importModelFromXml(wsId, xml);
+    expect(info.element_count).toBeGreaterThanOrEqual(1);
+  });
+
+  it("importModelFromXml throws on invalid XML", async () => {
+    await expect(store.importModelFromXml(wsId, "not-xml")).rejects.toThrow(/parsing XML/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// computeStatusCounts branch coverage
+// ---------------------------------------------------------------------------
+
+describe("store – view conflict counting", () => {
+  it("listViews shows ok_count=0 and conflict_count=0 for connection without relationship", async () => {
+    const a = await store.createElement(wsId, { name: "A", type: "ApplicationComponent" });
+    const b = await store.createElement(wsId, { name: "B", type: "ApplicationComponent" });
+    const v = await store.createView(wsId, { name: "V" });
+    const n1 = await store.createNode(wsId, v.identifier, { element_id: a.identifier });
+    const n2 = await store.createNode(wsId, v.identifier, { element_id: b.identifier });
+    // Connection without a relationship → relUuid is null → should be skipped in computeStatusCounts
+    await store.createViewConnection(wsId, v.identifier, { source: n1.identifier, target: n2.identifier });
+    const vws = await store.listViews(wsId);
+    const found = vws.find((vw) => vw.identifier === v.identifier);
+    expect(found).toBeDefined();
+    expect(found!.ok_count).toBe(0);
+    expect(found!.conflict_count).toBe(0);
+  });
+
+  it("listViews shows ok_count > 0 for allowed Association relationship", async () => {
+    // Association is always allowed → ok branch in computeStatusCounts
+    const a = await store.createElement(wsId, { name: "A", type: "ApplicationComponent" });
+    const b = await store.createElement(wsId, { name: "B", type: "BusinessProcess" });
+    const rel = await store.createRelationship(wsId, { type: "Association", source: a.identifier, target: b.identifier });
+    const v = await store.createView(wsId, { name: "V" });
+    const n1 = await store.createNode(wsId, v.identifier, { element_id: a.identifier });
+    const n2 = await store.createNode(wsId, v.identifier, { element_id: b.identifier });
+    await store.createViewConnection(wsId, v.identifier, { source: n1.identifier, target: n2.identifier, relationship_id: rel.identifier });
+    const vws = await store.listViews(wsId);
+    const found = vws.find((vw) => vw.identifier === v.identifier);
+    expect(found).toBeDefined();
+    expect(found!.ok_count).toBeGreaterThan(0);
+    expect(found!.conflict_count).toBe(0);
+  });
+
+  it("listViews shows conflict_count > 0 for incompatible Specialization relationship", async () => {
+    // Specialization between different element types is not allowed
+    const a = await store.createElement(wsId, { name: "A", type: "ApplicationComponent" });
+    const b = await store.createElement(wsId, { name: "B", type: "BusinessProcess" });
+    const rel = await store.createRelationship(wsId, { type: "Specialization", source: a.identifier, target: b.identifier });
+    const v = await store.createView(wsId, { name: "V2" });
+    const n1 = await store.createNode(wsId, v.identifier, { element_id: a.identifier });
+    const n2 = await store.createNode(wsId, v.identifier, { element_id: b.identifier });
+    await store.createViewConnection(wsId, v.identifier, { source: n1.identifier, target: n2.identifier, relationship_id: rel.identifier });
+    const vws = await store.listViews(wsId);
+    const found = vws.find((vw) => vw.identifier === v.identifier);
+    expect(found).toBeDefined();
+    expect(found!.conflict_count).toBeGreaterThan(0);
+    expect(found!.ok_count).toBe(0);
+  });
+
+  it("isRelationshipAllowed covers Composition, Realization, Triggering via listViews", async () => {
+    // Composition: active→active is structural → ok
+    const comp1 = await store.createElement(wsId, { name: "C1", type: "ApplicationComponent" });
+    const comp2 = await store.createElement(wsId, { name: "C2", type: "ApplicationComponent" });
+    const relComp = await store.createRelationship(wsId, { type: "Composition", source: comp1.identifier, target: comp2.identifier });
+    // Realization: behavior→passive → ok
+    const beh = await store.createElement(wsId, { name: "Svc", type: "ApplicationService" });
+    const pas = await store.createElement(wsId, { name: "Obj", type: "DataObject" });
+    const relReal = await store.createRelationship(wsId, { type: "Realization", source: beh.identifier, target: pas.identifier });
+    // Triggering: behavior→behavior → ok
+    const beh2 = await store.createElement(wsId, { name: "Func", type: "ApplicationFunction" });
+    const relTrig = await store.createRelationship(wsId, { type: "Triggering", source: beh.identifier, target: beh2.identifier });
+
+    const v = await store.createView(wsId, { name: "V3" });
+    const nC1 = await store.createNode(wsId, v.identifier, { element_id: comp1.identifier });
+    const nC2 = await store.createNode(wsId, v.identifier, { element_id: comp2.identifier });
+    const nBeh = await store.createNode(wsId, v.identifier, { element_id: beh.identifier });
+    const nPas = await store.createNode(wsId, v.identifier, { element_id: pas.identifier });
+    const nBeh2 = await store.createNode(wsId, v.identifier, { element_id: beh2.identifier });
+
+    await store.createViewConnection(wsId, v.identifier, { source: nC1.identifier, target: nC2.identifier, relationship_id: relComp.identifier });
+    await store.createViewConnection(wsId, v.identifier, { source: nBeh.identifier, target: nPas.identifier, relationship_id: relReal.identifier });
+    await store.createViewConnection(wsId, v.identifier, { source: nBeh.identifier, target: nBeh2.identifier, relationship_id: relTrig.identifier });
+
+    const vws = await store.listViews(wsId);
+    const found = vws.find((vw) => vw.identifier === v.identifier);
+    expect(found).toBeDefined();
+    expect(found!.ok_count).toBeGreaterThanOrEqual(3);
+    expect(found!.conflict_count).toBe(0);
+  });
+
+  it("isRelationshipAllowed covers Assignment and Realization false-branches via listViews", async () => {
+    // Assignment: motivation→motivation is NOT allowed (not active, not behavior→passive)
+    const goal1 = await store.createElement(wsId, { name: "G1", type: "Goal" });
+    const goal2 = await store.createElement(wsId, { name: "G2", type: "Goal" });
+    const relAssign = await store.createRelationship(wsId, { type: "Assignment", source: goal1.identifier, target: goal2.identifier });
+    // Realization: active→active is NOT allowed (not behavior, not implementation)
+    const comp1 = await store.createElement(wsId, { name: "X1", type: "ApplicationComponent" });
+    const comp2 = await store.createElement(wsId, { name: "X2", type: "ApplicationComponent" });
+    const relReal = await store.createRelationship(wsId, { type: "Realization", source: comp1.identifier, target: comp2.identifier });
+
+    const v = await store.createView(wsId, { name: "VFalse" });
+    const nG1 = await store.createNode(wsId, v.identifier, { element_id: goal1.identifier });
+    const nG2 = await store.createNode(wsId, v.identifier, { element_id: goal2.identifier });
+    const nC1 = await store.createNode(wsId, v.identifier, { element_id: comp1.identifier });
+    const nC2 = await store.createNode(wsId, v.identifier, { element_id: comp2.identifier });
+
+    await store.createViewConnection(wsId, v.identifier, { source: nG1.identifier, target: nG2.identifier, relationship_id: relAssign.identifier });
+    await store.createViewConnection(wsId, v.identifier, { source: nC1.identifier, target: nC2.identifier, relationship_id: relReal.identifier });
+
+    const vws = await store.listViews(wsId);
+    const found = vws.find((vw) => vw.identifier === v.identifier);
+    expect(found).toBeDefined();
+    expect(found!.conflict_count).toBeGreaterThanOrEqual(2);
+  });
+
+  it("isRelationshipAllowed covers Access, Influence, Flow via listViews", async () => {
+    // Access: behavior→passive → ok
+    const svc = await store.createElement(wsId, { name: "Svc", type: "ApplicationService" });
+    const obj = await store.createElement(wsId, { name: "Obj", type: "DataObject" });
+    const relAccess = await store.createRelationship(wsId, { type: "Access", source: svc.identifier, target: obj.identifier });
+    // Influence: motivation→anything → ok
+    const goal = await store.createElement(wsId, { name: "Goal", type: "Goal" });
+    const comp = await store.createElement(wsId, { name: "Comp", type: "ApplicationComponent" });
+    const relInfl = await store.createRelationship(wsId, { type: "Influence", source: goal.identifier, target: comp.identifier });
+    // Flow: behavior→behavior → ok (tests Flow branch at line 103-104)
+    const func1 = await store.createElement(wsId, { name: "F1", type: "ApplicationFunction" });
+    const func2 = await store.createElement(wsId, { name: "F2", type: "ApplicationFunction" });
+    const relFlow = await store.createRelationship(wsId, { type: "Flow", source: func1.identifier, target: func2.identifier });
+
+    const v = await store.createView(wsId, { name: "V4" });
+    const nSvc = await store.createNode(wsId, v.identifier, { element_id: svc.identifier });
+    const nObj = await store.createNode(wsId, v.identifier, { element_id: obj.identifier });
+    const nGoal = await store.createNode(wsId, v.identifier, { element_id: goal.identifier });
+    const nComp = await store.createNode(wsId, v.identifier, { element_id: comp.identifier });
+    const nF1 = await store.createNode(wsId, v.identifier, { element_id: func1.identifier });
+    const nF2 = await store.createNode(wsId, v.identifier, { element_id: func2.identifier });
+
+    await store.createViewConnection(wsId, v.identifier, { source: nSvc.identifier, target: nObj.identifier, relationship_id: relAccess.identifier });
+    await store.createViewConnection(wsId, v.identifier, { source: nGoal.identifier, target: nComp.identifier, relationship_id: relInfl.identifier });
+    await store.createViewConnection(wsId, v.identifier, { source: nF1.identifier, target: nF2.identifier, relationship_id: relFlow.identifier });
+
+    const vws = await store.listViews(wsId);
+    const found = vws.find((vw) => vw.identifier === v.identifier);
+    expect(found).toBeDefined();
+    expect(found!.ok_count).toBeGreaterThanOrEqual(3);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// updateRelationship optional fields (access_type, is_directed, influence_strength)
+// ---------------------------------------------------------------------------
+
+describe("store – relationship optional fields", () => {
+  it("updateRelationship with access_type, is_directed, influence_strength and properties", async () => {
+    const a = await store.createElement(wsId, { name: "A", type: "ApplicationService" });
+    const b = await store.createElement(wsId, { name: "B", type: "DataObject" });
+    const pd = await store.createPropertyDefinition(wsId, { name: "status", type: "string" });
+    const rel = await store.createRelationship(wsId, { type: "Access", source: a.identifier, target: b.identifier });
+    const upd = await store.updateRelationship(wsId, rel.identifier, {
+      access_type: "Read",
+      is_directed: true,
+      influence_strength: "high",
+      properties: [{ property_definition_ref: pd.identifier, value: "ok" }],
+    });
+    expect(upd.identifier).toBe(rel.identifier);
+  });
+
+  it("getElementViews returns views containing the element", async () => {
+    const a = await store.createElement(wsId, { name: "A", type: "ApplicationComponent" });
+    const v = await store.createView(wsId, { name: "ViewWithA" });
+    await store.createNode(wsId, v.identifier, { element_id: a.identifier });
+    const result = await store.getElementViews(wsId, a.identifier);
+    expect(result.map((r) => r.identifier)).toContain(v.identifier);
+  });
+
+  it("getElementViews returns empty when element has no nodes", async () => {
+    const a = await store.createElement(wsId, { name: "Orphan", type: "ApplicationComponent" });
+    const result = await store.getElementViews(wsId, a.identifier);
+    expect(result).toHaveLength(0);
+  });
+});

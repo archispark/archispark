@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import Link from "next/link";
 import { useDebounce } from "use-debounce";
 import type { ColumnDef } from "@tanstack/react-table";
 import { type RelationshipOut, type ElementOut, type Property } from "@/lib/api";
@@ -22,7 +23,7 @@ import {
 } from "@workspace/ui/components/dialog";
 import { DataTable } from "@/components/data-table";
 import { PropertiesEditor } from "@/components/properties-editor";
-import { Plus, Pencil, Trash2, ChevronDown, ChevronRight } from "lucide-react";
+import { Plus, Trash2, ChevronDown, ChevronRight } from "lucide-react";
 import { useIsAdmin } from "@/hooks/use-current-user";
 import { useKeyboardShortcut } from "@/hooks/use-keyboard-shortcut";
 import { useT } from "@/lib/i18n";
@@ -175,7 +176,11 @@ export default function RelationshipsPage() {
     {
       accessorKey: "name",
       header: t("common.name"),
-      cell: ({ row }) => <span className="font-medium">{row.getValue("name") || "—"}</span>,
+      cell: ({ row }) => (
+        <Link href={`/relationships/${encodeURIComponent(row.original.identifier)}`} className="font-medium text-foreground hover:text-primary">
+          {(row.getValue("name") as string | null) || <span className="italic text-muted-foreground">{row.original.type}</span>}
+        </Link>
+      ),
     },
     {
       accessorKey: "source",
@@ -217,9 +222,6 @@ export default function RelationshipsPage() {
       enableSorting: false,
       cell: ({ row }: { row: { original: RelationshipOut } }) => (
         <div className="flex items-center gap-1 justify-end">
-          <Button variant="ghost" size="icon-xs" onClick={() => openEdit(row.original)} aria-label={t("common.edit")}>
-            <Pencil className="size-3.5" />
-          </Button>
           <Button variant="ghost" size="icon-xs" onClick={() => deleteActions.openWith(row.original)} aria-label={t("common.delete")}>
             <Trash2 className="size-3.5 text-destructive" />
           </Button>

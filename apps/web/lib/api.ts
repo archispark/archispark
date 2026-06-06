@@ -116,6 +116,8 @@ export const fetchElementRelationships = (id: string) => get<RelationshipOut[]>(
 export const fetchElementViews = (id: string) => get<ViewOut[]>(`/elements/${encodeURIComponent(id)}/views`);
 export const fetchElementsInViews = () => get<string[]>("/elements/in-views");
 
+export const fetchRelationship = (id: string) => get<RelationshipOut>(`/relationships/${encodeURIComponent(id)}`);
+export const fetchRelationshipViews = (id: string) => get<ViewOut[]>(`/relationships/${encodeURIComponent(id)}/views`);
 export const fetchRelationshipTypes = () => get<string[]>("/relationships/types");
 
 export async function fetchRelationships(

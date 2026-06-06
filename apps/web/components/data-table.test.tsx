@@ -2,6 +2,21 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { type ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "./data-table";
+import { I18nProvider } from "@/lib/i18n";
+
+function renderWithI18n(ui: React.ReactElement) {
+  return render(<I18nProvider>{ui}</I18nProvider>);
+}
+
+vi.mock("@workspace/ui/components/dialog", () => ({
+  Dialog: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  DialogContent: ({ children }: { children: React.ReactNode }) => <div role="dialog">{children}</div>,
+  DialogHeader: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  DialogTitle: ({ children }: { children: React.ReactNode }) => <h2>{children}</h2>,
+  DialogDescription: ({ children }: { children: React.ReactNode }) => <p>{children}</p>,
+  DialogFooter: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  DialogClose: ({ children }: { children: React.ReactNode }) => <button type="button">{children}</button>,
+}));
 
 vi.mock("@workspace/ui/components/table", () => ({
   Table: ({ children }: { children: React.ReactNode }) => <table>{children}</table>,
@@ -61,7 +76,7 @@ describe("DataTable", () => {
 
   it("shows result count", () => {
     const data: Row[] = [{ name: "A", type: "T" }];
-    render(<DataTable columns={columns} data={data} />);
+    renderWithI18n(<DataTable columns={columns} data={data} />);
     expect(screen.getByText(/1 résultat/)).toBeInTheDocument();
   });
 

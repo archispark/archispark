@@ -88,7 +88,7 @@ export default function OverviewPage() {
         <StatCard
           label={t("overview.total_elements")}
           value={model?.element_count ?? 0}
-          sub={absentElements.length > 0 ? { label: "absents des vues", value: absentElements.length, total: model?.element_count ?? 0, color: "#d97706" } : undefined}
+          sub={{ label: "absents des vues", value: absentElements.length, total: model?.element_count ?? 0, color: "#d97706" }}
         />
         {Object.entries(layerCounts)
           .sort(([, a], [, b]) => b - a)
@@ -100,12 +100,12 @@ export default function OverviewPage() {
                 label={t(`layer.${layer}` as Parameters<typeof t>[0]) || layer}
                 value={count}
                 color={LAYER_COLORS[layer]}
-                sub={absent > 0 ? { label: "absents", value: absent, total: count, color: "#d97706" } : undefined}
+                sub={{ label: "absents", value: absent, total: count, color: "#d97706" }}
               />
             );
           })}
-        <StatCard label={t("overview.relationships")} value={model?.relationship_count ?? 0} sub={conflictingRels.length > 0 ? { label: "en erreur", value: conflictingRels.length, total: model?.relationship_count ?? 0, color: "#dc2626" } : undefined} />
-        <StatCard label={t("overview.views")} value={model?.view_count ?? 0} />
+        <StatCard label={t("overview.relationships")} value={model?.relationship_count ?? 0} sub={{ label: "en erreur", value: conflictingRels.length, total: model?.relationship_count ?? 0, color: "#dc2626" }} />
+        <StatCard label={t("overview.views")} value={model?.view_count ?? 0} sub={{ label: "", value: 0, total: model?.view_count || 1, color: "#10b981" }} />
       </div>
 
       {/* Pie charts */}
@@ -118,7 +118,8 @@ export default function OverviewPage() {
 }
 
 function StatCard({ label, value, color, sub }: { label: string; value: number; color?: string; sub?: { label: string; value: number; total: number; color: string } }) {
-  const ratio = sub && sub.total > 0 ? Math.min(sub.value / sub.total, 1) : 0;
+  const okRatio = sub && sub.total > 0 ? Math.min((sub.total - sub.value) / sub.total, 1) : 1;
+  const hasError = sub ? sub.value > 0 : false;
   return (
     <div className="bg-card border border-border rounded-lg p-4 flex flex-col gap-2">
       <div className="text-[11px] text-muted-foreground uppercase tracking-wide">{label}</div>
@@ -128,12 +129,14 @@ function StatCard({ label, value, color, sub }: { label: string; value: number; 
           <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
             <div
               className="h-full rounded-full transition-all"
-              style={{ width: `${ratio * 100}%`, backgroundColor: sub.color }}
+              style={{ width: `${okRatio * 100}%`, backgroundColor: hasError ? sub.color : "#10b981" }}
             />
           </div>
-          <div className="text-[10px] font-medium" style={{ color: sub.color }}>
-            {sub.value} {sub.label}
-          </div>
+          {hasError && (
+            <div className="text-[10px] font-medium" style={{ color: sub.color }}>
+              {sub.value} {sub.label}
+            </div>
+          )}
         </div>
       )}
     </div>

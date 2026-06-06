@@ -1,11 +1,20 @@
-import { randomUUID } from "crypto";
+import { randomUUID, randomBytes, scrypt } from "crypto";
 import type { Request, Response, NextFunction } from "express";
 import { and, eq, inArray } from "drizzle-orm";
 import { db, users as usersTable, accounts, roles as rolesTable, roleLayerPermissions as rolePermsTable, userRoles as userRolesTable, apiTokens } from "@workspace/db";
 import { getAuth } from "./better-auth.js";
 import { fromNodeHeaders } from "better-auth/node";
-import bcrypt from "bcryptjs";
 import { NotFoundError, ValidationError } from "./errors.js";
+
+// Same scrypt parameters as @better-auth/utils/password
+function hashPassword(password: string): Promise<string> {
+  const salt = randomBytes(16).toString("hex");
+  return new Promise((resolve, reject) => {
+    scrypt(password.normalize("NFKC"), salt, 64, { N: 16384, r: 16, p: 1, maxmem: 128 * 16384 * 16 * 2 }, (err, key) => {
+      if (err) reject(err); else resolve(`${salt}:${key.toString("hex")}`);
+    });
+  });
+}
 
 // ---------------------------------------------------------------------------
 // ArchiMate layer/permission constants
@@ -102,6 +111,10 @@ export async function initUsers(): Promise<void> {
       }).catch((err: unknown) => { console.error(`[auth] signUpEmail failed for '${username}':`, err); return null; });
       if (!res?.user) return;
       userId = res.user.id;
+    } else {
+      // Always sync the password so SEED_*_PASSWORD changes take effect on restart
+      const hash = await hashPassword(password);
+      await db.update(accounts).set({ password: hash }).where(and(eq(accounts.userId, userId), eq(accounts.providerId, "credential")));
     }
     await db.update(usersTable).set({ username, role }).where(eq(usersTable.id, userId!));
     const [rbacRole] = await db.select().from(rolesTable).where(eq(rolesTable.name, role));
@@ -161,7 +174,7 @@ export async function updateUserById(id: string, updates: { password?: string; r
     await db.update(usersTable).set({ role: validRole, updatedAt: now }).where(eq(usersTable.id, id));
   }
   if (updates.password) {
-    const hash = await bcrypt.hash(updates.password, 10);
+    const hash = await hashPassword(updates.password);
     await db.update(accounts).set({ password: hash, updatedAt: now })
       .where(and(eq(accounts.userId, id), eq(accounts.providerId, "credential")));
   }

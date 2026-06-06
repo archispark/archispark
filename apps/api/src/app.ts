@@ -176,6 +176,20 @@ const importRateLimit = rateLimit({
   store: redisStore("rl:import:"),
 });
 
+const apiRateLimit = rateLimit({
+  windowMs: 60 * 1000,
+  max: 300,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { detail: "Trop de requêtes, réessayez dans 1 minute." },
+  store: redisStore("rl:api:"),
+  skip: (req) =>
+    req.path === "/health" ||
+    req.path.startsWith("/auth") ||
+    req.path === "/openapi.json" ||
+    req.path === "/docs",
+});
+
 // Returns configured OAuth/OIDC providers so the frontend can render SSO buttons
 app.get("/auth/providers", async (_req, res) => {
   res.json(await getConfiguredProviders());
@@ -184,6 +198,9 @@ app.get("/auth/providers", async (_req, res) => {
 // Mount Better Auth at /auth — handles sign-in, sign-out, session, user CRUD
 // Must be BEFORE global auth middleware
 app.all("/auth/*path", authRateLimit, (req, res) => toNodeHandler(getAuth())(req, res));
+
+// Rate-limit all non-auth, non-public routes before any DB-hitting middleware
+app.use(apiRateLimit);
 
 // Global auth — exempt Better Auth routes and public paths
 app.use((req: AuthRequest, res, next) => {
@@ -706,6 +723,10 @@ app.get("/relationships", requirePermission("Relations", "read"), async (req: Re
   const q = parseBody(RelationshipQuerySchema, req.query, res);
   if (!q) return;
   res.json(await store.listRelationships(await getActiveWorkspaceId(), q.type ?? null, q.source_id ?? null, q.target_id ?? null));
+});
+
+app.get("/relationships/:relationship_id/views", requirePermission("Relations", "read"), async (req: Request, res: Response) => {
+  res.json(await store.getRelationshipViews(await getActiveWorkspaceId(), req.params["relationship_id"] as string));
 });
 
 app.get("/relationships/:relationship_id", requirePermission("Relations", "read"), async (req: Request, res: Response) => {

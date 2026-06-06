@@ -8,7 +8,6 @@ import {
   ReactFlowProvider,
   Background,
   Controls,
-  MiniMap,
   BaseEdge,
   EdgeLabelRenderer,
   Handle,
@@ -1139,7 +1138,6 @@ function ViewCanvasInner({ viewId, nodes, connections, elements = [], elementNam
       >
         <Background />
         <Controls />
-        <MiniMap zoomable pannable className="!bottom-12 !right-2" />
         <Panel position="top-right">
           <DownloadMenu />
         </Panel>

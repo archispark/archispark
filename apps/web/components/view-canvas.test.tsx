@@ -4,6 +4,22 @@ import { ViewCanvas } from "./view-canvas";
 import { I18nProvider } from "@/lib/i18n";
 import type { NodeOut, ConnectionOut, ElementOut } from "@/lib/api";
 
+vi.mock("@workspace/ui/components/dialog", () => ({
+  Dialog: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  DialogContent: ({ children }: { children: React.ReactNode }) => <div role="dialog">{children}</div>,
+  DialogHeader: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  DialogTitle: ({ children }: { children: React.ReactNode }) => <h2>{children}</h2>,
+  DialogDescription: ({ children }: { children: React.ReactNode }) => <p>{children}</p>,
+  DialogFooter: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  DialogClose: ({ children }: { children: React.ReactNode }) => <button type="button">{children}</button>,
+}));
+
+vi.mock("@workspace/ui/components/button", () => ({
+  Button: ({ children, onClick, disabled, ...props }: { children: React.ReactNode; onClick?: () => void; disabled?: boolean; [key: string]: unknown }) => (
+    <button onClick={onClick} disabled={disabled} {...props}>{children}</button>
+  ),
+}));
+
 function renderWithI18n(ui: React.ReactElement) {
   return render(<I18nProvider>{ui}</I18nProvider>);
 }
@@ -65,7 +81,6 @@ vi.mock("@xyflow/react", () => ({
   ),
   Background: () => null,
   Controls: () => null,
-  MiniMap: () => null,
   Handle: () => null,
   NodeResizer: () => null,
   Position: { Top: "top", Right: "right", Bottom: "bottom", Left: "left" },

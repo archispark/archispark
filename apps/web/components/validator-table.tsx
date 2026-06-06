@@ -133,47 +133,39 @@ export function ValidatorTable({
 
   return (
     <div className="p-4 space-y-3">
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-3 text-[13px]">
-          <span className="flex items-center gap-1.5">
-            <span className="inline-block size-2 rounded-full bg-emerald-500" />
-            {counts.ok} OK
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="inline-block size-2 rounded-full bg-destructive" />
-            {counts.bad} {t("common.conflicts")}
-          </span>
-          <span className="text-muted-foreground">/ {counts.total}</span>
-        </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <input
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder={t("validator.search")}
-            className="text-[13px] px-2 py-1 border border-border rounded-md bg-background text-foreground"
-          />
-          {(["all", "ok", "conflict"] as Filter[]).map((f) => (
-            <button
-              key={f}
-              type="button"
-              onClick={() => setFilter(f)}
-              className={`text-[12px] px-2.5 py-1 rounded-md border ${
-                filter === f
-                  ? "bg-primary text-primary-foreground border-primary"
-                  : "bg-background text-foreground border-border hover:bg-muted"
-              }`}
-            >
-              {f === "all" ? t("validator.all") : f === "ok" ? t("validator.ok") : t("validator.conflicts")}
-            </button>
-          ))}
-        </div>
+      <div className="flex items-center gap-2">
+        <input
+          type="text"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder={t("validator.search")}
+          className="flex-1 min-w-0 text-[13px] px-2 py-1 border border-border rounded-md bg-background text-foreground"
+        />
+        {(["all", "ok", "conflict"] as Filter[]).map((f) => (
+          <button
+            key={f}
+            type="button"
+            onClick={() => setFilter(f)}
+            className={`text-[12px] px-2.5 py-1 rounded-md border ${
+              filter === f
+                ? "bg-primary text-primary-foreground border-primary"
+                : "bg-background text-foreground border-border hover:bg-muted"
+            }`}
+          >
+            {f === "all" ? t("validator.all") : f === "ok" ? t("validator.ok") : t("validator.conflicts")}
+          </button>
+        ))}
       </div>
 
       <DataTable
         columns={columns}
         data={filtered}
         pageSize={10}
+        footerStats={<>
+          <span className="text-emerald-600">{counts.ok} OK</span>
+          {" · "}
+          <span className={counts.bad > 0 ? "text-destructive" : ""}>{counts.bad} {t("common.conflicts").toLowerCase()}</span>
+        </>}
         renderSubRow={(row) => {
           const r = row.original as Row;
           return (

@@ -19,7 +19,7 @@ import {
   Dialog, DialogTrigger, DialogContent, DialogHeader,
   DialogTitle, DialogDescription, DialogFooter, DialogClose,
 } from "@workspace/ui/components/dialog";
-import { Plus, ChevronDown, ChevronRight } from "lucide-react";
+import { Plus, ChevronDown, ChevronRight, Trash2 } from "lucide-react";
 import { useIsAdmin } from "@/hooks/use-current-user";
 import { useKeyboardShortcut } from "@/hooks/use-keyboard-shortcut";
 import { useT } from "@/lib/i18n";
@@ -40,6 +40,9 @@ export default function ViewsPage() {
   const [doc, setDoc] = useState("");
 
   const [createModal, createActions] = useFormModal<null>();
+  const [pendingDeleteView, setPendingDeleteView] = useState<ViewOut | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   const reload = useCallback(() => {
     setLoading(true);
@@ -71,6 +74,23 @@ export default function ViewsPage() {
     reload();
   }
 
+  async function handleDeleteSingle() {
+    if (!pendingDeleteView) return;
+    setDeleteLoading(true);
+    setDeleteError(null);
+    try {
+      await deleteView(pendingDeleteView.identifier);
+      setPendingDeleteView(null);
+      reload();
+    } catch (err) {
+      setDeleteError((err as Error).message);
+    } finally {
+      setDeleteLoading(false);
+    }
+  }
+
+  const [statusFilter, setStatusFilter] = useState<"all" | "ok" | "conflict">("all");
+
   const viewStats = useMemo(() => {
     let ok = 0, conflict = 0;
     for (const v of views) {
@@ -79,6 +99,12 @@ export default function ViewsPage() {
     }
     return { ok, conflict };
   }, [views]);
+
+  const filteredViews = useMemo(() => {
+    if (statusFilter === "all") return views;
+    if (statusFilter === "ok") return views.filter((v) => v.conflict_count === 0);
+    return views.filter((v) => v.conflict_count > 0);
+  }, [views, statusFilter]);
 
   const viewColumns: ColumnDef<ViewOut>[] = useMemo(() => [
     {
@@ -155,7 +181,22 @@ export default function ViewsPage() {
         <span className="text-[13px] text-muted-foreground">{row.original.connection_count}</span>
       ),
     },
-  ], [isAdmin]);
+    ...(isAdmin ? [{
+      id: "actions",
+      header: "",
+      enableSorting: false,
+      cell: ({ row }: { row: { original: ViewOut } }) => (
+        <button
+          type="button"
+          onClick={(e) => { e.preventDefault(); e.stopPropagation(); setPendingDeleteView(row.original); }}
+          className="p-1 rounded text-destructive hover:bg-destructive/10 transition-colors"
+          aria-label={t("common.delete")}
+        >
+          <Trash2 className="size-3.5" />
+        </button>
+      ),
+    } as ColumnDef<ViewOut>] : []),
+  ], [isAdmin, t]);
 
   if (loading && views.length === 0) {
     return (
@@ -230,9 +271,18 @@ export default function ViewsPage() {
           <p className="text-sm">{t("views.empty")}</p>
         </div>
       ) : (
-        <DataTable
-          columns={viewColumns}
-          data={views}
+        <>
+          <div className="flex items-center gap-1">
+            {(["all", "ok", "conflict"] as const).map((f) => (
+              <button key={f} type="button" onClick={() => setStatusFilter(f)}
+                className={`text-[12px] px-2.5 py-1 rounded-md border transition-colors ${statusFilter === f ? "bg-primary text-primary-foreground border-primary" : "bg-background text-foreground border-border hover:bg-muted"}`}>
+                {f === "all" ? t("common.all") : f === "ok" ? t("common.ok") : t("common.conflicts")}
+              </button>
+            ))}
+          </div>
+          <DataTable
+            columns={viewColumns}
+            data={filteredViews}
           pageSize={10}
           searchable
           searchPlaceholder={t("views.search")}
@@ -261,8 +311,24 @@ export default function ViewsPage() {
             );
           }}
         />
+        </>
       )}
 
+      <Dialog open={!!pendingDeleteView} onOpenChange={(o) => { if (!o) { setPendingDeleteView(null); setDeleteError(null); } }}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{t("common.delete")} « {pendingDeleteView?.name || t("views.unnamed")} »</DialogTitle>
+            <DialogDescription>{t("common.irreversible")}</DialogDescription>
+          </DialogHeader>
+          {deleteError && <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">{deleteError}</div>}
+          <DialogFooter>
+            <DialogClose render={<Button variant="outline" disabled={deleteLoading} />}>{t("common.cancel")}</DialogClose>
+            <Button variant="destructive" onClick={handleDeleteSingle} disabled={deleteLoading}>
+              {deleteLoading ? t("common.deleting") : t("common.delete")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

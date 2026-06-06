@@ -209,6 +209,23 @@ export default function ElementDetailPage() {
     [allElements],
   );
 
+  const relCounts = useMemo(() => {
+    let ok = 0, bad = 0;
+    for (const rel of relationships) {
+      const src = byId.get(rel.source); const tgt = byId.get(rel.target);
+      if (allowedRelationships(src?.type, tgt?.type).includes(rel.type)) ok++; else bad++;
+    }
+    return { ok, bad };
+  }, [relationships, byId]);
+
+  const viewCounts = useMemo(() => {
+    let ok = 0, bad = 0;
+    for (const v of elementViews) {
+      if (v.conflict_count > 0) bad++; else ok++;
+    }
+    return { ok, bad };
+  }, [elementViews]);
+
   // ── Properties inline CRUD ────────────────────────────────────────────────
   const properties: Property[] = element?.properties ?? [];
   const usedRefs = useMemo(() => new Set(properties.map((p) => p.property_definition_ref)), [properties]);
@@ -477,7 +494,6 @@ export default function ElementDetailPage() {
               placeholder={t("elements.placeholder")}
               disabled={!isAdmin}
             />
-            <div className="text-[11px] text-muted-foreground font-mono">{element.identifier}</div>
           </div>
 
           {/* Delete button */}
@@ -617,6 +633,11 @@ export default function ElementDetailPage() {
                 loading={relLoading}
                 pageSize={25}
                 searchable
+                footerStats={<>
+                  <span className="text-emerald-600">{relCounts.ok} OK</span>
+                  {" · "}
+                  <span className={relCounts.bad > 0 ? "text-destructive" : ""}>{relCounts.bad} {t("common.conflicts").toLowerCase()}</span>
+                </>}
                 renderSubRow={(row) => {
                   const rel = row.original as RelationshipOut;
                   const src = byId.get(rel.source); const tgt = byId.get(rel.target);
@@ -674,6 +695,15 @@ export default function ElementDetailPage() {
                 ))
               )}
             </div>
+            {elementViews.length > 0 && (
+              <div className="flex items-center gap-1.5 px-1 pt-3 text-sm text-muted-foreground flex-wrap">
+                {t("common.results", { n: elementViews.length, s: elementViews.length !== 1 ? "s" : "" })}
+                {" · "}
+                <span className="text-emerald-600">{viewCounts.ok} OK</span>
+                {" · "}
+                <span className={viewCounts.bad > 0 ? "text-destructive" : ""}>{viewCounts.bad} {t("common.conflicts").toLowerCase()}</span>
+              </div>
+            )}
           </div>
         )}
       </div>
