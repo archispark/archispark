@@ -229,6 +229,8 @@
   "landscape.related": "Related elements",
   "landscape.no_related": "No related strategic elements",
   "landscape.no_linked": "No linked elements",
+  "landscape.expand_all": "Expand all",
+  "landscape.collapse_all": "Collapse all",
   "layer.Strategy": "Strategy",
   "layer.Business": "Business",
   "layer.Application": "Application",

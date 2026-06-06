@@ -236,6 +236,9 @@ export default function StrategyPage() {
     return { caps: landscape.length, subCaps, res, courses, vs };
   }, [landscape]);
 
+  const allIds = useMemo(() => landscape.map((c) => c.identifier), [landscape]);
+  const allCollapsed = allIds.length > 0 && allIds.every((id) => collapsed.has(id));
+
   function toggle(id: string) {
     setCollapsed((prev) => {
       const next = new Set(prev);
@@ -244,6 +247,9 @@ export default function StrategyPage() {
       return next;
     });
   }
+
+  function expandAll() { setCollapsed(new Set()); }
+  function collapseAll() { setCollapsed(new Set(allIds)); }
 
   if (loading) {
     return (
@@ -266,11 +272,31 @@ export default function StrategyPage() {
 
   return (
     <div className="p-7 space-y-5">
-      <div>
-        <h1 className="text-lg font-semibold">Stratégie par Capability</h1>
-        <p className="text-muted-foreground text-[13px] mt-0.5">
-          {stats.caps} capabilities · {stats.subCaps} sous-capabilities · {stats.res} resources · {stats.courses} courses of action · {stats.vs} value streams
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-lg font-semibold">Stratégie par Capability</h1>
+          <p className="text-muted-foreground text-[13px] mt-0.5">
+            {stats.caps} capabilities · {stats.subCaps} sous-capabilities · {stats.res} resources · {stats.courses} courses of action · {stats.vs} value streams
+          </p>
+        </div>
+        {landscape.length > 0 && (
+          <div className="flex items-center gap-1 shrink-0 mt-0.5">
+            <button
+              onClick={expandAll}
+              disabled={!allCollapsed && collapsed.size === 0}
+              className="text-[12px] px-2.5 py-1 rounded border border-border text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors disabled:opacity-40 disabled:pointer-events-none"
+            >
+              {t("landscape.expand_all")}
+            </button>
+            <button
+              onClick={collapseAll}
+              disabled={allCollapsed}
+              className="text-[12px] px-2.5 py-1 rounded border border-border text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors disabled:opacity-40 disabled:pointer-events-none"
+            >
+              {t("landscape.collapse_all")}
+            </button>
+          </div>
+        )}
       </div>
 
       {landscape.length === 0 ? (

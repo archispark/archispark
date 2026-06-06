@@ -151,6 +151,9 @@ export default function CompositionPage() {
     [relationships]
   );
 
+  const allIds = useMemo(() => tree.map((n) => n.el.identifier), [tree]);
+  const allCollapsed = allIds.length > 0 && allIds.every((id) => collapsed.has(id));
+
   function toggle(id: string) {
     setCollapsed((prev) => {
       const next = new Set(prev);
@@ -160,20 +163,8 @@ export default function CompositionPage() {
     });
   }
 
-  function collapseAll() {
-    setCollapsed(new Set(tree.map((n) => n.el.identifier)));
-  }
-
-  function expandAll() {
-    const allIds = new Set<string>();
-    function collect(node: TreeNode) {
-      allIds.add(node.el.identifier);
-      node.children.forEach(collect);
-    }
-    tree.forEach(collect);
-    setCollapsed(new Set());
-    void allIds;
-  }
+  function expandAll() { setCollapsed(new Set()); }
+  function collapseAll() { setCollapsed(new Set(allIds)); }
 
   if (loading) {
     return (
@@ -203,20 +194,24 @@ export default function CompositionPage() {
             {tree.length} racines · {totalCompositions} compositions
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={expandAll}
-            className="text-[12px] text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded hover:bg-muted"
-          >
-            Tout déplier
-          </button>
-          <button
-            onClick={collapseAll}
-            className="text-[12px] text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded hover:bg-muted"
-          >
-            Tout replier
-          </button>
-        </div>
+        {tree.length > 0 && (
+          <div className="flex items-center gap-1 shrink-0 mt-0.5">
+            <button
+              onClick={expandAll}
+              disabled={!allCollapsed && collapsed.size === 0}
+              className="text-[12px] px-2.5 py-1 rounded border border-border text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors disabled:opacity-40 disabled:pointer-events-none"
+            >
+              {t("landscape.expand_all")}
+            </button>
+            <button
+              onClick={collapseAll}
+              disabled={allCollapsed}
+              className="text-[12px] px-2.5 py-1 rounded border border-border text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors disabled:opacity-40 disabled:pointer-events-none"
+            >
+              {t("landscape.collapse_all")}
+            </button>
+          </div>
+        )}
       </div>
 
       {tree.length === 0 ? (

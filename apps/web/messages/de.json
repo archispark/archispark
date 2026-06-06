@@ -229,6 +229,8 @@
   "landscape.related": "Verknüpfte Elemente",
   "landscape.no_related": "Keine verknüpften strategischen Elemente",
   "landscape.no_linked": "Keine verknüpften Elemente",
+  "landscape.expand_all": "Alle ausklappen",
+  "landscape.collapse_all": "Alle einklappen",
   "layer.Strategy": "Strategie",
   "layer.Business": "Geschäft",
   "layer.Application": "Anwendung",
