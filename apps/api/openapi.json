@@ -11,6 +11,10 @@
   },
   "servers": [
     {
+      "url": "https://api.archispark.cloud",
+      "description": "Production"
+    },
+    {
       "url": "http://localhost:3000",
       "description": "Serveur local"
     }

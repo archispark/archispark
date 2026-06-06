@@ -853,7 +853,10 @@ const _doc: Record<string, any> = generator.generateDocument({
       "Permissions RBAC par couche ArchiMate.",
     contact: { name: "GitHub", url: "https://github.com/archispark/archispark" },
   },
-  servers: [{ url: "http://localhost:3000", description: "Serveur local" }],
+  servers: [
+    { url: "https://api.archispark.cloud", description: "Production" },
+    { url: "http://localhost:3000", description: "Serveur local" },
+  ],
   tags: [
     { name: "Auth",                description: "Authentification (Better Auth)" },
     { name: "Model",               description: "Informations et persistance du modèle" },
