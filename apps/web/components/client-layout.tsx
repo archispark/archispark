@@ -6,6 +6,7 @@ import { Sidebar } from "@/components/sidebar";
 import { QueryProvider } from "@/components/query-provider";
 import { useState } from "react";
 import { usePathname } from "next/navigation";
+import { Toaster } from "sonner";
 
 export function ClientLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -23,6 +24,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
         <main className={isLogin ? "" : `mt-[var(--nav-h)] min-h-[calc(100vh-var(--nav-h))] ${hideSidebar ? "" : "md:ml-[var(--sidebar-w)]"}`}>
           {children}
         </main>
+        <Toaster richColors position="bottom-right" />
       </ThemeProvider>
     </QueryProvider>
   );

@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useSession } from "@/lib/auth-client";
 
 export interface CurrentUser {
@@ -24,6 +25,8 @@ export function useCurrentUser(): CurrentUser | null {
 }
 
 export function useIsAdmin(): boolean {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   const user = useCurrentUser();
-  return user?.role === "admin";
+  return mounted && user?.role === "admin";
 }

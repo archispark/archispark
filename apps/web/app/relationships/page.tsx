@@ -24,6 +24,7 @@ import { DataTable } from "@/components/data-table";
 import { PropertiesEditor } from "@/components/properties-editor";
 import { Plus, Pencil, Trash2, ChevronDown, ChevronRight } from "lucide-react";
 import { useIsAdmin } from "@/hooks/use-current-user";
+import { useKeyboardShortcut } from "@/hooks/use-keyboard-shortcut";
 import { useT } from "@/lib/i18n";
 import { allowedRelationships } from "@/lib/archimate-rules";
 
@@ -57,6 +58,8 @@ export default function RelationshipsPage() {
 
   const byId = useMemo(() => new Map<string, ElementOut>(allElements.map((e) => [e.identifier, e])), [allElements]);
   const byRelId = useMemo(() => new Map<string, RelationshipOut>(relationships.map((r) => [r.identifier, r])), [relationships]);
+
+  useKeyboardShortcut("n", () => { if (isAdmin) openCreate(); }, { enabled: !createModal.open });
 
   function openCreate() {
     setName(""); setType(""); setSource(""); setTarget(""); setDoc(""); setProps([]);
@@ -239,12 +242,6 @@ export default function RelationshipsPage() {
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-lg font-semibold">{t("relationships.title")}</h1>
-          <p className="text-muted-foreground text-[13px] mt-0.5">
-            ${relationships.length}
-            {" · "}
-            <span className="text-emerald-600">{validationStats.ok} OK</span>
-            {validationStats.bad > 0 && <span className="text-destructive"> · {validationStats.bad} conflit{validationStats.bad > 1 ? "s" : ""}</span>}
-          </p>
         </div>
         {isAdmin && (
           <Dialog open={createModal.open} onOpenChange={(o) => !o && createActions.close()}>
@@ -286,8 +283,8 @@ export default function RelationshipsPage() {
         )}
       </div>
 
-      <div className="flex flex-wrap items-center gap-3">
-        <Input placeholder={t("common.search_by_name")} className="max-w-xs" value={search} onChange={(e) => setSearch(e.target.value)} />
+      <div className="flex items-center gap-3">
+        <Input placeholder={t("common.search_by_name")} className="flex-1 min-w-0" value={search} onChange={(e) => setSearch(e.target.value)} />
         <Select value={typeFilter ?? ""} onValueChange={(val) => setTypeFilter(val || null)}>
           <SelectTrigger className="min-w-[180px]"><SelectValue placeholder={t("common.all_types")} /></SelectTrigger>
           <SelectContent>
@@ -309,6 +306,13 @@ export default function RelationshipsPage() {
         columns={columns}
         data={filteredRelationships}
         loading={loading}
+        selectable={isAdmin}
+        onBulkDelete={isAdmin ? async (rows) => { await Promise.all(rows.map((r) => deleteMutation.mutateAsync(r.identifier))); } : undefined}
+        getRowId={(row) => row.identifier}
+        footerStats={<>
+          <span className="text-emerald-600">{validationStats.ok} {t("common.ok")}</span>
+          {validationStats.bad > 0 && <> · <span className="text-destructive">{validationStats.bad} {t("common.conflicts").toLowerCase()}</span></>}
+        </>}
         renderSubRow={(row) => {
           const rel = row.original as RelationshipOut;
           const src = byId.get(rel.source);

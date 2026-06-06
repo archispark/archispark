@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useMemo } from "react"; // eslint-dis
 import Link from "next/link";
 import {
   fetchViews,
-  createView, updateView, deleteView,
+  createView, deleteView,
   type ViewOut,
 } from "@/lib/api";
 import { useViewpoints } from "@/lib/queries";
@@ -19,8 +19,9 @@ import {
   Dialog, DialogTrigger, DialogContent, DialogHeader,
   DialogTitle, DialogDescription, DialogFooter, DialogClose,
 } from "@workspace/ui/components/dialog";
-import { Plus, Pencil, Trash2, ChevronDown, ChevronRight } from "lucide-react";
+import { Plus, ChevronDown, ChevronRight } from "lucide-react";
 import { useIsAdmin } from "@/hooks/use-current-user";
+import { useKeyboardShortcut } from "@/hooks/use-keyboard-shortcut";
 import { useT } from "@/lib/i18n";
 import type { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/components/data-table";
@@ -39,8 +40,6 @@ export default function ViewsPage() {
   const [doc, setDoc] = useState("");
 
   const [createModal, createActions] = useFormModal<null>();
-  const [editModal, editActions] = useFormModal<ViewOut>();
-  const [deleteModal, deleteActions] = useFormModal<ViewOut>();
 
   const reload = useCallback(() => {
     setLoading(true);
@@ -52,16 +51,7 @@ export default function ViewsPage() {
 
   useEffect(() => { reload(); }, [reload]);
 
-  function openEdit(view: ViewOut, e: React.MouseEvent) {
-    e.preventDefault(); e.stopPropagation();
-    setName(view.name); setViewpoint(view.viewpoint ?? ""); setDoc(view.documentation ?? "");
-    editActions.openWith(view);
-  }
-
-  function openDelete(view: ViewOut, e: React.MouseEvent) {
-    e.preventDefault(); e.stopPropagation();
-    deleteActions.openWith(view);
-  }
+  useKeyboardShortcut("n", () => { if (isAdmin) openCreate(); }, { enabled: !createModal.open });
 
   function openCreate() {
     setName(""); setViewpoint(""); setDoc("");
@@ -76,21 +66,19 @@ export default function ViewsPage() {
     });
   }
 
-  async function handleEdit() {
-    if (!editModal.target || !name.trim()) return;
-    await editActions.run(async () => {
-      await updateView(editModal.target!.identifier, { name: name.trim(), viewpoint: viewpoint || null, documentation: doc.trim() || null });
-      reload();
-    });
+  async function handleBulkDelete(rows: ViewOut[]) {
+    await Promise.all(rows.map((v) => deleteView(v.identifier)));
+    reload();
   }
 
-  async function handleDelete() {
-    if (!deleteModal.target) return;
-    await deleteActions.run(async () => {
-      await deleteView(deleteModal.target!.identifier);
-      reload();
-    });
-  }
+  const viewStats = useMemo(() => {
+    let ok = 0, conflict = 0;
+    for (const v of views) {
+      if (v.conflict_count > 0) conflict++;
+      else if (v.connection_count > 0) ok++;
+    }
+    return { ok, conflict };
+  }, [views]);
 
   const viewColumns: ColumnDef<ViewOut>[] = useMemo(() => [
     {
@@ -166,22 +154,6 @@ export default function ViewsPage() {
       cell: ({ row }) => (
         <span className="text-[13px] text-muted-foreground">{row.original.connection_count}</span>
       ),
-    },
-    {
-      id: "actions",
-      header: "",
-      enableSorting: false,
-      cell: ({ row }) =>
-        isAdmin ? (
-          <div className="flex items-center gap-1 justify-end">
-            <Button variant="ghost" size="icon-xs" onClick={(e) => openEdit(row.original, e)} aria-label={t("common.edit")}>
-              <Pencil className="size-3.5" />
-            </Button>
-            <Button variant="ghost" size="icon-xs" onClick={(e) => openDelete(row.original, e)} aria-label={t("common.delete")}>
-              <Trash2 className="size-3.5 text-destructive" />
-            </Button>
-          </div>
-        ) : null,
     },
   ], [isAdmin]);
 
@@ -264,6 +236,14 @@ export default function ViewsPage() {
           pageSize={10}
           searchable
           searchPlaceholder={t("views.search")}
+          initialSorting={[{ id: "status", desc: true }]}
+          selectable={isAdmin}
+          onBulkDelete={isAdmin ? handleBulkDelete : undefined}
+          getRowId={(row) => row.identifier}
+          footerStats={<>
+            <span className="text-emerald-600">{viewStats.ok} {t("common.ok")}</span>
+            {viewStats.conflict > 0 && <> · <span className="text-destructive">{viewStats.conflict} {t("common.conflicts").toLowerCase()}</span></>}
+          </>}
           renderSubRow={(row) => {
             const { ok_count, conflict_count } = row.original;
             return (
@@ -283,54 +263,6 @@ export default function ViewsPage() {
         />
       )}
 
-      {/* Edit dialog */}
-      <Dialog open={editModal.open} onOpenChange={(o) => !o && editActions.close()}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader><DialogTitle>{t("views.edit_title")}</DialogTitle></DialogHeader>
-          <div className="flex flex-col gap-4 py-2">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="edit-view-name">Nom *</Label>
-              <Input id="edit-view-name" value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleEdit()} />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label>{t("views.viewpoint")}</Label>
-              <Select value={viewpoint} onValueChange={(v) => setViewpoint(v ?? "")}>
-                <SelectTrigger><SelectValue placeholder="Aucun" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="">{t("views.no_viewpoint_short")}</SelectItem>
-                  {viewpoints.map((vp) => <SelectItem key={vp} value={vp}>{vp}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="edit-view-doc">Documentation</Label>
-              <textarea id="edit-view-doc" value={doc} onChange={(e) => setDoc(e.target.value)} className="bg-background border border-input rounded-md text-foreground text-sm px-3 py-2 outline-none focus:border-ring resize-vertical min-h-[72px]" />
-            </div>
-          </div>
-          {editModal.error && <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">{editModal.error}</div>}
-          <DialogFooter>
-            <DialogClose render={<Button variant="outline" />}>{t("common.cancel")}</DialogClose>
-            <Button onClick={handleEdit} disabled={editModal.isPending || !name.trim()}>{editModal.isPending ? t("common.saving") : t("common.save")}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Delete dialog */}
-      <Dialog open={deleteModal.open} onOpenChange={(o) => !o && deleteActions.close()}>
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle>{t("views.delete_title")}</DialogTitle>
-            <DialogDescription>
-              Supprimer <strong>{deleteModal.target?.name || "cette vue"}</strong> ? Cette action est irréversible.
-            </DialogDescription>
-          </DialogHeader>
-          {deleteModal.error && <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">{deleteModal.error}</div>}
-          <DialogFooter>
-            <DialogClose render={<Button variant="outline" />}>{t("common.cancel")}</DialogClose>
-            <Button variant="destructive" onClick={handleDelete} disabled={deleteModal.isPending}>{deleteModal.isPending ? t("common.deleting") : t("common.delete")}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

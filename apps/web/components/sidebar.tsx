@@ -6,7 +6,8 @@ import { Suspense, useEffect, useState, useMemo } from "react";
 import { LayoutDashboard, LayoutGrid, Tag, Users, Settings as SettingsIcon, GitBranch, List, ChevronDown } from "lucide-react";
 import { useIsAdmin } from "@/hooks/use-current-user";
 import { getLayer, LAYER_HEX_COLORS, LAYER_LABELS } from "@/lib/archimate-helpers";
-import { useModel, useElements } from "@/lib/queries";
+import { allowedRelationships } from "@/lib/archimate-rules";
+import { useModel, useElements, useRelationships, useElementsInViews } from "@/lib/queries";
 import { useT } from "@/lib/i18n";
 
 interface LayerGroup {
@@ -55,10 +56,15 @@ function SidebarInner({ open, onClose }: { open: boolean; onClose: () => void })
   // bumps the counts) as soon as their queries are invalidated.
   const { data: model } = useModel();
   const { data: elements = [] } = useElements();
+  const { data: relationships = [] } = useRelationships();
+  const { data: inViews = [] } = useElementsInViews();
   const [mounted, setMounted] = useState(false);
   const isAdmin = useIsAdmin();
 
   useEffect(() => { setMounted(true); }, []);
+
+  const byId = useMemo(() => new Map(elements.map((e) => [e.identifier, e])), [elements]);
+  const inViewsSet = useMemo(() => new Set(inViews), [inViews]);
 
   const layerCounts = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -68,6 +74,18 @@ function SidebarInner({ open, onClose }: { open: boolean; onClose: () => void })
     }
     return counts;
   }, [elements]);
+
+  const absentCount = useMemo(() =>
+    elements.filter((e) => !inViewsSet.has(e.identifier)).length,
+  [elements, inViewsSet]);
+
+  const relConflictCount = useMemo(() =>
+    relationships.filter((r) => {
+      const src = byId.get(r.source);
+      const tgt = byId.get(r.target);
+      return !allowedRelationships(src?.type, tgt?.type).includes(r.type);
+    }).length,
+  [relationships, byId]);
 
   const currentLayer = pathname === "/elements" ? searchParams.get("layer") : null;
 
@@ -132,9 +150,10 @@ function SidebarInner({ open, onClose }: { open: boolean; onClose: () => void })
                 <List className="size-3.5 shrink-0" />
                 {t("sidebar.list")}
               </span>
-              {model && (
-                <span className="text-[11px] text-muted-foreground">{model.element_count}</span>
-              )}
+              <span className="flex items-center gap-1">
+                {model && <span className="text-[11px] text-muted-foreground">{model.element_count}</span>}
+                {absentCount > 0 && <span className="text-[10px] font-bold rounded-full bg-amber-500/15 text-amber-600 px-1">{absentCount}</span>}
+              </span>
             </Link>
             {LAYER_GROUPS.map((group) => {
               const active = pathname === "/elements" && currentLayer === group.key;
@@ -182,9 +201,10 @@ function SidebarInner({ open, onClose }: { open: boolean; onClose: () => void })
                 <GitBranch className="size-3.5 shrink-0" />
                 {t("sidebar.list")}
               </span>
-              {model && (
-                <span className="text-[11px] text-muted-foreground">{model.relationship_count}</span>
-              )}
+              <span className="flex items-center gap-1">
+                {model && <span className="text-[11px] text-muted-foreground">{model.relationship_count}</span>}
+                {relConflictCount > 0 && <span className="text-[10px] font-bold rounded-full bg-destructive/15 text-destructive px-1">{relConflictCount}</span>}
+              </span>
             </Link>
           </Section>
 

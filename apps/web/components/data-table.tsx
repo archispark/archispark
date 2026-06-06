@@ -4,6 +4,7 @@ import {
   type ColumnDef,
   type SortingState,
   type PaginationState,
+  type RowSelectionState,
   type Row,
   flexRender,
   getCoreRowModel,
@@ -13,8 +14,13 @@ import {
   getExpandedRowModel,
   useReactTable,
 } from "@tanstack/react-table";
-import React, { useState } from "react";
-import { ArrowUpDown, ChevronLeft, ChevronRight, Search } from "lucide-react";
+import React, { useMemo, useState } from "react";
+import { useT } from "@/lib/i18n";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
+  DialogFooter, DialogClose,
+} from "@workspace/ui/components/dialog";
+import { ArrowUpDown, ChevronLeft, ChevronRight, Search, Trash2 } from "lucide-react";
 import {
   Table,
   TableHeader,
@@ -34,6 +40,11 @@ interface DataTableProps<TData, TValue> {
   renderSubRow?: (row: Row<TData>) => React.ReactNode;
   searchable?: boolean;
   searchPlaceholder?: string;
+  initialSorting?: SortingState;
+  selectable?: boolean;
+  onBulkDelete?: (rows: TData[]) => void;
+  getRowId?: (row: TData) => string;
+  footerStats?: React.ReactNode;
 }
 
 const DEFAULT_PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
@@ -47,22 +58,51 @@ export function DataTable<TData, TValue>({
   renderSubRow,
   searchable,
   searchPlaceholder = "Rechercher…",
+  initialSorting,
+  selectable,
+  onBulkDelete,
+  getRowId,
+  footerStats,
 }: DataTableProps<TData, TValue>) {
-  const [sorting, setSorting] = useState<SortingState>([]);
+  const defaultSorting = useMemo(() => initialSorting ?? [], []);
+  const [sorting, setSorting] = useState<SortingState>(defaultSorting);
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
     pageSize,
   });
   const [globalFilter, setGlobalFilter] = useState("");
 
+  const selectColumn: ColumnDef<TData, unknown> = useMemo(() => ({
+    id: "__select__",
+    header: ({ table: t }) => (
+      <input type="checkbox" checked={t.getIsAllPageRowsSelected()} ref={(el) => { if (el) el.indeterminate = t.getIsSomePageRowsSelected(); }}
+        onChange={t.getToggleAllPageRowsSelectedHandler()} className="size-3.5 cursor-pointer" aria-label="Tout sélectionner" />
+    ),
+    cell: ({ row }) => (
+      <input type="checkbox" checked={row.getIsSelected()} onChange={row.getToggleSelectedHandler()}
+        onClick={(e) => e.stopPropagation()} className="size-3.5 cursor-pointer" aria-label="Sélectionner" />
+    ),
+    enableSorting: false,
+    size: 32,
+  }), []);
+
+  const allColumns = useMemo(
+    () => (selectable ? [selectColumn, ...columns] : columns),
+    [selectable, selectColumn, columns],
+  );
+
   // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
     data,
-    columns,
-    state: { sorting, pagination, globalFilter },
+    columns: allColumns,
+    state: { sorting, pagination, globalFilter, rowSelection },
     onSortingChange: setSorting,
     onPaginationChange: setPagination,
     onGlobalFilterChange: (v) => { setGlobalFilter(v); setPagination((p) => ({ ...p, pageIndex: 0 })); },
+    onRowSelectionChange: setRowSelection,
+    enableRowSelection: !!selectable,
+    getRowId,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getSortedRowModel: getSortedRowModel(),
@@ -70,8 +110,22 @@ export function DataTable<TData, TValue>({
     getExpandedRowModel: getExpandedRowModel(),
   });
 
+  const { t } = useT();
+  const [pendingBulkDelete, setPendingBulkDelete] = useState<TData[] | null>(null);
+  const selectedRows = table.getSelectedRowModel().rows.map((r) => r.original);
+  const selectedCount = selectedRows.length;
+
   return (
     <div className="space-y-2">
+      {selectable && selectedCount > 0 && onBulkDelete && (
+        <div className="flex items-center gap-3 px-3 py-2 rounded-md bg-destructive/10 border border-destructive/20 text-[13px]">
+          <span className="text-destructive font-medium">{selectedCount} sélectionné{selectedCount > 1 ? "s" : ""}</span>
+          <Button variant="destructive" size="sm" onClick={() => setPendingBulkDelete(selectedRows)}>
+            <Trash2 className="size-3.5" /> {t("common.delete")}
+          </Button>
+          <button type="button" onClick={() => setRowSelection({})} className="ml-auto text-muted-foreground hover:text-foreground text-xs">Annuler</button>
+        </div>
+      )}
       {searchable && (
         <div className="relative">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />
@@ -145,8 +199,9 @@ export function DataTable<TData, TValue>({
       </div>
 
       <div className="flex items-center justify-between px-1 flex-wrap gap-2">
-        <span className="text-muted-foreground text-sm">
-          {table.getFilteredRowModel().rows.length} résultat{table.getFilteredRowModel().rows.length !== 1 ? "s" : ""}
+        <span className="text-muted-foreground text-sm flex items-center gap-1.5 flex-wrap">
+          {t("common.results", { n: table.getFilteredRowModel().rows.length, s: table.getFilteredRowModel().rows.length !== 1 ? "s" : "" })}
+          {footerStats && <>{" · "}{footerStats}</>}
         </span>
         <div className="flex items-center gap-2">
           <label className="text-muted-foreground text-sm flex items-center gap-1">
@@ -184,6 +239,22 @@ export function DataTable<TData, TValue>({
           </Button>
         </div>
       </div>
+      <Dialog open={!!pendingBulkDelete} onOpenChange={(o) => !o && setPendingBulkDelete(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{t("common.bulk_delete_title")}</DialogTitle>
+            <DialogDescription>
+              {t("common.bulk_delete_desc", { n: pendingBulkDelete?.length ?? 0, s: (pendingBulkDelete?.length ?? 0) !== 1 ? "s" : "" })}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <DialogClose render={<Button variant="outline" />}>{t("common.cancel")}</DialogClose>
+            <Button variant="destructive" onClick={() => { onBulkDelete!(pendingBulkDelete!); setRowSelection({}); setPendingBulkDelete(null); }}>
+              {t("common.delete")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

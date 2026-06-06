@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState, useMemo, useEffect } from "react";
+import { Suspense, useState, useMemo, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useDebounce } from "use-debounce";
@@ -11,6 +11,7 @@ import {
   useElements,
   useElementTypes,
   useCreateElement,
+  useDeleteElement,
   useElementsInViews,
   useRelationships,
 } from "@/lib/queries";
@@ -44,6 +45,7 @@ import { Plus, ChevronDown, ChevronRight } from "lucide-react";
 import type { Property } from "@/lib/api";
 import { allowedRelationships } from "@/lib/archimate-rules";
 import { useIsAdmin } from "@/hooks/use-current-user";
+import { useKeyboardShortcut } from "@/hooks/use-keyboard-shortcut";
 import { useT } from "@/lib/i18n";
 const LAYER_COLORS = LAYER_BADGE_COLORS;
 
@@ -64,6 +66,7 @@ function ElementsPageInner() {
   const [search, setSearch] = useState("");
   const [debouncedSearch] = useDebounce(search, 300);
   const [typeFilter, setTypeFilter] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<"all" | "ok" | "conflict" | "absent">("all");
 
   const { data: types = [] } = useElementTypes();
   const { data: elements = [], isLoading: loading, error } = useElements(typeFilter, debouncedSearch || null);
@@ -93,6 +96,12 @@ function ElementsPageInner() {
     return map;
   }, [allRelationships, byId]);
 
+  const deleteMutation = useDeleteElement();
+
+  async function handleBulkDelete(rows: ElementOut[]) {
+    await Promise.all(rows.map((el) => deleteMutation.mutateAsync(el.identifier)));
+  }
+
   // Create dialog
   const [createOpen, setCreateOpen] = useState(false);
   const [newName, setNewName] = useState("");
@@ -115,6 +124,10 @@ function ElementsPageInner() {
       setTypeFilter(null);
     }
   }, [layerFilter, typeFilter, grouped]);
+
+  const searchRef = useRef<HTMLInputElement>(null);
+  useKeyboardShortcut("n", () => { if (isAdmin) setCreateOpen(true); }, { enabled: !createOpen });
+  useKeyboardShortcut("/", (e) => { e.preventDefault(); searchRef.current?.focus(); }, { enabled: true });
 
   async function handleCreate() {
     if (!newName.trim() || !newType) return;
@@ -198,9 +211,30 @@ function ElementsPageInner() {
   ], [inViewsSet, relStats]);
 
   const filteredElements = useMemo(() => {
-    if (!layerFilter) return elements;
-    return elements.filter((el) => getLayer(el.type) === layerFilter);
-  }, [elements, layerFilter]);
+    let result = layerFilter ? elements.filter((el) => getLayer(el.type) === layerFilter) : elements;
+    if (statusFilter !== "all") {
+      result = result.filter((el) => {
+        const stats = relStats.get(el.identifier);
+        const inView = inViewsSet.has(el.identifier);
+        if (statusFilter === "conflict") return (stats?.conflict ?? 0) > 0;
+        if (statusFilter === "absent") return !inView;
+        return (stats?.conflict ?? 0) === 0 && inView;
+      });
+    }
+    return result;
+  }, [elements, layerFilter, statusFilter, relStats, inViewsSet]);
+
+  const elementStats = useMemo(() => {
+    let ok = 0, conflict = 0, absent = 0;
+    for (const el of filteredElements) {
+      const stats = relStats.get(el.identifier);
+      const inView = inViewsSet.has(el.identifier);
+      if ((stats?.conflict ?? 0) > 0) conflict++;
+      else if (!inView) absent++;
+      else ok++;
+    }
+    return { ok, conflict, absent };
+  }, [filteredElements, relStats, inViewsSet]);
 
   const layerLabel = layerFilter
     ? t(`layer.${layerFilter}` as Parameters<typeof t>[0]) || LAYER_LABELS[layerFilter] || layerFilter
@@ -282,8 +316,8 @@ function ElementsPageInner() {
         </Dialog>}
       </div>
 
-      <div className="flex flex-wrap items-center gap-3">
-        <Input placeholder={t("common.search_by_name")} className="max-w-xs" value={search} onChange={(e) => setSearch(e.target.value)} />
+      <div className="flex items-center gap-3">
+        <Input ref={searchRef} placeholder={t("common.search_by_name")} className="flex-1 min-w-0" value={search} onChange={(e) => setSearch(e.target.value)} />
         <Select value={typeFilter ?? ""} onValueChange={(val) => setTypeFilter(val || null)}>
           <SelectTrigger className="min-w-[180px]"><SelectValue placeholder="Tous les types" /></SelectTrigger>
           <SelectContent>
@@ -293,12 +327,29 @@ function ElementsPageInner() {
             ))}
           </SelectContent>
         </Select>
+        <div className="flex items-center gap-1">
+          {(["all", "ok", "conflict", "absent"] as const).map((f) => (
+            <button key={f} type="button" onClick={() => setStatusFilter(f)}
+              className={`text-[12px] px-2.5 py-1 rounded-md border transition-colors ${statusFilter === f ? "bg-primary text-primary-foreground border-primary" : "bg-background text-foreground border-border hover:bg-muted"}`}>
+              {f === "all" ? t("common.all") : f === "ok" ? t("common.ok") : f === "conflict" ? t("common.conflicts") : "Absents"}
+            </button>
+          ))}
+        </div>
       </div>
 
       <DataTable
         columns={columns}
         data={filteredElements}
         loading={loading}
+        initialSorting={[{ id: "status", desc: true }]}
+        selectable={isAdmin}
+        onBulkDelete={isAdmin ? handleBulkDelete : undefined}
+        getRowId={(row) => row.identifier}
+        footerStats={<>
+          <span className="text-emerald-600">{elementStats.ok} {t("common.ok")}</span>
+          {elementStats.conflict > 0 && <> · <span className="text-destructive">{elementStats.conflict} {t("common.conflicts").toLowerCase()}</span></>}
+          {elementStats.absent > 0 && <> · <span className="text-amber-600">{elementStats.absent} {t("common.absent")}</span></>}
+        </>}
         renderSubRow={(row) => {
           const el = row.original as ElementOut;
           const inView = inViewsSet.has(el.identifier);

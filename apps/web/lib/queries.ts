@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import {
   fetchModel,
   fetchElements,
@@ -167,10 +168,12 @@ export function useCreateElement() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: ElementCreateIn) => createElement(body),
-    onSuccess: () => {
+    onSuccess: (el) => {
       qc.invalidateQueries({ queryKey: ["elements"] });
       qc.invalidateQueries({ queryKey: queryKeys.model() });
+      toast.success(`Élément « ${el.name} » créé`);
     },
+    onError: (e) => toast.error((e as Error).message),
   });
 }
 
@@ -178,10 +181,12 @@ export function useUpdateElement() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, body }: { id: string; body: ElementUpdateIn }) => updateElement(id, body),
-    onSuccess: (_, { id }) => {
+    onSuccess: (el, { id }) => {
       qc.invalidateQueries({ queryKey: ["elements"] });
       qc.invalidateQueries({ queryKey: queryKeys.element(id) });
+      toast.success(`Élément « ${el.name} » mis à jour`);
     },
+    onError: (e) => toast.error((e as Error).message),
   });
 }
 
@@ -192,7 +197,9 @@ export function useDeleteElement() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["elements"] });
       qc.invalidateQueries({ queryKey: queryKeys.model() });
+      toast.success("Élément supprimé");
     },
+    onError: (e) => toast.error((e as Error).message),
   });
 }
 
@@ -200,10 +207,12 @@ export function useCreateRelationship() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: RelationshipCreateIn) => createRelationship(body),
-    onSuccess: () => {
+    onSuccess: (r) => {
       qc.invalidateQueries({ queryKey: ["relationships"] });
       qc.invalidateQueries({ queryKey: ["elementRelationships"] });
+      toast.success(`Relation ${r.type} créée`);
     },
+    onError: (e) => toast.error((e as Error).message),
   });
 }
 
@@ -211,10 +220,12 @@ export function useUpdateRelationship() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, body }: { id: string; body: RelationshipUpdateIn }) => updateRelationship(id, body),
-    onSuccess: () => {
+    onSuccess: (r) => {
       qc.invalidateQueries({ queryKey: ["relationships"] });
       qc.invalidateQueries({ queryKey: ["elementRelationships"] });
+      toast.success(`Relation ${r.type} mise à jour`);
     },
+    onError: (e) => toast.error((e as Error).message),
   });
 }
 
@@ -226,7 +237,9 @@ export function useDeleteRelationship() {
       qc.invalidateQueries({ queryKey: ["relationships"] });
       qc.invalidateQueries({ queryKey: ["elementRelationships"] });
       qc.invalidateQueries({ queryKey: queryKeys.model() });
+      toast.success("Relation supprimée");
     },
+    onError: (e) => toast.error((e as Error).message),
   });
 }
 
@@ -234,7 +247,8 @@ export function useCreateView() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: ViewCreateIn) => createView(body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.views() }),
+    onSuccess: (v) => { qc.invalidateQueries({ queryKey: queryKeys.views() }); toast.success(`Vue « ${v.name} » créée`); },
+    onError: (e) => toast.error((e as Error).message),
   });
 }
 
@@ -242,7 +256,8 @@ export function useUpdateView() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, body }: { id: string; body: ViewUpdateIn }) => updateView(id, body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.views() }),
+    onSuccess: (v) => { qc.invalidateQueries({ queryKey: queryKeys.views() }); toast.success(`Vue « ${v.name} » mise à jour`); },
+    onError: (e) => toast.error((e as Error).message),
   });
 }
 
@@ -253,7 +268,9 @@ export function useDeleteView() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.views() });
       qc.invalidateQueries({ queryKey: queryKeys.model() });
+      toast.success("Vue supprimée");
     },
+    onError: (e) => toast.error((e as Error).message),
   });
 }
 

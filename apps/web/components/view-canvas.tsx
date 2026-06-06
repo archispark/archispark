@@ -8,6 +8,7 @@ import {
   ReactFlowProvider,
   Background,
   Controls,
+  MiniMap,
   BaseEdge,
   EdgeLabelRenderer,
   Handle,
@@ -43,6 +44,11 @@ import {
 } from "@/lib/api";
 import { allowedRelationships } from "@/lib/archimate-rules";
 import { iconForType, type IconPrim } from "./archimate-icons";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
+  DialogFooter, DialogClose,
+} from "@workspace/ui/components/dialog";
+import { Button } from "@workspace/ui/components/button";
 
 const HANDLE_STYLE: React.CSSProperties = {
   width: 8,
@@ -264,6 +270,7 @@ function ArchiEdge({
   const viewId = useContext(ViewIdContext);
   const { t } = useT();
   const { setEdges } = useReactFlow();
+  const [confirmDeleteEdge, setConfirmDeleteEdge] = useState(false);
   const [path, labelX, labelY] = getSmoothStepPath({
     sourceX,
     sourceY,
@@ -353,7 +360,7 @@ function ArchiEdge({
               </button>
               <button
                 type="button"
-                onClick={removeEdge}
+                onClick={() => setConfirmDeleteEdge(true)}
                 title={t("canvas.remove_from_view")}
                 aria-label={t("canvas.remove_from_view")}
                 style={{
@@ -375,6 +382,20 @@ function ArchiEdge({
           ) : null}
         </div>
       </EdgeLabelRenderer>
+      <Dialog open={confirmDeleteEdge} onOpenChange={(o) => !o && setConfirmDeleteEdge(false)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{t("canvas.remove_from_view")}</DialogTitle>
+            <DialogDescription>{t("common.irreversible")}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <DialogClose render={<Button variant="outline" />}>{t("common.cancel")}</DialogClose>
+            <Button variant="destructive" onClick={() => { setConfirmDeleteEdge(false); removeEdge(); }}>
+              {t("common.delete")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
@@ -1118,6 +1139,7 @@ function ViewCanvasInner({ viewId, nodes, connections, elements = [], elementNam
       >
         <Background />
         <Controls />
+        <MiniMap zoomable pannable className="!bottom-12 !right-2" />
         <Panel position="top-right">
           <DownloadMenu />
         </Panel>

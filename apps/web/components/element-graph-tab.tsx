@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -10,6 +10,8 @@ import {
   EdgeLabelRenderer,
   Handle,
   Position,
+  getBezierPath,
+  getStraightPath,
   getSmoothStepPath,
   useNodesState,
   useEdgesState,
@@ -23,6 +25,7 @@ import "@xyflow/react/dist/style.css";
 import dagre from "@dagrejs/dagre";
 import { getLayer, LAYER_HEX_COLORS } from "@/lib/archimate-helpers";
 import type { ElementOut, RelationshipOut } from "@/lib/api";
+import { isRelationshipAllowed } from "@/lib/archimate-rules";
 import { useRouter } from "next/navigation";
 import { Button } from "@workspace/ui/components/button";
 import { SlidersHorizontal } from "lucide-react";
@@ -31,6 +34,17 @@ const NODE_W = 150;
 const NODE_H = 60;
 
 type Direction = "TB" | "LR";
+type EdgePathType = "smoothstep" | "bezier" | "step" | "straight";
+
+function getStepPath({ sourceX, sourceY, targetX, targetY }: {
+  sourceX: number; sourceY: number; targetX: number; targetY: number;
+}): [string, number, number] {
+  const midX = (sourceX + targetX) / 2;
+  const midY = (sourceY + targetY) / 2;
+  return [`M ${sourceX} ${sourceY} L ${midX} ${sourceY} L ${midX} ${targetY} L ${targetX} ${targetY}`, midX, midY];
+}
+
+const EdgeTypeContext = createContext<EdgePathType>("smoothstep");
 
 // ── Layout ────────────────────────────────────────────────────────────────────
 
@@ -124,9 +138,13 @@ function ArchiEdge({
   data,
   label,
 }: EdgeProps) {
-  const [path, labelX, labelY] = getSmoothStepPath({
-    sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition,
-  });
+  const edgePathType = useContext(EdgeTypeContext);
+  const pathArgs = { sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition };
+  const [path, labelX, labelY] =
+    edgePathType === "bezier"   ? getBezierPath(pathArgs) :
+    edgePathType === "straight" ? getStraightPath({ sourceX, sourceY, targetX, targetY }) :
+    edgePathType === "step"     ? getStepPath({ sourceX, sourceY, targetX, targetY }) :
+                                  getSmoothStepPath(pathArgs);
   const relType = (data?.relationshipType as string | undefined) ?? undefined;
   const archi = archimateEdgeStyle(relType);
 
@@ -181,10 +199,13 @@ function ArchiNode({ data }: NodeProps) {
     label: string;
     elementType: string;
     isCentral: boolean;
+    hasConflict: boolean;
     onClick?: () => void;
   };
   const layer = getLayer(d.elementType);
   const color = LAYER_HEX_COLORS[layer] ?? "#64748b";
+  const borderColor = d.hasConflict ? "#dc2626" : color;
+  const borderWidth = d.isCentral ? 3 : 1.5;
   return (
     <>
       <Handle type="target" position={Position.Top}    style={{ opacity: 0, pointerEvents: "none" }} />
@@ -194,9 +215,9 @@ function ArchiNode({ data }: NodeProps) {
         style={{
           width: NODE_W,
           height: NODE_H,
-          border: `${d.isCentral ? 3 : 1.5}px solid ${color}`,
+          border: `${borderWidth}px solid ${borderColor}`,
           borderRadius: 8,
-          background: d.isCentral ? `${color}22` : "white",
+          background: d.isCentral ? `${color}22` : (d.hasConflict ? "#fef2f2" : "white"),
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
@@ -204,12 +225,16 @@ function ArchiNode({ data }: NodeProps) {
           padding: "6px 10px",
           cursor: d.isCentral ? "default" : "pointer",
           boxShadow: d.isCentral
-            ? `0 0 0 4px ${color}33, 0 2px 10px rgba(0,0,0,0.12)`
+            ? `0 0 0 4px ${borderColor}33, 0 2px 10px rgba(0,0,0,0.12)`
             : "0 1px 4px rgba(0,0,0,0.08)",
           textAlign: "center",
           userSelect: "none",
+          position: "relative",
         }}
       >
+        {d.hasConflict && (
+          <span style={{ position: "absolute", top: 3, right: 5, fontSize: 9, color: "#dc2626", fontWeight: 700 }}>✕</span>
+        )}
         <div style={{ fontSize: 10, color, fontWeight: 700, letterSpacing: 0.4, lineHeight: 1, marginBottom: 4 }}>
           {d.elementType}
         </div>
@@ -254,6 +279,7 @@ function buildGraph(
   depth: number,
   hiddenElementTypes: Set<string>,
   hiddenRelTypes: Set<string>,
+  showIndirect: boolean,
   router: ReturnType<typeof useRouter>,
 ): { nodes: Node[]; edges: Edge[] } {
   const nodeMap = new Map<string, Node>();
@@ -306,16 +332,33 @@ function buildGraph(
     currentFrontier = nextFrontier;
   }
 
-  const edges: Edge[] = eligibleRels
-    .filter((r) => visited.has(r.source) && visited.has(r.target))
-    .map((r) => ({
-      id: r.identifier,
-      source: r.source,
-      target: r.target,
-      type: "archiEdge",
-      label: r.name ? `${r.type} · ${r.name}` : r.type,
-      data: { relationshipType: r.type },
-    }));
+  const allVisibleRels = eligibleRels.filter((r) => visited.has(r.source) && visited.has(r.target));
+  const visibleRels = showIndirect
+    ? allVisibleRels
+    : allVisibleRels.filter((r) => r.source === element.identifier || r.target === element.identifier);
+
+  const conflictNodeIds = new Set<string>();
+  for (const r of visibleRels) {
+    const src = byId.get(r.source);
+    const tgt = byId.get(r.target);
+    if (!isRelationshipAllowed(r.type, src?.type, tgt?.type)) {
+      conflictNodeIds.add(r.source);
+      conflictNodeIds.add(r.target);
+    }
+  }
+
+  for (const [id, node] of nodeMap) {
+    node.data = { ...node.data, hasConflict: conflictNodeIds.has(id) };
+  }
+
+  const edges: Edge[] = visibleRels.map((r) => ({
+    id: r.identifier,
+    source: r.source,
+    target: r.target,
+    type: "archiEdge",
+    label: r.name ? `${r.type} · ${r.name}` : r.type,
+    data: { relationshipType: r.type },
+  }));
 
   return { nodes: Array.from(nodeMap.values()), edges };
 }
@@ -426,7 +469,7 @@ function FilterPanel({
       </Button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-1 z-50 bg-background border border-border rounded-lg shadow-lg p-3 w-64 max-h-[420px] overflow-y-auto">
+        <div className="absolute left-0 top-full mt-1 z-50 bg-background border border-border rounded-lg shadow-lg p-3 w-64 max-h-[420px] overflow-y-auto">
 
           {/* Element types */}
           <div className="mb-3">
@@ -487,6 +530,8 @@ function GraphCanvas({ element, allRelationships, byId }: ElementGraphTabProps) 
   const { fitView } = useReactFlow();
   const [direction, setDirection] = useState<Direction>("TB");
   const [depth, setDepth] = useState(1);
+  const [showIndirect, setShowIndirect] = useState(false);
+  const [edgePathType, setEdgePathType] = useState<EdgePathType>("smoothstep");
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
 
@@ -499,9 +544,9 @@ function GraphCanvas({ element, allRelationships, byId }: ElementGraphTabProps) 
   const [availableRelTypes, setAvailableRelTypes] = useState<string[]>([]);
 
   const layout = useCallback(
-    (dir: Direction, d: number, hiddenEl: Set<string>, hiddenRel: Set<string>) => {
+    (dir: Direction, d: number, hiddenEl: Set<string>, hiddenRel: Set<string>, indirect: boolean) => {
       const { nodes: rawNodes, edges: rawEdges } = buildGraph(
-        element, allRelationships, byId, d, hiddenEl, hiddenRel, router,
+        element, allRelationships, byId, d, hiddenEl, hiddenRel, indirect, router,
       );
       const laid = applyDagreLayout(rawNodes, rawEdges, dir);
       setNodes(laid);
@@ -515,84 +560,135 @@ function GraphCanvas({ element, allRelationships, byId }: ElementGraphTabProps) 
     const { elementTypes, relTypes } = getReachableTypes(element, allRelationships, byId, depth);
     setAvailableElementTypes(elementTypes);
     setAvailableRelTypes(relTypes);
-    layout(direction, depth, hiddenElRef.current, hiddenRelRef.current);
+    layout(direction, depth, hiddenElRef.current, hiddenRelRef.current, showIndirect);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [element, allRelationships, byId, depth]);
+  }, [element, allRelationships, byId, depth, showIndirect]);
 
   function toggleDirection() {
     const next: Direction = direction === "TB" ? "LR" : "TB";
     setDirection(next);
-    layout(next, depth, hiddenElRef.current, hiddenRelRef.current);
+    layout(next, depth, hiddenElRef.current, hiddenRelRef.current, showIndirect);
   }
 
   function changeElementTypes(hidden: Set<string>) {
     hiddenElRef.current = hidden;
     setHiddenElementTypes(hidden);
-    layout(direction, depth, hidden, hiddenRelRef.current);
+    layout(direction, depth, hidden, hiddenRelRef.current, showIndirect);
   }
 
   function changeRelTypes(hidden: Set<string>) {
     hiddenRelRef.current = hidden;
     setHiddenRelTypes(hidden);
-    layout(direction, depth, hiddenElRef.current, hidden);
+    layout(direction, depth, hiddenElRef.current, hidden, showIndirect);
   }
+
+  function changeShowIndirect(indirect: boolean) {
+    setShowIndirect(indirect);
+    layout(direction, depth, hiddenElRef.current, hiddenRelRef.current, indirect);
+  }
+
+  const EDGE_PATH_LABELS: Record<EdgePathType, string> = {
+    smoothstep: "Lisse",
+    bezier: "Bezier",
+    step: "Step",
+    straight: "Droit",
+  };
 
   return (
     <div className="flex flex-col flex-1 min-h-0 gap-2">
-      <div className="flex justify-end items-center gap-3 shrink-0">
-        {/* Depth selector */}
-        <div className="flex items-center gap-1.5">
-          <span className="text-xs text-muted-foreground">Profondeur</span>
-          {[1, 2, 3, 4, 5].map((d) => (
-            <button
-              key={d}
-              type="button"
-              onClick={() => setDepth(d)}
-              className={`w-6 h-6 text-xs rounded border transition-colors ${
-                depth === d
-                  ? "bg-primary text-primary-foreground border-primary"
-                  : "border-border text-muted-foreground hover:text-foreground hover:border-ring"
-              }`}
-            >
-              {d}
-            </button>
-          ))}
+      <div className="flex justify-between items-center gap-3 shrink-0">
+
+        {/* Left: Filtres + Profondeur + Relations */}
+        <div className="flex items-center gap-3">
+          <FilterPanel
+            availableElementTypes={availableElementTypes}
+            availableRelTypes={availableRelTypes}
+            hiddenElementTypes={hiddenElementTypes}
+            hiddenRelTypes={hiddenRelTypes}
+            onChangeElementTypes={changeElementTypes}
+            onChangeRelTypes={changeRelTypes}
+          />
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-muted-foreground">Profondeur</span>
+            {[1, 2, 3, 4, 5].map((d) => (
+              <button
+                key={d}
+                type="button"
+                onClick={() => setDepth(d)}
+                className={`w-6 h-6 text-xs rounded border transition-colors ${
+                  depth === d
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "border-border text-muted-foreground hover:text-foreground hover:border-ring"
+                }`}
+              >
+                {d}
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-muted-foreground">Relations</span>
+            {([false, true] as const).map((indirect) => (
+              <button
+                key={String(indirect)}
+                type="button"
+                onClick={() => changeShowIndirect(indirect)}
+                className={`text-xs px-2 h-6 rounded border transition-colors ${
+                  showIndirect === indirect
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "border-border text-muted-foreground hover:text-foreground hover:border-ring"
+                }`}
+              >
+                {indirect ? "Indirect" : "Direct"}
+              </button>
+            ))}
+          </div>
         </div>
 
-        {/* Filter panel */}
-        <FilterPanel
-          availableElementTypes={availableElementTypes}
-          availableRelTypes={availableRelTypes}
-          hiddenElementTypes={hiddenElementTypes}
-          hiddenRelTypes={hiddenRelTypes}
-          onChangeElementTypes={changeElementTypes}
-          onChangeRelTypes={changeRelTypes}
-        />
-
-        {/* Direction toggle */}
-        <Button size="sm" variant="outline" onClick={toggleDirection}>
-          {direction === "TB" ? "→ Horizontal" : "↓ Vertical"}
-        </Button>
+        {/* Right: Edge type + direction */}
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-muted-foreground">Edges</span>
+            {(["smoothstep", "bezier", "step", "straight"] as const).map((type) => (
+              <button
+                key={type}
+                type="button"
+                onClick={() => setEdgePathType(type)}
+                className={`text-xs px-2 h-6 rounded border transition-colors ${
+                  edgePathType === type
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "border-border text-muted-foreground hover:text-foreground hover:border-ring"
+                }`}
+              >
+                {EDGE_PATH_LABELS[type]}
+              </button>
+            ))}
+          </div>
+          <Button size="sm" variant="outline" onClick={toggleDirection}>
+            {direction === "TB" ? "→" : "↓"}
+          </Button>
+        </div>
       </div>
 
       <div className="flex-1 min-h-0 rounded-lg border border-border overflow-hidden relative" style={{ height: "100%" }}>
         {MARKER_DEFS}
-        <ReactFlow
-          nodes={nodes}
-          edges={edges}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          nodeTypes={NODE_TYPES}
-          edgeTypes={EDGE_TYPES}
-          nodesDraggable
-          nodesConnectable={false}
-          elementsSelectable={false}
-          minZoom={0.2}
-          maxZoom={3}
-        >
-          <Background color="#e2e8f0" gap={24} />
-          <Controls showInteractive={false} />
-        </ReactFlow>
+        <EdgeTypeContext.Provider value={edgePathType}>
+          <ReactFlow
+            nodes={nodes}
+            edges={edges}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            nodeTypes={NODE_TYPES}
+            edgeTypes={EDGE_TYPES}
+            nodesDraggable
+            nodesConnectable={false}
+            elementsSelectable={false}
+            minZoom={0.2}
+            maxZoom={3}
+          >
+            <Background color="#e2e8f0" gap={24} />
+            <Controls showInteractive={false} />
+          </ReactFlow>
+        </EdgeTypeContext.Provider>
       </div>
     </div>
   );

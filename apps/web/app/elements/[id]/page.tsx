@@ -156,6 +156,7 @@ export default function ElementDetailPage() {
 
   // ── Delete element ────────────────────────────────────────────────────────
   const [deleteModal, deleteActions] = useFormModal<ElementOut>();
+  const [deletePropRef, setDeletePropRef] = useState<string | null>(null);
   async function handleDeleteElement() {
     await deleteActions.run(async () => {
       await deleteMutation.mutateAsync(id);
@@ -299,7 +300,7 @@ export default function ElementDetailPage() {
       enableSorting: false,
       cell: ({ row }: { row: { original: PropRow } }) => (
         <div className="flex justify-end">
-          <Button variant="ghost" size="icon-xs" onClick={() => deleteProp(row.original.property_definition_ref)} aria-label={t("common.delete")}>
+          <Button variant="ghost" size="icon-xs" onClick={() => setDeletePropRef(row.original.property_definition_ref)} aria-label={t("common.delete")}>
             <Trash2 className="size-3.5 text-destructive" />
           </Button>
         </div>
@@ -676,6 +677,22 @@ export default function ElementDetailPage() {
           </div>
         )}
       </div>
+
+      {/* ── Delete property confirmation ──────────────────────────────────── */}
+      <Dialog open={!!deletePropRef} onOpenChange={(o) => !o && setDeletePropRef(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{t("common.delete")}</DialogTitle>
+            <DialogDescription>{t("common.irreversible")}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <DialogClose render={<Button variant="outline" />}>{t("common.cancel")}</DialogClose>
+            <Button variant="destructive" onClick={() => { deleteProp(deletePropRef!); setDeletePropRef(null); }}>
+              {t("common.delete")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ── Delete element dialog ──────────────────────────────────────────── */}
       <Dialog open={deleteModal.open} onOpenChange={(o) => !o && deleteActions.close()}>
