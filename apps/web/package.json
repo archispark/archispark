@@ -21,7 +21,7 @@
     "@vercel/speed-insights": "^2.0.0",
     "@workspace/ui": "workspace:*",
     "@xyflow/react": "^12.11.0",
-    "better-auth": "^1.6.14",
+    "better-auth": "^1.6.15",
     "html-to-image": "^1.11.13",
     "lucide-react": "^1.17.0",
     "next": "16.2.7",
