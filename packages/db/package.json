@@ -22,7 +22,7 @@
     "pg": "^8.13.3"
   },
   "devDependencies": {
-    "@electric-sql/pglite": "^0.3.4",
+    "@electric-sql/pglite": "^0.5.1",
     "@types/pg": "^8.11.11",
     "@types/node": "^22.0.0",
     "@vitest/coverage-v8": "^4.1.8",
