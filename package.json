@@ -17,8 +17,8 @@
     "@workspace/typescript-config": "workspace:*",
     "prettier": "^3.8.1",
     "prettier-plugin-tailwindcss": "^0.8.0",
-    "turbo": "^2.9.15",
-    "typescript": "5.9.3"
+    "turbo": "^2.9.16",
+    "typescript": "6.0.3"
   },
   "packageManager": "pnpm@11.5.1",
   "engines": {
