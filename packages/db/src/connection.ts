@@ -33,13 +33,16 @@ async function createDb(): Promise<NodePgDatabase<typeof schema>> {
 
   // Priority: explicit DATABASE_URL → Supabase pooled (IPv4 — works from
   // serverless/Vercel) → Supabase direct (IPv6 — only reachable locally/in a
-  // container) → default dev connection. Serverless functions must use the
-  // pooled connection: the direct host is IPv6-only and unreachable from Lambdas.
+  // container). Serverless functions must use the pooled connection: the direct
+  // host is IPv6-only and unreachable from Lambdas.
   const rawConnectionString =
     process.env["DATABASE_URL"] ??
     process.env["POSTGRES_URL"] ??
-    process.env["POSTGRES_URL_NON_POOLING"] ??
-    "postgresql://archispark:archispark@localhost:5432/archispark";
+    process.env["POSTGRES_URL_NON_POOLING"];
+
+  if (!rawConnectionString) {
+    throw new Error("DATABASE_URL (or POSTGRES_URL / POSTGRES_URL_NON_POOLING) is required");
+  }
 
   // isLocal: standard local hostnames OR explicit sslmode=disable in the URL
   // (covers K8s/Docker internal hostnames like archispark-postgres that don't
