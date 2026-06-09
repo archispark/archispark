@@ -3,7 +3,10 @@ import { join } from "path";
 import { fileURLToPath } from "url";
 import { db, USE_PGLITE } from "./connection.js";
 
-const MIGRATIONS_PG = join(fileURLToPath(new URL("../drizzle-pg", import.meta.url)));
+// When compiled to dist/, SQL files are copied alongside as dist/drizzle-pg/.
+// When run from source (tests via tsx), fall back to the original ../drizzle-pg.
+const _migrateDir = new URL(import.meta.url).pathname.includes("/dist/") ? "./drizzle-pg" : "../drizzle-pg";
+const MIGRATIONS_PG = join(fileURLToPath(new URL(_migrateDir, import.meta.url)));
 
 export async function runMigrations(): Promise<void> {
   // v8 ignore start

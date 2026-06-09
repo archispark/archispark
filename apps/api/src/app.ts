@@ -547,17 +547,19 @@ app.delete("/settings/api-tokens/:id", requireAuth as express.RequestHandler, as
 // ---------------------------------------------------------------------------
 
 app.get("/settings/messages", async (_req: Request, res: Response) => {
-  const [row] = await db.select().from(siteSettings).where(eq(siteSettings.id, 1));
-  if (!row) {
-    res.json({ login_message: null, login_message_enabled: false, banner_message: null, banner_message_enabled: false });
-    return;
+  const defaults = { login_message: null, login_message_enabled: false, banner_message: null, banner_message_enabled: false };
+  try {
+    const [row] = await db.select().from(siteSettings).where(eq(siteSettings.id, 1));
+    if (!row) { res.json(defaults); return; }
+    res.json({
+      login_message:          row.loginMessage ?? null,
+      login_message_enabled:  row.loginMessageEnabled,
+      banner_message:         row.bannerMessage ?? null,
+      banner_message_enabled: row.bannerMessageEnabled,
+    });
+  } catch {
+    res.json(defaults);
   }
-  res.json({
-    login_message:         row.loginMessage ?? null,
-    login_message_enabled: row.loginMessageEnabled,
-    banner_message:        row.bannerMessage ?? null,
-    banner_message_enabled: row.bannerMessageEnabled,
-  });
 });
 
 app.put("/settings/messages", requireAdmin as express.RequestHandler, async (req: Request, res: Response) => {

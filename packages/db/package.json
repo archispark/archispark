@@ -11,11 +11,12 @@
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "tsc -p tsconfig.build.json && cp -r drizzle-pg dist/",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "typecheck": "tsc --noEmit",
-    "seed:demo": "tsx scripts/seed-demo.ts"
+    "seed:demo": "tsx scripts/seed-demo.ts",
+    "migrate:prod": "tsx scripts/migrate-prod.ts"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.2",
