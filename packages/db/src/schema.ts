@@ -339,3 +339,16 @@ export const oauthProviders = pgTable("oauth_providers", {
 }, (t) => [
   uniqueIndex("oauth_providers_provider_id_uniq").on(t.providerId),
 ]);
+
+// ---------------------------------------------------------------------------
+// Site settings — singleton row (id = 1) for login/banner messages
+// ---------------------------------------------------------------------------
+
+export const siteSettings = pgTable("site_settings", {
+  id:                   integer("id").primaryKey(),
+  loginMessage:         text("login_message"),
+  loginMessageEnabled:  boolean("login_message_enabled").notNull().default(false),
+  bannerMessage:        text("banner_message"),
+  bannerMessageEnabled: boolean("banner_message_enabled").notNull().default(false),
+  updatedAt:            integer("updated_at").notNull().default(sql`extract(epoch from now())::int`),
+});

@@ -42,8 +42,8 @@ import type { Archiver, ZipOptions } from "archiver";
 import * as archiverNs from "archiver";
 const ZipArchive = (archiverNs as unknown as { ZipArchive: new (opts?: ZipOptions) => Archiver }).ZipArchive;
 import { AppError, ValidationError } from "./errors.js";
-import { db, oauthProviders, apiTokens, modelFromDb, modelToDb } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { db, oauthProviders, apiTokens, siteSettings, modelFromDb, modelToDb } from "@workspace/db";
+import { eq, sql } from "drizzle-orm";
 import * as store from "./store.js";
 import {
   getActiveWorkspaceId,
@@ -539,6 +539,42 @@ app.delete("/settings/api-tokens/:id", requireAuth as express.RequestHandler, as
   }
   await db.delete(apiTokens).where(eq(apiTokens.id, id));
   res.status(204).send();
+});
+
+// ---------------------------------------------------------------------------
+// Site messages — login message + banner (read: public; write: admin only)
+// ---------------------------------------------------------------------------
+
+app.get("/settings/messages", async (_req: Request, res: Response) => {
+  const [row] = await db.select().from(siteSettings).where(eq(siteSettings.id, 1));
+  if (!row) {
+    res.json({ login_message: null, login_message_enabled: false, banner_message: null, banner_message_enabled: false });
+    return;
+  }
+  res.json({
+    login_message:         row.loginMessage ?? null,
+    login_message_enabled: row.loginMessageEnabled,
+    banner_message:        row.bannerMessage ?? null,
+    banner_message_enabled: row.bannerMessageEnabled,
+  });
+});
+
+app.put("/settings/messages", requireAdmin as express.RequestHandler, async (req: Request, res: Response) => {
+  const { login_message, login_message_enabled, banner_message, banner_message_enabled } =
+    req.body as Record<string, unknown>;
+  const vals = {
+    id:                   1 as const,
+    loginMessage:         typeof login_message === "string" ? login_message || null : null,
+    loginMessageEnabled:  Boolean(login_message_enabled),
+    bannerMessage:        typeof banner_message === "string" ? banner_message || null : null,
+    bannerMessageEnabled: Boolean(banner_message_enabled),
+    updatedAt:            sql`extract(epoch from now())::int`,
+  };
+  await db.insert(siteSettings).values(vals).onConflictDoUpdate({
+    target: siteSettings.id,
+    set: { loginMessage: vals.loginMessage, loginMessageEnabled: vals.loginMessageEnabled, bannerMessage: vals.bannerMessage, bannerMessageEnabled: vals.bannerMessageEnabled, updatedAt: vals.updatedAt },
+  });
+  res.json({ ok: true });
 });
 
 // ---------------------------------------------------------------------------

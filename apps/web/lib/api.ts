@@ -497,6 +497,18 @@ export const createApiToken = (name: string, expiresAt?: number) =>
   post<ApiTokenCreatedOut>("/settings/api-tokens", { name, expires_at: expiresAt ?? null });
 export const deleteApiToken = (id: number) => del(`/settings/api-tokens/${id}`);
 
+// --- Site messages ---
+
+export interface SiteMessages {
+  login_message: string | null;
+  login_message_enabled: boolean;
+  banner_message: string | null;
+  banner_message_enabled: boolean;
+}
+
+export const fetchSiteMessages = () => get<SiteMessages>("/settings/messages");
+export const updateSiteMessages = (body: SiteMessages) => put<{ ok: boolean }>("/settings/messages", body);
+
 // --- Workspaces ---
 
 export const fetchWorkspaces = () => get<WorkspaceInfo[]>("/workspaces");

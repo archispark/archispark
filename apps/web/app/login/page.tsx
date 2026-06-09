@@ -22,11 +22,18 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [providers, setProviders] = useState<OAuthProvider[]>([]);
   const [ssoLoading, setSsoLoading] = useState<string | null>(null);
+  const [loginMessage, setLoginMessage] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/auth/providers")
       .then((r) => r.json())
       .then((data: OAuthProvider[]) => setProviders(data))
+      .catch(() => {});
+    fetch("/api/settings/messages")
+      .then((r) => r.json())
+      .then((d: { login_message: string | null; login_message_enabled: boolean }) => {
+        if (d.login_message_enabled && d.login_message) setLoginMessage(d.login_message);
+      })
       .catch(() => {});
   }, []);
 
@@ -153,6 +160,12 @@ export default function LoginPage() {
             </>
           )}
         </div>
+
+        {loginMessage && (
+          <div className="mt-4 rounded-lg border border-border bg-card/60 px-4 py-3 text-[12px] text-muted-foreground whitespace-pre-wrap">
+            {loginMessage}
+          </div>
+        )}
       </div>
     </div>
   );

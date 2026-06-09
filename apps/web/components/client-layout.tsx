@@ -4,9 +4,48 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { Nav } from "@/components/nav";
 import { Sidebar } from "@/components/sidebar";
 import { QueryProvider } from "@/components/query-provider";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { Toaster } from "sonner";
+import { X } from "lucide-react";
+
+function SiteBanner() {
+  const [message, setMessage] = useState<string | null>(null);
+  const [dismissed, setDismissed] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/settings/messages")
+      .then((r) => r.json())
+      .then((d: { banner_message: string | null; banner_message_enabled: boolean }) => {
+        if (d.banner_message_enabled && d.banner_message) {
+          const key = `banner-dismissed:${d.banner_message}`;
+          if (!sessionStorage.getItem(key)) setMessage(d.banner_message);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  if (!message || dismissed) return null;
+
+  function dismiss() {
+    sessionStorage.setItem(`banner-dismissed:${message}`, "1");
+    setDismissed(true);
+  }
+
+  return (
+    <div className="fixed top-[var(--nav-h)] left-0 right-0 z-40 flex items-start gap-3 bg-primary/10 border-b border-primary/20 px-4 py-2.5 text-[13px] text-foreground">
+      <span className="flex-1 whitespace-pre-wrap">{message}</span>
+      <button
+        type="button"
+        onClick={dismiss}
+        aria-label="Fermer"
+        className="shrink-0 mt-0.5 text-muted-foreground hover:text-foreground transition-colors"
+      >
+        <X className="size-4" />
+      </button>
+    </div>
+  );
+}
 
 export function ClientLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -20,6 +59,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
     <QueryProvider>
       <ThemeProvider>
         {!isLogin && <Nav onToggleSidebar={() => setSidebarOpen((v) => !v)} />}
+        {!isLogin && <SiteBanner />}
         {!hideSidebar && <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />}
         <main className={isLogin ? "" : `mt-[var(--nav-h)] min-h-[calc(100vh-var(--nav-h))] ${hideSidebar ? "" : "md:ml-[var(--sidebar-w)]"}`}>
           {children}
