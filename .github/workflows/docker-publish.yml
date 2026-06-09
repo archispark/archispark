@@ -44,10 +44,13 @@ jobs:
       # floating minor tag (e.g. 0.5.0 → full=0.5.0, minor=0.5).
       - name: Parse version input
         id: ver
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
-          version="${{ inputs.version }}"
+          version="${INPUT_VERSION}"
           # If workflow_dispatch with explicit version
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "${version}" ]]; then
+          if [[ "${EVENT_NAME}" == "workflow_dispatch" && -n "${version}" ]]; then
             echo "full=${version}" >> "$GITHUB_OUTPUT"
             echo "minor=$(echo "${version}" | cut -d. -f1-2)" >> "$GITHUB_OUTPUT"
             echo "tagged=true" >> "$GITHUB_OUTPUT"
