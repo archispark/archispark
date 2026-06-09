@@ -19,8 +19,12 @@ const sql = readFileSync(SQL_PATH, "utf-8");
 const connectionString =
   process.env["DATABASE_URL"] ??
   process.env["POSTGRES_URL"] ??
-  process.env["POSTGRES_URL_NON_POOLING"] ??
-  "postgresql://archispark:archispark@localhost:5432/archispark";
+  process.env["POSTGRES_URL_NON_POOLING"];
+
+if (!connectionString) {
+  console.error("Error: DATABASE_URL (or POSTGRES_URL / POSTGRES_URL_NON_POOLING) is required.");
+  process.exit(1);
+}
 
 const isLocal = /@(localhost|127\.0\.0\.1|\[::1\]|postgres)[:/]/.test(connectionString);
 
