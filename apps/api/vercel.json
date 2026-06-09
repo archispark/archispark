@@ -1,11 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "buildCommand": "cd ../.. && pnpm --filter @workspace/db build && pnpm --filter api build",
-  "functions": {
-    "api/index.ts": {
-      "includeFiles": "node_modules/@workspace/db/dist/drizzle-pg/**"
-    }
-  },
   "rewrites": [
     { "source": "/(.*)", "destination": "/api/index" }
   ]
