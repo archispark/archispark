@@ -1941,3 +1941,77 @@ describe("POST /settings/providers validation", () => {
   });
 });
 
+// ===========================================================================
+// Integration tests – /settings/messages
+// ===========================================================================
+
+describe("GET /settings/messages", () => {
+  it("returns 200 without authentication (public endpoint)", async () => {
+    const res = await _request(app).get("/settings/messages");
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      login_message_enabled: expect.any(Boolean),
+      banner_message_enabled: expect.any(Boolean),
+    });
+  });
+
+  it("returns default disabled state on fresh DB", async () => {
+    const res = await _request(app).get("/settings/messages");
+    expect(res.status).toBe(200);
+    expect(res.body.login_message_enabled).toBe(false);
+    expect(res.body.banner_message_enabled).toBe(false);
+  });
+});
+
+describe("PUT /settings/messages", () => {
+  it("requires admin (401 without auth)", async () => {
+    const res = await _request(app).put("/settings/messages").send({
+      login_message: "hello",
+      login_message_enabled: true,
+      banner_message: null,
+      banner_message_enabled: false,
+    });
+    expect(res.status).toBe(401);
+  });
+
+  it("saves messages and GET reflects the update", async () => {
+    const put = await request(app).put("/settings/messages").send({
+      login_message: "Demo: admin / admin",
+      login_message_enabled: true,
+      banner_message: "Maintenance le 15 juin.",
+      banner_message_enabled: false,
+    });
+    expect(put.status).toBe(200);
+    expect(put.body.ok).toBe(true);
+
+    const get = await _request(app).get("/settings/messages");
+    expect(get.body.login_message).toBe("Demo: admin / admin");
+    expect(get.body.login_message_enabled).toBe(true);
+    expect(get.body.banner_message).toBe("Maintenance le 15 juin.");
+    expect(get.body.banner_message_enabled).toBe(false);
+  });
+
+  it("empty string message is stored as null", async () => {
+    await request(app).put("/settings/messages").send({
+      login_message: "",
+      login_message_enabled: false,
+      banner_message: "",
+      banner_message_enabled: false,
+    });
+    const get = await _request(app).get("/settings/messages");
+    expect(get.body.login_message).toBeNull();
+    expect(get.body.banner_message).toBeNull();
+  });
+
+  it("enables the banner and GET returns it enabled", async () => {
+    await request(app).put("/settings/messages").send({
+      login_message: null,
+      login_message_enabled: false,
+      banner_message: "Bienvenue !",
+      banner_message_enabled: true,
+    });
+    const get = await _request(app).get("/settings/messages");
+    expect(get.body.banner_message).toBe("Bienvenue !");
+    expect(get.body.banner_message_enabled).toBe(true);
+  });
+});

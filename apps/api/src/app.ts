@@ -207,7 +207,8 @@ app.use((req: AuthRequest, res, next) => {
   if (
     req.path.startsWith("/auth") ||
     req.path === "/openapi.json" ||
-    req.path === "/docs"
+    req.path === "/docs" ||
+    (req.path === "/settings/messages" && req.method === "GET")
   ) return next();
   requireAuth(req, res, next);
 });
