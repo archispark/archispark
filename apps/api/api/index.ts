@@ -15,6 +15,6 @@ import { initRedis } from "../dist/redis.js";
 
 // registry.ts runs runMigrations() + initUsers() via top-level await at import.
 initRedis();
-reloadAuth().catch((err) => console.error("[startup] reloadAuth failed:", err));
+await reloadAuth();
 
 export default app;
