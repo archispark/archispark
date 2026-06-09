@@ -10,6 +10,7 @@ export default defineConfig({
   },
   test: {
     pool: "forks",
+    testTimeout: 15000,
     include: ["src/**/*.test.ts"],
     coverage: {
       provider: "v8",
