@@ -277,8 +277,6 @@ export function serializeToOpenExchange(model: ArchiModel): string {
   }
 
   // Views
-  const viewpoints = renderPreservedSection(raw, "views", "  ");
-  // viewpoints rendering above renders the whole <views> subtree; we replace it with our own.
   // Build views section from current model, but preserve <viewpoints> child if present.
   if (model.views.length > 0 || (raw && raw["views"])) {
     const rawViews = raw?.["views"] as XmlNode | undefined;
@@ -296,8 +294,6 @@ export function serializeToOpenExchange(model: ArchiModel): string {
     }
     out.push("  </views>");
   }
-  // Suppress unused variable
-  void viewpoints;
 
   out.push("</model>");
   return out.join("\n");

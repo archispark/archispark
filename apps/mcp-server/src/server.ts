@@ -1051,7 +1051,7 @@ app.use("/mcp/", async (req: McpRequest, res: Response, next: NextFunction) => {
 app.post("/mcp/", async (req: McpRequest, res: Response) => {
   try {
     const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
-    res.on("close", () => { void transport.close(); });
+    res.on("close", () => { transport.close(); });
     const mcpServer = createMcpServer(req.mcpUser!);
     await mcpServer.connect(transport);
     await transport.handleRequest(req, res, req.body);

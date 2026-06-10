@@ -413,7 +413,7 @@ function TokensTab() {
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter") void handleCreate();
+                  if (e.key === "Enter") handleCreate();
                   if (e.key === "Escape") { setShowNew(false); setNewName(""); }
                 }}
                 placeholder="ex: Claude Code"

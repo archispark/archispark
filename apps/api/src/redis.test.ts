@@ -41,7 +41,7 @@ describe("redis", () => {
   it("initRedis creates a Redis instance and registers event listeners when REDIS_URL is set", () => {
     process.env["REDIS_URL"] = "redis://localhost:6379";
     try {
-      void initRedis(); // returns Promise; mock never fires ready/error so it stays pending
+      initRedis(); // returns Promise; mock never fires ready/error so it stays pending
       expect(MockRedis).toHaveBeenCalledWith("redis://localhost:6379", {
         maxRetriesPerRequest: 3,
         lazyConnect: false,

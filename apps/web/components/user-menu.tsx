@@ -77,7 +77,7 @@ export function UserMenu() {
             <button
               type="button"
               className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] hover:bg-destructive/10 text-destructive text-left transition-colors"
-              onClick={() => { setOpen(false); void logout(); }}
+              onClick={() => { setOpen(false); logout(); }}
             >
               <LogOut className="size-3.5 shrink-0" />
               Se déconnecter
