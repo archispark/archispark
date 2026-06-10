@@ -173,7 +173,7 @@ function rowToRelationship(
 
 export async function listElementTypes(wsId: number): Promise<string[]> {
   const rows = await db.select().from(elements).where(eq(elements.workspaceId, wsId));
-  return [...new Set(rows.map((e) => e.type).filter(Boolean))].sort();
+  return [...new Set(rows.map((e) => e.type).filter(Boolean))].sort((a, b) => a.localeCompare(b));
 }
 
 export async function listElements(wsId: number, element_type?: string | null, name?: string | null): Promise<ElementOut[]> {
@@ -266,7 +266,7 @@ export async function deleteElement(wsId: number, elementId: string): Promise<vo
 
 export async function listRelationshipTypes(wsId: number): Promise<string[]> {
   const rows = await db.select().from(relationships).where(eq(relationships.workspaceId, wsId));
-  return [...new Set(rows.map((r) => r.type).filter(Boolean))].sort();
+  return [...new Set(rows.map((r) => r.type).filter(Boolean))].sort((a, b) => a.localeCompare(b));
 }
 
 export async function listRelationships(

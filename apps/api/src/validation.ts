@@ -10,15 +10,15 @@ extendZodWithOpenApi(z);
 // ---------------------------------------------------------------------------
 
 const elementType = z.string().refine((v) => ELEMENT_TYPES.has(v), {
-  message: `Type d'élément ArchiMate invalide. Types valides: ${[...ELEMENT_TYPES].sort().join(", ")}`,
+  message: `Type d'élément ArchiMate invalide. Types valides: ${[...ELEMENT_TYPES].sort((a, b) => a.localeCompare(b)).join(", ")}`,
 });
 
 const relationshipType = z.string().refine((v) => RELATIONSHIP_TYPES.has(v), {
-  message: `Type de relation ArchiMate invalide. Types valides: ${[...RELATIONSHIP_TYPES].sort().join(", ")}`,
+  message: `Type de relation ArchiMate invalide. Types valides: ${[...RELATIONSHIP_TYPES].sort((a, b) => a.localeCompare(b)).join(", ")}`,
 });
 
 const propertyDefType = z.string().refine((v) => PROPERTY_DEFINITION_TYPES.has(v), {
-  message: `Type invalide. Types valides: ${[...PROPERTY_DEFINITION_TYPES].sort().join(", ")}`,
+  message: `Type invalide. Types valides: ${[...PROPERTY_DEFINITION_TYPES].sort((a, b) => a.localeCompare(b)).join(", ")}`,
 });
 
 const propertyOut = z.object({

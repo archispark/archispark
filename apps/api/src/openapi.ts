@@ -29,8 +29,8 @@ const registry = new OpenAPIRegistry();
 // Enums
 // ---------------------------------------------------------------------------
 
-const elementTypesEnum = [...ELEMENT_TYPES].sort() as [string, ...string[]];
-const relationshipTypesEnum = [...RELATIONSHIP_TYPES].sort() as [string, ...string[]];
+const elementTypesEnum = [...ELEMENT_TYPES].sort((a, b) => a.localeCompare(b)) as [string, ...string[]];
+const relationshipTypesEnum = [...RELATIONSHIP_TYPES].sort((a, b) => a.localeCompare(b)) as [string, ...string[]];
 
 // ---------------------------------------------------------------------------
 // Reusable output schemas

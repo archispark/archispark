@@ -634,7 +634,7 @@ describe("MCP tool: list_viewpoints", () => {
     const result = await callTool("list_viewpoints");
     const vps = JSON.parse(result.content[0].text) as string[];
     expect(vps).toContain("Layered");
-    expect(vps).toEqual([...vps].sort());
+    expect(vps).toEqual([...vps].sort((a, b) => a.localeCompare(b)));
   });
 });
 

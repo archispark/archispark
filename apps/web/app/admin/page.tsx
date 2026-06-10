@@ -542,6 +542,69 @@ function emptyLayerPerms(): Record<ArchiLayer, LayerPermissions> {
   return Object.fromEntries(ARCHIMATE_LAYERS.map((l) => [l, [] as LayerPermissions])) as Record<ArchiLayer, LayerPermissions>;
 }
 
+const LAYER_ONLY = ARCHIMATE_LAYERS.filter((l) => l !== "Relations" && l !== "Views");
+
+function togglePermissionFlag(
+  value: Record<ArchiLayer, LayerPermissions>,
+  layer: string,
+  flag: LayerPermissions[number],
+  checked: boolean,
+): Record<ArchiLayer, LayerPermissions> {
+  const flags = (value as Record<string, LayerPermissions>)[layer] ?? [];
+  const next = checked
+    ? [...new Set([...flags, flag])] as LayerPermissions
+    : flags.filter((f) => f !== flag) as LayerPermissions;
+  return { ...value, [layer]: next };
+}
+
+function PermGrid({
+  title, layers, value, onChange,
+}: {
+  title: string;
+  layers: readonly string[];
+  value: Record<ArchiLayer, LayerPermissions>;
+  onChange: (v: Record<ArchiLayer, LayerPermissions>) => void;
+}) {
+  return (
+    <div className="space-y-1">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground px-1">{title}</p>
+      <div className="border border-border rounded-md overflow-hidden">
+        <div className="grid text-[11px] font-medium text-muted-foreground bg-muted px-3 py-1.5" style={{ gridTemplateColumns: "1fr repeat(4, auto)" }}>
+          <span>Ressource</span>
+          {PERMISSION_FLAGS.map((f) => <span key={f} className={`text-center w-14 ${FLAG_COLORS[f]}`}>{f}</span>)}
+        </div>
+        {layers.map((layer) => {
+          const flags = (value as Record<string, LayerPermissions>)[layer] ?? [];
+          return (
+            <div key={layer} className="grid items-center border-t border-border px-3 py-1.5" style={{ gridTemplateColumns: "1fr repeat(4, auto)" }}>
+              <span className="text-[12px]">{layer}</span>
+              {PERMISSION_FLAGS.map((flag) => (
+                <div key={flag} className="flex items-center justify-center w-14">
+                  <input
+                    type="checkbox"
+                    checked={flags.includes(flag)}
+                    onChange={(e) => onChange(togglePermissionFlag(value, layer, flag, e.target.checked))}
+                  />
+                </div>
+              ))}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function PermissionsGrid({ value, onChange }: { value: Record<ArchiLayer, LayerPermissions>; onChange: (v: Record<ArchiLayer, LayerPermissions>) => void }) {
+  return (
+    <div className="space-y-3">
+      <PermGrid title="Couches ArchiMate" layers={LAYER_ONLY} value={value} onChange={onChange} />
+      <PermGrid title="Relations" layers={["Relations"]} value={value} onChange={onChange} />
+      <PermGrid title="Vues" layers={["Views"]} value={value} onChange={onChange} />
+    </div>
+  );
+}
+
 function RolesTab() {
   const { t } = useT();
   const [roles, setRoles] = useState<RoleOut[]>([]);
@@ -698,57 +761,6 @@ function RolesTab() {
       ),
     },
   ], []);
-
-  const LAYER_ONLY = ARCHIMATE_LAYERS.filter((l) => l !== "Relations" && l !== "Views");
-
-  const PermGrid = ({
-    title, layers, value, onChange,
-  }: {
-    title: string;
-    layers: readonly string[];
-    value: Record<ArchiLayer, LayerPermissions>;
-    onChange: (v: Record<ArchiLayer, LayerPermissions>) => void;
-  }) => (
-    <div className="space-y-1">
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground px-1">{title}</p>
-      <div className="border border-border rounded-md overflow-hidden">
-        <div className="grid text-[11px] font-medium text-muted-foreground bg-muted px-3 py-1.5" style={{ gridTemplateColumns: "1fr repeat(4, auto)" }}>
-          <span>Ressource</span>
-          {PERMISSION_FLAGS.map((f) => <span key={f} className={`text-center w-14 ${FLAG_COLORS[f]}`}>{f}</span>)}
-        </div>
-        {layers.map((layer) => {
-          const flags = (value as Record<string, LayerPermissions>)[layer] ?? [];
-          return (
-            <div key={layer} className="grid items-center border-t border-border px-3 py-1.5" style={{ gridTemplateColumns: "1fr repeat(4, auto)" }}>
-              <span className="text-[12px]">{layer}</span>
-              {PERMISSION_FLAGS.map((flag) => (
-                <div key={flag} className="flex items-center justify-center w-14">
-                  <input
-                    type="checkbox"
-                    checked={flags.includes(flag)}
-                    onChange={(e) => {
-                      const next = e.target.checked
-                        ? [...new Set([...flags, flag])] as LayerPermissions
-                        : flags.filter((f) => f !== flag) as LayerPermissions;
-                      onChange({ ...value, [layer]: next });
-                    }}
-                  />
-                </div>
-              ))}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-
-  const PermissionsGrid = ({ value, onChange }: { value: Record<ArchiLayer, LayerPermissions>; onChange: (v: Record<ArchiLayer, LayerPermissions>) => void }) => (
-    <div className="space-y-3">
-      <PermGrid title="Couches ArchiMate" layers={LAYER_ONLY} value={value} onChange={onChange} />
-      <PermGrid title="Relations" layers={["Relations"]} value={value} onChange={onChange} />
-      <PermGrid title="Vues" layers={["Views"]} value={value} onChange={onChange} />
-    </div>
-  );
 
   if (error) {
     return (

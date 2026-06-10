@@ -401,7 +401,10 @@ function getReachableTypes(
     if (visited.has(rel.source) && visited.has(rel.target)) relTypes.add(rel.type);
   }
 
-  return { elementTypes: [...elementTypes].sort(), relTypes: [...relTypes].sort() };
+  return {
+    elementTypes: [...elementTypes].sort((a, b) => a.localeCompare(b)),
+    relTypes: [...relTypes].sort((a, b) => a.localeCompare(b)),
+  };
 }
 
 // ── Filter panel ──────────────────────────────────────────────────────────────

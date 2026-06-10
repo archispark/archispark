@@ -490,7 +490,7 @@ describe("GET /elements/types", () => {
 
   it("is sorted", async () => {
     const data = (await request(app).get(`/elements/types`)).body as string[];
-    expect(data).toEqual([...data].sort());
+    expect(data).toEqual([...data].sort((a, b) => a.localeCompare(b)));
   });
 
   it("has no duplicates", async () => {
@@ -733,7 +733,7 @@ describe("GET /relationships/types", () => {
 
   it("is sorted", async () => {
     const data = (await request(app).get(`/relationships/types`)).body as string[];
-    expect(data).toEqual([...data].sort());
+    expect(data).toEqual([...data].sort((a, b) => a.localeCompare(b)));
   });
 
   it("contains known relationship type", async () => {

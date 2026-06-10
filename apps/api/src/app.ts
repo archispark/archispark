@@ -642,7 +642,7 @@ app.get("/docs", (_req: Request, res: Response) => {
 });
 
 app.get("/viewpoints", (_req: Request, res: Response) => {
-  res.json([...VIEWPOINTS].sort());
+  res.json([...VIEWPOINTS].sort((a, b) => a.localeCompare(b)));
 });
 
 

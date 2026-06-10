@@ -56,8 +56,8 @@ import {
 // Helpers
 // ---------------------------------------------------------------------------
 
-const _PROPERTY_DEFINITION_TYPES_STR = [...PROPERTY_DEFINITION_TYPES].sort().join(", ");
-const _VIEWPOINTS_STR = [...VIEWPOINTS].sort().join(", ");
+const _PROPERTY_DEFINITION_TYPES_STR = [...PROPERTY_DEFINITION_TYPES].sort((a, b) => a.localeCompare(b)).join(", ");
+const _VIEWPOINTS_STR = [...VIEWPOINTS].sort((a, b) => a.localeCompare(b)).join(", ");
 const _EDGE_SIDES_STR = "top, right, bottom, left";
 
 function toContent(data: unknown): { content: [{ type: "text"; text: string }] } {
@@ -865,7 +865,7 @@ mcpServer.registerTool(
       "Motivation, Strategy, Capability Map.",
     inputSchema: {},
   },
-  async () => toContent([...VIEWPOINTS].sort())
+  async () => toContent([...VIEWPOINTS].sort((a, b) => a.localeCompare(b)))
 );
 
 // ---------------------------------------------------------------------------
