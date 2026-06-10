@@ -2,13 +2,16 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { LogOut, User } from "lucide-react";
-import { useCurrentUser } from "@/hooks/use-current-user";
+import { LogOut, User, ShieldCheck } from "lucide-react";
+import { useCurrentUser, useIsAdmin } from "@/hooks/use-current-user";
+import { useT } from "@/lib/i18n";
 import Link from "next/link";
 
 export function UserMenu() {
   const router = useRouter();
   const user = useCurrentUser();
+  const isAdmin = useIsAdmin();
+  const { t } = useT();
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -58,6 +61,17 @@ export function UserMenu() {
             <User className="size-3.5 text-muted-foreground shrink-0" />
             Mon profil
           </Link>
+
+          {isAdmin && (
+            <Link
+              href="/admin"
+              onClick={() => setOpen(false)}
+              className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] hover:bg-muted text-left transition-colors no-underline text-foreground"
+            >
+              <ShieldCheck className="size-3.5 text-muted-foreground shrink-0" />
+              {t("breadcrumb.admin")}
+            </Link>
+          )}
 
           <div className="border-t border-border mt-1 pt-1">
             <button

@@ -50,6 +50,7 @@ export function Nav({ onToggleSidebar }: { onToggleSidebar: () => void }) {
 properties: "breadcrumb.properties",
       users: "breadcrumb.users",
       settings: "breadcrumb.settings",
+      admin: "breadcrumb.admin",
       workspaces: "breadcrumb.workspaces",
       login: "breadcrumb.login",
       profile: "breadcrumb.profile",

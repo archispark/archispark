@@ -23,9 +23,11 @@ On first run the API:
 2. Seeds default users (`admin/admin` and `user/user`) if the `users` table is empty
 3. Seeds workspaces from `workspaces.json` or `config.json` + XML files if present
 
-Set the database connection with `DATABASE_URL` (the Supabase/Vercel
-`POSTGRES_URL_NON_POOLING` / `POSTGRES_URL` vars are also picked up as
-fallbacks). It defaults to `postgresql://archispark:archispark@localhost:5432/archispark`.
+`DATABASE_URL` is **required** (the Supabase/Vercel `POSTGRES_URL_NON_POOLING` /
+`POSTGRES_URL` vars are also picked up as fallbacks) — there is no hardcoded
+default. For local development, `make dev` sources `.env`, which sets
+`DATABASE_URL=postgresql://archispark:${DB_PASSWORD}@localhost:5432/archispark`
+to match the Postgres container started by `make dev-infra`.
 
 Redis is **required** — set `REDIS_URL` (e.g. `redis://localhost:6379`). It is used
 for session storage and distributed rate-limiting. The API will fail to start without it.

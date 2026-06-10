@@ -85,6 +85,7 @@
     --sidebar-ring: #0096ff;
     --nav-h: 52px;
     --sidebar-w: 240px;
+    --sidebar-w-collapsed: 56px;
 }
 
 .dark {

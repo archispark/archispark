@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState, useMemo } from "react";
-import { LayoutDashboard, LayoutGrid, Tag, Users, Settings as SettingsIcon, GitBranch, List, ChevronDown } from "lucide-react";
+import { LayoutDashboard, LayoutGrid, Tag, Users, Settings as SettingsIcon, GitBranch, List, ChevronDown, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { useIsAdmin } from "@/hooks/use-current-user";
 import { getLayer, LAYER_HEX_COLORS, LAYER_LABELS } from "@/lib/archimate-helpers";
 import { allowedRelationships } from "@/lib/archimate-rules";
@@ -40,15 +40,42 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
+/** Single icon-only link shown in the collapsed sidebar rail. */
+function RailLink({ href, icon: Icon, label, active, onClick, badge }: {
+  href: string;
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  active: boolean;
+  onClick: () => void;
+  badge?: "amber" | "destructive";
+}) {
+  return (
+    <Link
+      href={href}
+      onClick={onClick}
+      title={label}
+      aria-label={label}
+      className={`relative flex items-center justify-center size-9 rounded-md transition-colors ${
+        active ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:bg-muted hover:text-foreground"
+      }`}
+    >
+      <Icon className="size-4 shrink-0" />
+      {badge && (
+        <span className={`absolute top-1 right-1 size-1.5 rounded-full ${badge === "amber" ? "bg-amber-500" : "bg-destructive"}`} />
+      )}
+    </Link>
+  );
+}
+
+export function Sidebar({ open, onClose, collapsed, onToggleCollapse }: { open: boolean; onClose: () => void; collapsed: boolean; onToggleCollapse: () => void }) {
   return (
     <Suspense>
-      <SidebarInner open={open} onClose={onClose} />
+      <SidebarInner open={open} onClose={onClose} collapsed={collapsed} onToggleCollapse={onToggleCollapse} />
     </Suspense>
   );
 }
 
-function SidebarInner({ open, onClose }: { open: boolean; onClose: () => void }) {
+function SidebarInner({ open, onClose, collapsed, onToggleCollapse }: { open: boolean; onClose: () => void; collapsed: boolean; onToggleCollapse: () => void }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { t } = useT();
@@ -99,10 +126,12 @@ function SidebarInner({ open, onClose }: { open: boolean; onClose: () => void })
       )}
 
       <aside
-        className={`fixed top-[var(--nav-h)] bottom-0 left-0 z-40 w-[var(--sidebar-w)] bg-secondary border-r border-border flex flex-col overflow-y-auto transition-transform duration-200 ${
+        className={`fixed top-[var(--nav-h)] bottom-0 left-0 z-40 w-[var(--sidebar-w)] ${collapsed ? "md:w-[var(--sidebar-w-collapsed,56px)]" : ""} bg-secondary border-r border-border flex flex-col overflow-y-auto transition-[width,transform] duration-200 ${
           open ? "translate-x-0" : "-translate-x-full"
         } md:translate-x-0`}
       >
+        {/* Full content — hidden on desktop when the sidebar is collapsed to an icon rail */}
+        <div className={collapsed ? "contents md:hidden" : "contents"}>
         {/* Model info */}
         {model && (
           <div className="px-4 pt-4 pb-3 border-b border-border">
@@ -275,6 +304,39 @@ function SidebarInner({ open, onClose }: { open: boolean; onClose: () => void })
             </Link>
           </div>
         )}
+        </div>
+
+        {/* Icon rail — shown on desktop in place of the full content when collapsed */}
+        <div className={`hidden flex-1 flex-col items-center gap-1 py-3 ${collapsed ? "md:flex" : ""}`}>
+          <RailLink href="/" icon={LayoutDashboard} label={t("sidebar.overview")} active={pathname === "/"} onClick={onClose} />
+          <div className="w-6 border-t border-border my-1" />
+          <RailLink href="/elements" icon={List} label={t("sidebar.elements")} active={pathname === "/elements"} onClick={onClose} badge={absentCount > 0 ? "amber" : undefined} />
+          <RailLink href="/relationships" icon={GitBranch} label={t("sidebar.relationships")} active={pathname === "/relationships"} onClick={onClose} badge={relConflictCount > 0 ? "destructive" : undefined} />
+          <RailLink href="/views" icon={LayoutGrid} label={t("sidebar.views")} active={pathname === "/views" || pathname.startsWith("/views/")} onClick={onClose} />
+          <RailLink href="/properties" icon={Tag} label={t("sidebar.properties")} active={pathname === "/properties"} onClick={onClose} />
+        </div>
+
+        {mounted && isAdmin && (
+          <div className={`hidden border-t border-border py-2 flex-col items-center ${collapsed ? "md:flex" : ""}`}>
+            <RailLink href="/settings" icon={SettingsIcon} label={t("sidebar.settings")} active={pathname === "/settings" || pathname.startsWith("/settings/")} onClick={onClose} />
+          </div>
+        )}
+
+        {/* Collapse / expand toggle — desktop only */}
+        <div className="hidden md:block border-t border-border px-2 py-2">
+          <button
+            type="button"
+            onClick={onToggleCollapse}
+            title={collapsed ? t("sidebar.expand") : t("sidebar.collapse")}
+            aria-label={collapsed ? t("sidebar.expand") : t("sidebar.collapse")}
+            className={`flex items-center gap-2.5 rounded-md text-sm w-full transition-colors text-muted-foreground hover:bg-muted hover:text-foreground ${
+              collapsed ? "justify-center size-9 mx-auto" : "px-3 py-2"
+            }`}
+          >
+            {collapsed ? <PanelLeftOpen className="size-4 shrink-0" /> : <PanelLeftClose className="size-4 shrink-0" />}
+            {!collapsed && t("sidebar.collapse")}
+          </button>
+        </div>
       </aside>
     </>
   );
