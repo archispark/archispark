@@ -591,7 +591,7 @@ app.get("/workspaces", async (_req: Request, res: Response) => {
 app.post("/workspaces", async (req: Request, res: Response) => {
   const body = parseBody(WorkspaceCreateSchema, req.body, res);
   if (!body) return;
-  res.status(201).json(await createWorkspace(body.name, body.path));
+  res.status(201).json(await createWorkspace(body.name, body.path, body.description));
 });
 
 app.put("/workspaces/:id", async (req: Request, res: Response) => {

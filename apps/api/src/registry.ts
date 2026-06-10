@@ -31,6 +31,7 @@ import { NotFoundError, ValidationError } from "./errors.js";
 export interface WorkspaceOut {
   id: string;       // numeric id as string for URL params
   name: string;
+  description?: string | null;
   active: boolean;
 }
 
@@ -86,6 +87,7 @@ export async function getWorkspaces(): Promise<WorkspaceOut[]> {
   return rows.map((r) => ({
     id: dbIdToStrId(r.id),
     name: r.name,
+    description: r.description ?? null,
     active: r.isActive,
   }));
 }
@@ -115,10 +117,10 @@ export async function activateWorkspace(id: string): Promise<WorkspaceOut> {
     await tx.update(wsTable).set({ isActive: false }).where(eq(wsTable.isActive, true));
     await tx.update(wsTable).set({ isActive: true }).where(eq(wsTable.id, dbId));
   });
-  return { id, name: row.name, active: true };
+  return { id, name: row.name, description: row.description ?? null, active: true };
 }
 
-export async function createWorkspace(name: string, xmlFilePath?: string): Promise<WorkspaceOut> {
+export async function createWorkspace(name: string, xmlFilePath?: string, description?: string | null): Promise<WorkspaceOut> {
   if (!name?.trim()) throw new ValidationError("Le nom du workspace est requis.");
   const [existing] = await db.select({ id: wsTable.id }).from(wsTable).where(eq(wsTable.name, name));
   if (existing) throw new ValidationError(`Un workspace nommé '${name}' existe déjà.`);
@@ -135,7 +137,7 @@ export async function createWorkspace(name: string, xmlFilePath?: string): Promi
     model = {
       uuid: `id-${randomUUID()}`,
       name: name.trim(),
-      desc: null,
+      desc: description?.trim() || null,
       version: null,
       elements: [],
       relationships: [],
@@ -150,7 +152,7 @@ export async function createWorkspace(name: string, xmlFilePath?: string): Promi
   const [anyActive] = await db.select({ id: wsTable.id }).from(wsTable).where(eq(wsTable.isActive, true));
   const active = !anyActive;
   if (active) await db.update(wsTable).set({ isActive: true }).where(eq(wsTable.id, dbId));
-  return { id: dbIdToStrId(dbId), name: name.trim(), active };
+  return { id: dbIdToStrId(dbId), name: name.trim(), description: model.desc ?? null, active };
 }
 
 export async function updateWorkspace(id: string, name: string): Promise<WorkspaceOut> {
@@ -161,7 +163,7 @@ export async function updateWorkspace(id: string, name: string): Promise<Workspa
   const [row] = await db.update(wsTable).set({ name: name.trim(), updatedAt: Math.floor(Date.now() / 1000) })
     .where(eq(wsTable.id, dbId)).returning();
   if (!row) throw new NotFoundError(`Workspace '${id}' introuvable.`);
-  return { id, name: name.trim(), active: row.isActive };
+  return { id, name: name.trim(), description: row.description ?? null, active: row.isActive };
 }
 
 export async function deleteWorkspace(id: string): Promise<void> {

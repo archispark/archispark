@@ -15,6 +15,7 @@ export interface WorkspaceInfo {
   id: string;
   name: string;
   path: string;
+  description?: string | null;
   active: boolean;
 }
 
@@ -513,7 +514,7 @@ export const updateSiteMessages = (body: SiteMessages) => put<{ ok: boolean }>("
 
 export const fetchWorkspaces = () => get<WorkspaceInfo[]>("/workspaces");
 
-export interface WorkspaceCreateIn { name: string; path?: string; }
+export interface WorkspaceCreateIn { name: string; path?: string; description?: string | null; }
 export interface WorkspaceUpdateIn { name: string; }
 
 export const createWorkspaceApi = (body: WorkspaceCreateIn) => post<WorkspaceInfo>("/workspaces", body);

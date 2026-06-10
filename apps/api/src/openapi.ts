@@ -148,10 +148,11 @@ const ErrorDetailSchema = registry.register("ErrorDetail", z.object({
 }).openapi("ErrorDetail"));
 
 const WorkspaceInfoSchema = registry.register("WorkspaceInfo", z.object({
-  id:     z.string(),
-  name:   z.string(),
-  path:   z.string().nullable().optional(),
-  active: z.boolean(),
+  id:          z.string(),
+  name:        z.string(),
+  path:        z.string().nullable().optional(),
+  description: z.string().nullable().optional(),
+  active:      z.boolean(),
 }).openapi("WorkspaceInfo"));
 
 const UserOutSchema = registry.register("UserOut", z.object({

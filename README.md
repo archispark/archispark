@@ -239,7 +239,7 @@ Default credentials: `admin` / `admin` (admin), `user` / `user` (read-only).
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/workspaces` | List workspaces |
-| `POST` | `/workspaces` | Create workspace — body: `{ name, path? }` (`path` = XML file to import) |
+| `POST` | `/workspaces` | Create workspace — body: `{ name, path?, description? }` (`path` = XML file to import) |
 | `PUT` | `/workspaces/:id` | Rename workspace |
 | `DELETE` | `/workspaces/:id` | Delete workspace (deleting the active one switches to another; deleting the last one is allowed and leaves zero — the web UI then redirects to its `/workspaces` page to create a new one) |
 | `POST` | `/workspaces/:id/activate` | Switch active workspace |

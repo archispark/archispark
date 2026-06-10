@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
-import { Menu, FolderOpen } from "lucide-react";
+import { Menu, FolderOpen, ShieldCheck } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { type ElementOut } from "@/lib/api";
 import { useWorkspaces, useElement, useView } from "@/lib/queries";
@@ -31,6 +31,7 @@ export function Nav({ onToggleSidebar }: { onToggleSidebar: () => void }) {
 
   const activeWs = workspaces.find((w) => w.active);
   const segments = pathname.split("/").filter(Boolean);
+  const isAdminView = segments[0] === "admin";
 
   // On /elements/[id], resolve the element so the breadcrumb shows its name, not
   // the raw id. useElement is reactive (unlike qc.getQueryData), so the breadcrumb
@@ -50,7 +51,6 @@ export function Nav({ onToggleSidebar }: { onToggleSidebar: () => void }) {
 properties: "breadcrumb.properties",
       users: "breadcrumb.users",
       settings: "breadcrumb.settings",
-      admin: "breadcrumb.admin",
       workspaces: "breadcrumb.workspaces",
       login: "breadcrumb.login",
       profile: "breadcrumb.profile",
@@ -105,8 +105,18 @@ properties: "breadcrumb.properties",
 
       <div className="w-px h-5 bg-border mx-1" />
 
+      {/* Admin view has its own breadcrumb root, separate from the workspace tree. */}
+      {isAdminView && (
+        <div className="flex items-center gap-1.5 text-[13px] overflow-hidden">
+          <span className="flex items-center gap-1.5 text-foreground whitespace-nowrap shrink-0">
+            <ShieldCheck className="size-3.5 text-primary shrink-0" />
+            {t("breadcrumb.admin")}
+          </span>
+        </div>
+      )}
+
       {/* Unified breadcrumb: Workspaces / nom projet / Section / leaf */}
-      {workspaces.length > 0 && (
+      {!isAdminView && workspaces.length > 0 && (
         <div className="flex items-center gap-1.5 text-[13px] text-muted-foreground overflow-hidden">
           <Link
             href="/workspaces"

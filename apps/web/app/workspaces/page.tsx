@@ -2,11 +2,10 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { FolderOpen, Plus, Trash2, Check } from "lucide-react";
+import { FolderOpen, Plus, Check } from "lucide-react";
 import {
   useWorkspaces,
   useCreateWorkspace,
-  useDeleteWorkspace,
   useActivateWorkspace,
 } from "@/lib/queries";
 import { useT } from "@/lib/i18n";
@@ -16,36 +15,24 @@ export default function WorkspacesPage() {
   const router = useRouter();
   const { data: workspaces = [], isLoading } = useWorkspaces();
   const createWs = useCreateWorkspace();
-  const deleteWs = useDeleteWorkspace();
   const activateWs = useActivateWorkspace();
 
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
 
   const [error, setError] = useState<string | null>(null);
 
   async function create() {
     if (!name.trim()) return;
     try {
-      const ws = await createWs.mutateAsync({ name: name.trim() });
+      const ws = await createWs.mutateAsync({ name: name.trim(), description: description.trim() || undefined });
       if (!ws.active) await activateWs.mutateAsync(ws.id);
       setName("");
+      setDescription("");
       setShowForm(false);
       setError(null);
       router.push("/");
-    } catch (err) {
-      setError((err as Error).message);
-    }
-  }
-
-  async function remove(id: string) {
-    if (!confirm(t("common.delete") + " ?")) return;
-    try {
-      await deleteWs.mutateAsync(id);
-      setError(null);
-      // Return to the workspace list so the user sees the updated state
-      // (including the possible auto-switch to another workspace).
-      router.push("/workspaces");
     } catch (err) {
       setError((err as Error).message);
     }
@@ -100,6 +87,14 @@ export default function WorkspacesPage() {
             onKeyDown={(e) => { if (e.key === "Enter") create(); if (e.key === "Escape") setShowForm(false); }}
             className="text-[13px] px-3 py-2 border border-border rounded-md bg-background text-foreground outline-none focus:border-primary"
           />
+          <textarea
+            placeholder={t("common.optional_desc")}
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Escape") setShowForm(false); }}
+            rows={2}
+            className="text-[13px] px-3 py-2 border border-border rounded-md bg-background text-foreground outline-none focus:border-primary resize-none"
+          />
           <div className="flex gap-2">
             <button
               onClick={create}
@@ -152,13 +147,6 @@ export default function WorkspacesPage() {
                   {t("nav.workspace_active")}
                 </span>
               )}
-              <button
-                onClick={(e) => { e.stopPropagation(); remove(ws.id); }}
-                className="text-muted-foreground hover:text-destructive"
-                title={t("common.delete")}
-              >
-                <Trash2 className="size-4" />
-              </button>
             </div>
           ))}
         </div>

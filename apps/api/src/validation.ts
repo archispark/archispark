@@ -126,6 +126,7 @@ export const PropertyDefinitionUpdateSchema = z.object({
 export const WorkspaceCreateSchema = z.object({
   name: z.string().min(1, "Le champ 'name' est requis."),
   path: z.string().optional(),
+  description: z.string().nullable().optional(),
 });
 
 export const WorkspaceUpdateSchema = z.object({

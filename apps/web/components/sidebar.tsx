@@ -41,7 +41,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 /** Single icon-only link shown in the collapsed sidebar rail. */
-function RailLink({ href, icon: Icon, label, active, onClick, badge }: {
+export function RailLink({ href, icon: Icon, label, active, onClick, badge }: {
   href: string;
   icon: React.ComponentType<{ className?: string }>;
   label: string;

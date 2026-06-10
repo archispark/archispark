@@ -3,6 +3,7 @@
 import { ThemeProvider } from "@/components/theme-provider";
 import { Nav } from "@/components/nav";
 import { Sidebar } from "@/components/sidebar";
+import { AdminSidebar } from "@/components/admin-sidebar";
 import { QueryProvider } from "@/components/query-provider";
 import { useState, useEffect, useCallback } from "react";
 import { usePathname } from "next/navigation";
@@ -54,6 +55,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const pathname = usePathname();
   const isLogin = pathname === "/login";
+  const isAdminView = pathname === "/admin" || pathname.startsWith("/admin/");
   // The workspaces overview is a full-width chrome-light page (no model context),
   // so it hides the sidebar — only the top nav stays.
   const hideSidebar = isLogin || pathname === "/workspaces";
@@ -75,12 +77,21 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
       <ThemeProvider>
         {!isLogin && <Nav onToggleSidebar={() => setSidebarOpen((v) => !v)} />}
         {!hideSidebar && (
-          <Sidebar
-            open={sidebarOpen}
-            onClose={() => setSidebarOpen(false)}
-            collapsed={sidebarCollapsed}
-            onToggleCollapse={toggleSidebarCollapsed}
-          />
+          isAdminView ? (
+            <AdminSidebar
+              open={sidebarOpen}
+              onClose={() => setSidebarOpen(false)}
+              collapsed={sidebarCollapsed}
+              onToggleCollapse={toggleSidebarCollapsed}
+            />
+          ) : (
+            <Sidebar
+              open={sidebarOpen}
+              onClose={() => setSidebarOpen(false)}
+              collapsed={sidebarCollapsed}
+              onToggleCollapse={toggleSidebarCollapsed}
+            />
+          )
         )}
         <main
           className={

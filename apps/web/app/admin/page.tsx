@@ -1,7 +1,8 @@
 "use client";
 import { useT } from "@/lib/i18n";
 
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useState, useCallback, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import type { ColumnDef } from "@tanstack/react-table";
 import {
   fetchUsers,
@@ -53,13 +54,28 @@ import {
   DialogTrigger,
 } from "@workspace/ui/components/dialog";
 import { DataTable } from "@/components/data-table";
-import { Plus, Trash2, Pencil, Users as UsersIcon, Shield, KeyRound, Eye, EyeOff, Database, RefreshCw, MessageSquare } from "lucide-react";
+import { Plus, Trash2, Pencil, Eye, EyeOff, RefreshCw, FolderOpen, Check } from "lucide-react";
+import {
+  useWorkspaces,
+  useUpdateWorkspace,
+  useDeleteWorkspace,
+} from "@/lib/queries";
+import type { WorkspaceInfo } from "@/lib/api";
 
-type Tab = "members" | "roles" | "authentication" | "redis" | "messages";
+type Tab = "members" | "roles" | "authentication" | "redis" | "messages" | "workspaces";
 
 export default function AdminPage() {
+  return (
+    <Suspense>
+      <AdminPageInner />
+    </Suspense>
+  );
+}
+
+function AdminPageInner() {
   const { t } = useT();
-  const [tab, setTab] = useState<Tab>("members");
+  const searchParams = useSearchParams();
+  const tab = (searchParams.get("tab") as Tab) || "members";
 
   return (
     <div className="p-7 space-y-5">
@@ -70,74 +86,12 @@ export default function AdminPage() {
         </p>
       </div>
 
-      <div className="flex items-center gap-2 border-b border-border">
-        <button
-          type="button"
-          onClick={() => setTab("members")}
-          className={`flex items-center gap-2 px-3 py-2 text-[13px] border-b-2 transition-colors ${
-            tab === "members"
-              ? "border-primary text-foreground font-medium"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <UsersIcon className="size-3.5" />
-          {t("settings.tab_members")}
-        </button>
-        <button
-          type="button"
-          onClick={() => setTab("roles")}
-          className={`flex items-center gap-2 px-3 py-2 text-[13px] border-b-2 transition-colors ${
-            tab === "roles"
-              ? "border-primary text-foreground font-medium"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <Shield className="size-3.5" />
-          {t("settings.tab_roles")}
-        </button>
-        <button
-          type="button"
-          onClick={() => setTab("authentication")}
-          className={`flex items-center gap-2 px-3 py-2 text-[13px] border-b-2 transition-colors ${
-            tab === "authentication"
-              ? "border-primary text-foreground font-medium"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <KeyRound className="size-3.5" />
-          {t("settings.tab_authentication")}
-        </button>
-        <button
-          type="button"
-          onClick={() => setTab("redis")}
-          className={`flex items-center gap-2 px-3 py-2 text-[13px] border-b-2 transition-colors ${
-            tab === "redis"
-              ? "border-primary text-foreground font-medium"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <Database className="size-3.5" />
-          {t("settings.tab_redis")}
-        </button>
-        <button
-          type="button"
-          onClick={() => setTab("messages")}
-          className={`flex items-center gap-2 px-3 py-2 text-[13px] border-b-2 transition-colors ${
-            tab === "messages"
-              ? "border-primary text-foreground font-medium"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <MessageSquare className="size-3.5" />
-          {t("settings.tab_messages")}
-        </button>
-      </div>
-
       {tab === "members" && <MembersTab />}
       {tab === "roles" && <RolesTab />}
       {tab === "authentication" && <AuthenticationTab />}
       {tab === "redis" && <RedisTab />}
       {tab === "messages" && <MessagesTab />}
+      {tab === "workspaces" && <WorkspacesTab />}
     </div>
   );
 }
@@ -440,6 +394,136 @@ function MembersTab() {
           )}
           <DialogFooter>
             <DialogClose render={<Button variant="outline" />}>Fermer</DialogClose>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function WorkspacesTab() {
+  const { t } = useT();
+  const { data: workspaces = [], isLoading } = useWorkspaces();
+  const updateWs = useUpdateWorkspace();
+  const deleteWs = useDeleteWorkspace();
+
+  const [editTarget, setEditTarget] = useState<WorkspaceInfo | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editError, setEditError] = useState<string | null>(null);
+
+  const [deleteTarget, setDeleteTarget] = useState<WorkspaceInfo | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  function openEdit(ws: WorkspaceInfo) {
+    setEditTarget(ws);
+    setEditName(ws.name);
+    setEditError(null);
+  }
+
+  async function handleEditSave() {
+    if (!editTarget || !editName.trim()) return;
+    try {
+      await updateWs.mutateAsync({ id: editTarget.id, body: { name: editName.trim() } });
+      setEditTarget(null);
+    } catch (err) {
+      setEditError((err as Error).message);
+    }
+  }
+
+  function openDelete(ws: WorkspaceInfo) {
+    setDeleteTarget(ws);
+    setDeleteError(null);
+  }
+
+  async function handleDelete() {
+    if (!deleteTarget) return;
+    try {
+      await deleteWs.mutateAsync(deleteTarget.id);
+      setDeleteTarget(null);
+    } catch (err) {
+      setDeleteError((err as Error).message);
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <p className="text-muted-foreground text-[13px]">
+        {t("settings.workspaces.count", { n: workspaces.length, s: workspaces.length !== 1 ? "s" : "" })}
+      </p>
+
+      {isLoading ? (
+        <div className="text-muted-foreground text-sm">{t("common.loading")}</div>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {workspaces.map((ws) => (
+            <div
+              key={ws.id}
+              className={`flex items-center gap-3 px-4 py-3 bg-card border rounded-lg ${
+                ws.active ? "border-primary/50" : "border-border"
+              }`}
+            >
+              <FolderOpen className={`size-4 shrink-0 ${ws.active ? "text-primary" : "text-muted-foreground"}`} />
+              <span className="flex-1 truncate text-[14px] text-foreground">{ws.name}</span>
+              {ws.active && (
+                <span className="flex items-center gap-1 text-[11px] text-primary font-medium">
+                  <Check className="size-3.5" />
+                  {t("nav.workspace_active")}
+                </span>
+              )}
+              <Button variant="ghost" size="icon-xs" onClick={() => openEdit(ws)} aria-label={t("common.edit")}>
+                <Pencil className="size-3.5 text-muted-foreground" />
+              </Button>
+              <Button variant="ghost" size="icon-xs" onClick={() => openDelete(ws)} aria-label={t("common.delete")}>
+                <Trash2 className="size-3.5 text-destructive" />
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <Dialog open={!!editTarget} onOpenChange={(open) => { if (!open) setEditTarget(null); }}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{t("settings.workspaces.edit_title", { name: editTarget?.name ?? "" })}</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-1.5 py-2">
+            <Label htmlFor="ws-edit-name">{t("common.name")}</Label>
+            <Input
+              id="ws-edit-name"
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") handleEditSave(); }}
+              autoFocus
+            />
+          </div>
+          {editError && (
+            <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">{editError}</div>
+          )}
+          <DialogFooter>
+            <DialogClose render={<Button variant="outline" />}>{t("common.cancel")}</DialogClose>
+            <Button onClick={handleEditSave} disabled={updateWs.isPending || !editName.trim()}>
+              {updateWs.isPending ? t("common.saving") : t("common.save")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{t("settings.general.delete_ws")}</DialogTitle>
+            <DialogDescription>
+              {t("settings.workspaces.delete_desc", { name: deleteTarget?.name ?? "" })}
+            </DialogDescription>
+          </DialogHeader>
+          {deleteError && (
+            <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">{deleteError}</div>
+          )}
+          <DialogFooter>
+            <DialogClose render={<Button variant="outline" />}>{t("common.cancel")}</DialogClose>
+            <Button variant="destructive" onClick={handleDelete} disabled={deleteWs.isPending}>
+              {deleteWs.isPending ? t("common.deleting") : t("common.delete")}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
