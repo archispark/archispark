@@ -123,10 +123,26 @@ export function computeTrustedOrigins(request?: Request): string[] {
   return list;
 }
 
+/**
+ * Compute Better Auth's `advanced` options for cross-subdomain cookies.
+ *
+ * In SaaS deployments the web app and admin console live on subdomains of a
+ * shared root domain (e.g. `app.example.com` / `admin.example.com`). Setting
+ * `COOKIE_DOMAIN=.example.com` makes Better Auth issue the session cookie with
+ * that `Domain` attribute, so signing in on either subdomain authenticates
+ * both. Self-hosted single-origin deployments leave `COOKIE_DOMAIN` unset and
+ * get today's behaviour (cookie scoped to the serving origin).
+ */
+export function computeAdvancedOptions(): { crossSubDomainCookies?: { enabled: true; domain: string } } {
+  const domain = process.env.COOKIE_DOMAIN;
+  return domain ? { crossSubDomainCookies: { enabled: true, domain } } : {};
+}
+
 function createAuthInstance(oauthConfig: unknown[]) {
   return betterAuth({
     baseURL: process.env.API_URL ?? "http://localhost:3000",
     basePath: "/auth",
+    advanced: computeAdvancedOptions(),
 
     database: drizzleAdapter(controlDb, {
       provider: "pg",

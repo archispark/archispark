@@ -278,6 +278,16 @@ Write operations (`POST`, `PUT`, `DELETE`) on workspace content require the `own
 
 Default credentials: `admin` / `admin` (`platform_admin`), `user` / `user` (read-only).
 
+### Cross-subdomain sessions (SaaS topology)
+
+By default the session cookie is scoped to whichever origin served the
+request (works for self-hosted single-domain deployments). When `apps/web`
+and `apps/admin-web` are deployed on subdomains of the same root domain (e.g.
+`app.example.com` / `admin.example.com`), set `COOKIE_DOMAIN=.example.com` on
+`apps/api` — Better Auth then issues the session cookie for that root domain,
+so signing in on either subdomain authenticates both. Also list every
+subdomain origin in `TRUSTED_ORIGINS` (comma-separated).
+
 ## Organizations & teams
 
 ArchiSpark is multi-tenant: each **organization** ("entreprise") has its own members, teams, and workspaces.
@@ -442,3 +452,31 @@ The script configures:
 | `SEED_ADMIN_PASSWORD` | api | your choice |
 | `SEED_USER_PASSWORD` | api | your choice |
 | `ARCHIMATE_API_URL` | web | API Vercel deployment URL |
+
+### Subdomain topology (`app.<domain>` / `admin.<domain>`)
+
+`apps/admin-web` deploys as its own Vercel project (root directory
+`apps/admin-web`, same build/output settings as `archispark-web`). To run it
+on a subdomain of the same root domain as the main app, with a single shared
+login:
+
+1. Create the `archispark-admin-web` Vercel project (root directory
+   `apps/admin-web`, same team).
+2. Attach `app.<domain>` to `archispark-web` and `admin.<domain>` to
+   `archispark-admin-web`.
+3. Re-run the script with the extra variables set:
+
+```bash
+VERCEL_TOKEN=xxx \
+ADMIN_URL="https://admin.<domain>" \
+COOKIE_DOMAIN=".<domain>" \
+SEED_ADMIN_PASSWORD=<strong-password> \
+SEED_USER_PASSWORD=<another-password> \
+bash apps/api/scripts/setup-vercel-env.sh
+```
+
+This sets `archispark-admin-web`'s `ARCHIMATE_API_URL`, adds `ADMIN_URL` to
+the api's `TRUSTED_ORIGINS`, and sets `COOKIE_DOMAIN` on the api so Better
+Auth issues one session cookie shared by both subdomains (see
+[Cross-subdomain sessions](#cross-subdomain-sessions-saas-topology)).
+Redeploy all three projects afterwards.

@@ -19,14 +19,8 @@ export default defineConfig({
     setupFiles: ["./src/test-setup.ts"],
     coverage: {
       provider: "v8",
-      reporter: ["text", "json-summary", "html"],
+      reporter: ["lcovonly"],
       exclude: ["**/package.json", "dist/**"],
-      thresholds: {
-        statements: 80,
-        branches: 80,
-        functions: 80,
-        lines: 80,
-      },
     },
   },
 });

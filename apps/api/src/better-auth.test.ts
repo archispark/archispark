@@ -2,7 +2,7 @@
  * Tests for computeTrustedOrigins — the dynamic CSRF trusted-origins logic.
  */
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { computeTrustedOrigins } from "./better-auth.js";
+import { computeTrustedOrigins, computeAdvancedOptions } from "./better-auth.js";
 
 // Lightweight Request stub: avoids fetch-spec restrictions on forbidden
 // headers like "host", so the host-fallback branch can be exercised.
@@ -74,5 +74,25 @@ describe("computeTrustedOrigins", () => {
     // A bare Request has no host/x-forwarded-host header set explicitly.
     const result = computeTrustedOrigins(req({ origin: "http://192.168.1.25:8000" }));
     expect(result).not.toContain("http://192.168.1.25:8000");
+  });
+});
+
+describe("computeAdvancedOptions", () => {
+  const origEnv = { ...process.env };
+
+  afterEach(() => {
+    process.env = { ...origEnv };
+  });
+
+  it("returns no crossSubDomainCookies config when COOKIE_DOMAIN is unset", () => {
+    delete process.env["COOKIE_DOMAIN"];
+    expect(computeAdvancedOptions()).toEqual({});
+  });
+
+  it("enables crossSubDomainCookies scoped to COOKIE_DOMAIN when set", () => {
+    process.env["COOKIE_DOMAIN"] = ".example.com";
+    expect(computeAdvancedOptions()).toEqual({
+      crossSubDomainCookies: { enabled: true, domain: ".example.com" },
+    });
   });
 });

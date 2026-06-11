@@ -217,8 +217,20 @@ changent pas).
 
 ### Phase 4c — Infra (sous-domaines / Vercel) — action utilisateur
 
-- [ ] Sous-domaines (`app.xxx` / `admin.xxx`) + cookie Better Auth sur domaine racine
-- [ ] Config Vercel : 2 projets
+- [x] Cookie Better Auth partagé sur domaine racine : `COOKIE_DOMAIN` (env)
+      → `computeAdvancedOptions()` (`apps/api/src/better-auth.ts`) active
+      `advanced.crossSubDomainCookies` ; `TRUSTED_ORIGINS` liste déjà chaque
+      sous-domaine (comma-separated) — doc dans `README.md`
+      ("Cross-subdomain sessions")
+- [x] `apps/api/scripts/setup-vercel-env.sh` : variables optionnelles
+      `ADMIN_URL` / `COOKIE_DOMAIN` → configure `archispark-admin-web`
+      (`ARCHIMATE_API_URL`), étend `TRUSTED_ORIGINS`, pose `COOKIE_DOMAIN`
+      sur l'api — doc README ("Subdomain topology")
+- [ ] **Reste action utilisateur** : créer le projet Vercel
+      `archispark-admin-web` (root directory `apps/admin-web`), acheter/poser
+      les sous-domaines `app.<domain>` / `admin.<domain>` (DNS), les attacher
+      aux 2 projets web dans le dashboard Vercel, puis lancer le script avec
+      `ADMIN_URL` + `COOKIE_DOMAIN` renseignés et redéployer les 3 projets
 
 ---
 
