@@ -64,6 +64,13 @@
       "when": 1780640000000,
       "tag": "0008_tenant_databases",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1780650000000,
+      "tag": "0009_tenant_drop_cross_schema_fks",
+      "breakpoints": true
     }
   ]
 }

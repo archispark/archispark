@@ -17,18 +17,20 @@
  *   - Node nesting via parent_node_uuid (self-reference by UUID, not FK int).
  *   - Bendpoints for connection routing stored in a child table.
  *
- * `organizations`, `teams` and `users` are control-plane tables (a different
- * physical database once a tenant database is provisioned). The references
- * below are kept for the shared-database case; once a tenant gets its own
- * database (Phase 3) these become plain, unconstrained columns.
+ * `organizations`, `teams` and `users` are control-plane tables — a different
+ * physical database once a tenant database is provisioned (Phase 3). The
+ * organization_id / team_id / user_id columns below are therefore plain,
+ * unconstrained TEXT columns (no `.references()`): a real FK would only work
+ * while both schemas share one physical database, and cross-database FKs are
+ * impossible once a tenant gets its own database. Referential integrity for
+ * these columns is enforced at the application layer.
  */
 
 import {
   pgTable, text, integer, serial, boolean, real,
-  timestamp, index, uniqueIndex, primaryKey,
+  index, uniqueIndex, primaryKey,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
-import { organizations, teams, users } from "./schema.control.js";
 
 // ---------------------------------------------------------------------------
 // Workspaces (replaces workspaces.json)
@@ -40,7 +42,7 @@ export const workspaces = pgTable("workspaces", {
   name:           text("name").notNull(),           // workspace / model display name
   description:    text("description"),
   version:        text("version"),
-  organizationId: text("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  organizationId: text("organization_id").notNull(),
   createdAt:      integer("created_at").notNull().default(sql`extract(epoch from now())::int`),
   updatedAt:      integer("updated_at").notNull().default(sql`extract(epoch from now())::int`),
 }, (t) => [
@@ -55,7 +57,7 @@ export const workspaces = pgTable("workspaces", {
 
 export const workspaceTeams = pgTable("workspace_teams", {
   workspaceId: integer("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
-  teamId:      text("team_id").notNull().references(() => teams.id, { onDelete: "cascade" }),
+  teamId:      text("team_id").notNull(),
 }, (t) => [
   primaryKey({ columns: [t.workspaceId, t.teamId] }),
   index("workspace_teams_team_idx").on(t.teamId),
@@ -67,8 +69,8 @@ export const workspaceTeams = pgTable("workspace_teams", {
 // ---------------------------------------------------------------------------
 
 export const userActiveWorkspace = pgTable("user_active_workspace", {
-  userId:         text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  organizationId: text("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  userId:         text("user_id").notNull(),
+  organizationId: text("organization_id").notNull(),
   workspaceId:    integer("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
 }, (t) => [
   primaryKey({ columns: [t.userId, t.organizationId] }),

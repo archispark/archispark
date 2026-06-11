@@ -143,7 +143,7 @@ describe("useOrganizations", () => {
     mocks._setMockOrgList([{ id: "org1", name: "Acme", slug: "acme", createdAt: new Date() }]);
     const { result } = renderHook(() => useOrganizations());
     expect(result.current).toHaveLength(1);
-    expect(result.current[0].id).toBe("org1");
+    expect(result.current[0]!.id).toBe("org1");
   });
 });
 
@@ -213,7 +213,7 @@ describe("useTeams", () => {
     const { wrapper } = createWrapper();
     const { result } = renderHook(() => useTeams(), { wrapper });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(result.current.data?.[0].name).toBe("Team 1");
+    expect(result.current.data?.[0]!.name).toBe("Team 1");
   });
 
   it("propagates errors from the API", async () => {
@@ -242,7 +242,7 @@ describe("useTeamMembers", () => {
     const { wrapper } = createWrapper();
     const { result } = renderHook(() => useTeamMembers("team1"), { wrapper });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(result.current.data?.[0].userId).toBe("u1");
+    expect(result.current.data?.[0]!.userId).toBe("u1");
     expect(mocks._organization.listTeamMembers).toHaveBeenCalledWith({ query: { teamId: "team1" } });
   });
 });

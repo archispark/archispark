@@ -127,14 +127,12 @@ changent pas).
 - [x] Commit Phase 2
 
 **Notes pour la Phase 3** :
-- `drizzle-orm/neon-http` (`createTenantDb` dans `connection.ts`, marqué
-  `/* v8 ignore */` car non atteint tant qu'aucun tenant n'est `active`) a un
-  `.transaction()` batché/non-interactif. `model-io.ts` (`modelToDb`) utilise
-  `db.transaction(async (tx) => {...})` avec des opérations dépendantes les
-  unes des autres — à vérifier/adapter dès que le premier tenant passe
-  `active` (sinon basculer ce chemin sur `neon-serverless` + websockets pour
-  les tenants provisionnés, ou restructurer `modelToDb` sans transaction
-  interactive).
+- ~~`drizzle-orm/neon-http` ... `.transaction()` batché/non-interactif~~ —
+  résolu : `createTenantDb` (`connection.ts`) utilise désormais
+  `drizzle-orm/neon-serverless` (websocket `Pool`), qui supporte les vraies
+  transactions interactives requises par `modelToDb`/`seedWorkspace`.
+  `controlDb` reste sur `node-postgres`/PGlite (pas de transaction
+  interactive nécessaire côté control-plane).
 - `TENANT_DB_ENCRYPTION_KEY` est documentée dans `README.md` — s'assurer
   qu'elle est définie en prod avant de provisionner le premier tenant.
 
@@ -142,20 +140,28 @@ changent pas).
 
 ## Phase 3 — Provisioning Neon + migration des tenants existants
 
-- [ ] Intégration API Neon (clé API stockée en variable d'env `NEON_API_KEY` côté
-      apps/api, jamais exposée au front)
-- [ ] Fonction `provisionTenantDatabase(organizationId)` :
-  - [ ] `CREATE DATABASE tenant_<org_id>` + `CREATE ROLE` via API Neon
-  - [ ] GRANT limité à cette DB pour le rôle
-  - [ ] Écrit la connection string chiffrée dans `tenant_databases`
-  - [ ] Joue les migrations `drizzle-pg/tenant/*` sur la nouvelle DB
-  - [ ] Seed du workspace par défaut
-- [ ] Brancher `provisionTenantDatabase` sur la création d'organisation (Better Auth
-      `organization.create` hook ou route dédiée)
-- [ ] Script de migration des tenants existants :
-  - [ ] Pour chaque org existante : provisionner sa DB, copier les lignes
-        (workspaces + tout leur contenu) filtrées par `organization_id`
-  - [ ] Bascule `tenant_databases` + vérification + nettoyage de l'ancienne DB partagée
+- [x] Intégration API Neon (clé API stockée en variable d'env `NEON_API_KEY` côté
+      apps/api, jamais exposée au front) — `packages/db/src/neon-api.ts`
+      (`NEON_API_KEY` + `NEON_PROJECT_ID` requis, `NEON_BRANCH_ID` optionnel)
+- [x] Fonction `provisionTenantDatabase(organizationId)` (`tenant-provisioning.ts`) :
+  - [x] `CREATE DATABASE tenant_<org_id>` + `CREATE ROLE` via API Neon
+  - [x] GRANT limité à cette DB pour le rôle (DB owned by the role)
+  - [x] Écrit la connection string chiffrée dans `tenant_databases`
+  - [x] Joue les migrations `drizzle-pg/tenant/*` sur la nouvelle DB
+  - [x] Seed du workspace par défaut
+- [x] Brancher `provisionTenantDatabase` sur la création d'organisation
+      (Better Auth `organizationHooks.afterCreateOrganization`,
+      `apps/api/src/better-auth.ts`)
+- [x] Script de migration des tenants existants
+      (`apps/api/scripts/migrate-existing-tenant.ts`,
+      `pnpm --filter api migrate-tenant`) :
+  - [x] Pour chaque org existante (ou `--all`) : `migrateExistingTenant`
+        provisionne sa DB et copie les workspaces + tout leur contenu
+        (via `modelFromDb`/`seedWorkspace`), `workspace_teams` et
+        `user_active_workspace`, filtrés par `organization_id`
+  - [x] Bascule `tenant_databases.status = "active"` + vérification (compare
+        le nombre de workspaces source/tenant) + nettoyage de l'ancienne DB
+        partagée (`cleanupMigratedSharedData`, `--cleanup --yes`)
 - [ ] Commit Phase 3
 
 ---

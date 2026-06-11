@@ -1,8 +1,8 @@
 import { Pool } from "pg";
 import { drizzle as pgDrizzle } from "drizzle-orm/node-postgres";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
-import { neon } from "@neondatabase/serverless";
-import { drizzle as neonDrizzle } from "drizzle-orm/neon-http";
+import { Pool as NeonPool } from "@neondatabase/serverless";
+import { drizzle as neonDrizzle } from "drizzle-orm/neon-serverless";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { eq } from "drizzle-orm";
 import * as schema from "./schema.js";
@@ -91,11 +91,14 @@ const tenantDbStorage = new AsyncLocalStorage<NodePgDatabase<typeof schema>>();
 const tenantDbCache = new Map<string, NodePgDatabase<typeof schema>>();
 
 /* v8 ignore start -- only reached once a tenant_databases row is "active" (Phase 3) */
-function createTenantDb(connectionString: string): NodePgDatabase<typeof schema> {
-  const sql = neon(connectionString);
-  // Cast: neon-http and node-postgres share the same Drizzle query API; the
+export function createTenantDb(connectionString: string): NodePgDatabase<typeof schema> {
+  // neon-serverless (websocket Pool) supports real interactive transactions —
+  // unlike neon-http (a previous candidate driver, used over plain fetch),
+  // which rejects `.transaction()` outright. modelToDb (via seedWorkspace)
+  // needs a real transaction, so tenant databases use neon-serverless.
+  // Cast: NeonDatabase and NodePgDatabase share the same Drizzle query API; the
   // cast lets callers type against a single db shape (see createDb above).
-  return neonDrizzle(sql, { schema }) as unknown as NodePgDatabase<typeof schema>;
+  return neonDrizzle(new NeonPool({ connectionString }), { schema }) as unknown as NodePgDatabase<typeof schema>;
 }
 /* v8 ignore stop */
 

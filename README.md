@@ -212,10 +212,10 @@ WASM, in-memory) — full Postgres fidelity, no Docker required.
 The schema is split into two logical parts: **control-plane** (`schema.control.ts`
 — identity, organizations/teams/members, API tokens, OAuth providers, site
 settings, and the tenant database registry) and **tenant** (`schema.tenant.ts`
-— workspaces and all ArchiMate content). Both currently live in the same
-physical database; an organization can later be moved to its own dedicated
-Postgres database (Neon) by adding a `tenant_databases` row with
-`status: "active"` — until then its content stays in the shared database.
+— workspaces and all ArchiMate content). An organization is moved to its own
+dedicated Postgres database (Neon) by adding a `tenant_databases` row with
+`status: "active"` — until then its content stays in the shared (control-plane)
+database.
 
 `TENANT_DB_ENCRYPTION_KEY` — required once any `tenant_databases` row is
 `active`. Encrypts/decrypts the per-tenant connection string at rest
@@ -225,8 +225,40 @@ To generate a migration after a schema change:
 
 ```bash
 cd packages/db
-DB_DRIVER=postgres npx drizzle-kit generate   # writes to drizzle-pg/
+DB_DRIVER=postgres npx drizzle-kit generate                                # control-plane: writes to drizzle-pg/
+DB_DRIVER=postgres npx drizzle-kit generate --config drizzle.config.tenant.ts  # tenant: writes to drizzle-pg/tenant/
 ```
+
+#### Provisioning tenant databases (Neon)
+
+Set `NEON_API_KEY` and `NEON_PROJECT_ID` (apps/api only, never exposed to the
+frontend) to enable per-tenant Neon databases. `NEON_BRANCH_ID` is optional —
+defaults to the project's default branch. While these are unset, every
+organization keeps sharing the control-plane database (transitional mode);
+`getTenantDb`/`db` fall back to it.
+
+- **New organizations**: `provisionTenantDatabase(organizationId)` runs
+  automatically via the Better Auth `afterCreateOrganization` hook. It creates
+  a dedicated Neon role + database (named `tenant_<sanitized org id>`), runs
+  the tenant-only migrations (`drizzle-pg/tenant/`, generated from
+  `schema.tenant.ts` — no control-plane FKs), seeds an empty "Default"
+  workspace, encrypts and stores the connection string in `tenant_databases`,
+  and marks it `"active"`. Failures mark the row `"error"` (retryable).
+- **Existing organizations**: `pnpm --filter api migrate-tenant <organizationId>`
+  provisions the dedicated database and copies all of the organization's
+  workspaces (full ArchiMate content, `workspace_teams`, and
+  `user_active_workspace`) into it, then marks `tenant_databases` `"active"`.
+  The shared database rows are left untouched. Use `--all` to migrate every
+  organization not yet active/provisioning. Once the new database is verified,
+  re-run with `--cleanup --yes` (or `--all --cleanup --yes`) to irreversibly
+  delete the now-redundant rows from the shared database — refuses unless the
+  tenant database is `"active"` and holds at least as many workspaces as the
+  shared database.
+
+Tenant databases use `drizzle-orm/neon-serverless` (websocket `Pool`), which
+supports real interactive transactions — required by `seedWorkspace`/`modelToDb`.
+The control-plane database always uses `drizzle-orm/node-postgres`
+(`pg.Pool`, or PGlite in tests).
 
 ## Authentication
 

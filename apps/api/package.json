@@ -26,7 +26,8 @@
     "test:coverage": "vitest run --coverage",
     "test:ci": "vitest run --reporter=junit --outputFile=test-report.junit.xml",
     "lint": "eslint . --ext .ts",
-    "openapi": "tsx scripts/generate-openapi.ts"
+    "openapi": "tsx scripts/generate-openapi.ts",
+    "migrate-tenant": "tsx scripts/migrate-existing-tenant.ts"
   },
   "keywords": [
     "archimate",

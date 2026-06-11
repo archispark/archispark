@@ -3,6 +3,11 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     pool: "forks",
+    // Each test file boots its own PGlite (WASM) instance; under turbo's
+    // workspace-wide parallel run the default 5s/10s timeouts can be too
+    // tight for slower CI/dev machines.
+    testTimeout: 30000,
+    hookTimeout: 30000,
     // Only run tests in src/ — dist/ is compiled output that would otherwise be
     // picked up after a build, double-counting and diluting coverage.
     include: ["src/**/*.test.ts"],
