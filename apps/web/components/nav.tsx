@@ -3,14 +3,16 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
-import { Menu, FolderOpen, ShieldCheck } from "lucide-react";
+import { Menu, FolderOpen, Building2, ShieldCheck } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { type ElementOut } from "@/lib/api";
 import { useWorkspaces, useElement, useView } from "@/lib/queries";
+import { useIsOrgAdmin } from "@/hooks/use-organization";
 import { useT } from "@/lib/i18n";
 import { LocaleSwitcher } from "@/components/locale-switcher";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { UserMenu } from "@/components/user-menu";
+import { OrgSwitcher } from "@/components/org-switcher";
 
 export function Nav({ onToggleSidebar }: { onToggleSidebar: () => void }) {
   const pathname = usePathname();
@@ -32,6 +34,8 @@ export function Nav({ onToggleSidebar }: { onToggleSidebar: () => void }) {
   const activeWs = workspaces.find((w) => w.active);
   const segments = pathname.split("/").filter(Boolean);
   const isAdminView = segments[0] === "admin";
+  const isOrganizationView = segments[0] === "organization";
+  const isOrgAdmin = useIsOrgAdmin();
 
   // On /elements/[id], resolve the element so the breadcrumb shows its name, not
   // the raw id. useElement is reactive (unlike qc.getQueryData), so the breadcrumb
@@ -51,6 +55,7 @@ export function Nav({ onToggleSidebar }: { onToggleSidebar: () => void }) {
 properties: "breadcrumb.properties",
       users: "breadcrumb.users",
       settings: "breadcrumb.settings",
+      organization: "breadcrumb.organization",
       workspaces: "breadcrumb.workspaces",
       login: "breadcrumb.login",
       profile: "breadcrumb.profile",
@@ -105,6 +110,8 @@ properties: "breadcrumb.properties",
 
       <div className="w-px h-5 bg-border mx-1" />
 
+      <OrgSwitcher />
+
       {/* Admin view has its own breadcrumb root, separate from the workspace tree. */}
       {isAdminView && (
         <div className="flex items-center gap-1.5 text-[13px] overflow-hidden">
@@ -115,9 +122,25 @@ properties: "breadcrumb.properties",
         </div>
       )}
 
-      {/* Unified breadcrumb: Workspaces / nom projet / Section / leaf */}
+      {/* Unified breadcrumb: Organisation / Workspaces / nom projet / Section / leaf */}
       {!isAdminView && workspaces.length > 0 && (
         <div className="flex items-center gap-1.5 text-[13px] text-muted-foreground overflow-hidden">
+          {isOrgAdmin && (
+            <>
+              <Link
+                href="/organization"
+                className="flex items-center gap-1.5 hover:text-foreground no-underline whitespace-nowrap shrink-0"
+              >
+                <Building2 className="size-3.5 text-primary shrink-0" />
+                {t("breadcrumb.organization")}
+              </Link>
+              {!isOrganizationView && <span className="text-border">/</span>}
+            </>
+          )}
+
+          {/* The /organization view is its own root, like /workspaces below. */}
+          {!isOrganizationView && (
+          <>
           <Link
             href="/workspaces"
             className="flex items-center gap-1.5 hover:text-foreground no-underline whitespace-nowrap shrink-0"
@@ -151,6 +174,8 @@ properties: "breadcrumb.properties",
               </span>
             );
           })}
+          </>
+          )}
           </>
           )}
         </div>

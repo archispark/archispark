@@ -1,7 +1,12 @@
 import { Pool } from "pg";
 import { drizzle as pgDrizzle } from "drizzle-orm/node-postgres";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
+import { neon } from "@neondatabase/serverless";
+import { drizzle as neonDrizzle } from "drizzle-orm/neon-http";
+import { AsyncLocalStorage } from "node:async_hooks";
+import { eq } from "drizzle-orm";
 import * as schema from "./schema.js";
+import { decryptConnectionString } from "./tenant-crypto.js";
 
 /**
  * Single database driver: PostgreSQL.
@@ -71,4 +76,64 @@ function stripSslmode(cs: string): string {
   }
 }
 
-export const db: NodePgDatabase<typeof schema> = await createDb();
+/**
+ * Control-plane connection: identity, organizations/teams, the tenant
+ * registry and platform settings (schema.control.ts). Always the same
+ * physical database — never resolved per-tenant.
+ */
+export const controlDb: NodePgDatabase<typeof schema> = await createDb();
+
+// ---------------------------------------------------------------------------
+// Per-tenant connections (schema.tenant.ts)
+// ---------------------------------------------------------------------------
+
+const tenantDbStorage = new AsyncLocalStorage<NodePgDatabase<typeof schema>>();
+const tenantDbCache = new Map<string, NodePgDatabase<typeof schema>>();
+
+/* v8 ignore start -- only reached once a tenant_databases row is "active" (Phase 3) */
+function createTenantDb(connectionString: string): NodePgDatabase<typeof schema> {
+  const sql = neon(connectionString);
+  // Cast: neon-http and node-postgres share the same Drizzle query API; the
+  // cast lets callers type against a single db shape (see createDb above).
+  return neonDrizzle(sql, { schema }) as unknown as NodePgDatabase<typeof schema>;
+}
+/* v8 ignore stop */
+
+/**
+ * Resolves the Drizzle client for `organizationId`'s ArchiMate content.
+ *
+ * Until Phase 3 provisions a dedicated database (no `tenant_databases` row,
+ * or `status !== "active"`), this returns `controlDb` — every organization's
+ * data still lives in the single shared database.
+ */
+export async function getTenantDb(organizationId: string): Promise<NodePgDatabase<typeof schema>> {
+  const cached = tenantDbCache.get(organizationId);
+  if (cached) return cached;
+
+  const [row] = await controlDb.select().from(schema.tenantDatabases)
+    .where(eq(schema.tenantDatabases.organizationId, organizationId));
+  if (row?.status !== "active") return controlDb;
+
+  const tenantDb = createTenantDb(decryptConnectionString(row.connectionStringEncrypted));
+  tenantDbCache.set(organizationId, tenantDb);
+  return tenantDb;
+}
+
+/** Runs `fn` with `db` (below) resolving to `tenantDb` for its whole async extent. */
+export function runWithTenantDb<T>(tenantDb: NodePgDatabase<typeof schema>, fn: () => T): T {
+  return tenantDbStorage.run(tenantDb, fn);
+}
+
+/**
+ * Tenant-scoped client for the current request, set per-request via
+ * `runWithTenantDb` (see apps/api/src/app.ts). Falls back to `controlDb`
+ * outside of a request — migrations, scripts — or while the active
+ * organization has no dedicated database yet (Phase 3).
+ */
+export const db: NodePgDatabase<typeof schema> = new Proxy({} as NodePgDatabase<typeof schema>, {
+  get(_target, prop, _receiver) {
+    const current = tenantDbStorage.getStore() ?? controlDb;
+    const value = Reflect.get(current, prop, current);
+    return typeof value === "function" ? value.bind(current) : value;
+  },
+});

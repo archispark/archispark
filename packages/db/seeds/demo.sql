@@ -6,6 +6,7 @@
 
 DO $$
 DECLARE
+  org_id    TEXT;
   ws_id     INTEGER;
   el_db_id  INTEGER;
   rel_db_id INTEGER;
@@ -16,10 +17,26 @@ BEGIN
   -- =================================================================
   -- Workspace: ArchiSurance  (257 elements, 402 rels, 40 views)
   -- =================================================================
-  DELETE FROM workspaces WHERE name = 'ArchiSurance';
-  INSERT INTO workspaces (uuid, name, description, version, is_active, created_at, updated_at)
-    VALUES ('id-f0607ad9eb0845a8829f43f5f7c676ff', 'ArchiSurance', NULL, NULL, FALSE, EXTRACT(EPOCH FROM NOW())::INT, EXTRACT(EPOCH FROM NOW())::INT)
+  -- Organization: ArchiSurance
+  INSERT INTO organization (id, name, slug, created_at)
+    VALUES ('org-archisurance', 'ArchiSurance', 'archisurance', NOW())
+    ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name
+    RETURNING id INTO org_id;
+
+  INSERT INTO member (id, organization_id, user_id, role, created_at)
+  SELECT 'member-' || org_id || '-' || u.id, org_id, u.id,
+         CASE WHEN u.role = 'admin' THEN 'owner' ELSE 'member' END, NOW()
+  FROM "user" u
+  ON CONFLICT (organization_id, user_id) DO NOTHING;
+
+  DELETE FROM workspaces WHERE organization_id = org_id AND name = 'ArchiSurance';
+  INSERT INTO workspaces (uuid, name, description, version, organization_id, created_at, updated_at)
+    VALUES ('id-f0607ad9eb0845a8829f43f5f7c676ff', 'ArchiSurance', NULL, NULL, org_id, EXTRACT(EPOCH FROM NOW())::INT, EXTRACT(EPOCH FROM NOW())::INT)
     RETURNING id INTO ws_id;
+
+  INSERT INTO user_active_workspace (user_id, organization_id, workspace_id)
+  SELECT u.id, org_id, ws_id FROM "user" u
+  ON CONFLICT (user_id, organization_id) DO UPDATE SET workspace_id = EXCLUDED.workspace_id;
 
     INSERT INTO property_definitions (workspace_id, uuid, name, type)
       VALUES (ws_id, 'propid-2', 'Capability Level', 'string');
@@ -5376,10 +5393,26 @@ BEGIN
   -- =================================================================
   -- Workspace: ArchiMetal  (294 elements, 476 rels, 33 views)
   -- =================================================================
-  DELETE FROM workspaces WHERE name = 'ArchiMetal';
-  INSERT INTO workspaces (uuid, name, description, version, is_active, created_at, updated_at)
-    VALUES ('id-e42df43bd2104e9aa7ccc8fd25a80ac6', 'ArchiMetal', NULL, NULL, FALSE, EXTRACT(EPOCH FROM NOW())::INT, EXTRACT(EPOCH FROM NOW())::INT)
+  -- Organization: ArchiMetal
+  INSERT INTO organization (id, name, slug, created_at)
+    VALUES ('org-archimetal', 'ArchiMetal', 'archimetal', NOW())
+    ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name
+    RETURNING id INTO org_id;
+
+  INSERT INTO member (id, organization_id, user_id, role, created_at)
+  SELECT 'member-' || org_id || '-' || u.id, org_id, u.id,
+         CASE WHEN u.role = 'admin' THEN 'owner' ELSE 'member' END, NOW()
+  FROM "user" u
+  ON CONFLICT (organization_id, user_id) DO NOTHING;
+
+  DELETE FROM workspaces WHERE organization_id = org_id AND name = 'ArchiMetal';
+  INSERT INTO workspaces (uuid, name, description, version, organization_id, created_at, updated_at)
+    VALUES ('id-e42df43bd2104e9aa7ccc8fd25a80ac6', 'ArchiMetal', NULL, NULL, org_id, EXTRACT(EPOCH FROM NOW())::INT, EXTRACT(EPOCH FROM NOW())::INT)
     RETURNING id INTO ws_id;
+
+  INSERT INTO user_active_workspace (user_id, organization_id, workspace_id)
+  SELECT u.id, org_id, ws_id FROM "user" u
+  ON CONFLICT (user_id, organization_id) DO UPDATE SET workspace_id = EXCLUDED.workspace_id;
 
     INSERT INTO property_definitions (workspace_id, uuid, name, type)
       VALUES (ws_id, 'propid-1', 'Last Update', 'string');

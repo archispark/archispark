@@ -10,6 +10,8 @@
 export * as store from "./store.js";
 export { getActiveWorkspaceId, getWorkspaces, activateWorkspace } from "./registry.js";
 export type { WorkspaceOut } from "./registry.js";
+export { getMembershipContext } from "./auth.js";
+export type { WorkspaceContext } from "./auth.js";
 export { renderViewToSvg } from "./renderer.js";
 export {
   ELEMENT_TYPES,
@@ -26,5 +28,5 @@ export type {
   ConnectionCreateIn,
   ConnectionUpdateIn,
 } from "./schemas.js";
-export { lookupApiToken, userHasPermission } from "./auth.js";
-export type { TokenUser, PermissionFlag } from "./auth.js";
+export { lookupApiToken } from "./auth.js";
+export type { TokenUser } from "./auth.js";

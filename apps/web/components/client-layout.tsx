@@ -4,6 +4,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { Nav } from "@/components/nav";
 import { Sidebar } from "@/components/sidebar";
 import { AdminSidebar } from "@/components/admin-sidebar";
+import { OrganizationSidebar } from "@/components/organization-sidebar";
 import { QueryProvider } from "@/components/query-provider";
 import { useState, useEffect, useCallback } from "react";
 import { usePathname } from "next/navigation";
@@ -56,6 +57,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isLogin = pathname === "/login";
   const isAdminView = pathname === "/admin" || pathname.startsWith("/admin/");
+  const isOrganizationView = pathname === "/organization" || pathname.startsWith("/organization/");
   // The workspaces overview is a full-width chrome-light page (no model context),
   // so it hides the sidebar — only the top nav stays.
   const hideSidebar = isLogin || pathname === "/workspaces";
@@ -79,6 +81,13 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
         {!hideSidebar && (
           isAdminView ? (
             <AdminSidebar
+              open={sidebarOpen}
+              onClose={() => setSidebarOpen(false)}
+              collapsed={sidebarCollapsed}
+              onToggleCollapse={toggleSidebarCollapsed}
+            />
+          ) : isOrganizationView ? (
+            <OrganizationSidebar
               open={sidebarOpen}
               onClose={() => setSidebarOpen(false)}
               collapsed={sidebarCollapsed}

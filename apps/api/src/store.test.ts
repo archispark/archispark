@@ -1,16 +1,22 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeAll, beforeEach } from "vitest";
 import { randomUUID } from "crypto";
-import { seedWorkspace } from "@workspace/db";
+import { db, organizations, seedWorkspace } from "@workspace/db";
 import * as store from "./store.js";
 
 // Each test runs against a fresh, isolated workspace seeded in the (PGlite) DB.
 let wsId: number;
+let orgId: string;
+
+beforeAll(async () => {
+  orgId = `org-store-test-${randomUUID()}`;
+  await db.insert(organizations).values({ id: orgId, name: orgId, slug: orgId, createdAt: new Date() });
+});
 
 beforeEach(async () => {
   wsId = await seedWorkspace(`store-test-${randomUUID()}`, {
     uuid: `id-${randomUUID()}`, name: "Store Test", desc: null, version: null,
     elements: [], relationships: [], propertyDefinitions: [], views: [],
-  });
+  }, orgId);
 });
 
 // ---------------------------------------------------------------------------

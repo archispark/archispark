@@ -1,23 +1,13 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { username, admin, genericOAuth, microsoftEntraId } from "better-auth/plugins";
-import { eq, and } from "drizzle-orm";
-import { db, users, sessions, accounts, verifications, roles, userRoles, oauthProviders } from "@workspace/db";
+import { username, admin, organization, genericOAuth, microsoftEntraId } from "better-auth/plugins";
+import { eq } from "drizzle-orm";
+import { controlDb, users, sessions, accounts, verifications, organizations, members, invitations, teams, teamMembers, oauthProviders } from "@workspace/db";
 import { getRedis } from "./redis.js";
 
 export interface OAuthProvider {
   id: string;
   name: string;
-}
-
-async function assignDefaultRbacRole(userId: string): Promise<void> {
-  const [userRole] = await db.select().from(roles).where(eq(roles.name, "user"));
-  if (!userRole) return;
-  const [exists] = await db.select().from(userRoles)
-    .where(and(eq(userRoles.roleId, userRole.id), eq(userRoles.userId, userId)));
-  if (!exists) {
-    await db.insert(userRoles).values({ roleId: userRole.id, userId });
-  }
 }
 
 /** Build OAuth config from env vars (always available at startup). */
@@ -73,7 +63,7 @@ function buildEnvOAuthConfig() {
 /* v8 ignore start */
 async function buildDbOAuthConfig() {
   try {
-    const rows = await db.select().from(oauthProviders).where(eq(oauthProviders.enabled, true));
+    const rows = await controlDb.select().from(oauthProviders).where(eq(oauthProviders.enabled, true));
     return rows.map((p) => {
       if (p.type === "microsoft-entra-id") {
         return microsoftEntraId({
@@ -138,13 +128,18 @@ function createAuthInstance(oauthConfig: unknown[]) {
     baseURL: process.env.API_URL ?? "http://localhost:3000",
     basePath: "/auth",
 
-    database: drizzleAdapter(db, {
+    database: drizzleAdapter(controlDb, {
       provider: "pg",
       schema: {
         user: users,
         session: sessions,
         account: accounts,
         verification: verifications,
+        organization: organizations,
+        member: members,
+        invitation: invitations,
+        team: teams,
+        teamMember: teamMembers,
       },
     }),
 
@@ -169,18 +164,13 @@ function createAuthInstance(oauthConfig: unknown[]) {
         defaultRole: "user",
         adminRole: "admin",
       }),
+      organization({
+        teams: { enabled: true },
+        // Only the platform super admin can create new organizations.
+        allowUserToCreateOrganization: async (user) => user.role === "admin",
+      }),
       ...(oauthConfig.length > 0 ? [genericOAuth({ config: oauthConfig as Parameters<typeof genericOAuth>[0]["config"] })] : []),
     ],
-
-    databaseHooks: {
-      user: {
-        create: {
-          after: async (user) => {
-            await assignDefaultRbacRole(user.id);
-          },
-        },
-      },
-    },
 
     session: {
       expiresIn: 60 * 60 * 24,
@@ -227,7 +217,7 @@ export async function getConfiguredProviders(): Promise<OAuthProvider[]> {
 
   // DB-based providers
   try {
-    const rows = await db.select().from(oauthProviders).where(eq(oauthProviders.enabled, true));
+    const rows = await controlDb.select().from(oauthProviders).where(eq(oauthProviders.enabled, true));
     const envIds = new Set(providers.map((p) => p.id));
     for (const row of rows) {
       if (!envIds.has(row.providerId)) {

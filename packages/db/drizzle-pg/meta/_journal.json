@@ -50,6 +50,20 @@
       "when": 1780620000000,
       "tag": "0006_site_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1780630000000,
+      "tag": "0007_org_teams_workspaces",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1780640000000,
+      "tag": "0008_tenant_databases",
+      "breakpoints": true
     }
   ]
 }

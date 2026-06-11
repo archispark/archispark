@@ -127,22 +127,12 @@ export const WorkspaceCreateSchema = z.object({
   name: z.string().min(1, "Le champ 'name' est requis."),
   path: z.string().optional(),
   description: z.string().nullable().optional(),
+  team_ids: z.array(z.string()).optional(),
 });
 
 export const WorkspaceUpdateSchema = z.object({
   name: z.string().min(1, "Le champ 'name' est requis."),
-});
-
-export const RoleCreateSchema = z.object({
-  name: z.string().min(1, "Le champ 'name' est requis."),
-  description: z.string().nullable().optional(),
-  permissions: z.record(z.string(), z.array(z.string())).optional(),
-});
-
-export const RoleUpdateSchema = z.object({
-  name: z.string().min(1).optional(),
-  description: z.string().nullable().optional(),
-  permissions: z.record(z.string(), z.array(z.string())).optional(),
+  team_ids: z.array(z.string()).optional(),
 });
 
 // ---------------------------------------------------------------------------

@@ -19,7 +19,6 @@ import {
   ConnectionCreateSchema, ConnectionUpdateSchema,
   PropertyDefinitionCreateSchema, PropertyDefinitionUpdateSchema,
   WorkspaceCreateSchema, WorkspaceUpdateSchema,
-  RoleCreateSchema, RoleUpdateSchema,
 } from "./validation.js";
 
 const { version } = packageJson;
@@ -148,11 +147,13 @@ const ErrorDetailSchema = registry.register("ErrorDetail", z.object({
 }).openapi("ErrorDetail"));
 
 const WorkspaceInfoSchema = registry.register("WorkspaceInfo", z.object({
-  id:          z.string(),
-  name:        z.string(),
-  path:        z.string().nullable().optional(),
-  description: z.string().nullable().optional(),
-  active:      z.boolean(),
+  id:              z.string(),
+  name:            z.string(),
+  path:            z.string().nullable().optional(),
+  description:     z.string().nullable().optional(),
+  active:          z.boolean(),
+  organization_id: z.string(),
+  team_ids:        z.array(z.string()),
 }).openapi("WorkspaceInfo"));
 
 const UserOutSchema = registry.register("UserOut", z.object({
@@ -181,17 +182,6 @@ const ApiTokenCreatedSchema = registry.register("ApiTokenCreated", ApiTokenOutSc
   token: z.string().openapi({ description: "Valeur du token (retournée une seule fois à la création)" }),
 }).openapi("ApiTokenCreated"));
 
-const RoleOutSchema = registry.register("RoleOut", z.object({
-  id:          z.string(),
-  name:        z.string(),
-  description: z.string().nullable().optional(),
-  is_system:   z.boolean(),
-  created_at:  z.string().datetime(),
-  permissions: z.record(z.string(), z.array(z.string()))
-                .openapi({ description: "Map de layer → liste de flags (read|create|update|delete)" }),
-  user_ids:    z.array(z.string()),
-}).openapi("RoleOut"));
-
 const PropertyDefinitionSchema = registry.register("PropertyDefinition", z.object({
   identifier: z.string(),
   name:       z.string(),
@@ -216,8 +206,6 @@ const WorkspaceCreateInput = registry.register("WorkspaceCreateInput", Workspace
 const WorkspaceUpdateInput = registry.register("WorkspaceUpdateInput", WorkspaceUpdateSchema.openapi("WorkspaceUpdateInput"));
 registry.register("PropertyDefinitionCreateInput", PropertyDefinitionCreateSchema.openapi("PropertyDefinitionCreateInput"));
 registry.register("PropertyDefinitionUpdateInput", PropertyDefinitionUpdateSchema.openapi("PropertyDefinitionUpdateInput"));
-const RoleCreateInput      = registry.register("RoleCreateInput",      RoleCreateSchema.openapi("RoleCreateInput"));
-const RoleUpdateInput      = registry.register("RoleUpdateInput",      RoleUpdateSchema.openapi("RoleUpdateInput"));
 
 // ---------------------------------------------------------------------------
 // Reusable responses & security
@@ -605,146 +593,6 @@ registry.registerPath({
 });
 
 registry.registerPath({
-  method: "get", path: "/users/{uid}/roles", tags: ["Users"],
-  summary: "Rôles d'un utilisateur", operationId: "listUserRoles",
-  security: BothAuth,
-  request: { params: z.object({ uid: z.string() }) },
-  responses: {
-    200: { description: "Rôles assignés", content: { "application/json": { schema: z.array(RoleOutSchema) } } },
-    401: Unauthorized,
-  },
-});
-
-registry.registerPath({
-  method: "get", path: "/roles", tags: ["Roles"],
-  summary: "Lister les rôles", operationId: "listRoles",
-  security: BothAuth,
-  responses: {
-    200: { description: "Liste des rôles RBAC", content: { "application/json": { schema: z.array(RoleOutSchema) } } },
-    401: Unauthorized,
-  },
-});
-
-registry.registerPath({
-  method: "post", path: "/roles", tags: ["Roles"],
-  summary: "Créer un rôle", operationId: "createRole",
-  security: BothAuth,
-  request: { body: { required: true, content: { "application/json": { schema: RoleCreateInput } } } },
-  responses: {
-    201: { description: "Rôle créé", content: { "application/json": { schema: RoleOutSchema } } },
-    401: Unauthorized, 403: Forbidden,
-  },
-});
-
-registry.registerPath({
-  method: "get", path: "/roles/{id}", tags: ["Roles"],
-  summary: "Détail d'un rôle", operationId: "getRole",
-  security: BothAuth,
-  request: { params: z.object({ id: z.string() }) },
-  responses: {
-    200: { description: "Rôle", content: { "application/json": { schema: RoleOutSchema } } },
-    401: Unauthorized, 404: NotFound,
-  },
-});
-
-registry.registerPath({
-  method: "put", path: "/roles/{id}", tags: ["Roles"],
-  summary: "Modifier un rôle", operationId: "updateRole",
-  security: BothAuth,
-  request: {
-    params: z.object({ id: z.string() }),
-    body: { required: true, content: { "application/json": { schema: RoleUpdateInput } } },
-  },
-  responses: {
-    200: { description: "Rôle mis à jour", content: { "application/json": { schema: RoleOutSchema } } },
-    401: Unauthorized, 403: Forbidden, 404: NotFound,
-  },
-});
-
-registry.registerPath({
-  method: "delete", path: "/roles/{id}", tags: ["Roles"],
-  summary: "Supprimer un rôle", operationId: "deleteRole",
-  security: BothAuth,
-  request: { params: z.object({ id: z.string() }) },
-  responses: {
-    204: { description: "Rôle supprimé" },
-    401: Unauthorized, 403: Forbidden, 404: NotFound,
-  },
-});
-
-registry.registerPath({
-  method: "get", path: "/roles/{id}/layers/{layer}", tags: ["Roles"],
-  summary: "Permissions d'un rôle sur une couche", operationId: "getRoleLayer",
-  security: BothAuth,
-  request: {
-    params: z.object({
-      id:    z.string(),
-      layer: z.string().openapi({ description: "Couche ArchiMate ou 'Relations'/'Views'" }),
-    }),
-  },
-  responses: {
-    200: { description: "Permissions", content: { "application/json": { schema: z.array(z.string()) } } },
-    401: Unauthorized,
-  },
-});
-
-registry.registerPath({
-  method: "put", path: "/roles/{id}/layers/{layer}", tags: ["Roles"],
-  summary: "Définir permissions sur une couche", operationId: "setRoleLayer",
-  security: BothAuth,
-  request: {
-    params: z.object({ id: z.string(), layer: z.string() }),
-    body: {
-      required: true,
-      content: {
-        "application/json": {
-          schema: z.object({
-            permissions: z.array(z.enum(["read", "create", "update", "delete"])),
-          }),
-        },
-      },
-    },
-  },
-  responses: {
-    200: { description: "Permissions mises à jour" },
-    401: Unauthorized, 403: Forbidden,
-  },
-});
-
-registry.registerPath({
-  method: "delete", path: "/roles/{id}/layers/{layer}", tags: ["Roles"],
-  summary: "Supprimer permissions sur une couche", operationId: "deleteRoleLayer",
-  security: BothAuth,
-  request: { params: z.object({ id: z.string(), layer: z.string() }) },
-  responses: {
-    204: { description: "Permissions supprimées" },
-    401: Unauthorized, 403: Forbidden,
-  },
-});
-
-registry.registerPath({
-  method: "put", path: "/roles/{id}/users/{uid}", tags: ["Roles"],
-  summary: "Assigner un utilisateur à un rôle", operationId: "assignUserToRole",
-  security: BothAuth,
-  request: { params: z.object({ id: z.string(), uid: z.string() }) },
-  responses: {
-    200: { description: "Assignation effectuée" },
-    401: Unauthorized, 403: Forbidden, 404: NotFound,
-  },
-});
-
-registry.registerPath({
-  method: "delete", path: "/roles/{id}/users/{uid}", tags: ["Roles"],
-  summary: "Retirer un utilisateur d'un rôle", operationId: "unassignUserFromRole",
-  security: BothAuth,
-  request: { params: z.object({ id: z.string(), uid: z.string() }) },
-  responses: {
-    204: { description: "Désassignation effectuée" },
-    401: Unauthorized, 403: Forbidden, 404: NotFound,
-  },
-});
-
-registry.registerPath({
   method: "get", path: "/property-definitions", tags: ["PropertyDefinitions"],
   summary: "Lister les définitions de propriétés", operationId: "listPropertyDefinitions",
   security: BothAuth,
@@ -851,7 +699,7 @@ const _doc: Record<string, any> = generator.generateDocument({
     description:
       "API REST pour interroger et modifier un modèle ArchiMate 3.1. " +
       "Authentification via cookie de session (Better Auth) ou Bearer token (token API personnel). " +
-      "Permissions RBAC par couche ArchiMate.",
+      "Accès aux workspaces selon l'organisation et les équipes de l'utilisateur (rôles owner/admin/member).",
     contact: { name: "GitHub", url: "https://github.com/archispark/archispark" },
   },
   servers: [
@@ -867,7 +715,6 @@ const _doc: Record<string, any> = generator.generateDocument({
     { name: "Views",               description: "Vues et diagrammes" },
     { name: "PropertyDefinitions", description: "Définitions de propriétés" },
     { name: "Users",               description: "Gestion des utilisateurs" },
-    { name: "Roles",               description: "Rôles et permissions RBAC" },
     { name: "Settings",            description: "Tokens API personnels" },
     { name: "MCP",                 description: "Transport MCP (streamable-http)" },
   ],

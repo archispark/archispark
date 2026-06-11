@@ -94,10 +94,10 @@ const TEST_TOKEN = vi.hoisted(() => "test-mcp-bearer-token-fixture");
 // package wildcard exports, which Vitest resolves inconsistently in fork mode).
 vi.mock("./token-auth.js", () => ({
   lookupApiToken: vi.fn().mockImplementation((token: string) => {
-    if (token === TEST_TOKEN) return Promise.resolve({ id: "user-admin", username: "admin", role: "admin" });
+    if (token === TEST_TOKEN) return Promise.resolve({ id: "user-admin", username: "admin", role: "admin", organizationId: "org-1", workspaceId: null });
     return Promise.resolve(null);
   }),
-  userHasPermission: vi.fn().mockResolvedValue(true),
+  getMembershipContext: vi.fn().mockResolvedValue({ organizationId: "org-1", orgRole: "owner", teamIds: [] }),
 }));
 
 // ---------------------------------------------------------------------------
@@ -152,7 +152,7 @@ import {
 } from "api/src/store.js";
 import { getWorkspaces, activateWorkspace } from "api/src/registry.js";
 import { renderViewToSvg } from "api/src/renderer.js";
-import { lookupApiToken, userHasPermission } from "./token-auth.js";
+import { lookupApiToken, getMembershipContext } from "./token-auth.js";
 
 // ---------------------------------------------------------------------------
 // Helper: a POST request triggers createMcpServer() → registers tools
@@ -225,6 +225,20 @@ describe("POST /mcp/ (stateless)", () => {
   it("returns 401 when Authorization header is absent", async () => {
     const res = await request(app).post("/mcp/").send({ method: "initialize", params: {} });
     expect(res.status).toBe(401);
+  });
+
+  it("returns 403 when the user has no membership in their token's organization", async () => {
+    vi.mocked(getMembershipContext).mockResolvedValueOnce(null);
+    const res = await request(app).post("/mcp/").set("Authorization", `Bearer ${TEST_TOKEN}`).send({ method: "initialize", params: {} });
+    expect(res.status).toBe(403);
+    expect(res.body.error.message).toMatch(/organisation/i);
+  });
+
+  it("returns 401 when an unexpected error occurs during authentication", async () => {
+    vi.mocked(getMembershipContext).mockRejectedValueOnce(new Error("db error"));
+    const res = await request(app).post("/mcp/").set("Authorization", `Bearer ${TEST_TOKEN}`).send({ method: "initialize", params: {} });
+    expect(res.status).toBe(401);
+    expect(res.body.error.message).toMatch(/authentification/i);
   });
 
   it("returns 500 when transport throws", async () => {
@@ -600,7 +614,7 @@ describe("MCP tool: list_workspaces", () => {
 describe("MCP tool: activate_workspace", () => {
   it("activates a workspace by id", async () => {
     const result = await callTool("activate_workspace", { workspace_id: "2" });
-    expect(vi.mocked(activateWorkspace)).toHaveBeenCalledWith("2");
+    expect(vi.mocked(activateWorkspace)).toHaveBeenCalledWith("2", { organizationId: "org-1", orgRole: "owner", teamIds: [] }, "user-admin");
     expect(result.content[0].text).toContain("Other");
   });
 });
@@ -723,13 +737,14 @@ describe("relationshipCreationHints — unknown type", () => {
 });
 
 // ---------------------------------------------------------------------------
-// RBAC: admin-only tools with non-admin user
+// RBAC: read-only org member (requireWrite)
 // ---------------------------------------------------------------------------
 
-describe("RBAC: admin-only tools (requireAdminUser)", () => {
+describe("RBAC: read-only org member", () => {
   beforeAll(async () => {
-    // Re-register tool handlers with a non-admin user
-    vi.mocked(lookupApiToken).mockResolvedValueOnce({ id: "u-viewer", username: "viewer", role: "user" });
+    // Re-register tool handlers with a non-admin, read-only org member
+    vi.mocked(lookupApiToken).mockResolvedValueOnce({ id: "u-viewer", username: "viewer", role: "user", organizationId: "org-1", workspaceId: null });
+    vi.mocked(getMembershipContext).mockResolvedValueOnce({ organizationId: "org-1", orgRole: "member", teamIds: [] });
     await request(app).post("/mcp/").set("Authorization", `Bearer ${TEST_TOKEN}`).send({ jsonrpc: "2.0", method: "initialize", id: 1 });
   });
 
@@ -738,67 +753,53 @@ describe("RBAC: admin-only tools (requireAdminUser)", () => {
     await initSession();
   });
 
-  it("create_element throws for non-admin", async () => {
+  it("list_relationships still succeeds for a read-only member", async () => {
+    await callTool("list_relationships");
+    expect(vi.mocked(listRelationships)).toHaveBeenCalled();
+  });
+
+  it("create_element throws for a read-only member", async () => {
     await expect(callTool("create_element", { name: "X", type: "ApplicationComponent" }))
-      .rejects.toThrow(/administrateur/i);
+      .rejects.toThrow(/lecture seule/i);
   });
 
-  it("update_element throws for non-admin", async () => {
+  it("update_element throws for a read-only member", async () => {
     await expect(callTool("update_element", { element_id: "e1", name: "Y" }))
-      .rejects.toThrow(/administrateur/i);
+      .rejects.toThrow(/lecture seule/i);
   });
 
-  it("delete_element throws for non-admin", async () => {
+  it("delete_element throws for a read-only member", async () => {
     await expect(callTool("delete_element", { element_id: "e1" }))
-      .rejects.toThrow(/administrateur/i);
+      .rejects.toThrow(/lecture seule/i);
   });
 
-  it("import_model throws for non-admin", async () => {
-    await expect(callTool("import_model", { xml: "<model/>" }))
-      .rejects.toThrow(/administrateur/i);
+  it("create_view throws for a read-only member", async () => {
+    await expect(callTool("create_view", { name: "test" }))
+      .rejects.toThrow(/lecture seule/i);
   });
 
-  it("activate_workspace throws for non-admin", async () => {
-    await expect(callTool("activate_workspace", { workspace_id: "2" }))
-      .rejects.toThrow(/administrateur/i);
+  it("delete_view throws for a read-only member", async () => {
+    await expect(callTool("delete_view", { view_id: "v1" }))
+      .rejects.toThrow(/lecture seule/i);
   });
 
-  it("create_property_definition throws for non-admin", async () => {
-    await expect(callTool("create_property_definition", { name: "Cost", type: "number" }))
-      .rejects.toThrow(/administrateur/i);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// RBAC: layer permission checks (checkPerm with userHasPermission=false)
-// ---------------------------------------------------------------------------
-
-describe("RBAC: layer permission checks", () => {
-  beforeAll(async () => {
-    vi.mocked(lookupApiToken).mockResolvedValueOnce({ id: "u-viewer", username: "viewer", role: "user" });
-    vi.mocked(userHasPermission).mockResolvedValue(false);
-    await request(app).post("/mcp/").set("Authorization", `Bearer ${TEST_TOKEN}`).send({ jsonrpc: "2.0", method: "initialize", id: 1 });
-  });
-
-  afterAll(async () => {
-    vi.mocked(userHasPermission).mockResolvedValue(true);
-    await initSession();
-  });
-
-  it("list_relationships throws when Relations read is denied", async () => {
-    await expect(callTool("list_relationships")).rejects.toThrow(/permission/i);
-  });
-
-  it("create_view throws when Views create is denied", async () => {
-    await expect(callTool("create_view", { name: "test" })).rejects.toThrow(/permission/i);
-  });
-
-  it("delete_view throws when Views delete is denied", async () => {
-    await expect(callTool("delete_view", { view_id: "v1" })).rejects.toThrow(/permission/i);
-  });
-
-  it("create_relationship throws when Relations create is denied", async () => {
+  it("create_relationship throws for a read-only member", async () => {
     await expect(callTool("create_relationship", { type: "Association", source: "e1", target: "e2" }))
-      .rejects.toThrow(/permission/i);
+      .rejects.toThrow(/lecture seule/i);
+  });
+
+  it("import_model throws for a read-only member", async () => {
+    await expect(callTool("import_model", { xml: "<model/>" }))
+      .rejects.toThrow(/lecture seule/i);
+  });
+
+  it("activate_workspace throws for a read-only member", async () => {
+    await expect(callTool("activate_workspace", { workspace_id: "2" }))
+      .rejects.toThrow(/lecture seule/i);
+  });
+
+  it("create_property_definition throws for a read-only member", async () => {
+    await expect(callTool("create_property_definition", { name: "Cost", type: "number" }))
+      .rejects.toThrow(/lecture seule/i);
   });
 });

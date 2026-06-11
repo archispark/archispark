@@ -78,36 +78,46 @@ const ARCHIMATE_CATEGORY: Record<string, ArchiCategory> = {
 
 const STRUCTURAL: ArchiCategory[] = ["active", "passive", "composite", "strategy", "implementation", "behavior"];
 
+function isAssignmentAllowed(s: ArchiCategory, t: ArchiCategory): boolean {
+  if (s === "active" && (t === "behavior" || t === "passive" || t === "active")) return true;
+  if (s === "behavior" && t === "passive") return true;
+  return false;
+}
+
+function isRealizationAllowed(s: ArchiCategory, t: ArchiCategory): boolean {
+  if (s === "behavior" && (t === "behavior" || t === "passive")) return true;
+  if (s === "active" && t === "behavior") return true;
+  if (s === "implementation") return true;
+  if (s === "strategy" && (t === "strategy" || t === "motivation" || t === "behavior")) return true;
+  if (t === "motivation") return true;
+  return false;
+}
+
+function isTriggeringOrFlowAllowed(relType: string, s: ArchiCategory, t: ArchiCategory): boolean {
+  if (s === "behavior" && t === "behavior") return true;
+  if (relType === "Flow" && s === "active" && t === "active") return true;
+  if (s === "junction" || t === "junction") return true;
+  return false;
+}
+
 function isRelationshipAllowed(relType: string, srcType?: string, tgtType?: string): boolean {
   if (!srcType || !tgtType) return true;
   const s: ArchiCategory = ARCHIMATE_CATEGORY[srcType] ?? "other";
   const t: ArchiCategory = ARCHIMATE_CATEGORY[tgtType] ?? "other";
-  if (relType === "Association") return true;
-  if (relType === "Specialization") return srcType === tgtType;
-  if (relType === "Composition" || relType === "Aggregation") return STRUCTURAL.includes(s) && STRUCTURAL.includes(t);
-  if (relType === "Assignment") {
-    if (s === "active" && (t === "behavior" || t === "passive" || t === "active")) return true;
-    if (s === "behavior" && t === "passive") return true;
-    return false;
+  switch (relType) {
+    case "Association": return true;
+    case "Specialization": return srcType === tgtType;
+    case "Composition":
+    case "Aggregation": return STRUCTURAL.includes(s) && STRUCTURAL.includes(t);
+    case "Assignment": return isAssignmentAllowed(s, t);
+    case "Realization": return isRealizationAllowed(s, t);
+    case "Serving": return (s === "behavior" || s === "active") && (t === "active" || t === "behavior");
+    case "Triggering":
+    case "Flow": return isTriggeringOrFlowAllowed(relType, s, t);
+    case "Access": return (s === "behavior" && t === "passive") || (s === "passive" && t === "behavior");
+    case "Influence": return s === "motivation" || t === "motivation";
+    default: return false;
   }
-  if (relType === "Realization") {
-    if (s === "behavior" && (t === "behavior" || t === "passive")) return true;
-    if (s === "active" && t === "behavior") return true;
-    if (s === "implementation") return true;
-    if (s === "strategy" && (t === "strategy" || t === "motivation" || t === "behavior")) return true;
-    if (t === "motivation") return true;
-    return false;
-  }
-  if (relType === "Serving") return (s === "behavior" || s === "active") && (t === "active" || t === "behavior");
-  if (relType === "Triggering" || relType === "Flow") {
-    if (s === "behavior" && t === "behavior") return true;
-    if (relType === "Flow" && s === "active" && t === "active") return true;
-    if (s === "junction" || t === "junction") return true;
-    return false;
-  }
-  if (relType === "Access") return (s === "behavior" && t === "passive") || (s === "passive" && t === "behavior");
-  if (relType === "Influence") return s === "motivation" || t === "motivation";
-  return false;
 }
 
 // ---------------------------------------------------------------------------

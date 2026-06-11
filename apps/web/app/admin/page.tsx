@@ -2,34 +2,26 @@
 import { useT } from "@/lib/i18n";
 
 import { useEffect, useMemo, useState, useCallback, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import type { ColumnDef } from "@tanstack/react-table";
 import {
   fetchUsers,
   createUser,
   deleteUserApi,
-  fetchUserRoles,
-  fetchRoles,
-  assignUserToRole,
-  unassignUserFromRole,
-  createRole,
-  updateRole,
-  deleteRole,
   fetchProviders,
   createProvider,
   updateProvider,
   deleteProvider,
   fetchRedisStatus,
+  fetchPostgresStatus,
   fetchSiteMessages,
   updateSiteMessages,
   type SiteMessages,
   type RedisStatus,
-  ARCHIMATE_LAYERS,
-  PERMISSION_FLAGS,
+  type PostgresStatus,
   type UserOut,
-  type RoleOut,
-  type ArchiLayer,
-  type LayerPermissions,
   type OAuthProviderOut,
   type OAuthProviderType,
 } from "@/lib/api";
@@ -54,15 +46,16 @@ import {
   DialogTrigger,
 } from "@workspace/ui/components/dialog";
 import { DataTable } from "@/components/data-table";
-import { Plus, Trash2, Pencil, Eye, EyeOff, RefreshCw, FolderOpen, Check } from "lucide-react";
+import { Plus, Trash2, Pencil, Eye, EyeOff, RefreshCw, Building2 } from "lucide-react";
+import { useFormModal } from "@/hooks/use-form-modal";
 import {
-  useWorkspaces,
-  useUpdateWorkspace,
-  useDeleteWorkspace,
-} from "@/lib/queries";
-import type { WorkspaceInfo } from "@/lib/api";
+  useOrganizations,
+  useCreateOrganization,
+  useUpdateOrganization,
+  type OrganizationListItem,
+} from "@/hooks/use-organization";
 
-type Tab = "members" | "roles" | "authentication" | "redis" | "messages" | "workspaces";
+type Tab = "members" | "authentication" | "redis" | "postgres" | "messages" | "organizations";
 
 export default function AdminPage() {
   return (
@@ -86,12 +79,195 @@ function AdminPageInner() {
         </p>
       </div>
 
+      {tab === "organizations" && <OrganizationsTab />}
       {tab === "members" && <MembersTab />}
-      {tab === "roles" && <RolesTab />}
       {tab === "authentication" && <AuthenticationTab />}
       {tab === "redis" && <RedisTab />}
+      {tab === "postgres" && <PostgresTab />}
       {tab === "messages" && <MessagesTab />}
-      {tab === "workspaces" && <WorkspacesTab />}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Organizations tab — platform organization list + creation
+// ---------------------------------------------------------------------------
+
+function slugify(value: string): string {
+  return value.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+}
+
+function OrganizationsTab() {
+  const { t } = useT();
+  const router = useRouter();
+  const qc = useQueryClient();
+  const organizations = useOrganizations();
+  const createOrganization = useCreateOrganization();
+  const updateOrganization = useUpdateOrganization();
+
+  const [createModal, createActions] = useFormModal<null>();
+  const [name, setName] = useState("");
+  const [slug, setSlug] = useState("");
+  const [description, setDescription] = useState("");
+  const [slugEdited, setSlugEdited] = useState(false);
+
+  const [editModal, editActions] = useFormModal<OrganizationListItem>();
+  const [editName, setEditName] = useState("");
+  const [editSlug, setEditSlug] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+
+  function openCreate() {
+    setName(""); setSlug(""); setDescription(""); setSlugEdited(false);
+    createActions.openNew();
+  }
+
+  function handleNameChange(value: string) {
+    setName(value);
+    if (!slugEdited) setSlug(slugify(value));
+  }
+
+  function handleSlugChange(value: string) {
+    setSlugEdited(true);
+    setSlug(slugify(value));
+  }
+
+  async function handleCreate() {
+    const trimmedName = name.trim();
+    const trimmedSlug = slug.trim();
+    if (!trimmedName || !trimmedSlug) return;
+    await createActions.run(async () => {
+      await createOrganization.mutateAsync({ name: trimmedName, slug: trimmedSlug, description: description.trim() || undefined });
+      toast.success(t("settings.org.org_created", { name: trimmedName }));
+      qc.invalidateQueries();
+      router.push("/workspaces");
+    });
+  }
+
+  function openEdit(org: OrganizationListItem) {
+    setEditName(org.name);
+    setEditSlug(org.slug);
+    setEditDescription(org.metadata?.description ?? "");
+    editActions.openWith(org);
+  }
+
+  async function handleEditSave() {
+    if (!editModal.target) return;
+    const trimmedName = editName.trim();
+    const trimmedSlug = editSlug.trim();
+    if (!trimmedName || !trimmedSlug) return;
+    await editActions.run(async () => {
+      await updateOrganization.mutateAsync({
+        organizationId: editModal.target!.id,
+        name: trimmedName,
+        slug: trimmedSlug,
+        metadata: { ...editModal.target!.metadata, description: editDescription.trim() },
+      });
+    });
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-start justify-between gap-4">
+        <p className="text-muted-foreground text-[13px]">{t("settings.org.orgs_desc")}</p>
+
+        <Dialog open={createModal.open} onOpenChange={(o) => !o && createActions.close()}>
+          <DialogTrigger render={<Button size="sm" onClick={openCreate} />}>
+            <Plus className="size-4" /> {t("settings.org.org_new_btn")}
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>{t("settings.org.org_new_title")}</DialogTitle>
+              <DialogDescription>{t("settings.org.org_new_desc")}</DialogDescription>
+            </DialogHeader>
+            <div className="flex flex-col gap-4 py-2">
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="org-name">{t("settings.org.org_name")} *</Label>
+                <Input id="org-name" value={name} onChange={(e) => handleNameChange(e.target.value)} autoComplete="off" />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="org-slug">{t("settings.org.org_slug")} *</Label>
+                <Input id="org-slug" value={slug} onChange={(e) => handleSlugChange(e.target.value)} autoComplete="off" />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="org-description">{t("settings.org.org_description")} <span className="text-muted-foreground font-normal">{t("common.optional")}</span></Label>
+                <textarea
+                  id="org-description"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder={t("common.optional_desc")}
+                  rows={2}
+                  className="text-sm px-3 py-2 border border-input rounded-md bg-background text-foreground outline-none focus:border-ring resize-vertical min-h-[60px]"
+                />
+              </div>
+            </div>
+            {createModal.error && (
+              <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">{createModal.error}</div>
+            )}
+            <DialogFooter>
+              <DialogClose render={<Button variant="outline" />}>{t("common.cancel")}</DialogClose>
+              <Button onClick={handleCreate} disabled={createModal.isPending || !name.trim() || !slug.trim()}>
+                {createModal.isPending ? t("common.creating") : t("common.create")}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      <div className="flex flex-col gap-2">
+        {organizations.map((org) => (
+          <div key={org.id} className="flex items-start gap-3 px-4 py-3 bg-card border border-border rounded-lg">
+            <Building2 className="size-4 shrink-0 mt-0.5 text-muted-foreground" />
+            <div className="flex-1 min-w-0">
+              <div className="truncate text-[14px] text-foreground">{org.name}</div>
+              <div className="truncate text-[11px] text-muted-foreground font-mono">{org.slug}</div>
+              {org.metadata?.description && (
+                <p className="text-[12px] text-muted-foreground mt-1">{org.metadata.description}</p>
+              )}
+            </div>
+            <Button variant="ghost" size="icon-xs" className="shrink-0" onClick={() => openEdit(org)} aria-label={t("common.edit")}>
+              <Pencil className="size-3.5 text-muted-foreground" />
+            </Button>
+          </div>
+        ))}
+      </div>
+
+      <Dialog open={editModal.open} onOpenChange={(o) => !o && editActions.close()}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{t("settings.org.org_edit_title")}</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-4 py-2">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="org-edit-name">{t("settings.org.org_name")} *</Label>
+              <Input id="org-edit-name" value={editName} onChange={(e) => setEditName(e.target.value)} autoComplete="off" />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="org-edit-slug">{t("settings.org.org_slug")} *</Label>
+              <Input id="org-edit-slug" value={editSlug} onChange={(e) => setEditSlug(e.target.value)} autoComplete="off" />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="org-edit-description">{t("settings.org.org_description")} <span className="text-muted-foreground font-normal">{t("common.optional")}</span></Label>
+              <textarea
+                id="org-edit-description"
+                value={editDescription}
+                onChange={(e) => setEditDescription(e.target.value)}
+                placeholder={t("common.optional_desc")}
+                rows={2}
+                className="text-sm px-3 py-2 border border-input rounded-md bg-background text-foreground outline-none focus:border-ring resize-vertical min-h-[60px]"
+              />
+            </div>
+          </div>
+          {editModal.error && (
+            <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">{editModal.error}</div>
+          )}
+          <DialogFooter>
+            <DialogClose render={<Button variant="outline" />}>{t("common.cancel")}</DialogClose>
+            <Button onClick={handleEditSave} disabled={editModal.isPending || !editName.trim() || !editSlug.trim()}>
+              {editModal.isPending ? t("common.saving") : t("common.save")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -114,68 +290,10 @@ function MembersTab() {
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
-  const [rolesOpen, setRolesOpen] = useState(false);
-  const [rolesTarget, setRolesTarget] = useState<UserOut | null>(null);
-  const [allRoles, setAllRoles] = useState<RoleOut[]>([]);
-  const [assignedRoleIds, setAssignedRoleIds] = useState<Set<string>>(new Set());
-  const [rolesLoading, setRolesLoading] = useState(false);
-  const [rolesError, setRolesError] = useState<string | null>(null);
-
-  async function openRoles(u: UserOut) {
-    setRolesTarget(u);
-    setRolesError(null);
-    setRolesOpen(true);
-    setRolesLoading(true);
-    try {
-      const [all, mine] = await Promise.all([fetchRoles(), fetchUserRoles(u.id)]);
-      setAllRoles(all);
-      setAssignedRoleIds(new Set(mine.map((r) => r.id)));
-    } catch (err) {
-      setRolesError((err as Error).message);
-    } finally {
-      setRolesLoading(false);
-    }
-  }
-
-  async function toggleRole(roleId: string, checked: boolean) {
-    if (!rolesTarget) return;
-    try {
-      if (checked) {
-        await assignUserToRole(roleId, rolesTarget.id);
-        setAssignedRoleIds((s) => new Set(s).add(roleId));
-      } else {
-        await unassignUserFromRole(roleId, rolesTarget.id);
-        setAssignedRoleIds((s) => {
-          const n = new Set(s);
-          n.delete(roleId);
-          return n;
-        });
-      }
-    } catch (err) {
-      setRolesError((err as Error).message);
-    }
-  }
-
-  const [allRolesMap, setAllRolesMap] = useState<Map<string, string>>(new Map()); // roleId → name
-  const [userRolesMap, setUserRolesMap] = useState<Map<string, string[]>>(new Map()); // userId → roleNames
-
   const reload = useCallback(() => {
     setLoading(true);
-    Promise.all([fetchUsers(), fetchRoles()])
-      .then(([us, rs]) => {
-        setUsers(us);
-        const rmap = new Map(rs.map((r) => [r.id, r.name]));
-        setAllRolesMap(rmap);
-        const urmap = new Map<string, string[]>();
-        for (const r of rs) {
-          for (const uid of r.user_ids) {
-            const cur = urmap.get(uid) ?? [];
-            cur.push(r.name);
-            urmap.set(uid, cur);
-          }
-        }
-        setUserRolesMap(urmap);
-      })
+    fetchUsers()
+      .then(setUsers)
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
   }, []);
@@ -228,22 +346,6 @@ function MembersTab() {
       cell: ({ row }) => <span className="font-medium">{row.getValue("username")}</span>,
     },
     {
-      id: "roles",
-      header: t("settings.tab_roles"),
-      accessorFn: (row) => userRolesMap.get(row.id)?.join(", ") ?? "—",
-      cell: ({ row }) => {
-        const names = userRolesMap.get(row.original.id) ?? [];
-        if (names.length === 0) return <span className="text-muted-foreground text-[12px]">Aucun</span>;
-        return (
-          <div className="flex flex-wrap gap-1">
-            {names.map((n) => (
-              <span key={n} className="text-[10px] font-medium bg-primary/10 text-primary px-1.5 py-0.5 rounded">{n}</span>
-            ))}
-          </div>
-        );
-      },
-    },
-    {
       accessorKey: "created_at",
       header: "Créé le",
       cell: ({ row }) => (
@@ -258,17 +360,13 @@ function MembersTab() {
       enableSorting: false,
       cell: ({ row }) => (
         <div className="flex items-center gap-1 justify-end">
-          <Button variant="ghost" size="sm" onClick={() => openRoles(row.original)}>
-            {t("settings.tab_roles")}
-          </Button>
           <Button variant="ghost" size="icon-xs" onClick={() => openDelete(row.original)} aria-label={t("common.delete")}>
             <Trash2 className="size-3.5 text-destructive" />
           </Button>
         </div>
       ),
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  ], [userRolesMap]);
+  ], [t]);
 
   if (error) {
     return (
@@ -345,512 +443,6 @@ function MembersTab() {
             <DialogTitle>Supprimer l&apos;utilisateur</DialogTitle>
             <DialogDescription>
               Supprimer <strong>{deleteTarget?.username}</strong> ? Irréversible.
-            </DialogDescription>
-          </DialogHeader>
-          {deleteError && (
-            <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">{deleteError}</div>
-          )}
-          <DialogFooter>
-            <DialogClose render={<Button variant="outline" />}>{t("common.cancel")}</DialogClose>
-            <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
-              {deleting ? "Suppression…" : "Supprimer"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={rolesOpen} onOpenChange={setRolesOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>{t("settings.tab_roles")} — {rolesTarget?.username}</DialogTitle>
-            <DialogDescription>Coche les rôles à assigner.</DialogDescription>
-          </DialogHeader>
-          {rolesLoading ? (
-            <div className="text-muted-foreground text-sm py-4">Chargement…</div>
-          ) : allRoles.length === 0 ? (
-            <div className="text-muted-foreground text-sm py-4">
-              Aucun rôle défini. Créez-en via <code>POST /roles</code>.
-            </div>
-          ) : (
-            <div className="flex flex-col gap-2 py-2">
-              {allRoles.map((r) => (
-                <label key={r.id} className="flex items-start gap-2 px-2 py-1.5 rounded-md border border-border hover:bg-muted cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={assignedRoleIds.has(r.id)}
-                    onChange={(e) => toggleRole(r.id, e.target.checked)}
-                    className="mt-0.5"
-                  />
-                  <div className="flex-1">
-                    <div className="text-sm font-medium">{r.name}</div>
-                    {r.description && <div className="text-[11px] text-muted-foreground">{r.description}</div>}
-                  </div>
-                </label>
-              ))}
-            </div>
-          )}
-          {rolesError && (
-            <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">{rolesError}</div>
-          )}
-          <DialogFooter>
-            <DialogClose render={<Button variant="outline" />}>Fermer</DialogClose>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
-}
-
-function WorkspacesTab() {
-  const { t } = useT();
-  const { data: workspaces = [], isLoading } = useWorkspaces();
-  const updateWs = useUpdateWorkspace();
-  const deleteWs = useDeleteWorkspace();
-
-  const [editTarget, setEditTarget] = useState<WorkspaceInfo | null>(null);
-  const [editName, setEditName] = useState("");
-  const [editError, setEditError] = useState<string | null>(null);
-
-  const [deleteTarget, setDeleteTarget] = useState<WorkspaceInfo | null>(null);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
-
-  function openEdit(ws: WorkspaceInfo) {
-    setEditTarget(ws);
-    setEditName(ws.name);
-    setEditError(null);
-  }
-
-  async function handleEditSave() {
-    if (!editTarget || !editName.trim()) return;
-    try {
-      await updateWs.mutateAsync({ id: editTarget.id, body: { name: editName.trim() } });
-      setEditTarget(null);
-    } catch (err) {
-      setEditError((err as Error).message);
-    }
-  }
-
-  function openDelete(ws: WorkspaceInfo) {
-    setDeleteTarget(ws);
-    setDeleteError(null);
-  }
-
-  async function handleDelete() {
-    if (!deleteTarget) return;
-    try {
-      await deleteWs.mutateAsync(deleteTarget.id);
-      setDeleteTarget(null);
-    } catch (err) {
-      setDeleteError((err as Error).message);
-    }
-  }
-
-  return (
-    <div className="space-y-4">
-      <p className="text-muted-foreground text-[13px]">
-        {t("settings.workspaces.count", { n: workspaces.length, s: workspaces.length !== 1 ? "s" : "" })}
-      </p>
-
-      {isLoading ? (
-        <div className="text-muted-foreground text-sm">{t("common.loading")}</div>
-      ) : (
-        <div className="flex flex-col gap-2">
-          {workspaces.map((ws) => (
-            <div
-              key={ws.id}
-              className={`flex items-center gap-3 px-4 py-3 bg-card border rounded-lg ${
-                ws.active ? "border-primary/50" : "border-border"
-              }`}
-            >
-              <FolderOpen className={`size-4 shrink-0 ${ws.active ? "text-primary" : "text-muted-foreground"}`} />
-              <span className="flex-1 truncate text-[14px] text-foreground">{ws.name}</span>
-              {ws.active && (
-                <span className="flex items-center gap-1 text-[11px] text-primary font-medium">
-                  <Check className="size-3.5" />
-                  {t("nav.workspace_active")}
-                </span>
-              )}
-              <Button variant="ghost" size="icon-xs" onClick={() => openEdit(ws)} aria-label={t("common.edit")}>
-                <Pencil className="size-3.5 text-muted-foreground" />
-              </Button>
-              <Button variant="ghost" size="icon-xs" onClick={() => openDelete(ws)} aria-label={t("common.delete")}>
-                <Trash2 className="size-3.5 text-destructive" />
-              </Button>
-            </div>
-          ))}
-        </div>
-      )}
-
-      <Dialog open={!!editTarget} onOpenChange={(open) => { if (!open) setEditTarget(null); }}>
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle>{t("settings.workspaces.edit_title", { name: editTarget?.name ?? "" })}</DialogTitle>
-          </DialogHeader>
-          <div className="flex flex-col gap-1.5 py-2">
-            <Label htmlFor="ws-edit-name">{t("common.name")}</Label>
-            <Input
-              id="ws-edit-name"
-              value={editName}
-              onChange={(e) => setEditName(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") handleEditSave(); }}
-              autoFocus
-            />
-          </div>
-          {editError && (
-            <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">{editError}</div>
-          )}
-          <DialogFooter>
-            <DialogClose render={<Button variant="outline" />}>{t("common.cancel")}</DialogClose>
-            <Button onClick={handleEditSave} disabled={updateWs.isPending || !editName.trim()}>
-              {updateWs.isPending ? t("common.saving") : t("common.save")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}>
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle>{t("settings.general.delete_ws")}</DialogTitle>
-            <DialogDescription>
-              {t("settings.workspaces.delete_desc", { name: deleteTarget?.name ?? "" })}
-            </DialogDescription>
-          </DialogHeader>
-          {deleteError && (
-            <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">{deleteError}</div>
-          )}
-          <DialogFooter>
-            <DialogClose render={<Button variant="outline" />}>{t("common.cancel")}</DialogClose>
-            <Button variant="destructive" onClick={handleDelete} disabled={deleteWs.isPending}>
-              {deleteWs.isPending ? t("common.deleting") : t("common.delete")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
-}
-
-const FLAG_COLORS: Record<string, string> = {
-  read: "text-blue-600",
-  create: "text-emerald-600",
-  update: "text-amber-600",
-  delete: "text-destructive",
-};
-
-function emptyLayerPerms(): Record<ArchiLayer, LayerPermissions> {
-  return Object.fromEntries(ARCHIMATE_LAYERS.map((l) => [l, [] as LayerPermissions])) as Record<ArchiLayer, LayerPermissions>;
-}
-
-const LAYER_ONLY = ARCHIMATE_LAYERS.filter((l) => l !== "Relations" && l !== "Views");
-
-function togglePermissionFlag(
-  value: Record<ArchiLayer, LayerPermissions>,
-  layer: string,
-  flag: LayerPermissions[number],
-  checked: boolean,
-): Record<ArchiLayer, LayerPermissions> {
-  const flags = (value as Record<string, LayerPermissions>)[layer] ?? [];
-  const next = checked
-    ? [...new Set([...flags, flag])] as LayerPermissions
-    : flags.filter((f) => f !== flag) as LayerPermissions;
-  return { ...value, [layer]: next };
-}
-
-function PermGrid({
-  title, layers, value, onChange,
-}: {
-  title: string;
-  layers: readonly string[];
-  value: Record<ArchiLayer, LayerPermissions>;
-  onChange: (v: Record<ArchiLayer, LayerPermissions>) => void;
-}) {
-  return (
-    <div className="space-y-1">
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground px-1">{title}</p>
-      <div className="border border-border rounded-md overflow-hidden">
-        <div className="grid text-[11px] font-medium text-muted-foreground bg-muted px-3 py-1.5" style={{ gridTemplateColumns: "1fr repeat(4, auto)" }}>
-          <span>Ressource</span>
-          {PERMISSION_FLAGS.map((f) => <span key={f} className={`text-center w-14 ${FLAG_COLORS[f]}`}>{f}</span>)}
-        </div>
-        {layers.map((layer) => {
-          const flags = (value as Record<string, LayerPermissions>)[layer] ?? [];
-          return (
-            <div key={layer} className="grid items-center border-t border-border px-3 py-1.5" style={{ gridTemplateColumns: "1fr repeat(4, auto)" }}>
-              <span className="text-[12px]">{layer}</span>
-              {PERMISSION_FLAGS.map((flag) => (
-                <div key={flag} className="flex items-center justify-center w-14">
-                  <input
-                    type="checkbox"
-                    checked={flags.includes(flag)}
-                    onChange={(e) => onChange(togglePermissionFlag(value, layer, flag, e.target.checked))}
-                  />
-                </div>
-              ))}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function PermissionsGrid({ value, onChange }: { value: Record<ArchiLayer, LayerPermissions>; onChange: (v: Record<ArchiLayer, LayerPermissions>) => void }) {
-  return (
-    <div className="space-y-3">
-      <PermGrid title="Couches ArchiMate" layers={LAYER_ONLY} value={value} onChange={onChange} />
-      <PermGrid title="Relations" layers={["Relations"]} value={value} onChange={onChange} />
-      <PermGrid title="Vues" layers={["Views"]} value={value} onChange={onChange} />
-    </div>
-  );
-}
-
-function RolesTab() {
-  const { t } = useT();
-  const [roles, setRoles] = useState<RoleOut[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const [createOpen, setCreateOpen] = useState(false);
-  const [newName, setNewName] = useState("");
-  const [newDesc, setNewDesc] = useState("");
-  const [newPerms, setNewPerms] = useState<Record<ArchiLayer, LayerPermissions>>(emptyLayerPerms());
-  const [creating, setCreating] = useState(false);
-  const [createError, setCreateError] = useState<string | null>(null);
-
-  const [editOpen, setEditOpen] = useState(false);
-  const [editTarget, setEditTarget] = useState<RoleOut | null>(null);
-  const [editName, setEditName] = useState("");
-  const [editDesc, setEditDesc] = useState("");
-  const [editPerms, setEditPerms] = useState<Record<ArchiLayer, LayerPermissions>>(emptyLayerPerms());
-  const [saving, setSaving] = useState(false);
-  const [editError, setEditError] = useState<string | null>(null);
-
-  const [deleteOpen, setDeleteOpen] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<RoleOut | null>(null);
-  const [deleting, setDeleting] = useState(false);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
-
-  const reload = useCallback(() => {
-    setLoading(true);
-    fetchRoles()
-      .then(setRoles)
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false));
-  }, []);
-
-  useEffect(() => { reload(); }, [reload]);
-
-  function openEdit(r: RoleOut) {
-    setEditTarget(r);
-    setEditName(r.name);
-    setEditDesc(r.description ?? "");
-    setEditPerms({ ...emptyLayerPerms(), ...r.permissions });
-    setEditError(null);
-    setEditOpen(true);
-  }
-
-  function openDelete(r: RoleOut) {
-    setDeleteTarget(r);
-    setDeleteError(null);
-    setDeleteOpen(true);
-  }
-
-  async function handleCreate() {
-    if (!newName.trim()) return;
-    setCreating(true);
-    setCreateError(null);
-    try {
-      await createRole({ name: newName.trim(), description: newDesc.trim() || null, permissions: newPerms });
-      setCreateOpen(false);
-      setNewName(""); setNewDesc("");
-      setNewPerms(emptyLayerPerms());
-      reload();
-    } catch (err) {
-      setCreateError((err as Error).message);
-    } finally {
-      setCreating(false);
-    }
-  }
-
-  async function handleEdit() {
-    if (!editTarget || !editName.trim()) return;
-    setSaving(true);
-    setEditError(null);
-    try {
-      await updateRole(editTarget.id, { name: editName.trim(), description: editDesc.trim() || null, permissions: editPerms });
-      setEditOpen(false);
-      reload();
-    } catch (err) {
-      setEditError((err as Error).message);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function handleDelete() {
-    if (!deleteTarget) return;
-    setDeleting(true);
-    setDeleteError(null);
-    try {
-      await deleteRole(deleteTarget.id);
-      setDeleteOpen(false);
-      reload();
-    } catch (err) {
-      setDeleteError((err as Error).message);
-    } finally {
-      setDeleting(false);
-    }
-  }
-
-  const columns: ColumnDef<RoleOut>[] = useMemo(() => [
-    {
-      accessorKey: "name",
-      header: "Nom",
-      cell: ({ row }) => <span className="font-medium">{row.original.name}</span>,
-    },
-    {
-      accessorKey: "description",
-      header: "Description",
-      enableSorting: false,
-      cell: ({ row }) => <span className="text-muted-foreground text-[12px]">{row.original.description ?? "—"}</span>,
-    },
-    {
-      id: "permissions",
-      header: "Permissions couches",
-      enableSorting: false,
-      cell: ({ row }) => (
-        <div className="flex flex-wrap gap-1">
-          {ARCHIMATE_LAYERS.map((l) => {
-            const flags = row.original.permissions[l] ?? [];
-            if (flags.length === 0) return null;
-            return (
-              <span key={l} className="text-[10px] font-medium text-foreground bg-muted px-1.5 py-0.5 rounded">
-                {l}: {flags.join(",")}
-              </span>
-            );
-          })}
-        </div>
-      ),
-    },
-    {
-      id: "users",
-      header: t("settings.tab_members"),
-      accessorFn: (r) => r.user_ids.length,
-      cell: ({ row }) => (
-        <span className="text-[12px] text-muted-foreground">{row.original.user_ids.length}</span>
-      ),
-    },
-    {
-      id: "actions",
-      header: "",
-      enableSorting: false,
-      cell: ({ row }) => (
-        <div className="flex items-center gap-1 justify-end">
-          {row.original.is_system ? (
-            <span className="text-[10px] text-muted-foreground px-2">système</span>
-          ) : (
-            <>
-              <Button variant="ghost" size="sm" onClick={() => openEdit(row.original)}>Modifier</Button>
-              <Button variant="ghost" size="icon-xs" onClick={() => openDelete(row.original)} aria-label={t("common.delete")}>
-                <Trash2 className="size-3.5 text-destructive" />
-              </Button>
-            </>
-          )}
-        </div>
-      ),
-    },
-  ], []);
-
-  if (error) {
-    return (
-      <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">
-        Erreur : {error}
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <p className="text-muted-foreground text-[13px]">
-          {roles.length} rôle{roles.length !== 1 ? "s" : ""}
-        </p>
-        <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-          <DialogTrigger render={<Button size="sm" />}>
-            <Plus className="size-4" /> Nouveau rôle
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-lg">
-            <DialogHeader>
-              <DialogTitle>Nouveau rôle</DialogTitle>
-              <DialogDescription>Définir un rôle avec ses permissions par couche.</DialogDescription>
-            </DialogHeader>
-            <div className="flex flex-col gap-4 py-2">
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="role-name">Nom *</Label>
-                <Input id="role-name" value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="ex: Architecte Métier" />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="role-desc">Description</Label>
-                <Input id="role-desc" value={newDesc} onChange={(e) => setNewDesc(e.target.value)} placeholder="Optionnelle" />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <Label>Permissions par couche</Label>
-                <PermissionsGrid value={newPerms} onChange={setNewPerms} />
-              </div>
-            </div>
-            {createError && (
-              <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">{createError}</div>
-            )}
-            <DialogFooter>
-              <DialogClose render={<Button variant="outline" />}>{t("common.cancel")}</DialogClose>
-              <Button onClick={handleCreate} disabled={creating || !newName.trim()}>
-                {creating ? "Création…" : "Créer"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </div>
-
-      <DataTable columns={columns} data={roles} loading={loading} />
-
-      <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Modifier — {editTarget?.name}</DialogTitle>
-          </DialogHeader>
-          <div className="flex flex-col gap-4 py-2">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="edit-role-name">Nom *</Label>
-              <Input id="edit-role-name" value={editName} onChange={(e) => setEditName(e.target.value)} />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="edit-role-desc">Description</Label>
-              <Input id="edit-role-desc" value={editDesc} onChange={(e) => setEditDesc(e.target.value)} />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label>Permissions par couche</Label>
-              <PermissionsGrid value={editPerms} onChange={setEditPerms} />
-            </div>
-          </div>
-          {editError && (
-            <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">{editError}</div>
-          )}
-          <DialogFooter>
-            <DialogClose render={<Button variant="outline" />}>{t("common.cancel")}</DialogClose>
-            <Button onClick={handleEdit} disabled={saving || !editName.trim()}>
-              {saving ? "Enregistrement…" : "Enregistrer"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Supprimer le rôle</DialogTitle>
-            <DialogDescription>
-              Supprimer <strong>{deleteTarget?.name}</strong> ? Les membres perdent ce rôle.
             </DialogDescription>
           </DialogHeader>
           {deleteError && (
@@ -1259,6 +851,89 @@ function RedisTab() {
             <div className="flex flex-col gap-1">
               <Label className="text-[11px]">Port</Label>
               <div className="text-[13px] font-mono bg-muted rounded px-2 py-1">{status.port ?? "—"}</div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// PostgreSQL tab — read-only status (config via DATABASE_URL env var)
+// ---------------------------------------------------------------------------
+
+function PostgresTab() {
+  const [status, setStatus] = useState<PostgresStatus | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(() => {
+    setLoading(true);
+    setError(null);
+    fetchPostgresStatus()
+      .then(setStatus)
+      .catch((e) => setError((e as Error).message))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  return (
+    <div className="space-y-5 max-w-xl">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-sm font-semibold">PostgreSQL</h2>
+          <p className="text-[12px] text-muted-foreground mt-0.5">
+            Base de données principale. Configurée via <code>DATABASE_URL</code>.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={load}
+          disabled={loading}
+          className="flex items-center gap-1.5 text-[12px] text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+          title="Rafraîchir"
+        >
+          <RefreshCw className={`size-3.5 ${loading ? "animate-spin" : ""}`} />
+          Actualiser
+        </button>
+      </div>
+
+      {error && (
+        <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">
+          {error}
+        </div>
+      )}
+
+      {!loading && status && (
+        <div className="rounded-lg border border-border bg-card p-5 space-y-4">
+          <div className="flex items-center gap-3">
+            <span className={`size-3 rounded-full shrink-0 ${status.connected ? "bg-green-500" : "bg-destructive"}`} />
+            <div>
+              <div className="text-sm font-medium">{status.connected ? "Connecté" : "Déconnecté"}</div>
+              <div className="text-[11px] text-muted-foreground">
+                {status.connected ? "La connexion PostgreSQL est active." : "PostgreSQL est injoignable."}
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 pt-1">
+            <div className="flex flex-col gap-1">
+              <Label className="text-[11px]">Hôte</Label>
+              <div className="text-[13px] font-mono bg-muted rounded px-2 py-1 truncate">{status.host ?? "—"}</div>
+            </div>
+            <div className="flex flex-col gap-1">
+              <Label className="text-[11px]">Port</Label>
+              <div className="text-[13px] font-mono bg-muted rounded px-2 py-1">{status.port ?? "—"}</div>
+            </div>
+            <div className="flex flex-col gap-1 col-span-2">
+              <Label className="text-[11px]">Base de données</Label>
+              <div className="text-[13px] font-mono bg-muted rounded px-2 py-1 truncate">{status.database ?? "—"}</div>
+            </div>
+            <div className="flex flex-col gap-1 col-span-2">
+              <Label className="text-[11px]">Version</Label>
+              <div className="text-[13px] font-mono bg-muted rounded px-2 py-1 truncate">{status.version ?? "—"}</div>
             </div>
           </div>
         </div>

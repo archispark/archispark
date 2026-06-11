@@ -8,7 +8,7 @@ import {
   useRelationship, useRelationshipViews, useRelationshipTypes, useElements,
   useUpdateRelationship, useDeleteRelationship, usePropertyDefinitions,
 } from "@/lib/queries";
-import { type Property, type ViewOut, type PropertyDefinitionOut } from "@/lib/api";
+import { type Property, type ViewOut, type PropertyDefinitionOut, type RelationshipOut, type RelationshipUpdateIn, type ElementOut } from "@/lib/api";
 import { getLayer, LAYER_HEX_COLORS } from "@/lib/archimate-helpers";
 import { allowedRelationships } from "@/lib/archimate-rules";
 import { DataTable } from "@/components/data-table";
@@ -144,6 +144,194 @@ function RelationshipCanvas({
         </div>
         <ElementBox id={tgtId} name={tgtName} type={tgtType} />
       </div>
+    </div>
+  );
+}
+
+// ── Header + editable fields (name, type, source, target, documentation) ──────
+
+function RelationshipFields({
+  rel, isAdmin, saveField, t, onDelete,
+  editingType, setEditingType, relTypes, isOk,
+  editingSource, setEditingSource, allElements, srcEl,
+  editingTarget, setEditingTarget, tgtEl,
+}: {
+  rel: RelationshipOut;
+  isAdmin: boolean;
+  saveField: (patch: RelationshipUpdateIn) => Promise<void>;
+  t: ReturnType<typeof useT>["t"];
+  onDelete: () => void;
+  editingType: boolean;
+  setEditingType: (v: boolean) => void;
+  relTypes: string[];
+  isOk: boolean;
+  editingSource: boolean;
+  setEditingSource: (v: boolean) => void;
+  allElements: ElementOut[];
+  srcEl: ElementOut | undefined;
+  editingTarget: boolean;
+  setEditingTarget: (v: boolean) => void;
+  tgtEl: ElementOut | undefined;
+}) {
+  return (
+    <div className="overflow-y-auto shrink-0 max-h-[55vh] space-y-3 pb-1">
+
+      {/* Name + delete */}
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="space-y-1 flex-1 min-w-0">
+          <InlineText
+            value={rel.name ?? ""}
+            onSave={(v) => saveField({ name: v || null })}
+            className="text-xl sm:text-2xl font-semibold leading-tight block w-full"
+            placeholder={t("relationships.placeholder")}
+            disabled={!isAdmin}
+          />
+        </div>
+        {isAdmin && (
+          <Button variant="outline" size="sm" onClick={onDelete}
+            className="shrink-0 text-destructive hover:text-destructive border-destructive/30 hover:bg-destructive/5">
+            <Trash2 className="size-3.5 mr-1.5" />{t("common.delete")}
+          </Button>
+        )}
+      </div>
+
+      {/* Compact editable fields */}
+      <div className="grid grid-cols-[auto_1fr] items-center gap-x-4 gap-y-2 text-sm">
+
+        {/* Type */}
+        <span className="text-muted-foreground text-xs whitespace-nowrap">{t("common.type")}</span>
+        <div className="flex items-center gap-2 min-w-0">
+          {isAdmin && editingType ? (
+            <div className="flex items-center gap-2">
+              <Select value={rel.type} onValueChange={async (v) => { if (v) await saveField({ type: v }); }} onOpenChange={(open) => { if (!open) setEditingType(false); }}>
+                <SelectTrigger className="h-7 text-xs w-48"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {relTypes.map((rt) => <SelectItem key={rt} value={rt}>{rt}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <Button variant="ghost" size="sm" onClick={() => setEditingType(false)}>{t("common.cancel")}</Button>
+            </div>
+          ) : (
+            <Badge
+              variant="secondary"
+              className={`font-mono text-xs ${isAdmin ? "cursor-pointer hover:ring-1 hover:ring-ring" : ""}`}
+              onDoubleClick={() => isAdmin && setEditingType(true)}
+              title={isAdmin ? "Double-cliquer pour modifier" : undefined}
+            >
+              {rel.type}
+            </Badge>
+          )}
+          {isOk ? (
+            <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium bg-emerald-500/15 text-emerald-700 shrink-0">
+              ✓ {t("relationships.allowed")}
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium bg-destructive/15 text-destructive shrink-0">
+              ✕ {t("relationships.not_allowed")}
+            </span>
+          )}
+        </div>
+
+        {/* Source */}
+        <span className="text-muted-foreground text-xs whitespace-nowrap">{t("common.source")}</span>
+        <div className="min-w-0">
+          {isAdmin && editingSource ? (
+            <div className="flex items-center gap-2">
+              <Select value={rel.source} onValueChange={async (v) => { if (v) await saveField({ source: v }); }} onOpenChange={(open) => { if (!open) setEditingSource(false); }}>
+                <SelectTrigger className="h-7 text-xs w-full max-w-xs">
+                  <span className="truncate">{srcEl?.name || rel.source_name || rel.source}</span>
+                </SelectTrigger>
+                <SelectContent>
+                  {allElements.map((el) => (
+                    <SelectItem key={el.identifier} value={el.identifier}>
+                      {el.name || el.identifier}
+                      <span className="ml-1.5 text-[10px] text-muted-foreground">{el.type}</span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button variant="ghost" size="sm" onClick={() => setEditingSource(false)}>{t("common.cancel")}</Button>
+            </div>
+          ) : (
+            <div
+              className={`flex items-center gap-1.5 min-w-0 ${isAdmin ? "cursor-pointer group" : ""}`}
+              onDoubleClick={() => isAdmin && setEditingSource(true)}
+              title={isAdmin ? "Double-cliquer pour modifier" : undefined}
+            >
+              {srcEl ? (
+                <Link href={`/elements/${encodeURIComponent(rel.source)}`} className="text-primary hover:underline font-medium truncate">
+                  {srcEl.name || rel.source}
+                </Link>
+              ) : (
+                <span className="text-muted-foreground/60 truncate">{rel.source_name || rel.source}</span>
+              )}
+              {srcEl && <span className="text-muted-foreground text-xs shrink-0">({srcEl.type})</span>}
+              {isAdmin && <span className="opacity-0 group-hover:opacity-40 text-[10px] ml-1">✎</span>}
+            </div>
+          )}
+        </div>
+
+        {/* Target */}
+        <span className="text-muted-foreground text-xs whitespace-nowrap">{t("common.target")}</span>
+        <div className="min-w-0">
+          {isAdmin && editingTarget ? (
+            <div className="flex items-center gap-2">
+              <Select value={rel.target} onValueChange={async (v) => { if (v) await saveField({ target: v }); }} onOpenChange={(open) => { if (!open) setEditingTarget(false); }}>
+                <SelectTrigger className="h-7 text-xs w-full max-w-xs">
+                  <span className="truncate">{tgtEl?.name || rel.target_name || rel.target}</span>
+                </SelectTrigger>
+                <SelectContent>
+                  {allElements.map((el) => (
+                    <SelectItem key={el.identifier} value={el.identifier}>
+                      {el.name || el.identifier}
+                      <span className="ml-1.5 text-[10px] text-muted-foreground">{el.type}</span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button variant="ghost" size="sm" onClick={() => setEditingTarget(false)}>{t("common.cancel")}</Button>
+            </div>
+          ) : (
+            <div
+              className={`flex items-center gap-1.5 min-w-0 ${isAdmin ? "cursor-pointer group" : ""}`}
+              onDoubleClick={() => isAdmin && setEditingTarget(true)}
+              title={isAdmin ? "Double-cliquer pour modifier" : undefined}
+            >
+              {tgtEl ? (
+                <Link href={`/elements/${encodeURIComponent(rel.target)}`} className="text-primary hover:underline font-medium truncate">
+                  {tgtEl.name || rel.target}
+                </Link>
+              ) : (
+                <span className="text-muted-foreground/60 truncate">{rel.target_name || rel.target}</span>
+              )}
+              {tgtEl && <span className="text-muted-foreground text-xs shrink-0">({tgtEl.type})</span>}
+              {isAdmin && <span className="opacity-0 group-hover:opacity-40 text-[10px] ml-1">✎</span>}
+            </div>
+          )}
+        </div>
+
+        {/* Suggestions when invalid */}
+        {!isOk && srcEl && tgtEl && (
+          <>
+            <span />
+            <span className="text-xs text-destructive">
+              {t("relationships.suggestions")} : {allowedRelationships(srcEl.type, tgtEl.type).join(", ") || t("common.none")}
+            </span>
+          </>
+        )}
+
+        {/* Documentation */}
+        <span className="text-muted-foreground text-xs whitespace-nowrap self-start pt-0.5">{t("common.documentation")}</span>
+        <InlineText
+          value={rel.documentation ?? ""}
+          onSave={(v) => saveField({ documentation: v || null })}
+          className="text-sm text-muted-foreground leading-relaxed block w-full"
+          placeholder={t("relationships.no_documentation")}
+          multiline
+          disabled={!isAdmin}
+        />
+      </div>
+
     </div>
   );
 }
@@ -337,165 +525,24 @@ export default function RelationshipDetailPage() {
       </Link>
 
       {/* Header + fields — scrollable so the page stays usable on small screens */}
-      <div className="overflow-y-auto shrink-0 max-h-[55vh] space-y-3 pb-1">
-
-        {/* Name + delete */}
-        <div className="flex flex-wrap items-start justify-between gap-2">
-          <div className="space-y-1 flex-1 min-w-0">
-            <InlineText
-              value={rel.name ?? ""}
-              onSave={(v) => saveField({ name: v || null })}
-              className="text-xl sm:text-2xl font-semibold leading-tight block w-full"
-              placeholder={t("relationships.placeholder")}
-              disabled={!isAdmin}
-            />
-          </div>
-          {isAdmin && (
-            <Button variant="outline" size="sm" onClick={() => deleteActions.openWith(rel)}
-              className="shrink-0 text-destructive hover:text-destructive border-destructive/30 hover:bg-destructive/5">
-              <Trash2 className="size-3.5 mr-1.5" />{t("common.delete")}
-            </Button>
-          )}
-        </div>
-
-        {/* Compact editable fields */}
-        <div className="grid grid-cols-[auto_1fr] items-center gap-x-4 gap-y-2 text-sm">
-
-          {/* Type */}
-          <span className="text-muted-foreground text-xs whitespace-nowrap">{t("common.type")}</span>
-          <div className="flex items-center gap-2 min-w-0">
-            {isAdmin && editingType ? (
-              <div className="flex items-center gap-2">
-                <Select value={rel.type} onValueChange={async (v) => { if (v) await saveField({ type: v }); }} onOpenChange={(open) => { if (!open) setEditingType(false); }}>
-                  <SelectTrigger className="h-7 text-xs w-48"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {relTypes.map((rt) => <SelectItem key={rt} value={rt}>{rt}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-                <Button variant="ghost" size="sm" onClick={() => setEditingType(false)}>{t("common.cancel")}</Button>
-              </div>
-            ) : (
-              <Badge
-                variant="secondary"
-                className={`font-mono text-xs ${isAdmin ? "cursor-pointer hover:ring-1 hover:ring-ring" : ""}`}
-                onDoubleClick={() => isAdmin && setEditingType(true)}
-                title={isAdmin ? "Double-cliquer pour modifier" : undefined}
-              >
-                {rel.type}
-              </Badge>
-            )}
-            {isOk ? (
-              <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium bg-emerald-500/15 text-emerald-700 shrink-0">
-                ✓ {t("relationships.allowed")}
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium bg-destructive/15 text-destructive shrink-0">
-                ✕ {t("relationships.not_allowed")}
-              </span>
-            )}
-          </div>
-
-          {/* Source */}
-          <span className="text-muted-foreground text-xs whitespace-nowrap">{t("common.source")}</span>
-          <div className="min-w-0">
-            {isAdmin && editingSource ? (
-              <div className="flex items-center gap-2">
-                <Select value={rel.source} onValueChange={async (v) => { if (v) await saveField({ source: v }); }} onOpenChange={(open) => { if (!open) setEditingSource(false); }}>
-                  <SelectTrigger className="h-7 text-xs w-full max-w-xs">
-                    <span className="truncate">{srcEl?.name || rel.source_name || rel.source}</span>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {allElements.map((el) => (
-                      <SelectItem key={el.identifier} value={el.identifier}>
-                        {el.name || el.identifier}
-                        <span className="ml-1.5 text-[10px] text-muted-foreground">{el.type}</span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Button variant="ghost" size="sm" onClick={() => setEditingSource(false)}>{t("common.cancel")}</Button>
-              </div>
-            ) : (
-              <div
-                className={`flex items-center gap-1.5 min-w-0 ${isAdmin ? "cursor-pointer group" : ""}`}
-                onDoubleClick={() => isAdmin && setEditingSource(true)}
-                title={isAdmin ? "Double-cliquer pour modifier" : undefined}
-              >
-                {srcEl ? (
-                  <Link href={`/elements/${encodeURIComponent(rel.source)}`} className="text-primary hover:underline font-medium truncate">
-                    {srcEl.name || rel.source}
-                  </Link>
-                ) : (
-                  <span className="text-muted-foreground/60 truncate">{rel.source_name || rel.source}</span>
-                )}
-                {srcEl && <span className="text-muted-foreground text-xs shrink-0">({srcEl.type})</span>}
-                {isAdmin && <span className="opacity-0 group-hover:opacity-40 text-[10px] ml-1">✎</span>}
-              </div>
-            )}
-          </div>
-
-          {/* Target */}
-          <span className="text-muted-foreground text-xs whitespace-nowrap">{t("common.target")}</span>
-          <div className="min-w-0">
-            {isAdmin && editingTarget ? (
-              <div className="flex items-center gap-2">
-                <Select value={rel.target} onValueChange={async (v) => { if (v) await saveField({ target: v }); }} onOpenChange={(open) => { if (!open) setEditingTarget(false); }}>
-                  <SelectTrigger className="h-7 text-xs w-full max-w-xs">
-                    <span className="truncate">{tgtEl?.name || rel.target_name || rel.target}</span>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {allElements.map((el) => (
-                      <SelectItem key={el.identifier} value={el.identifier}>
-                        {el.name || el.identifier}
-                        <span className="ml-1.5 text-[10px] text-muted-foreground">{el.type}</span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Button variant="ghost" size="sm" onClick={() => setEditingTarget(false)}>{t("common.cancel")}</Button>
-              </div>
-            ) : (
-              <div
-                className={`flex items-center gap-1.5 min-w-0 ${isAdmin ? "cursor-pointer group" : ""}`}
-                onDoubleClick={() => isAdmin && setEditingTarget(true)}
-                title={isAdmin ? "Double-cliquer pour modifier" : undefined}
-              >
-                {tgtEl ? (
-                  <Link href={`/elements/${encodeURIComponent(rel.target)}`} className="text-primary hover:underline font-medium truncate">
-                    {tgtEl.name || rel.target}
-                  </Link>
-                ) : (
-                  <span className="text-muted-foreground/60 truncate">{rel.target_name || rel.target}</span>
-                )}
-                {tgtEl && <span className="text-muted-foreground text-xs shrink-0">({tgtEl.type})</span>}
-                {isAdmin && <span className="opacity-0 group-hover:opacity-40 text-[10px] ml-1">✎</span>}
-              </div>
-            )}
-          </div>
-
-          {/* Suggestions when invalid */}
-          {!isOk && srcEl && tgtEl && (
-            <>
-              <span />
-              <span className="text-xs text-destructive">
-                {t("relationships.suggestions")} : {allowedRelationships(srcEl.type, tgtEl.type).join(", ") || t("common.none")}
-              </span>
-            </>
-          )}
-
-          {/* Documentation */}
-          <span className="text-muted-foreground text-xs whitespace-nowrap self-start pt-0.5">{t("common.documentation")}</span>
-          <InlineText
-            value={rel.documentation ?? ""}
-            onSave={(v) => saveField({ documentation: v || null })}
-            className="text-sm text-muted-foreground leading-relaxed block w-full"
-            placeholder={t("relationships.no_documentation")}
-            multiline
-            disabled={!isAdmin}
-          />
-        </div>
-
-      </div>
+      <RelationshipFields
+        rel={rel}
+        isAdmin={isAdmin}
+        saveField={saveField}
+        t={t}
+        onDelete={() => deleteActions.openWith(rel)}
+        editingType={editingType}
+        setEditingType={setEditingType}
+        relTypes={relTypes}
+        isOk={isOk}
+        editingSource={editingSource}
+        setEditingSource={setEditingSource}
+        allElements={allElements}
+        srcEl={srcEl}
+        editingTarget={editingTarget}
+        setEditingTarget={setEditingTarget}
+        tgtEl={tgtEl}
+      />
 
       {/* Tabs + content — fill remaining space */}
       <div className="flex flex-col flex-1 min-h-0 mt-4">

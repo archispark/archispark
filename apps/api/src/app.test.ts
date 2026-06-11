@@ -6,14 +6,18 @@
  * - Integration tests: supertest against the Express app with the real model.
  */
 
-import { describe, it, expect, beforeAll, afterAll, afterEach } from "vitest";
+import { describe, it, expect, beforeAll, afterEach } from "vitest";
 import _request from "supertest";
-import { getAdminCookie } from "../src/test-helper.js";
+import { getAdminCookie, getAdminWorkspaceContext } from "../src/test-helper.js";
+import type { WorkspaceContext } from "../src/auth.js";
 
 let adminCookie: string;
+let adminUserId: string;
+let adminCtx: WorkspaceContext;
 
 beforeAll(async () => {
   adminCookie = await getAdminCookie();
+  ({ userId: adminUserId, ctx: adminCtx } = await getAdminWorkspaceContext());
   // _init() no longer seeds a default workspace; create one if the DB is empty.
   const list = await _request(app).get("/workspaces").set("Cookie", adminCookie);
   if ((list.body as unknown[]).length === 0) {
@@ -522,7 +526,7 @@ describe("GET /elements", () => {
 
   it("returns all elements", async () => {
     const data = (await request(app).get(`/elements`)).body as ElementOut[];
-    expect(data.length).toBe((await store.listElements(await getActiveWorkspaceId())).length);
+    expect(data.length).toBe((await store.listElements(await getActiveWorkspaceId(adminCtx, adminUserId))).length);
   });
 
   it("element has required shape", async () => {
@@ -760,7 +764,7 @@ describe("GET /relationships", () => {
 
   it("returns all relationships", async () => {
     const data = (await request(app).get(`/relationships`)).body as RelationshipOut[];
-    expect(data.length).toBe((await store.listRelationships(await getActiveWorkspaceId())).length);
+    expect(data.length).toBe((await store.listRelationships(await getActiveWorkspaceId(adminCtx, adminUserId))).length);
   });
 
   it("relationship has required shape", async () => {
@@ -862,7 +866,7 @@ describe("GET /views", () => {
 
   it("returns all views", async () => {
     const data = (await request(app).get(`/views`)).body as ViewOut[];
-    expect(data.length).toBe((await store.listViews(await getActiveWorkspaceId())).length);
+    expect(data.length).toBe((await store.listViews(await getActiveWorkspaceId(adminCtx, adminUserId))).length);
   });
 
   it("view has required shape", async () => {
@@ -1352,7 +1356,7 @@ describe("GET /property-definitions", () => {
 
   it("count matches model", async () => {
     const data = (await request(app).get("/property-definitions")).body as PropertyDefinitionOut[];
-    expect(data.length).toBe((await store.listPropertyDefinitions(await getActiveWorkspaceId())).length);
+    expect(data.length).toBe((await store.listPropertyDefinitions(await getActiveWorkspaceId(adminCtx, adminUserId))).length);
   });
 });
 
@@ -1637,163 +1641,11 @@ describe("POST /import", () => {
   });
 });
 
-// ===========================================================================
-// Integration tests – /roles CRUD
-// ===========================================================================
-
-describe("GET /roles", () => {
-  it("returns 200 and an array", async () => {
-    const res = await request(app).get("/roles");
-    expect(res.status).toBe(200);
-    expect(Array.isArray(res.body)).toBe(true);
-  });
-});
-
-describe("GET /roles/catalog", () => {
-  it("returns layers and flags", async () => {
-    const res = await request(app).get("/roles/catalog");
-    expect(res.status).toBe(200);
-    expect(res.body).toHaveProperty("layers");
-    expect(res.body).toHaveProperty("flags");
-  });
-});
-
-describe("POST/GET/PUT/DELETE /roles lifecycle", () => {
-  let roleId: string;
-
-  it("creates a role (POST /roles)", async () => {
-    const res = await request(app).post("/roles").send({ name: "TestRole" });
-    expect(res.status).toBe(201);
-    expect(res.body.name).toBe("TestRole");
-    roleId = res.body.id as string;
-  });
-
-  it("reads the role (GET /roles/:id)", async () => {
-    const res = await request(app).get(`/roles/${roleId}`);
-    expect(res.status).toBe(200);
-    expect(res.body.id).toBe(roleId);
-  });
-
-  it("updates the role name (PUT /roles/:id)", async () => {
-    const res = await request(app).put(`/roles/${roleId}`).send({ name: "UpdatedRole" });
-    expect(res.status).toBe(200);
-    expect(res.body.name).toBe("UpdatedRole");
-  });
-
-  it("sets layer permissions (PUT /roles/:id/layers/:layer)", async () => {
-    const res = await request(app).put(`/roles/${roleId}/layers/Application`).send({ permissions: ["read", "create"] });
-    expect(res.status).toBe(200);
-    expect(res.body.permissions).toContain("read");
-  });
-
-  it("gets layer permission (GET /roles/:id/layers/:layer)", async () => {
-    const res = await request(app).get(`/roles/${roleId}/layers/Application`);
-    expect(res.status).toBe(200);
-    expect(res.body).toHaveProperty("layer");
-    expect(res.body).toHaveProperty("permission");
-  });
-
-  it("gets all layer permissions (GET /roles/:id/layers)", async () => {
-    const res = await request(app).get(`/roles/${roleId}/layers`);
-    expect(res.status).toBe(200);
-    expect(res.body).toHaveProperty("Application");
-  });
-
-  it("removes layer permission (DELETE /roles/:id/layers/:layer)", async () => {
-    const res = await request(app).delete(`/roles/${roleId}/layers/Application`);
-    expect(res.status).toBe(204);
-  });
-
-  it("deletes the role (DELETE /roles/:id)", async () => {
-    const res = await request(app).delete(`/roles/${roleId}`);
-    expect(res.status).toBe(204);
-    expect((await request(app).get(`/roles/${roleId}`)).status).toBe(404);
-  });
-});
-
-describe("POST /roles validation", () => {
-  it("returns 422 when name is missing", async () => {
-    const res = await request(app).post("/roles").send({});
-    expect(res.status).toBe(422);
-  });
-
-  it("returns 422 when permissions array is missing on layer PUT", async () => {
-    const createRes = await request(app).post("/roles").send({ name: "TmpRoleValidation" });
-    const id = createRes.body.id as string;
-    const res = await request(app).put(`/roles/${id}/layers/Application`).send({ permissions: "not-an-array" });
-    expect(res.status).toBe(422);
-    await request(app).delete(`/roles/${id}`);
-  });
-
-  it("sanitizes permissions with unknown layers and valid layers", async () => {
-    const createRes = await request(app).post("/roles").send({ name: "SanitizeTest" });
-    const id = createRes.body.id as string;
-    const res = await request(app).put(`/roles/${id}`).send({
-      name: "SanitizeTest2",
-      permissions: {
-        NotARealLayer: ["read"],
-        Business: ["read"],
-      },
-    });
-    expect(res.status).toBe(200);
-    await request(app).delete(`/roles/${id}`);
-  });
-});
-
 describe("GET /auth/providers", () => {
   it("returns a list", async () => {
     const res = await request(app).get("/auth/providers");
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body)).toBe(true);
-  });
-});
-
-describe("System role protection", () => {
-  it("returns 403 when trying to update a system role", async () => {
-    const roles = (await request(app).get("/roles")).body as Array<{ id: string; is_system: boolean }>;
-    const sysRole = roles.find((r) => r.is_system);
-    if (!sysRole) return;
-    const res = await request(app).put(`/roles/${sysRole.id}`).send({ name: "Hacked" });
-    expect(res.status).toBe(403);
-  });
-});
-
-describe("Role user assignment", () => {
-  let roleId: string;
-  let userId: string;
-
-  beforeAll(async () => {
-    const rRes = await request(app).post("/roles").send({ name: "AssignTestRole" });
-    roleId = rRes.body.id as string;
-    const uRes = await request(app).post("/users").send({ username: "assigntestuser", password: "test1234" });
-    userId = uRes.body.id as string;
-  });
-
-  it("assigns user to role (PUT /roles/:id/users/:userId)", async () => {
-    const res = await request(app).put(`/roles/${roleId}/users/${userId}`);
-    expect(res.status).toBe(204);
-  });
-
-  it("lists users in role (GET /roles/:id/users)", async () => {
-    const res = await request(app).get(`/roles/${roleId}/users`);
-    expect(res.status).toBe(200);
-    expect(res.body).toContain(userId);
-  });
-
-  it("lists roles for user (GET /users/:id/roles)", async () => {
-    const res = await request(app).get(`/users/${userId}/roles`);
-    expect(res.status).toBe(200);
-    expect(Array.isArray(res.body)).toBe(true);
-  });
-
-  it("unassigns user from role (DELETE /roles/:id/users/:userId)", async () => {
-    const res = await request(app).delete(`/roles/${roleId}/users/${userId}`);
-    expect(res.status).toBe(204);
-  });
-
-  afterAll(async () => {
-    await request(app).delete(`/roles/${roleId}`);
-    await request(app).delete(`/users/${userId}`);
   });
 });
 
@@ -1938,6 +1790,27 @@ describe("POST /settings/providers validation", () => {
     const list = (await request(app).get("/settings/providers")).body as Array<{ id: string; name: string }>;
     const dup = list.find((p) => p.name === "Google Test");
     if (dup) await request(app).delete(`/settings/providers/${dup.id}`);
+  });
+});
+
+// ===========================================================================
+// Integration tests – /settings/postgres
+// ===========================================================================
+
+describe("GET /settings/postgres", () => {
+  it("returns the connection status", async () => {
+    const res = await request(app).get("/settings/postgres");
+    expect(res.status).toBe(200);
+    expect(res.body.connected).toBe(true);
+    expect(res.body.version).toContain("PostgreSQL");
+    expect(res.body).toHaveProperty("host");
+    expect(res.body).toHaveProperty("port");
+    expect(res.body).toHaveProperty("database");
+  });
+
+  it("requires admin", async () => {
+    const res = await _request(app).get("/settings/postgres");
+    expect(res.status).toBe(401);
   });
 });
 

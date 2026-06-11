@@ -42,7 +42,7 @@ import type { Archiver, ZipOptions } from "archiver";
 import * as archiverNs from "archiver";
 const ZipArchive = (archiverNs as unknown as { ZipArchive: new (opts?: ZipOptions) => Archiver }).ZipArchive;
 import { AppError, ValidationError } from "./errors.js";
-import { db, oauthProviders, apiTokens, siteSettings, modelFromDb, modelToDb } from "@workspace/db";
+import { controlDb, getTenantDb, runWithTenantDb, oauthProviders, apiTokens, siteSettings, modelFromDb, modelToDb } from "@workspace/db";
 import { eq, sql } from "drizzle-orm";
 import * as store from "./store.js";
 import {
@@ -65,24 +65,11 @@ import {
   createUser as createUserFn,
   updateUserById,
   deleteUserById,
-  listRoles,
-  getRole,
-  createRole,
-  updateRole,
-  deleteRole,
-  assignUserToRole,
-  unassignUserFromRole,
-  listRolesForUser,
-  getRoleLayerPermission,
-  setRoleLayerPermission,
-  removeRoleLayerPermission,
-  ARCHIMATE_LAYERS,
-  PERMISSION_FLAGS,
   requireAuth,
-  requireAdmin,
-  requirePermission,
+  requireSuperAdmin,
+  resolveWorkspaceContext,
+  requireWorkspaceWrite,
   type AuthRequest,
-  type LayerPermissions,
 } from "./auth.js";
 import { getAuth, getConfiguredProviders, reloadAuth } from "./better-auth.js";
 import { toNodeHandler } from "better-auth/node";
@@ -119,8 +106,6 @@ import {
   PropertyDefinitionUpdateSchema,
   WorkspaceCreateSchema,
   WorkspaceUpdateSchema,
-  RoleCreateSchema,
-  RoleUpdateSchema,
 } from "./validation.js";
 
 // ---------------------------------------------------------------------------
@@ -202,19 +187,42 @@ app.all("/auth/*path", authRateLimit, (req, res) => toNodeHandler(getAuth())(req
 // Rate-limit all non-auth, non-public routes before any DB-hitting middleware
 app.use(apiRateLimit);
 
-// Global auth — exempt Better Auth routes and public paths
-app.use((req: AuthRequest, res, next) => {
-  if (
+// Paths that don't require authentication or organization context.
+function isPublicPath(req: Request): boolean {
+  return (
     req.path.startsWith("/auth") ||
     req.path === "/openapi.json" ||
     req.path === "/docs" ||
     (req.path === "/settings/messages" && req.method === "GET")
-  ) return next();
+  );
+}
+
+// Global auth — exempt Better Auth routes and public paths
+app.use((req: AuthRequest, res, next) => {
+  if (isPublicPath(req)) { next(); return; }
   requireAuth(req, res, next);
 });
 
-// Write operations (POST/PUT/DELETE) reserved for admin, except /auth/*, /users and
-// /settings/api-tokens (users manage their own tokens).
+// Resolve the organization (and team memberships) the request operates in —
+// used for workspace visibility and the write-permission check below.
+app.use(async (req: AuthRequest, res, next) => {
+  if (isPublicPath(req)) { next(); return; }
+  await resolveWorkspaceContext(req, res, next);
+});
+
+// Bind `db` (from @workspace/db) to this organization's database for the rest
+// of the request — store.ts/registry.ts/model-io.ts read it via AsyncLocalStorage.
+app.use((req: AuthRequest, res, next) => {
+  if (isPublicPath(req)) { next(); return; }
+  getTenantDb(req.workspace!.organizationId)
+    .then((tenantDb) => runWithTenantDb(tenantDb, next))
+    .catch(next);
+});
+
+// Write operations (POST/PUT/DELETE) on workspace content are reserved for
+// org owners/admins (platform super admins always pass); org members are
+// read-only. Exempt /auth/*, /users and /settings/api-tokens (users manage
+// their own tokens).
 app.use((req: AuthRequest, res, next) => {
   if (
     ["POST", "PUT", "DELETE"].includes(req.method) &&
@@ -222,10 +230,8 @@ app.use((req: AuthRequest, res, next) => {
     !req.path.startsWith("/users") &&
     !req.path.startsWith("/settings/api-tokens")
   ) {
-    if (req.user?.role !== "admin") {
-      res.status(403).json({ detail: "Modifications réservées aux administrateurs." });
-      return;
-    }
+    requireWorkspaceWrite(req, res, next);
+    return;
   }
   next();
 });
@@ -242,20 +248,20 @@ app.get("/me", (req: AuthRequest, res: Response) => {
 // Users routes (read via custom query; mutations via Better Auth admin plugin)
 // ---------------------------------------------------------------------------
 
-app.get("/users", requireAdmin as express.RequestHandler, async (_req: Request, res: Response) => {
+app.get("/users", requireSuperAdmin as express.RequestHandler, async (_req: Request, res: Response) => {
   res.json(await listUsers());
 });
 
-app.post("/users", requireAdmin as express.RequestHandler, async (req: Request, res: Response) => {
+app.post("/users", requireSuperAdmin as express.RequestHandler, async (req: AuthRequest, res: Response) => {
   const { username, password, role } = req.body as { username?: unknown; password?: unknown; role?: unknown };
   if (!username || typeof username !== "string" || !password || typeof password !== "string") {
     res.status(422).json({ detail: "Les champs 'username' et 'password' sont requis." });
     return;
   }
-  res.status(201).json(await createUserFn(username, password, typeof role === "string" ? role : "user"));
+  res.status(201).json(await createUserFn(username, password, typeof role === "string" ? role : "user", req.workspace!.organizationId));
 });
 
-app.put("/users/:id", requireAdmin as express.RequestHandler, async (req: Request, res: Response) => {
+app.put("/users/:id", requireSuperAdmin as express.RequestHandler, async (req: Request, res: Response) => {
   const { password, role } = req.body as { password?: unknown; role?: unknown };
   res.json(await updateUserById(req.params["id"] as string, {
     password: typeof password === "string" && password ? password : undefined,
@@ -263,107 +269,9 @@ app.put("/users/:id", requireAdmin as express.RequestHandler, async (req: Reques
   }));
 });
 
-app.delete("/users/:id", requireAdmin as express.RequestHandler, async (req: Request, res: Response) => {
+app.delete("/users/:id", requireSuperAdmin as express.RequestHandler, async (req: Request, res: Response) => {
   await deleteUserById(req.params["id"] as string);
   res.status(204).send();
-});
-
-// ---------------------------------------------------------------------------
-// Roles routes (first-class entities; many users per role; per-layer permissions)
-// ---------------------------------------------------------------------------
-
-function sanitizePermissions(body: unknown): Record<string, LayerPermissions> | undefined {
-  if (!body || typeof body !== "object") return undefined;
-  const result: Record<string, LayerPermissions> = {};
-  for (const [layer, flags] of Object.entries(body as Record<string, unknown>)) {
-    if (!(ARCHIMATE_LAYERS as readonly string[]).includes(layer)) continue;
-    if (!Array.isArray(flags)) continue;
-    result[layer] = flags.filter((f): f is string => typeof f === "string" && (PERMISSION_FLAGS as readonly string[]).includes(f)) as LayerPermissions;
-  }
-  return result;
-}
-
-app.get("/roles", requireAuth as express.RequestHandler, async (_req: Request, res: Response) => {
-  res.json(await listRoles());
-});
-
-app.get("/roles/catalog", requireAuth as express.RequestHandler, (_req: Request, res: Response) => {
-  res.json({ layers: ARCHIMATE_LAYERS, flags: PERMISSION_FLAGS });
-});
-
-app.post("/roles", requireAdmin as express.RequestHandler, async (req: Request, res: Response) => {
-  const body = parseBody(RoleCreateSchema, req.body, res);
-  if (!body) return;
-  res.status(201).json(await createRole(body.name, body.description ?? null, sanitizePermissions(body.permissions)));
-});
-
-app.get("/roles/:role_id", requireAuth as express.RequestHandler, async (req: Request, res: Response) => {
-  res.json(await getRole(req.params["role_id"] as string));
-});
-
-app.put("/roles/:role_id", requireAdmin as express.RequestHandler, async (req: Request, res: Response) => {
-  const body = parseBody(RoleUpdateSchema, req.body, res);
-  if (!body) return;
-  const role = await getRole(req.params["role_id"] as string);
-    if (role.is_system) {
-      res.status(403).json({ detail: "Les rôles système ne peuvent pas être modifiés." });
-      return;
-    }
-    res.json(await updateRole(req.params["role_id"] as string, {
-      name: body.name,
-      description: body.description,
-      permissions: sanitizePermissions(body.permissions),
-    }));
-});
-
-app.delete("/roles/:role_id", requireAdmin as express.RequestHandler, async (req: Request, res: Response) => {
-  await deleteRole(req.params["role_id"] as string);
-    res.status(204).send();
-});
-
-app.get("/roles/:role_id/users", requireAuth as express.RequestHandler, async (req: Request, res: Response) => {
-  res.json((await getRole(req.params["role_id"] as string)).user_ids);
-});
-
-app.put("/roles/:role_id/users/:user_id", requireAdmin as express.RequestHandler, async (req: Request, res: Response) => {
-  await assignUserToRole(req.params["role_id"] as string, req.params["user_id"] as string);
-    res.status(204).send();
-});
-
-app.delete("/roles/:role_id/users/:user_id", requireAdmin as express.RequestHandler, async (req: Request, res: Response) => {
-  await unassignUserFromRole(req.params["role_id"] as string, req.params["user_id"] as string);
-    res.status(204).send();
-});
-
-app.get("/users/:user_id/roles", requireAdmin as express.RequestHandler, async (req: Request, res: Response) => {
-  res.json(await listRolesForUser(req.params["user_id"] as string));
-});
-
-// Layer permissions per role
-app.get("/roles/:role_id/layers", requireAuth as express.RequestHandler, async (req: Request, res: Response) => {
-  res.json((await getRole(req.params["role_id"] as string)).permissions);
-});
-
-app.get("/roles/:role_id/layers/:layer", requireAuth as express.RequestHandler, async (req: Request, res: Response) => {
-  const layer = req.params["layer"] as string;
-    res.json({ layer, permission: await getRoleLayerPermission(req.params["role_id"] as string, layer) });
-});
-
-app.put("/roles/:role_id/layers/:layer", requireAdmin as express.RequestHandler, async (req: Request, res: Response) => {
-  const { permissions } = req.body as { permissions?: unknown };
-  if (!Array.isArray(permissions)) {
-    res.status(422).json({ detail: "Field 'permissions' must be an array of flags (read, create, update, delete)." });
-    return;
-  }
-  const flags = permissions.filter((f): f is string => typeof f === "string" && (PERMISSION_FLAGS as readonly string[]).includes(f)) as LayerPermissions;
-  const layer = req.params["layer"] as string;
-    const updated = await setRoleLayerPermission(req.params["role_id"] as string, layer, flags);
-    res.json({ layer, permissions: updated });
-});
-
-app.delete("/roles/:role_id/layers/:layer", requireAdmin as express.RequestHandler, async (req: Request, res: Response) => {
-  await removeRoleLayerPermission(req.params["role_id"] as string, req.params["layer"] as string);
-    res.status(204).send();
 });
 
 // ---------------------------------------------------------------------------
@@ -399,12 +307,12 @@ function providerOut(row: typeof oauthProviders.$inferSelect): ProviderOut {
   };
 }
 
-app.get("/settings/providers", requireAdmin as express.RequestHandler, async (_req: Request, res: Response) => {
-  const rows = await db.select().from(oauthProviders);
+app.get("/settings/providers", requireSuperAdmin as express.RequestHandler, async (_req: Request, res: Response) => {
+  const rows = await controlDb.select().from(oauthProviders);
   res.json(rows.map(providerOut));
 });
 
-app.post("/settings/providers", requireAdmin as express.RequestHandler, async (req: Request, res: Response) => {
+app.post("/settings/providers", requireSuperAdmin as express.RequestHandler, async (req: Request, res: Response) => {
   const { type, name, client_id, client_secret, issuer_url, tenant_id, enabled } =
     req.body as Record<string, unknown>;
   if (!type || !PROVIDER_TYPES.includes(type as ProviderType)) {
@@ -428,13 +336,13 @@ app.post("/settings/providers", requireAdmin as express.RequestHandler, async (r
     return;
   }
   const providerId = (name as string).toLowerCase().replace(/[^a-z0-9]+/g, "-");
-  const [existing] = await db.select({ id: oauthProviders.id })
+  const [existing] = await controlDb.select({ id: oauthProviders.id })
     .from(oauthProviders).where(eq(oauthProviders.providerId, providerId));
   if (existing) {
     res.status(422).json({ detail: `Provider ID '${providerId}' already exists.` });
     return;
   }
-  const [row] = await db.insert(oauthProviders).values({
+  const [row] = await controlDb.insert(oauthProviders).values({
     id:           randomUUID(),
     providerId,
     type:         type as ProviderType,
@@ -450,13 +358,13 @@ app.post("/settings/providers", requireAdmin as express.RequestHandler, async (r
   res.status(201).json(providerOut(row!));
 });
 
-app.put("/settings/providers/:id", requireAdmin as express.RequestHandler, async (req: Request, res: Response) => {
-  const [existing] = await db.select().from(oauthProviders)
+app.put("/settings/providers/:id", requireSuperAdmin as express.RequestHandler, async (req: Request, res: Response) => {
+  const [existing] = await controlDb.select().from(oauthProviders)
     .where(eq(oauthProviders.id, req.params["id"] as string));
   if (!existing) { res.status(404).json({ detail: "Provider not found." }); return; }
   const { name, client_id, client_secret, issuer_url, tenant_id, enabled } =
     req.body as Record<string, unknown>;
-  await db.update(oauthProviders).set({
+  await controlDb.update(oauthProviders).set({
     ...(typeof name === "string" ? { name } : {}),
     ...(typeof client_id === "string" ? { clientId: client_id } : {}),
     ...(typeof client_secret === "string" ? { clientSecret: client_secret } : {}),
@@ -464,17 +372,17 @@ app.put("/settings/providers/:id", requireAdmin as express.RequestHandler, async
     ...(tenant_id !== undefined ? { tenantId: tenant_id as string | null } : {}),
     ...(enabled !== undefined ? { enabled: Boolean(enabled) } : {}),
   }).where(eq(oauthProviders.id, req.params["id"] as string));
-  const [updated] = await db.select().from(oauthProviders)
+  const [updated] = await controlDb.select().from(oauthProviders)
     .where(eq(oauthProviders.id, req.params["id"] as string));
   await reloadAuth();
   res.json(providerOut(updated!));
 });
 
-app.delete("/settings/providers/:id", requireAdmin as express.RequestHandler, async (req: Request, res: Response) => {
-  const [existing] = await db.select({ id: oauthProviders.id })
+app.delete("/settings/providers/:id", requireSuperAdmin as express.RequestHandler, async (req: Request, res: Response) => {
+  const [existing] = await controlDb.select({ id: oauthProviders.id })
     .from(oauthProviders).where(eq(oauthProviders.id, req.params["id"] as string));
   if (!existing) { res.status(404).json({ detail: "Provider not found." }); return; }
-  await db.delete(oauthProviders).where(eq(oauthProviders.id, req.params["id"] as string));
+  await controlDb.delete(oauthProviders).where(eq(oauthProviders.id, req.params["id"] as string));
   await reloadAuth();
   res.status(204).send();
 });
@@ -483,7 +391,7 @@ app.delete("/settings/providers/:id", requireAdmin as express.RequestHandler, as
 // Redis status (admin only — read-only, config via REDIS_URL env var)
 // ---------------------------------------------------------------------------
 
-app.get("/settings/redis", requireAdmin as express.RequestHandler, async (_req: Request, res: Response) => {
+app.get("/settings/redis", requireSuperAdmin as express.RequestHandler, async (_req: Request, res: Response) => {
   const url = process.env["REDIS_URL"]!;
   let host: string | null = null;
   let port: number | null = null;
@@ -502,14 +410,40 @@ app.get("/settings/redis", requireAdmin as express.RequestHandler, async (_req: 
 });
 
 // ---------------------------------------------------------------------------
+// PostgreSQL status (admin only — read-only, config via DATABASE_URL env var)
+// ---------------------------------------------------------------------------
+
+app.get("/settings/postgres", requireSuperAdmin as express.RequestHandler, async (_req: Request, res: Response) => {
+  const url = process.env["DATABASE_URL"] ?? process.env["POSTGRES_URL"] ?? process.env["POSTGRES_URL_NON_POOLING"];
+  let host: string | null = null;
+  let port: number | null = null;
+  let database: string | null = null;
+  if (url) {
+    try {
+      const parsed = new URL(url);
+      host = parsed.hostname;
+      port = parsed.port ? parseInt(parsed.port, 10) : 5432;
+      database = parsed.pathname.replace(/^\//, "") || null;
+    } catch { /* malformed URL */ }
+  }
+
+  try {
+    const result = await controlDb.execute<{ version: string }>(sql`select version()`);
+    res.json({ connected: true, host, port, database, version: result.rows[0]?.version ?? null });
+  } catch {
+    res.json({ connected: false, host, port, database, version: null });
+  }
+});
+
+// ---------------------------------------------------------------------------
 // API token routes (personal access tokens — any authenticated user)
 // ---------------------------------------------------------------------------
 
 app.get("/settings/api-tokens", requireAuth as express.RequestHandler, async (req: AuthRequest, res: Response) => {
   const cols = { id: apiTokens.id, name: apiTokens.name, userId: apiTokens.userId, createdAt: apiTokens.createdAt, lastUsedAt: apiTokens.lastUsedAt, expiresAt: apiTokens.expiresAt };
   const rows = req.user?.role === "admin"
-    ? await db.select(cols).from(apiTokens)
-    : await db.select(cols).from(apiTokens).where(eq(apiTokens.userId, req.user!.id));
+    ? await controlDb.select(cols).from(apiTokens)
+    : await controlDb.select(cols).from(apiTokens).where(eq(apiTokens.userId, req.user!.id));
   res.json(rows.map((r) => ({ id: r.id, name: r.name, user_id: r.userId, created_at: r.createdAt, last_used_at: r.lastUsedAt ?? null, expires_at: r.expiresAt ?? null })));
 });
 
@@ -525,7 +459,7 @@ app.post("/settings/api-tokens", requireAuth as express.RequestHandler, async (r
     return isNaN(v) ? undefined : v;
   })();
   const token = randomUUID().replace(/-/g, "") + randomUUID().replace(/-/g, "");
-  const [row] = await db.insert(apiTokens).values({ token, name: name.trim(), userId: req.user!.id, expiresAt })
+  const [row] = await controlDb.insert(apiTokens).values({ token, name: name.trim(), userId: req.user!.id, organizationId: req.workspace!.organizationId, expiresAt })
     .returning({ id: apiTokens.id, name: apiTokens.name, userId: apiTokens.userId, createdAt: apiTokens.createdAt, expiresAt: apiTokens.expiresAt });
   res.status(201).json({ id: row!.id, name: row!.name, user_id: row!.userId, created_at: row!.createdAt, expires_at: row!.expiresAt ?? null, token });
 });
@@ -533,12 +467,12 @@ app.post("/settings/api-tokens", requireAuth as express.RequestHandler, async (r
 app.delete("/settings/api-tokens/:id", requireAuth as express.RequestHandler, async (req: AuthRequest, res: Response) => {
   const id = parseInt(req.params["id"] as string, 10);
   if (isNaN(id)) { res.status(422).json({ detail: "ID invalide." }); return; }
-  const [existing] = await db.select({ userId: apiTokens.userId }).from(apiTokens).where(eq(apiTokens.id, id));
+  const [existing] = await controlDb.select({ userId: apiTokens.userId }).from(apiTokens).where(eq(apiTokens.id, id));
   if (!existing) { res.status(404).json({ detail: "Token introuvable." }); return; }
   if (req.user?.role !== "admin" && existing.userId !== req.user?.id) {
     res.status(403).json({ detail: "Accès refusé." }); return;
   }
-  await db.delete(apiTokens).where(eq(apiTokens.id, id));
+  await controlDb.delete(apiTokens).where(eq(apiTokens.id, id));
   res.status(204).send();
 });
 
@@ -549,7 +483,7 @@ app.delete("/settings/api-tokens/:id", requireAuth as express.RequestHandler, as
 app.get("/settings/messages", async (_req: Request, res: Response) => {
   const defaults = { login_message: null, login_message_enabled: false, banner_message: null, banner_message_enabled: false };
   try {
-    const [row] = await db.select().from(siteSettings).where(eq(siteSettings.id, 1));
+    const [row] = await controlDb.select().from(siteSettings).where(eq(siteSettings.id, 1));
     if (!row) { res.json(defaults); return; }
     res.json({
       login_message:          row.loginMessage ?? null,
@@ -562,7 +496,7 @@ app.get("/settings/messages", async (_req: Request, res: Response) => {
   }
 });
 
-app.put("/settings/messages", requireAdmin as express.RequestHandler, async (req: Request, res: Response) => {
+app.put("/settings/messages", requireSuperAdmin as express.RequestHandler, async (req: Request, res: Response) => {
   const { login_message, login_message_enabled, banner_message, banner_message_enabled } =
     req.body as Record<string, unknown>;
   const vals = {
@@ -573,7 +507,7 @@ app.put("/settings/messages", requireAdmin as express.RequestHandler, async (req
     bannerMessageEnabled: Boolean(banner_message_enabled),
     updatedAt:            sql`extract(epoch from now())::int`,
   };
-  await db.insert(siteSettings).values(vals).onConflictDoUpdate({
+  await controlDb.insert(siteSettings).values(vals).onConflictDoUpdate({
     target: siteSettings.id,
     set: { loginMessage: vals.loginMessage, loginMessageEnabled: vals.loginMessageEnabled, bannerMessage: vals.bannerMessage, bannerMessageEnabled: vals.bannerMessageEnabled, updatedAt: vals.updatedAt },
   });
@@ -584,29 +518,29 @@ app.put("/settings/messages", requireAdmin as express.RequestHandler, async (req
 // Workspace routes
 // ---------------------------------------------------------------------------
 
-app.get("/workspaces", async (_req: Request, res: Response) => {
-  res.json(await getWorkspaces());
+app.get("/workspaces", async (req: AuthRequest, res: Response) => {
+  res.json(await getWorkspaces(req.workspace!, req.user!.id));
 });
 
-app.post("/workspaces", async (req: Request, res: Response) => {
+app.post("/workspaces", async (req: AuthRequest, res: Response) => {
   const body = parseBody(WorkspaceCreateSchema, req.body, res);
   if (!body) return;
-  res.status(201).json(await createWorkspace(body.name, body.path, body.description));
+  res.status(201).json(await createWorkspace(req.workspace!, req.user!.id, body.name, body.path, body.description, body.team_ids));
 });
 
-app.put("/workspaces/:id", async (req: Request, res: Response) => {
+app.put("/workspaces/:id", async (req: AuthRequest, res: Response) => {
   const body = parseBody(WorkspaceUpdateSchema, req.body, res);
   if (!body) return;
-  res.json(await updateWorkspace(req.params["id"] as string, body.name));
+  res.json(await updateWorkspace(req.params["id"] as string, body.name, req.workspace!, req.user!.id, body.team_ids));
 });
 
-app.delete("/workspaces/:id", async (req: Request, res: Response) => {
-  await deleteWorkspace(req.params["id"] as string);
+app.delete("/workspaces/:id", async (req: AuthRequest, res: Response) => {
+  await deleteWorkspace(req.params["id"] as string, req.workspace!.organizationId);
     res.status(204).send();
 });
 
-app.post("/workspaces/:id/activate", async (req: Request, res: Response) => {
-  res.json(await activateWorkspace(req.params["id"] as string));
+app.post("/workspaces/:id/activate", async (req: AuthRequest, res: Response) => {
+  res.json(await activateWorkspace(req.params["id"] as string, req.workspace!, req.user!.id));
 });
 
 // OpenAPI spec and Swagger UI
@@ -647,9 +581,9 @@ app.get("/viewpoints", (_req: Request, res: Response) => {
 
 
 // Model info
-app.get("/", async (_req: Request, res: Response) => {
-  const wsId = await getActiveWorkspaceId();
-  const workspaces = await getWorkspaces();
+app.get("/", async (req: AuthRequest, res: Response) => {
+  const wsId = await getActiveWorkspaceId(req.workspace!, req.user!.id);
+  const workspaces = await getWorkspaces(req.workspace!, req.user!.id);
   const active = workspaces.find((w) => w.active);
   res.json({ ...(await store.getModelInfo(wsId)), workspace_id: active?.id ?? null, workspace_name: active?.name ?? null });
 });
@@ -661,8 +595,8 @@ app.post("/save", async (_req: Request, res: Response) => {
 });
 
 // Export model as XML
-app.get("/export", async (_req: Request, res: Response) => {
-  const model = await modelFromDb(await getActiveWorkspaceId());
+app.get("/export", async (req: AuthRequest, res: Response) => {
+  const model = await modelFromDb(await getActiveWorkspaceId(req.workspace!, req.user!.id));
   const xml = serializeToOpenExchange(model);
   res.setHeader("Content-Type", "application/xml; charset=utf-8");
   res.setHeader("Content-Disposition", `attachment; filename="${model.name || "model"}.xml"`);
@@ -670,8 +604,8 @@ app.get("/export", async (_req: Request, res: Response) => {
 });
 
 // Export model + all view SVGs as a ZIP archive
-app.get("/export/zip", async (_req: Request, res: Response) => {
-  const model = await modelFromDb(await getActiveWorkspaceId());
+app.get("/export/zip", async (req: AuthRequest, res: Response) => {
+  const model = await modelFromDb(await getActiveWorkspaceId(req.workspace!, req.user!.id));
   const modelName = model.name || "model";
   res.setHeader("Content-Type", "application/zip");
   res.setHeader("Content-Disposition", `attachment; filename="${modelName}.zip"`);
@@ -696,7 +630,7 @@ app.post("/import", importRateLimit,
       express.text({ type: ["text/xml", "application/xml", "text/plain"], limit: "50mb" })(req, res, next);
     }
   },
-  async (req: Request, res: Response) => {
+  async (req: AuthRequest, res: Response) => {
     const xml: string = (req as Request & { file?: Express.Multer.File }).file
       ? (req as Request & { file?: Express.Multer.File }).file!.buffer.toString("utf-8")
       : (req.body as string);
@@ -704,158 +638,158 @@ app.post("/import", importRateLimit,
     let newModel: ReturnType<typeof parseOpenExchange>;
     try { newModel = parseOpenExchange(xml); }
     catch (err) { throw new ValidationError(`Erreur de parsing XML : ${(err as Error).message}`); }
-    const wsId = await getActiveWorkspaceId();
+    const wsId = await getActiveWorkspaceId(req.workspace!, req.user!.id);
     await modelToDb(wsId, newModel);
     res.json(await store.getModelInfo(wsId));
 });
 
 // Elements
-app.get("/elements/types", async (_req: Request, res: Response) => {
-  res.json(await store.listElementTypes(await getActiveWorkspaceId()));
+app.get("/elements/types", async (req: AuthRequest, res: Response) => {
+  res.json(await store.listElementTypes(await getActiveWorkspaceId(req.workspace!, req.user!.id)));
 });
 
-app.get("/elements", async (req: Request, res: Response) => {
+app.get("/elements", async (req: AuthRequest, res: Response) => {
   const q = parseBody(ElementQuerySchema, req.query, res);
   if (!q) return;
-  res.json(await store.listElements(await getActiveWorkspaceId(), q.type ?? null, q.name ?? null));
+  res.json(await store.listElements(await getActiveWorkspaceId(req.workspace!, req.user!.id), q.type ?? null, q.name ?? null));
 });
 
-app.get("/elements/in-views", async (_req: Request, res: Response) => {
-  res.json(await store.listElementsInViews(await getActiveWorkspaceId()));
+app.get("/elements/in-views", async (req: AuthRequest, res: Response) => {
+  res.json(await store.listElementsInViews(await getActiveWorkspaceId(req.workspace!, req.user!.id)));
 });
 
-app.get("/elements/:element_id", async (req: Request, res: Response) => {
-  res.json(await store.getElementById(await getActiveWorkspaceId(), req.params["element_id"] as string));
+app.get("/elements/:element_id", async (req: AuthRequest, res: Response) => {
+  res.json(await store.getElementById(await getActiveWorkspaceId(req.workspace!, req.user!.id), req.params["element_id"] as string));
 });
 
-app.get("/elements/:element_id/views", async (req: Request, res: Response) => {
-  res.json(await store.getElementViews(await getActiveWorkspaceId(), req.params["element_id"] as string));
+app.get("/elements/:element_id/views", async (req: AuthRequest, res: Response) => {
+  res.json(await store.getElementViews(await getActiveWorkspaceId(req.workspace!, req.user!.id), req.params["element_id"] as string));
 });
 
-app.get("/elements/:element_id/relationships", requirePermission("Relations", "read"), async (req: Request, res: Response) => {
-  res.json(await store.getElementRelationships(await getActiveWorkspaceId(), req.params["element_id"] as string));
+app.get("/elements/:element_id/relationships", async (req: AuthRequest, res: Response) => {
+  res.json(await store.getElementRelationships(await getActiveWorkspaceId(req.workspace!, req.user!.id), req.params["element_id"] as string));
 });
 
-app.post("/elements", async (req: Request, res: Response) => {
+app.post("/elements", async (req: AuthRequest, res: Response) => {
   const body = parseBody(ElementCreateSchema, req.body, res);
   if (!body) return;
-  res.status(201).json(await store.createElement(await getActiveWorkspaceId(), body as ElementCreateIn));
+  res.status(201).json(await store.createElement(await getActiveWorkspaceId(req.workspace!, req.user!.id), body as ElementCreateIn));
 });
 
-app.put("/elements/:element_id", async (req: Request, res: Response) => {
+app.put("/elements/:element_id", async (req: AuthRequest, res: Response) => {
   const body = parseBody(ElementUpdateSchema, req.body, res);
   if (!body) return;
-  res.json(await store.updateElement(await getActiveWorkspaceId(), req.params["element_id"] as string, body as ElementUpdateIn));
+  res.json(await store.updateElement(await getActiveWorkspaceId(req.workspace!, req.user!.id), req.params["element_id"] as string, body as ElementUpdateIn));
 });
 
-app.delete("/elements/:element_id", async (req: Request, res: Response) => {
-  await store.deleteElement(await getActiveWorkspaceId(), req.params["element_id"] as string);
+app.delete("/elements/:element_id", async (req: AuthRequest, res: Response) => {
+  await store.deleteElement(await getActiveWorkspaceId(req.workspace!, req.user!.id), req.params["element_id"] as string);
   res.status(204).send();
 });
 
 // Relationships
-app.get("/relationships/types", async (_req: Request, res: Response) => {
-  res.json(await store.listRelationshipTypes(await getActiveWorkspaceId()));
+app.get("/relationships/types", async (req: AuthRequest, res: Response) => {
+  res.json(await store.listRelationshipTypes(await getActiveWorkspaceId(req.workspace!, req.user!.id)));
 });
 
-app.get("/relationships", requirePermission("Relations", "read"), async (req: Request, res: Response) => {
+app.get("/relationships", async (req: AuthRequest, res: Response) => {
   const q = parseBody(RelationshipQuerySchema, req.query, res);
   if (!q) return;
-  res.json(await store.listRelationships(await getActiveWorkspaceId(), q.type ?? null, q.source_id ?? null, q.target_id ?? null));
+  res.json(await store.listRelationships(await getActiveWorkspaceId(req.workspace!, req.user!.id), q.type ?? null, q.source_id ?? null, q.target_id ?? null));
 });
 
-app.get("/relationships/:relationship_id/views", requirePermission("Relations", "read"), async (req: Request, res: Response) => {
-  res.json(await store.getRelationshipViews(await getActiveWorkspaceId(), req.params["relationship_id"] as string));
+app.get("/relationships/:relationship_id/views", async (req: AuthRequest, res: Response) => {
+  res.json(await store.getRelationshipViews(await getActiveWorkspaceId(req.workspace!, req.user!.id), req.params["relationship_id"] as string));
 });
 
-app.get("/relationships/:relationship_id", requirePermission("Relations", "read"), async (req: Request, res: Response) => {
-  res.json(await store.getRelationshipById(await getActiveWorkspaceId(), req.params["relationship_id"] as string));
+app.get("/relationships/:relationship_id", async (req: AuthRequest, res: Response) => {
+  res.json(await store.getRelationshipById(await getActiveWorkspaceId(req.workspace!, req.user!.id), req.params["relationship_id"] as string));
 });
 
-app.post("/relationships", requirePermission("Relations", "create"), async (req: Request, res: Response) => {
+app.post("/relationships", async (req: AuthRequest, res: Response) => {
   const body = parseBody(RelationshipCreateSchema, req.body, res);
   if (!body) return;
-  res.status(201).json(await store.createRelationship(await getActiveWorkspaceId(), body as RelationshipCreateIn));
+  res.status(201).json(await store.createRelationship(await getActiveWorkspaceId(req.workspace!, req.user!.id), body as RelationshipCreateIn));
 });
 
-app.put("/relationships/:relationship_id", requirePermission("Relations", "update"), async (req: Request, res: Response) => {
+app.put("/relationships/:relationship_id", async (req: AuthRequest, res: Response) => {
   const body = parseBody(RelationshipUpdateSchema, req.body, res);
   if (!body) return;
-  res.json(await store.updateRelationship(await getActiveWorkspaceId(), req.params["relationship_id"] as string, body as RelationshipUpdateIn));
+  res.json(await store.updateRelationship(await getActiveWorkspaceId(req.workspace!, req.user!.id), req.params["relationship_id"] as string, body as RelationshipUpdateIn));
 });
 
-app.delete("/relationships/:relationship_id", requirePermission("Relations", "delete"), async (req: Request, res: Response) => {
-  await store.deleteRelationship(await getActiveWorkspaceId(), req.params["relationship_id"] as string);
+app.delete("/relationships/:relationship_id", async (req: AuthRequest, res: Response) => {
+  await store.deleteRelationship(await getActiveWorkspaceId(req.workspace!, req.user!.id), req.params["relationship_id"] as string);
   res.status(204).send();
 });
 
 // Views
-app.get("/views", requirePermission("Views", "read"), async (_req: Request, res: Response) => {
-  res.json(await store.listViews(await getActiveWorkspaceId()));
+app.get("/views", async (req: AuthRequest, res: Response) => {
+  res.json(await store.listViews(await getActiveWorkspaceId(req.workspace!, req.user!.id)));
 });
 
-app.get("/views/:view_id", requirePermission("Views", "read"), async (req: Request, res: Response) => {
-  res.json(await store.getViewById(await getActiveWorkspaceId(), req.params["view_id"] as string));
+app.get("/views/:view_id", async (req: AuthRequest, res: Response) => {
+  res.json(await store.getViewById(await getActiveWorkspaceId(req.workspace!, req.user!.id), req.params["view_id"] as string));
 });
 
-app.post("/views", requirePermission("Views", "create"), async (req: Request, res: Response) => {
+app.post("/views", async (req: AuthRequest, res: Response) => {
   const body = parseBody(ViewCreateSchema, req.body, res);
   if (!body) return;
-  res.status(201).json(await store.createView(await getActiveWorkspaceId(), body as ViewCreateIn));
+  res.status(201).json(await store.createView(await getActiveWorkspaceId(req.workspace!, req.user!.id), body as ViewCreateIn));
 });
 
-app.put("/views/:view_id", requirePermission("Views", "update"), async (req: Request, res: Response) => {
+app.put("/views/:view_id", async (req: AuthRequest, res: Response) => {
   const body = parseBody(ViewUpdateSchema, req.body, res);
   if (!body) return;
-  res.json(await store.updateView(await getActiveWorkspaceId(), req.params["view_id"] as string, body as ViewUpdateIn));
+  res.json(await store.updateView(await getActiveWorkspaceId(req.workspace!, req.user!.id), req.params["view_id"] as string, body as ViewUpdateIn));
 });
 
-app.delete("/views/:view_id", requirePermission("Views", "delete"), async (req: Request, res: Response) => {
-  await store.deleteView(await getActiveWorkspaceId(), req.params["view_id"] as string);
+app.delete("/views/:view_id", async (req: AuthRequest, res: Response) => {
+  await store.deleteView(await getActiveWorkspaceId(req.workspace!, req.user!.id), req.params["view_id"] as string);
   res.status(204).send();
 });
 
-app.post("/views/:view_id/nodes", requirePermission("Views", "update"), async (req: Request, res: Response) => {
+app.post("/views/:view_id/nodes", async (req: AuthRequest, res: Response) => {
   const body = parseBody(NodeCreateSchema, req.body, res);
   if (!body) return;
-  res.status(201).json(await store.createNode(await getActiveWorkspaceId(), req.params["view_id"] as string, body as NodeCreateIn));
+  res.status(201).json(await store.createNode(await getActiveWorkspaceId(req.workspace!, req.user!.id), req.params["view_id"] as string, body as NodeCreateIn));
 });
 
-app.put("/views/:view_id/nodes/:node_id", requirePermission("Views", "update"), async (req: Request, res: Response) => {
+app.put("/views/:view_id/nodes/:node_id", async (req: AuthRequest, res: Response) => {
   const body = parseBody(NodeUpdateSchema, req.body, res);
   if (!body) return;
-  res.json(await store.updateViewNode(await getActiveWorkspaceId(), req.params["view_id"] as string, req.params["node_id"] as string, body as NodeUpdateIn));
+  res.json(await store.updateViewNode(await getActiveWorkspaceId(req.workspace!, req.user!.id), req.params["view_id"] as string, req.params["node_id"] as string, body as NodeUpdateIn));
 });
 
-app.delete("/views/:view_id/nodes/:node_id", requirePermission("Views", "update"), async (req: Request, res: Response) => {
-  await store.deleteViewNode(await getActiveWorkspaceId(), req.params["view_id"] as string, req.params["node_id"] as string);
+app.delete("/views/:view_id/nodes/:node_id", async (req: AuthRequest, res: Response) => {
+  await store.deleteViewNode(await getActiveWorkspaceId(req.workspace!, req.user!.id), req.params["view_id"] as string, req.params["node_id"] as string);
   res.status(204).send();
 });
 
-app.post("/views/:view_id/connections", requirePermission("Views", "update"), async (req: Request, res: Response) => {
+app.post("/views/:view_id/connections", async (req: AuthRequest, res: Response) => {
   const body = parseBody(ConnectionCreateSchema, req.body, res);
   if (!body) return;
-  res.status(201).json(await store.createViewConnection(await getActiveWorkspaceId(), req.params["view_id"] as string, body as ConnectionCreateIn));
+  res.status(201).json(await store.createViewConnection(await getActiveWorkspaceId(req.workspace!, req.user!.id), req.params["view_id"] as string, body as ConnectionCreateIn));
 });
 
-app.put("/views/:view_id/connections/:conn_id", requirePermission("Views", "update"), async (req: Request, res: Response) => {
+app.put("/views/:view_id/connections/:conn_id", async (req: AuthRequest, res: Response) => {
   const body = parseBody(ConnectionUpdateSchema, req.body, res);
   if (!body) return;
-  res.json(await store.updateViewConnection(await getActiveWorkspaceId(), req.params["view_id"] as string, req.params["conn_id"] as string, body as ConnectionUpdateIn));
+  res.json(await store.updateViewConnection(await getActiveWorkspaceId(req.workspace!, req.user!.id), req.params["view_id"] as string, req.params["conn_id"] as string, body as ConnectionUpdateIn));
 });
 
-app.delete("/views/:view_id/connections/:conn_id", requirePermission("Views", "update"), async (req: Request, res: Response) => {
-  await store.deleteViewConnection(await getActiveWorkspaceId(), req.params["view_id"] as string, req.params["conn_id"] as string);
+app.delete("/views/:view_id/connections/:conn_id", async (req: AuthRequest, res: Response) => {
+  await store.deleteViewConnection(await getActiveWorkspaceId(req.workspace!, req.user!.id), req.params["view_id"] as string, req.params["conn_id"] as string);
   res.status(204).send();
 });
 
-app.get("/views/:view_id/image", async (req: Request, res: Response) => {
+app.get("/views/:view_id/image", async (req: AuthRequest, res: Response) => {
   const format = (req.query["format"] as string) || "svg";
   if (format !== "svg") {
     res.status(422).json({ detail: "Format invalide. Seul 'svg' est supporté côté serveur (l'export PNG se fait côté client)." });
     return;
   }
-  const model = await modelFromDb(await getActiveWorkspaceId());
+  const model = await modelFromDb(await getActiveWorkspaceId(req.workspace!, req.user!.id));
   const view = model.views.find((v) => v.uuid === req.params["view_id"]);
   if (!view) {
     res.status(404).json({ detail: `Vue '${req.params["view_id"]}' introuvable.` });
@@ -867,28 +801,28 @@ app.get("/views/:view_id/image", async (req: Request, res: Response) => {
 });
 
 // PropertyDefinitions
-app.get("/property-definitions", async (_req: Request, res: Response) => {
-  res.json(await store.listPropertyDefinitions(await getActiveWorkspaceId()));
+app.get("/property-definitions", async (req: AuthRequest, res: Response) => {
+  res.json(await store.listPropertyDefinitions(await getActiveWorkspaceId(req.workspace!, req.user!.id)));
 });
 
-app.get("/property-definitions/:id", async (req: Request, res: Response) => {
-  res.json(await store.getPropertyDefinitionById(await getActiveWorkspaceId(), req.params["id"] as string));
+app.get("/property-definitions/:id", async (req: AuthRequest, res: Response) => {
+  res.json(await store.getPropertyDefinitionById(await getActiveWorkspaceId(req.workspace!, req.user!.id), req.params["id"] as string));
 });
 
-app.post("/property-definitions", async (req: Request, res: Response) => {
+app.post("/property-definitions", async (req: AuthRequest, res: Response) => {
   const body = parseBody(PropertyDefinitionCreateSchema, req.body, res);
   if (!body) return;
-  res.status(201).json(await store.createPropertyDefinition(await getActiveWorkspaceId(), body as PropertyDefinitionCreateIn));
+  res.status(201).json(await store.createPropertyDefinition(await getActiveWorkspaceId(req.workspace!, req.user!.id), body as PropertyDefinitionCreateIn));
 });
 
-app.put("/property-definitions/:id", async (req: Request, res: Response) => {
+app.put("/property-definitions/:id", async (req: AuthRequest, res: Response) => {
   const body = parseBody(PropertyDefinitionUpdateSchema, req.body, res);
   if (!body) return;
-  res.json(await store.updatePropertyDefinition(await getActiveWorkspaceId(), req.params["id"] as string, body as PropertyDefinitionUpdateIn));
+  res.json(await store.updatePropertyDefinition(await getActiveWorkspaceId(req.workspace!, req.user!.id), req.params["id"] as string, body as PropertyDefinitionUpdateIn));
 });
 
-app.delete("/property-definitions/:id", async (req: Request, res: Response) => {
-  await store.deletePropertyDefinition(await getActiveWorkspaceId(), req.params["id"] as string);
+app.delete("/property-definitions/:id", async (req: AuthRequest, res: Response) => {
+  await store.deletePropertyDefinition(await getActiveWorkspaceId(req.workspace!, req.user!.id), req.params["id"] as string);
   res.status(204).send();
 });
 

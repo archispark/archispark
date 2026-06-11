@@ -9,7 +9,7 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       reporter: ["text", "json-summary", "html"],
-      exclude: ["**/package.json", "src/schema.ts"],
+      exclude: ["**/package.json", "src/schema.ts", "src/schema.control.ts", "src/schema.tenant.ts"],
       thresholds: {
         statements: 80,
         branches: 80,

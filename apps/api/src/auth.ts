@@ -1,7 +1,16 @@
 import { randomUUID, randomBytes, scrypt } from "crypto";
 import type { Request, Response, NextFunction } from "express";
-import { and, eq, inArray } from "drizzle-orm";
-import { db, users as usersTable, accounts, roles as rolesTable, roleLayerPermissions as rolePermsTable, userRoles as userRolesTable, apiTokens } from "@workspace/db";
+import { and, eq } from "drizzle-orm";
+import {
+  controlDb,
+  users as usersTable,
+  accounts,
+  apiTokens,
+  organizations as organizationsTable,
+  members as membersTable,
+  teams as teamsTable,
+  teamMembers as teamMembersTable,
+} from "@workspace/db";
 import { getAuth } from "./better-auth.js";
 import { fromNodeHeaders } from "better-auth/node";
 import { NotFoundError, ValidationError } from "./errors.js";
@@ -17,48 +26,6 @@ function hashPassword(password: string): Promise<string> {
 }
 
 // ---------------------------------------------------------------------------
-// ArchiMate layer/permission constants
-// ---------------------------------------------------------------------------
-
-export const ARCHIMATE_LAYERS = [
-  "Strategy",
-  "Business",
-  "Application",
-  "Technology",
-  "Motivation",
-  "Physical",
-  "Implementation",
-  "Composite",
-  "Relations",
-  "Views",
-] as const;
-export type ArchiLayer = typeof ARCHIMATE_LAYERS[number];
-
-export const PERMISSION_FLAGS = ["read", "create", "update", "delete"] as const;
-export type PermissionFlag = typeof PERMISSION_FLAGS[number];
-export type LayerPermissions = PermissionFlag[];
-
-export const ALL_PERMISSIONS: LayerPermissions = ["read", "create", "update", "delete"];
-export const READ_ONLY_PERMISSIONS: LayerPermissions = ["read"];
-export const NO_PERMISSIONS: LayerPermissions = [];
-export type LayerRole = string;
-
-// Bit flag mapping: read=1, create=2, update=4, delete=8
-const PERM_BIT: Record<PermissionFlag, number> = { read: 1, create: 2, update: 4, delete: 8 };
-
-export function parsePermissions(bits: number): LayerPermissions {
-  return PERMISSION_FLAGS.filter((f) => (bits & PERM_BIT[f]) !== 0);
-}
-
-export function serializePermissions(perms: LayerPermissions): number {
-  return [...new Set(perms)].reduce((acc, f) => acc | (PERM_BIT[f] ?? 0), 0);
-}
-
-export function permissionHasFlag(bits: number, flag: PermissionFlag): boolean {
-  return (bits & PERM_BIT[flag]) !== 0;
-}
-
-// ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
@@ -69,41 +36,35 @@ export interface UserOut {
   created_at: string;
 }
 
+/** Resolved organization membership for the current request (attached by resolveWorkspaceContext). */
+export interface WorkspaceContext {
+  organizationId: string;
+  orgRole: string; // "owner" | "admin" | "member"
+  teamIds: string[];
+}
+
 export interface AuthRequest extends Request {
   user?: { id: string; username: string; role: string };
+  /** Set by requireAuth for Bearer-token requests (api_tokens row). */
+  tokenContext?: { organizationId: string; workspaceId: number | null };
+  /** Set by requireAuth for session requests (Better Auth org plugin). */
+  sessionActiveOrgId?: string | null;
+  /** Set by resolveWorkspaceContext. */
+  workspace?: WorkspaceContext;
 }
 
 // ---------------------------------------------------------------------------
-// Bootstrap: RBAC tables + default system roles + seed users
+// Bootstrap: seed default users + a default organization for fresh installs
 // ---------------------------------------------------------------------------
 
 export async function initUsers(): Promise<void> {
-  // All tables (model, RBAC, Better Auth) are created by runMigrations()
+  // All tables (model + Better Auth) are created by runMigrations()
   // from the drizzle-pg/ folder before this runs.
-  const now = Math.floor(Date.now() / 1000);
-
-  // Seed system RBAC roles (idempotent via onConflictDoNothing)
-  const adminRoleId = randomUUID();
-  await db.insert(rolesTable).values({ id: adminRoleId, name: "admin", description: "Accès complet à toutes les couches.", isSystem: true, createdAt: now }).onConflictDoNothing();
-  const [adminRole] = await db.select().from(rolesTable).where(eq(rolesTable.name, "admin"));
-
-  const userRoleId = randomUUID();
-  await db.insert(rolesTable).values({ id: userRoleId, name: "user", description: "Lecture seule sur toutes les couches.", isSystem: true, createdAt: now }).onConflictDoNothing();
-  const [userRole] = await db.select().from(rolesTable).where(eq(rolesTable.name, "user"));
-
-  // Ensure all layers have permissions for both system roles (upsert: add missing, preserve existing)
-  for (const layer of ARCHIMATE_LAYERS) {
-    if (adminRole) {
-      await db.insert(rolePermsTable).values({ roleId: adminRole.id, layer, permission: serializePermissions(ALL_PERMISSIONS) }).onConflictDoNothing();
-    }
-    if (userRole) {
-      await db.insert(rolePermsTable).values({ roleId: userRole.id, layer, permission: serializePermissions(READ_ONLY_PERMISSIONS) }).onConflictDoNothing();
-    }
-  }
+  const now = new Date();
 
   // Seed default users
   const seedUser = async (username: string, password: string, role: "admin" | "user") => {
-    const [existing] = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.username, username));
+    const [existing] = await controlDb.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.username, username));
     let userId: string | null = existing?.id ?? null;
     if (!userId) {
       const res = await getAuth().api.signUpEmail({
@@ -114,22 +75,34 @@ export async function initUsers(): Promise<void> {
     } else {
       // Always sync the password so SEED_*_PASSWORD changes take effect on restart
       const hash = await hashPassword(password);
-      await db.update(accounts).set({ password: hash }).where(and(eq(accounts.userId, userId), eq(accounts.providerId, "credential")));
+      await controlDb.update(accounts).set({ password: hash }).where(and(eq(accounts.userId, userId), eq(accounts.providerId, "credential")));
     }
-    await db.update(usersTable).set({ username, role }).where(eq(usersTable.id, userId!));
-    const [rbacRole] = await db.select().from(rolesTable).where(eq(rolesTable.name, role));
-    if (rbacRole) {
-      await db.insert(userRolesTable).values({ roleId: rbacRole.id, userId: userId! }).onConflictDoNothing();
-    }
+    await controlDb.update(usersTable).set({ username, role }).where(eq(usersTable.id, userId!));
+    return userId!;
   };
 
   const adminPwd = process.env["SEED_ADMIN_PASSWORD"] || "admin";
   const userPwd  = process.env["SEED_USER_PASSWORD"]  || "user";
-  await seedUser("admin", adminPwd, "admin");
-  await seedUser("user",  userPwd,  "user");
+  const adminId = await seedUser("admin", adminPwd, "admin");
+  const userId  = await seedUser("user",  userPwd,  "user");
   if (!process.env["SEED_ADMIN_PASSWORD"]) {
     console.warn("[auth] SEED_ADMIN_PASSWORD not set — using default 'admin'. Set it in production!");
   }
+
+  // Ensure at least one organization exists, and that the seed users belong to it.
+  const [anyOrg] = await controlDb.select({ id: organizationsTable.id }).from(organizationsTable).orderBy(organizationsTable.createdAt).limit(1);
+  let orgId = anyOrg?.id;
+  if (!orgId) {
+    orgId = "default-org";
+    await controlDb.insert(organizationsTable).values({ id: orgId, name: "Default", slug: "default", createdAt: now }).onConflictDoNothing();
+  }
+  if (adminId) {
+    await controlDb.insert(membersTable).values({ id: randomUUID(), organizationId: orgId, userId: adminId, role: "owner", createdAt: now }).onConflictDoNothing();
+  }
+  if (userId) {
+    await controlDb.insert(membersTable).values({ id: randomUUID(), organizationId: orgId, userId, role: "member", createdAt: now }).onConflictDoNothing();
+  }
+
   console.log("[auth] Better Auth users ready.");
 }
 
@@ -147,68 +120,114 @@ function rowToOut(r: typeof usersTable.$inferSelect): UserOut {
 }
 
 export async function listUsers(): Promise<UserOut[]> {
-  const rows = await db.select().from(usersTable);
+  const rows = await controlDb.select().from(usersTable);
   return rows.map(rowToOut);
 }
 
-export async function createUser(username: string, password: string, role: string = "user"): Promise<UserOut> {
-  const [existing] = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.username, username));
+/**
+ * Create a platform user. When `organizationId` is given, the new user is
+ * also added as a member of that organization (owner if `role === "admin"`,
+ * member otherwise) so they can immediately access its workspaces.
+ */
+export async function createUser(username: string, password: string, role: string = "user", organizationId?: string): Promise<UserOut> {
+  const [existing] = await controlDb.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.username, username));
   if (existing) throw new ValidationError(`Le nom d'utilisateur '${username}' est déjà pris.`);
   const res = await getAuth().api.signUpEmail({
     body: { email: `${username}@archispark.internal`, password, name: username, username } as never,
   /* v8 ignore next */ }).catch(() => null);
   if (!res?.user) throw new ValidationError("Impossible de créer l'utilisateur.");
   const validRole: "admin" | "user" = role === "admin" ? "admin" : "user";
-  await db.update(usersTable).set({ username, role: validRole }).where(eq(usersTable.id, res.user.id));
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, res.user.id));
+  await controlDb.update(usersTable).set({ username, role: validRole }).where(eq(usersTable.id, res.user.id));
+  if (organizationId) {
+    await controlDb.insert(membersTable).values({
+      id: randomUUID(),
+      organizationId,
+      userId: res.user.id,
+      role: validRole === "admin" ? "owner" : "member",
+      createdAt: new Date(),
+    }).onConflictDoNothing();
+  }
+  const [user] = await controlDb.select().from(usersTable).where(eq(usersTable.id, res.user.id));
   if (!user) throw new ValidationError("Utilisateur introuvable après création.");
   return rowToOut(user);
 }
 
 export async function updateUserById(id: string, updates: { password?: string; role?: string }): Promise<UserOut> {
-  const [existing] = await db.select().from(usersTable).where(eq(usersTable.id, id));
+  const [existing] = await controlDb.select().from(usersTable).where(eq(usersTable.id, id));
   if (!existing) throw new NotFoundError(`Utilisateur '${id}' introuvable.`);
   const now = new Date();
   if (updates.role !== undefined) {
     const validRole: "admin" | "user" = updates.role === "admin" ? "admin" : "user";
-    await db.update(usersTable).set({ role: validRole, updatedAt: now }).where(eq(usersTable.id, id));
+    await controlDb.update(usersTable).set({ role: validRole, updatedAt: now }).where(eq(usersTable.id, id));
   }
   if (updates.password) {
     const hash = await hashPassword(updates.password);
-    await db.update(accounts).set({ password: hash, updatedAt: now })
+    await controlDb.update(accounts).set({ password: hash, updatedAt: now })
       .where(and(eq(accounts.userId, id), eq(accounts.providerId, "credential")));
   }
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, id));
+  const [user] = await controlDb.select().from(usersTable).where(eq(usersTable.id, id));
   return rowToOut(user!);
 }
 
 export async function deleteUserById(id: string): Promise<void> {
-  const [existing] = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.id, id));
+  const [existing] = await controlDb.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.id, id));
   if (!existing) throw new NotFoundError(`Utilisateur '${id}' introuvable.`);
-  await db.delete(usersTable).where(eq(usersTable.id, id));
+  await controlDb.delete(usersTable).where(eq(usersTable.id, id));
 }
 
 // ---------------------------------------------------------------------------
 // API token lookup (used by REST middleware and MCP server)
 // ---------------------------------------------------------------------------
 
-export interface TokenUser { id: string; username: string; role: string }
+export interface TokenUser {
+  id: string;
+  username: string;
+  role: string;
+  organizationId: string;
+  workspaceId: number | null;
+}
 
 export async function lookupApiToken(token: string): Promise<TokenUser | null> {
-  const [row] = await db.select({ id: apiTokens.id, userId: apiTokens.userId, expiresAt: apiTokens.expiresAt })
-    .from(apiTokens).where(eq(apiTokens.token, token));
+  const [row] = await controlDb.select({
+    id: apiTokens.id,
+    userId: apiTokens.userId,
+    expiresAt: apiTokens.expiresAt,
+    organizationId: apiTokens.organizationId,
+    workspaceId: apiTokens.workspaceId,
+  }).from(apiTokens).where(eq(apiTokens.token, token));
   if (!row) return null;
   if (row.expiresAt !== null && row.expiresAt < Math.floor(Date.now() / 1000)) return null;
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, row.userId));
+  const [user] = await controlDb.select().from(usersTable).where(eq(usersTable.id, row.userId));
   if (!user) return null;
-  db.update(apiTokens).set({ lastUsedAt: Math.floor(Date.now() / 1000) })
+  controlDb.update(apiTokens).set({ lastUsedAt: Math.floor(Date.now() / 1000) })
     .where(eq(apiTokens.id, row.id)).catch(() => {});
-  return { id: user.id, username: user.username, role: user.role };
+  return { id: user.id, username: user.username, role: user.role, organizationId: row.organizationId, workspaceId: row.workspaceId };
+}
+
+// ---------------------------------------------------------------------------
+// Membership helpers
+// ---------------------------------------------------------------------------
+
+/** Org role + team memberships for a user within a given organization, or null if not a member. */
+export async function getMembershipContext(userId: string, organizationId: string): Promise<WorkspaceContext | null> {
+  const [member] = await controlDb.select({ role: membersTable.role }).from(membersTable)
+    .where(and(eq(membersTable.organizationId, organizationId), eq(membersTable.userId, userId)));
+  if (!member) return null;
+  const teamRows = await controlDb.select({ teamId: teamMembersTable.teamId })
+    .from(teamMembersTable)
+    .innerJoin(teamsTable, eq(teamsTable.id, teamMembersTable.teamId))
+    .where(and(eq(teamMembersTable.userId, userId), eq(teamsTable.organizationId, organizationId)));
+  return { organizationId, orgRole: member.role, teamIds: teamRows.map((r) => r.teamId) };
 }
 
 // ---------------------------------------------------------------------------
 // Middleware — uses Better Auth session (httpOnly cookie) or API Bearer token
 // ---------------------------------------------------------------------------
+
+interface SessionResult {
+  user: { id: string; name: string; email?: string | null; [k: string]: unknown };
+  session: { activeOrganizationId?: string | null; [k: string]: unknown };
+}
 
 export function requireAuth(req: AuthRequest, res: Response, next: NextFunction): void {
   const authHeader = req.headers["authorization"];
@@ -216,14 +235,15 @@ export function requireAuth(req: AuthRequest, res: Response, next: NextFunction)
     lookupApiToken(authHeader.slice(7).trim())
       .then((tokenUser) => {
         if (!tokenUser) { res.status(401).json({ detail: "Token invalide." }); return; }
-        req.user = tokenUser;
+        req.user = { id: tokenUser.id, username: tokenUser.username, role: tokenUser.role };
+        req.tokenContext = { organizationId: tokenUser.organizationId, workspaceId: tokenUser.workspaceId };
         next();
       })
       .catch(() => { res.status(401).json({ detail: "Erreur d'authentification." }); });
     return;
   }
   getAuth().api.getSession({ headers: fromNodeHeaders(req.headers) })
-    .then((session: { user: { id: string; name: string; email?: string | null; [k: string]: unknown } } | null) => {
+    .then((session: SessionResult | null) => {
       if (!session?.user) {
         res.status(401).json({ detail: "Non authentifié." });
         return;
@@ -233,6 +253,7 @@ export function requireAuth(req: AuthRequest, res: Response, next: NextFunction)
         username: (session.user as unknown as { username?: string }).username ?? session.user.name,
         role: (session.user as unknown as { role?: string }).role ?? "user",
       };
+      req.sessionActiveOrgId = session.session?.activeOrganizationId ?? null;
       next();
     })
     .catch(() => {
@@ -240,9 +261,7 @@ export function requireAuth(req: AuthRequest, res: Response, next: NextFunction)
     });
 }
 
-export { userHasPermission };
-
-export function requireAdmin(req: AuthRequest, res: Response, next: NextFunction): void {
+export function requireSuperAdmin(req: AuthRequest, res: Response, next: NextFunction): void {
   requireAuth(req, res, () => {
     if (req.user?.role !== "admin") {
       res.status(403).json({ detail: "Accès réservé aux administrateurs." });
@@ -252,200 +271,44 @@ export function requireAdmin(req: AuthRequest, res: Response, next: NextFunction
   });
 }
 
-async function userHasPermission(userId: string, baRole: string, resource: string, flag: PermissionFlag): Promise<boolean> {
-  if (baRole === "admin") return true;
-  const rows = await db
-    .select({ permission: rolePermsTable.permission })
-    .from(userRolesTable)
-    .innerJoin(rolePermsTable, and(eq(rolePermsTable.roleId, userRolesTable.roleId), eq(rolePermsTable.layer, resource)))
-    .where(eq(userRolesTable.userId, userId));
-  return rows.some(({ permission }) => permissionHasFlag(permission, flag));
-}
+/**
+ * Resolves the organization (and team memberships) the current request
+ * operates in, attaching it to `req.workspace`. The active organization comes
+ * from the API token, the session's active organization, or — failing that —
+ * the user's first organization membership.
+ */
+export async function resolveWorkspaceContext(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  if (!req.user) { res.status(401).json({ detail: "Non authentifié." }); return; }
 
-export function requirePermission(resource: string, flag: PermissionFlag) {
-  return async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
-    if (!req.user) { res.status(401).json({ detail: "Non authentifié." }); return; }
-    /* v8 ignore next 4 */
-    if (!(await userHasPermission(req.user.id, req.user.role, resource, flag))) {
-      console.warn(`[security] permission denied user=${req.user.id} role=${req.user.role} layer=${resource} flag=${flag} path=${req.path}`);
-      res.status(403).json({ detail: `Permission '${flag}' requise sur '${resource}'.` });
-      return;
-    }
-    next();
-  };
-}
+  let organizationId = req.tokenContext?.organizationId ?? req.sessionActiveOrgId ?? null;
 
-// ---------------------------------------------------------------------------
-// RBAC roles (ArchiMate layer permissions)
-// ---------------------------------------------------------------------------
-
-export interface RoleOut {
-  id: string;
-  name: string;
-  description: string | null;
-  is_system: boolean;
-  created_at: string;
-  permissions: Record<ArchiLayer, LayerPermissions>;
-  user_ids: string[];
-}
-
-function emptyPermissions(): Record<ArchiLayer, LayerPermissions> {
-  return Object.fromEntries(ARCHIMATE_LAYERS.map((l) => [l, [] as LayerPermissions])) as Record<ArchiLayer, LayerPermissions>;
-}
-
-async function rolePermissions(roleId: string): Promise<Record<ArchiLayer, LayerPermissions>> {
-  const rows = await db.select().from(rolePermsTable).where(eq(rolePermsTable.roleId, roleId));
-  const result = emptyPermissions();
-  for (const r of rows) {
-    if ((ARCHIMATE_LAYERS as readonly string[]).includes(r.layer)) {
-      result[r.layer as ArchiLayer] = parsePermissions(r.permission);
-    }
+  if (!organizationId) {
+    const [m] = await controlDb.select({ organizationId: membersTable.organizationId }).from(membersTable)
+      .where(eq(membersTable.userId, req.user.id)).limit(1);
+    organizationId = m?.organizationId ?? null;
   }
-  return result;
-}
 
-async function roleUsers(roleId: string): Promise<string[]> {
-  const rows = await db.select({ userId: userRolesTable.userId }).from(userRolesTable).where(eq(userRolesTable.roleId, roleId));
-  return rows.map((r) => r.userId);
-}
-
-function buildRoleOut(
-  r: typeof rolesTable.$inferSelect,
-  permMap: Map<string, Record<ArchiLayer, LayerPermissions>>,
-  userMap: Map<string, string[]>,
-): RoleOut {
-  return {
-    id: r.id,
-    name: r.name,
-    description: r.description ?? null,
-    is_system: Boolean(r.isSystem),
-    created_at: new Date(r.createdAt * 1000).toISOString(),
-    permissions: permMap.get(r.id) ?? emptyPermissions(),
-    user_ids: userMap.get(r.id) ?? [],
-  };
-}
-
-async function roleOut(r: typeof rolesTable.$inferSelect): Promise<RoleOut> {
-  const [perms, uids] = await Promise.all([rolePermissions(r.id), roleUsers(r.id)]);
-  const permMap = new Map([[r.id, perms]]);
-  const userMap = new Map([[r.id, uids]]);
-  return buildRoleOut(r, permMap, userMap);
-}
-
-export async function listRoles(): Promise<RoleOut[]> {
-  const rows = await db.select().from(rolesTable);
-  if (rows.length === 0) return [];
-  const roleIds = rows.map((r) => r.id);
-  // Batch: 2 queries for all roles instead of 2N
-  const [allPerms, allUsers] = await Promise.all([
-    db.select().from(rolePermsTable).where(inArray(rolePermsTable.roleId, roleIds)),
-    db.select({ roleId: userRolesTable.roleId, userId: userRolesTable.userId }).from(userRolesTable).where(inArray(userRolesTable.roleId, roleIds)),
-  ]);
-  const permMap = new Map<string, Record<ArchiLayer, LayerPermissions>>();
-  for (const r of rows) permMap.set(r.id, emptyPermissions());
-  for (const p of allPerms) {
-    if ((ARCHIMATE_LAYERS as readonly string[]).includes(p.layer)) {
-      permMap.get(p.roleId)![p.layer as ArchiLayer] = parsePermissions(p.permission);
-    }
+  if (!organizationId) {
+    res.status(403).json({ detail: "Aucune organisation associée à cet utilisateur." });
+    return;
   }
-  const userMap = new Map<string, string[]>();
-  for (const r of rows) userMap.set(r.id, []);
-  for (const u of allUsers) userMap.get(u.roleId)?.push(u.userId);
-  return rows.map((r) => buildRoleOut(r, permMap, userMap));
-}
 
-export async function getRole(roleId: string): Promise<RoleOut> {
-  const [r] = await db.select().from(rolesTable).where(eq(rolesTable.id, roleId));
-  if (!r) throw new NotFoundError(`Rôle '${roleId}' introuvable.`);
-  return roleOut(r);
-}
-
-export async function createRole(name: string, description?: string | null, permissions?: Partial<Record<ArchiLayer, LayerPermissions>>): Promise<RoleOut> {
-  if (!name?.trim()) throw new Error("Le nom du rôle est requis.");
-  const [existing] = await db.select({ id: rolesTable.id }).from(rolesTable).where(eq(rolesTable.name, name.trim()));
-  if (existing) throw new Error("Ce nom de rôle est déjà pris.");
-  const id = randomUUID();
-  const now = Math.floor(Date.now() / 1000);
-  await db.insert(rolesTable).values({ id, name: name.trim(), description: description ?? null, isSystem: false, createdAt: now });
-  if (permissions) await setRolePermissions(id, permissions);
-  return getRole(id);
-}
-
-export async function updateRole(roleId: string, updates: { name?: string; description?: string | null; permissions?: Partial<Record<ArchiLayer, LayerPermissions>> }): Promise<RoleOut> {
-  const [r] = await db.select().from(rolesTable).where(eq(rolesTable.id, roleId));
-  if (!r) throw new Error(`Rôle '${roleId}' introuvable.`);
-  const patch: Partial<typeof rolesTable.$inferInsert> = {};
-  if (updates.name !== undefined) patch.name = updates.name.trim();
-  if (updates.description !== undefined) patch.description = updates.description;
-  if (Object.keys(patch).length > 0) {
-    await db.update(rolesTable).set(patch).where(eq(rolesTable.id, roleId));
+  const ctx = await getMembershipContext(req.user.id, organizationId);
+  if (!ctx) {
+    res.status(403).json({ detail: "Accès à cette organisation refusé." });
+    return;
   }
-  if (updates.permissions) await setRolePermissions(roleId, updates.permissions);
-  return getRole(roleId);
+
+  req.workspace = ctx;
+  next();
 }
 
-export async function deleteRole(roleId: string): Promise<void> {
-  const [role] = await db.select().from(rolesTable).where(eq(rolesTable.id, roleId));
-  if (!role) throw new Error(`Rôle '${roleId}' introuvable.`);
-  if (role.isSystem) throw new Error("Les rôles système ne peuvent pas être supprimés.");
-  await db.delete(rolesTable).where(eq(rolesTable.id, roleId));
-}
-
-export async function setRolePermissions(roleId: string, perms: Partial<Record<ArchiLayer, LayerPermissions>>): Promise<void> {
-  for (const [layer, flags] of Object.entries(perms)) {
-    if (!flags) continue;
-    if (!(ARCHIMATE_LAYERS as readonly string[]).includes(layer)) continue;
-    const serialized = serializePermissions(flags);
-    await db.insert(rolePermsTable).values({ roleId, layer, permission: serialized })
-      .onConflictDoUpdate({ target: [rolePermsTable.roleId, rolePermsTable.layer], set: { permission: serialized } });
+/** Blocks write requests for org members (read-only). Super admins always pass. */
+export function requireWorkspaceWrite(req: AuthRequest, res: Response, next: NextFunction): void {
+  if (req.user?.role === "admin") { next(); return; }
+  if (req.workspace?.orgRole === "member") {
+    res.status(403).json({ detail: "Accès en lecture seule : modification réservée aux administrateurs et propriétaires de l'organisation." });
+    return;
   }
-}
-
-export async function getRoleLayerPermission(roleId: string, layer: string): Promise<LayerPermissions> {
-  if (!(ARCHIMATE_LAYERS as readonly string[]).includes(layer)) throw new Error(`Layer invalide: ${layer}`);
-  const [role] = await db.select().from(rolesTable).where(eq(rolesTable.id, roleId));
-  if (!role) throw new Error(`Rôle '${roleId}' introuvable.`);
-  const [row] = await db.select().from(rolePermsTable)
-    .where(and(eq(rolePermsTable.roleId, roleId), eq(rolePermsTable.layer, layer)));
-  return parsePermissions(row?.permission ?? 0);
-}
-
-export async function setRoleLayerPermission(roleId: string, layer: string, permissions: LayerPermissions): Promise<LayerPermissions> {
-  if (!(ARCHIMATE_LAYERS as readonly string[]).includes(layer)) throw new Error(`Layer invalide: ${layer}`);
-  if (!["none", "read", "write", "admin"].includes(permissions as unknown as string) && !Array.isArray(permissions)) throw new Error("Permissions invalides.");
-  const [role] = await db.select().from(rolesTable).where(eq(rolesTable.id, roleId));
-  if (!role) throw new Error(`Rôle '${roleId}' introuvable.`);
-  if (role.isSystem) throw new Error("Les permissions des rôles système ne peuvent pas être modifiées.");
-  const serialized = serializePermissions(permissions);
-  await db.insert(rolePermsTable).values({ roleId, layer, permission: serialized })
-    .onConflictDoUpdate({ target: [rolePermsTable.roleId, rolePermsTable.layer], set: { permission: serialized } });
-  return permissions;
-}
-
-export async function removeRoleLayerPermission(roleId: string, layer: string): Promise<void> {
-  if (!(ARCHIMATE_LAYERS as readonly string[]).includes(layer)) throw new Error(`Layer invalide: ${layer}`);
-  const [role] = await db.select().from(rolesTable).where(eq(rolesTable.id, roleId));
-  if (!role) throw new Error(`Rôle '${roleId}' introuvable.`);
-  await db.delete(rolePermsTable)
-    .where(and(eq(rolePermsTable.roleId, roleId), eq(rolePermsTable.layer, layer)));
-}
-
-export async function assignUserToRole(roleId: string, userId: string): Promise<void> {
-  const [role] = await db.select().from(rolesTable).where(eq(rolesTable.id, roleId));
-  if (!role) throw new Error(`Rôle '${roleId}' introuvable.`);
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
-  if (!user) throw new Error(`Utilisateur '${userId}' introuvable.`);
-  await db.insert(userRolesTable).values({ roleId, userId }).onConflictDoNothing();
-}
-
-export async function unassignUserFromRole(roleId: string, userId: string): Promise<void> {
-  const [deleted] = await db.delete(userRolesTable)
-    .where(and(eq(userRolesTable.roleId, roleId), eq(userRolesTable.userId, userId)))
-    .returning({ roleId: userRolesTable.roleId });
-  if (!deleted) throw new Error("Association introuvable.");
-}
-
-export async function listRolesForUser(userId: string): Promise<RoleOut[]> {
-  const rows = await db.select({ roleId: userRolesTable.roleId }).from(userRolesTable).where(eq(userRolesTable.userId, userId));
-  return Promise.all(rows.map((r) => getRole(r.roleId)));
+  next();
 }

@@ -14,9 +14,11 @@ export interface ModelInfo {
 export interface WorkspaceInfo {
   id: string;
   name: string;
-  path: string;
   description?: string | null;
+  path?: string | null;
   active: boolean;
+  organization_id: string;
+  team_ids: string[];
 }
 
 export interface Property {
@@ -300,94 +302,6 @@ export interface UserOut {
 
 export const fetchUsers = () => get<UserOut[]>("/users");
 
-export const ARCHIMATE_LAYERS = [
-  "Strategy",
-  "Business",
-  "Application",
-  "Technology",
-  "Motivation",
-  "Physical",
-  "Implementation",
-  "Composite",
-  "Relations",
-  "Views",
-] as const;
-export type ArchiLayer = typeof ARCHIMATE_LAYERS[number];
-
-export const PERMISSION_FLAGS = ["read", "create", "update", "delete"] as const;
-export type PermissionFlag = typeof PERMISSION_FLAGS[number];
-export type LayerPermissions = PermissionFlag[];
-export type LayerRole = string; // legacy alias
-
-export interface RoleCatalog {
-  layers: readonly string[];
-  flags: readonly string[];
-}
-
-export interface RoleOut {
-  id: string;
-  name: string;
-  description: string | null;
-  is_system: boolean;
-  created_at: string;
-  permissions: Record<ArchiLayer, LayerPermissions>;
-  user_ids: string[];
-}
-
-export interface RoleCreateIn {
-  name: string;
-  description?: string | null;
-  permissions?: Partial<Record<ArchiLayer, LayerPermissions>>;
-}
-
-export interface RoleUpdateIn {
-  name?: string;
-  description?: string | null;
-  permissions?: Partial<Record<ArchiLayer, LayerPermissions>>;
-}
-
-export const fetchRoleCatalog = () => get<RoleCatalog>("/roles/catalog");
-export const fetchRoles = () => get<RoleOut[]>("/roles");
-export const fetchRole = (roleId: string) => get<RoleOut>(`/roles/${encodeURIComponent(roleId)}`);
-export const createRole = (body: RoleCreateIn) => post<RoleOut>("/roles", body);
-export const updateRole = (roleId: string, body: RoleUpdateIn) => put<RoleOut>(`/roles/${encodeURIComponent(roleId)}`, body);
-export const deleteRole = (roleId: string) => del(`/roles/${encodeURIComponent(roleId)}`);
-
-export async function assignUserToRole(roleId: string, userId: string): Promise<void> {
-  const res = await fetch(`${BASE}/roles/${encodeURIComponent(roleId)}/users/${encodeURIComponent(userId)}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: "{}",
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: `HTTP ${res.status}` }));
-    throw new Error(err.detail || `API error: ${res.status}`);
-  }
-}
-
-export const unassignUserFromRole = (roleId: string, userId: string) =>
-  del(`/roles/${encodeURIComponent(roleId)}/users/${encodeURIComponent(userId)}`);
-
-export const fetchUserRoles = (userId: string) =>
-  get<RoleOut[]>(`/users/${encodeURIComponent(userId)}/roles`);
-
-export interface LayerPermissionOut {
-  layer: string;
-  permissions: LayerPermissions;
-}
-
-export const fetchRoleLayers = (roleId: string) =>
-  get<Record<ArchiLayer, LayerPermissions>>(`/roles/${encodeURIComponent(roleId)}/layers`);
-
-export const fetchRoleLayer = (roleId: string, layer: string) =>
-  get<LayerPermissionOut>(`/roles/${encodeURIComponent(roleId)}/layers/${encodeURIComponent(layer)}`);
-
-export const setRoleLayer = (roleId: string, layer: string, permissions: LayerPermissions) =>
-  put<LayerPermissionOut>(`/roles/${encodeURIComponent(roleId)}/layers/${encodeURIComponent(layer)}`, { permissions });
-
-export const removeRoleLayer = (roleId: string, layer: string) =>
-  del(`/roles/${encodeURIComponent(roleId)}/layers/${encodeURIComponent(layer)}`);
-
 export interface UserCreateIn { username: string; password: string; role?: string; }
 export interface UserUpdateIn { password?: string; role?: string; }
 
@@ -478,6 +392,18 @@ export interface RedisStatus {
 
 export const fetchRedisStatus = () => get<RedisStatus>("/settings/redis");
 
+// --- PostgreSQL ---
+
+export interface PostgresStatus {
+  connected: boolean;
+  host: string | null;
+  port: number | null;
+  database: string | null;
+  version: string | null;
+}
+
+export const fetchPostgresStatus = () => get<PostgresStatus>("/settings/postgres");
+
 // --- API Tokens ---
 
 export interface ApiTokenOut {
@@ -514,8 +440,8 @@ export const updateSiteMessages = (body: SiteMessages) => put<{ ok: boolean }>("
 
 export const fetchWorkspaces = () => get<WorkspaceInfo[]>("/workspaces");
 
-export interface WorkspaceCreateIn { name: string; path?: string; description?: string | null; }
-export interface WorkspaceUpdateIn { name: string; }
+export interface WorkspaceCreateIn { name: string; path?: string; description?: string | null; team_ids?: string[]; }
+export interface WorkspaceUpdateIn { name: string; team_ids?: string[]; }
 
 export const createWorkspaceApi = (body: WorkspaceCreateIn) => post<WorkspaceInfo>("/workspaces", body);
 export const updateWorkspaceApi = (id: string, body: WorkspaceUpdateIn) => put<WorkspaceInfo>(`/workspaces/${encodeURIComponent(id)}`, body);

@@ -18,8 +18,6 @@ import {
   fetchPropertyDefinitions,
   fetchWorkspaces,
   fetchUsers,
-  fetchRoles,
-  fetchRoleCatalog,
   createUser,
   updateUserApi,
   deleteUserApi,
@@ -39,9 +37,6 @@ import {
   updateWorkspaceApi,
   deleteWorkspaceApi,
   activateWorkspaceApi,
-  createRole,
-  updateRole,
-  deleteRole,
   saveModel,
   importModel,
   type ElementCreateIn,
@@ -54,8 +49,6 @@ import {
   type PropertyDefinitionUpdateIn,
   type WorkspaceCreateIn,
   type WorkspaceUpdateIn,
-  type RoleCreateIn,
-  type RoleUpdateIn,
   type UserCreateIn,
   type UserUpdateIn,
 } from "./api";
@@ -82,8 +75,6 @@ export const queryKeys = {
   propertyDefinitions: () => ["propertyDefinitions"] as const,
   workspaces: () => ["workspaces"] as const,
   users: () => ["users"] as const,
-  roles: () => ["roles"] as const,
-  roleCatalog: () => ["roleCatalog"] as const,
 };
 
 // ---------------------------------------------------------------------------
@@ -162,14 +153,6 @@ export function useWorkspaces() {
 
 export function useUsers() {
   return useQuery({ queryKey: queryKeys.users(), queryFn: fetchUsers });
-}
-
-export function useRoles() {
-  return useQuery({ queryKey: queryKeys.roles(), queryFn: fetchRoles });
-}
-
-export function useRoleCatalog() {
-  return useQuery({ queryKey: queryKeys.roleCatalog(), queryFn: fetchRoleCatalog, staleTime: Infinity });
 }
 
 // ---------------------------------------------------------------------------
@@ -319,30 +302,6 @@ export function useCreateWorkspace() {
   });
 }
 
-export function useUpdateWorkspace() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, body }: { id: string; body: WorkspaceUpdateIn }) => updateWorkspaceApi(id, body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.workspaces() }),
-  });
-}
-
-export function useDeleteWorkspace() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (id: string) => deleteWorkspaceApi(id),
-    onSuccess: () => {
-      // A workspace switch may have happened server-side: flush everything so
-      // the sidebar, breadcrumb, and dashboard all reflect the new active workspace.
-      qc.invalidateQueries({ queryKey: queryKeys.workspaces() });
-      qc.invalidateQueries({ queryKey: queryKeys.model() });
-      qc.invalidateQueries({ queryKey: ["elements"] });
-      qc.invalidateQueries({ queryKey: ["relationships"] });
-      qc.invalidateQueries({ queryKey: ["views"] });
-    },
-  });
-}
-
 export function useActivateWorkspace() {
   const qc = useQueryClient();
   return useMutation({
@@ -354,27 +313,25 @@ export function useActivateWorkspace() {
   });
 }
 
-export function useCreateRole() {
+export function useUpdateWorkspace() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: RoleCreateIn) => createRole(body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.roles() }),
+    mutationFn: ({ id, body }: { id: string; body: WorkspaceUpdateIn }) => updateWorkspaceApi(id, body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.workspaces() });
+      qc.invalidateQueries({ queryKey: queryKeys.model() });
+    },
   });
 }
 
-export function useUpdateRole() {
+export function useDeleteWorkspace() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, body }: { id: string; body: RoleUpdateIn }) => updateRole(id, body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.roles() }),
-  });
-}
-
-export function useDeleteRole() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (id: string) => deleteRole(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.roles() }),
+    mutationFn: (id: string) => deleteWorkspaceApi(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.workspaces() });
+      qc.invalidateQueries({ queryKey: queryKeys.model() });
+    },
   });
 }
 

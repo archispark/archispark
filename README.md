@@ -178,7 +178,9 @@ claude mcp add archimate \
 
 Two sample ArchiMate models are available for demo or local testing: **ArchiMetal** (294 elements, 476 relationships, 33 views) and **ArchiSurance** (257 elements, 402 relationships, 40 views).
 
-The seed is **idempotent** — each workspace is skipped if one with the same name already exists.
+Each model is seeded into its own demo organization (`ArchiMetal` / `ArchiSurance`). Every existing user is added as a member of both (`owner` if their platform role is `admin`, `member` otherwise) with that organization's workspace set as their active workspace.
+
+The seed is **idempotent** — re-running it upserts the demo organizations/memberships and replaces the matching workspace's content.
 
 ```bash
 # Requires DATABASE_URL (or POSTGRES_URL) pointing to a running Postgres instance.
@@ -205,6 +207,20 @@ Schema follows ArchiMate 3 Open Exchange XSDs (`apps/api/models/xsd/`).
 The test suite runs against [PGlite](https://pglite.dev) (Postgres compiled to
 WASM, in-memory) — full Postgres fidelity, no Docker required.
 
+### Multi-tenant database architecture
+
+The schema is split into two logical parts: **control-plane** (`schema.control.ts`
+— identity, organizations/teams/members, API tokens, OAuth providers, site
+settings, and the tenant database registry) and **tenant** (`schema.tenant.ts`
+— workspaces and all ArchiMate content). Both currently live in the same
+physical database; an organization can later be moved to its own dedicated
+Postgres database (Neon) by adding a `tenant_databases` row with
+`status: "active"` — until then its content stays in the shared database.
+
+`TENANT_DB_ENCRYPTION_KEY` — required once any `tenant_databases` row is
+`active`. Encrypts/decrypts the per-tenant connection string at rest
+(AES-256-GCM, key derived from this value via scrypt).
+
 To generate a migration after a schema change:
 
 ```bash
@@ -214,35 +230,54 @@ DB_DRIVER=postgres npx drizzle-kit generate   # writes to drizzle-pg/
 
 ## Authentication
 
-All routes except `/auth/*`, `GET /openapi.json`, and `GET /docs` require a valid session (cookie set by Better Auth sign-in).  
-Write operations (`POST`, `PUT`, `DELETE`) outside `/auth/*` require the `admin` role.
+All routes except `/auth/*`, `GET /openapi.json`, `GET /docs`, and `GET /settings/messages` require a valid session (cookie set by Better Auth sign-in) or an `Authorization: Bearer <token>` API token.
+
+Every authenticated request resolves an **active organization** — from the API token, the session's active organization, or (failing that) the user's first organization membership — and attaches the user's role and team memberships in that organization to the request.
+
+Write operations (`POST`, `PUT`, `DELETE`) on workspace content require the `owner` or `admin` role in the active organization (or the platform super admin role, see below); plain `member`s are read-only. `/auth/*`, `/users*`, and `/settings/api-tokens*` are exempt from this check.
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | `POST` | `/auth/sign-in/email` | public | Sign in — sets session cookie |
 | `POST` | `/auth/sign-out` | user | Sign out |
 | `GET` | `/me` | user | Returns current user |
+| `/auth/organization/*` | — | user | Better Auth organization plugin: list/create organizations, invite/remove members, manage teams, switch active organization, etc. |
 
 Default credentials: `admin` / `admin` (admin), `user` / `user` (read-only).
 
-## User management (admin only)
+## Organizations & teams
+
+ArchiSpark is multi-tenant: each **organization** ("entreprise") has its own members, teams, and workspaces.
+
+- **Roles** (Better Auth organization plugin): `owner`, `admin`, `member` — scoped per organization. `owner`/`admin` can manage members, invitations, teams, and workspace content; `member` has read-only access.
+- **Platform super admin**: a user with the global `role: "admin"` (set via `/users`) bypasses organization role checks everywhere and can create new organizations (`allowUserToCreateOrganization`).
+- **Teams** group members within an organization. A workspace with one or more `team_ids` is only visible to members of those teams (plus org owners/admins); a workspace with no teams is visible to the whole organization.
+- Each user has one **active workspace per organization**, switched via `POST /workspaces/:id/activate`.
+
+Org owners/admins (and platform super admins) see an **Organization** entry in the sidebar, opening a dedicated section (`/organization`) with its own sidebar and two tabs: **Workspace** (list every workspace in the organization — create, activate, rename, assign teams, or delete each one) and **Membres** (manage members, invitations, and teams). The platform-wide list of organizations is managed from **Admin → Organizations** (platform super admins only).
+
+**Settings** (`/settings`, visible to all users) is for importing/exporting the active workspace's model.
+
+## User management (platform admin only)
 
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/users` | List all users |
-| `POST` | `/users` | Create user — body: `{ username, password, role? }` |
+| `POST` | `/users` | Create user — body: `{ username, password, role? }`. The new user is added as a member of the requester's active organization (`owner` if `role === "admin"`, otherwise `member`) |
 | `PUT` | `/users/:id` | Update password and/or role |
 | `DELETE` | `/users/:id` | Delete user (last user protected) |
 
 ## Workspace management
 
+Workspaces belong to an organization (`organization_id`) and are listed only if the current user is a member of that organization (and, when `team_ids` is non-empty, a member of one of those teams or an org owner/admin).
+
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/workspaces` | List workspaces |
-| `POST` | `/workspaces` | Create workspace — body: `{ name, path?, description? }` (`path` = XML file to import) |
-| `PUT` | `/workspaces/:id` | Rename workspace |
-| `DELETE` | `/workspaces/:id` | Delete workspace (deleting the active one switches to another; deleting the last one is allowed and leaves zero — the web UI then redirects to its `/workspaces` page to create a new one) |
-| `POST` | `/workspaces/:id/activate` | Switch active workspace |
+| `GET` | `/workspaces` | List workspaces visible to the current user in the active organization |
+| `POST` | `/workspaces` | Create workspace — body: `{ name, path?, description?, team_ids? }` (`path` = XML file to import; org owner/admin only) |
+| `PUT` | `/workspaces/:id` | Rename workspace and/or update `team_ids` (org owner/admin only) |
+| `DELETE` | `/workspaces/:id` | Delete workspace (org owner/admin only; deleting the active one switches to another in the organization; deleting the last one is allowed and leaves zero — the web UI then redirects to its `/workspaces` page to create a new one) |
+| `POST` | `/workspaces/:id/activate` | Switch the current user's active workspace within the active organization |
 
 ## Model routes
 
@@ -325,7 +360,7 @@ Interactive docs: `GET /docs` — OpenAPI spec: `GET /openapi.json`.
 ## Tests
 
 ```bash
-pnpm run -w test            # 637 tests across all packages
+pnpm run -w test            # 669 tests across all packages
 pnpm run -w test:coverage   # ≥80% coverage required
 ```
 

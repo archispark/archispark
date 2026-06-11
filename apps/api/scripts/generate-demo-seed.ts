@@ -35,6 +35,10 @@ function endpointUuid(ep: string | { uuid: string }): string {
   return typeof ep === "string" ? ep : ep.uuid;
 }
 
+function slugify(name: string): string {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+}
+
 // ---------------------------------------------------------------------------
 // Per-entity SQL line helpers
 // ---------------------------------------------------------------------------
@@ -109,6 +113,31 @@ function viewLines(v: ArchiModel["views"][number]): string[] {
 }
 
 // ---------------------------------------------------------------------------
+// Per-organization SQL block (one demo organization per workspace)
+// ---------------------------------------------------------------------------
+
+function organizationBlock(model: ArchiModel): string[] {
+  const ws = model.name;
+  const orgId = `org-${slugify(ws)}`;
+  const orgSlug = slugify(ws);
+
+  return [
+    `  -- Organization: ${ws}`,
+    `  INSERT INTO organization (id, name, slug, created_at)`,
+    `    VALUES (${q(orgId)}, ${q(ws)}, ${q(orgSlug)}, NOW())`,
+    `    ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name`,
+    `    RETURNING id INTO org_id;`,
+    ``,
+    `  INSERT INTO member (id, organization_id, user_id, role, created_at)`,
+    `  SELECT 'member-' || org_id || '-' || u.id, org_id, u.id,`,
+    `         CASE WHEN u.role = 'admin' THEN 'owner' ELSE 'member' END, NOW()`,
+    `  FROM "user" u`,
+    `  ON CONFLICT (organization_id, user_id) DO NOTHING;`,
+    ``,
+  ];
+}
+
+// ---------------------------------------------------------------------------
 // Per-workspace SQL block
 // ---------------------------------------------------------------------------
 
@@ -119,10 +148,15 @@ function workspaceBlock(model: ArchiModel): string {
   lines.push(`  -- ${"=".repeat(65)}`);
   lines.push(`  -- Workspace: ${ws}  (${model.elements.length} elements, ${model.relationships.length} rels, ${model.views.length} views)`);
   lines.push(`  -- ${"=".repeat(65)}`);
-  lines.push(`  DELETE FROM workspaces WHERE name = ${q(ws)};`);
-  lines.push(`  INSERT INTO workspaces (uuid, name, description, version, is_active, created_at, updated_at)`);
-  lines.push(`    VALUES (${q(model.uuid)}, ${q(ws)}, ${q(model.desc)}, ${q(model.version)}, FALSE, EXTRACT(EPOCH FROM NOW())::INT, EXTRACT(EPOCH FROM NOW())::INT)`);
+  lines.push(...organizationBlock(model));
+  lines.push(`  DELETE FROM workspaces WHERE organization_id = org_id AND name = ${q(ws)};`);
+  lines.push(`  INSERT INTO workspaces (uuid, name, description, version, organization_id, created_at, updated_at)`);
+  lines.push(`    VALUES (${q(model.uuid)}, ${q(ws)}, ${q(model.desc)}, ${q(model.version)}, org_id, EXTRACT(EPOCH FROM NOW())::INT, EXTRACT(EPOCH FROM NOW())::INT)`);
   lines.push(`    RETURNING id INTO ws_id;`);
+  lines.push(``);
+  lines.push(`  INSERT INTO user_active_workspace (user_id, organization_id, workspace_id)`);
+  lines.push(`  SELECT u.id, org_id, ws_id FROM "user" u`);
+  lines.push(`  ON CONFLICT (user_id, organization_id) DO UPDATE SET workspace_id = EXCLUDED.workspace_id;`);
   lines.push(``);
 
   for (const pd of model.propertyDefinitions) lines.push(...propDefLines(pd));
@@ -154,6 +188,7 @@ const header = `-- Demo seed: ${models.map(m => m.name).join(" + ")}
 
 DO $$
 DECLARE
+  org_id    TEXT;
   ws_id     INTEGER;
   el_db_id  INTEGER;
   rel_db_id INTEGER;

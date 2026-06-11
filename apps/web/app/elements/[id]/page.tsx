@@ -10,7 +10,7 @@ import {
   useCreateRelationship, useUpdateRelationship, useDeleteRelationship,
   useRelationshipTypes, usePropertyDefinitions, useRelationships,
 } from "@/lib/queries";
-import { type RelationshipOut, type Property, type RelationshipCreateIn, type RelationshipUpdateIn, type PropertyDefinitionOut, type ViewOut } from "@/lib/api";
+import { type RelationshipOut, type Property, type RelationshipCreateIn, type RelationshipUpdateIn, type PropertyDefinitionOut, type ElementUpdateIn, type ViewOut } from "@/lib/api";
 import { getLayer, LAYER_BADGE_COLORS } from "@/lib/archimate-helpers";
 import { allowedRelationships } from "@/lib/archimate-rules";
 import { DataTable } from "@/components/data-table";
@@ -123,6 +123,152 @@ function ElementSelect({ options, value, onChange, placeholder }: {
         ))}
       </SelectContent>
     </Select>
+  );
+}
+
+// ── Element header (badges, name, description, specialization) ────────────────
+
+function ElementHeader({
+  element, isAdmin, editingType, setEditingType, groupedTypes, saveField,
+  layer, layerColor, isInViews, t, editingSpec, setEditingSpec,
+  elementSelectOpts, specializes, saveSpecialization, onDelete,
+}: {
+  element: ElementOut;
+  isAdmin: boolean;
+  editingType: boolean;
+  setEditingType: (v: boolean) => void;
+  groupedTypes: Record<string, string[]>;
+  saveField: (patch: ElementUpdateIn) => Promise<void>;
+  layer: string;
+  layerColor: string;
+  isInViews: boolean;
+  t: ReturnType<typeof useT>["t"];
+  editingSpec: boolean;
+  setEditingSpec: (v: boolean) => void;
+  elementSelectOpts: ElementOut[];
+  specializes: RelationshipOut[];
+  saveSpecialization: (targetId: string) => Promise<void>;
+  onDelete: () => void;
+}) {
+  return (
+    <div className="space-y-2 shrink-0">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="space-y-1.5 flex-1 min-w-0">
+
+          {/* Badges: type (inline-editable) + layer + status */}
+          <div className="flex flex-wrap items-center gap-2">
+            {isAdmin && editingType ? (
+              <Select value={element.type} onValueChange={async (v) => { if (v) { await saveField({ type: v }); } setEditingType(false); }}>
+                <SelectTrigger className="h-6 text-xs w-48">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(groupedTypes).map(([groupLayer, types]) =>
+                    types.map((typ) => (
+                      <SelectItem key={typ} value={typ}>
+                        {typ}
+                        <span className="ml-1.5 text-[10px] text-muted-foreground">{groupLayer}</span>
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+            ) : (
+              <Badge
+                variant="secondary"
+                className={`font-mono text-xs ${isAdmin ? "cursor-pointer hover:ring-1 hover:ring-ring" : ""}`}
+                onDoubleClick={() => isAdmin && setEditingType(true)}
+                title={isAdmin ? "Double-cliquer pour modifier le type" : undefined}
+              >
+                {element.type}
+              </Badge>
+            )}
+            <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${layerColor}`}>{layer}</span>
+            {isInViews ? (
+              <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium bg-emerald-500/15 text-emerald-700">
+                ✓ {t("elements.in_views")}
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium bg-amber-500/15 text-amber-600">
+                ⚠ {t("elements.not_in_views")}
+              </span>
+            )}
+          </div>
+
+          {/* Name */}
+          <InlineText
+            value={element.name}
+            onSave={(v) => saveField({ name: v })}
+            className="text-xl sm:text-2xl font-semibold leading-tight block w-full"
+            placeholder={t("elements.placeholder")}
+            disabled={!isAdmin}
+          />
+        </div>
+
+        {/* Delete button */}
+        {isAdmin && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onDelete}
+            className="shrink-0 text-destructive hover:text-destructive border-destructive/30 hover:bg-destructive/5"
+          >
+            <Trash2 className="size-3.5 mr-1.5" />
+            {t("common.delete")}
+          </Button>
+        )}
+      </div>
+
+      {/* Description */}
+      <InlineText
+        value={element.documentation ?? ""}
+        onSave={(v) => saveField({ documentation: v || null })}
+        className="text-sm text-muted-foreground leading-relaxed block w-full"
+        placeholder={t("elements.no_documentation")}
+        multiline
+        disabled={!isAdmin}
+      />
+
+      {/* Not-in-views warning */}
+      {!isInViews && (
+        <div className="flex items-center gap-2 rounded-md border border-amber-300/50 bg-amber-50/50 dark:bg-amber-900/10 dark:border-amber-700/30 px-3 py-2 text-sm text-amber-700 dark:text-amber-400">
+          <span className="shrink-0">⚠</span>
+          {t("elements.not_in_views_hint")}
+        </div>
+      )}
+
+      {/* Specialization */}
+      <div className="flex items-center gap-2 text-sm">
+        <span className="text-muted-foreground shrink-0">{t("elements.specialization")} :</span>
+        {isAdmin && editingSpec ? (
+          <div className="flex items-center gap-2">
+            <div className="w-56">
+              <ElementSelect
+                options={elementSelectOpts}
+                value={specializes[0]?.target ?? ""}
+                onChange={saveSpecialization}
+                placeholder="— aucune —"
+              />
+            </div>
+            <Button variant="ghost" size="sm" onClick={() => setEditingSpec(false)}>{t("common.cancel")}</Button>
+          </div>
+        ) : (
+          <span
+            onDoubleClick={() => isAdmin && setEditingSpec(true)}
+            className={`${isAdmin ? "cursor-text hover:bg-muted/40 rounded px-1 -mx-1 transition-colors group" : ""}`}
+            title={isAdmin ? "Double-cliquer pour modifier" : undefined}
+          >
+            {specializes.length > 0 ? specializes.map((r) => (
+              <Link key={r.identifier} href={`/elements/${encodeURIComponent(r.target)}`}
+                className="text-primary hover:underline font-medium">
+                {r.target_name || r.target}
+              </Link>
+            )) : <span className="text-muted-foreground/60">—</span>}
+            {isAdmin && <span className="ml-1 opacity-0 group-hover:opacity-40 text-[10px] align-middle">✎</span>}
+          </span>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -498,124 +644,24 @@ export default function ElementDetailPage() {
       </Link>
 
       {/* Header */}
-      <div className="space-y-2 shrink-0">
-        <div className="flex flex-wrap items-start justify-between gap-2">
-          <div className="space-y-1.5 flex-1 min-w-0">
-
-            {/* Badges: type (inline-editable) + layer + status */}
-            <div className="flex flex-wrap items-center gap-2">
-              {isAdmin && editingType ? (
-                <Select value={element.type} onValueChange={async (v) => { if (v) { await saveField({ type: v }); } setEditingType(false); }}>
-                  <SelectTrigger className="h-6 text-xs w-48">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(groupedTypes).map(([layer, types]) =>
-                      types.map((typ) => (
-                        <SelectItem key={typ} value={typ}>
-                          {typ}
-                          <span className="ml-1.5 text-[10px] text-muted-foreground">{layer}</span>
-                        </SelectItem>
-                      ))
-                    )}
-                  </SelectContent>
-                </Select>
-              ) : (
-                <Badge
-                  variant="secondary"
-                  className={`font-mono text-xs ${isAdmin ? "cursor-pointer hover:ring-1 hover:ring-ring" : ""}`}
-                  onDoubleClick={() => isAdmin && setEditingType(true)}
-                  title={isAdmin ? "Double-cliquer pour modifier le type" : undefined}
-                >
-                  {element.type}
-                </Badge>
-              )}
-              <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${layerColor}`}>{layer}</span>
-              {isInViews ? (
-                <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium bg-emerald-500/15 text-emerald-700">
-                  ✓ {t("elements.in_views")}
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium bg-amber-500/15 text-amber-600">
-                  ⚠ {t("elements.not_in_views")}
-                </span>
-              )}
-            </div>
-
-            {/* Name */}
-            <InlineText
-              value={element.name}
-              onSave={(v) => saveField({ name: v })}
-              className="text-xl sm:text-2xl font-semibold leading-tight block w-full"
-              placeholder={t("elements.placeholder")}
-              disabled={!isAdmin}
-            />
-          </div>
-
-          {/* Delete button */}
-          {isAdmin && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => deleteActions.openWith(element)}
-              className="shrink-0 text-destructive hover:text-destructive border-destructive/30 hover:bg-destructive/5"
-            >
-              <Trash2 className="size-3.5 mr-1.5" />
-              {t("common.delete")}
-            </Button>
-          )}
-        </div>
-
-        {/* Description */}
-        <InlineText
-          value={element.documentation ?? ""}
-          onSave={(v) => saveField({ documentation: v || null })}
-          className="text-sm text-muted-foreground leading-relaxed block w-full"
-          placeholder={t("elements.no_documentation")}
-          multiline
-          disabled={!isAdmin}
-        />
-
-        {/* Not-in-views warning */}
-        {!isInViews && (
-          <div className="flex items-center gap-2 rounded-md border border-amber-300/50 bg-amber-50/50 dark:bg-amber-900/10 dark:border-amber-700/30 px-3 py-2 text-sm text-amber-700 dark:text-amber-400">
-            <span className="shrink-0">⚠</span>
-            {t("elements.not_in_views_hint")}
-          </div>
-        )}
-
-        {/* Specialization */}
-        <div className="flex items-center gap-2 text-sm">
-          <span className="text-muted-foreground shrink-0">{t("elements.specialization")} :</span>
-          {isAdmin && editingSpec ? (
-            <div className="flex items-center gap-2">
-              <div className="w-56">
-                <ElementSelect
-                  options={elementSelectOpts}
-                  value={specializes[0]?.target ?? ""}
-                  onChange={saveSpecialization}
-                  placeholder="— aucune —"
-                />
-              </div>
-              <Button variant="ghost" size="sm" onClick={() => setEditingSpec(false)}>{t("common.cancel")}</Button>
-            </div>
-          ) : (
-            <span
-              onDoubleClick={() => isAdmin && setEditingSpec(true)}
-              className={`${isAdmin ? "cursor-text hover:bg-muted/40 rounded px-1 -mx-1 transition-colors group" : ""}`}
-              title={isAdmin ? "Double-cliquer pour modifier" : undefined}
-            >
-              {specializes.length > 0 ? specializes.map((r) => (
-                <Link key={r.identifier} href={`/elements/${encodeURIComponent(r.target)}`}
-                  className="text-primary hover:underline font-medium">
-                  {r.target_name || r.target}
-                </Link>
-              )) : <span className="text-muted-foreground/60">—</span>}
-              {isAdmin && <span className="ml-1 opacity-0 group-hover:opacity-40 text-[10px] align-middle">✎</span>}
-            </span>
-          )}
-        </div>
-      </div>
+      <ElementHeader
+        element={element}
+        isAdmin={isAdmin}
+        editingType={editingType}
+        setEditingType={setEditingType}
+        groupedTypes={groupedTypes}
+        saveField={saveField}
+        layer={layer}
+        layerColor={layerColor}
+        isInViews={isInViews}
+        t={t}
+        editingSpec={editingSpec}
+        setEditingSpec={setEditingSpec}
+        elementSelectOpts={elementSelectOpts}
+        specializes={specializes}
+        saveSpecialization={saveSpecialization}
+        onDelete={() => deleteActions.openWith(element)}
+      />
 
       {/* Tabs — fills remaining vertical space */}
       <div className="flex flex-col flex-1 min-h-0 mt-4">

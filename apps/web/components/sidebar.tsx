@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState, useMemo } from "react";
-import { LayoutDashboard, LayoutGrid, Tag, Users, Settings as SettingsIcon, GitBranch, List, ChevronDown, PanelLeftClose, PanelLeftOpen } from "lucide-react";
-import { useIsAdmin } from "@/hooks/use-current-user";
+import { LayoutDashboard, LayoutGrid, Tag, Building2, FolderOpen, Settings as SettingsIcon, GitBranch, List, ChevronDown, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { useIsOrgAdmin } from "@/hooks/use-organization";
 import { getLayer, LAYER_HEX_COLORS, LAYER_LABELS } from "@/lib/archimate-helpers";
 import { allowedRelationships } from "@/lib/archimate-rules";
 import { useModel, useElements, useRelationships, useElementsInViews } from "@/lib/queries";
+import type { ModelInfo } from "@/lib/api";
 import { useT } from "@/lib/i18n";
 
 interface LayerGroup {
@@ -67,6 +68,92 @@ export function RailLink({ href, icon: Icon, label, active, onClick, badge }: {
   );
 }
 
+/** Elements nav section: link to the list plus one entry per ArchiMate layer. */
+function ElementsNavSection({ pathname, currentLayer, onClose, model, absentCount, layerCounts, t }: {
+  pathname: string;
+  currentLayer: string | null;
+  onClose: () => void;
+  model: ModelInfo | undefined;
+  absentCount: number;
+  layerCounts: Record<string, number>;
+  t: ReturnType<typeof useT>["t"];
+}) {
+  return (
+    <Section title={t("sidebar.elements")}>
+      {/* Always-available entry to the elements list (and its create dialog),
+          even for an empty model where no layer link would otherwise show. */}
+      <Link
+        href="/elements"
+        onClick={onClose}
+        className={`flex items-center justify-between gap-2 px-2 py-1.5 rounded-md text-sm no-underline transition-colors ${
+          pathname === "/elements" && !currentLayer
+            ? "bg-card text-foreground font-medium shadow-sm"
+            : "text-muted-foreground hover:bg-muted hover:text-foreground"
+        }`}
+      >
+        <span className="flex items-center gap-2">
+          <List className="size-3.5 shrink-0" />
+          {t("sidebar.list")}
+        </span>
+        <span className="flex items-center gap-1">
+          {model && <span className="text-[11px] text-muted-foreground">{model.element_count}</span>}
+          {absentCount > 0 && <span className="text-[10px] font-bold rounded-full bg-amber-500/15 text-amber-600 px-1">{absentCount}</span>}
+        </span>
+      </Link>
+      {LAYER_GROUPS.map((group) => {
+        const active = pathname === "/elements" && currentLayer === group.key;
+        return (
+          <Link
+            key={group.key}
+            href={`/elements?layer=${group.key}`}
+            onClick={onClose}
+            className={`flex items-center justify-between gap-2 px-2 py-1.5 rounded-md text-sm no-underline transition-colors ${
+              active
+                ? "bg-card text-foreground font-medium shadow-sm"
+                : "text-muted-foreground hover:bg-muted hover:text-foreground"
+            }`}
+          >
+            <span className="flex items-center gap-2">
+              <span
+                className="size-1.5 rounded-full shrink-0"
+                style={{ background: group.dot }}
+              />
+              {t(`layer.${group.key}` as Parameters<typeof t>[0]) || group.label}
+            </span>
+            <span className="text-[11px] text-muted-foreground">
+              {layerCounts[group.key] || 0}
+            </span>
+          </Link>
+        );
+      })}
+    </Section>
+  );
+}
+
+/** Desktop-only button that collapses/expands the sidebar to an icon rail. */
+function CollapseToggle({ collapsed, onToggleCollapse, t }: {
+  collapsed: boolean;
+  onToggleCollapse: () => void;
+  t: ReturnType<typeof useT>["t"];
+}) {
+  return (
+    <div className="hidden md:block border-t border-border px-2 py-2">
+      <button
+        type="button"
+        onClick={onToggleCollapse}
+        title={collapsed ? t("sidebar.expand") : t("sidebar.collapse")}
+        aria-label={collapsed ? t("sidebar.expand") : t("sidebar.collapse")}
+        className={`flex items-center gap-2.5 rounded-md text-sm w-full transition-colors text-muted-foreground hover:bg-muted hover:text-foreground ${
+          collapsed ? "justify-center size-9 mx-auto" : "px-3 py-2"
+        }`}
+      >
+        {collapsed ? <PanelLeftOpen className="size-4 shrink-0" /> : <PanelLeftClose className="size-4 shrink-0" />}
+        {!collapsed && t("sidebar.collapse")}
+      </button>
+    </div>
+  );
+}
+
 export function Sidebar({ open, onClose, collapsed, onToggleCollapse }: { open: boolean; onClose: () => void; collapsed: boolean; onToggleCollapse: () => void }) {
   return (
     <Suspense>
@@ -86,7 +173,7 @@ function SidebarInner({ open, onClose, collapsed, onToggleCollapse }: { open: bo
   const { data: relationships = [] } = useRelationships();
   const { data: inViews = [] } = useElementsInViews();
   const [mounted, setMounted] = useState(false);
-  const isAdmin = useIsAdmin();
+  const isOrgAdmin = useIsOrgAdmin();
 
   useEffect(() => { setMounted(true); }, []);
 
@@ -159,58 +246,32 @@ function SidebarInner({ open, onClose, collapsed, onToggleCollapse }: { open: bo
             {t("sidebar.overview")}
           </Link>
 
+          <Link
+            href="/workspaces"
+            onClick={onClose}
+            className={`flex items-center gap-2.5 px-3 py-2 mx-2 rounded-md text-sm no-underline transition-colors ${
+              pathname === "/workspaces"
+                ? "bg-card text-foreground font-medium shadow-sm"
+                : "text-muted-foreground hover:bg-muted hover:text-foreground"
+            }`}
+          >
+            <FolderOpen className="size-4 shrink-0" />
+            {t("sidebar.workspaces")}
+          </Link>
+
           {/* Separator */}
           <div className="mx-4 mt-3 mb-1 border-t border-border" />
 
           {/* Layer sections */}
-          <Section title={t("sidebar.elements")}>
-            {/* Always-available entry to the elements list (and its create dialog),
-                even for an empty model where no layer link would otherwise show. */}
-            <Link
-              href="/elements"
-              onClick={onClose}
-              className={`flex items-center justify-between gap-2 px-2 py-1.5 rounded-md text-sm no-underline transition-colors ${
-                pathname === "/elements" && !currentLayer
-                  ? "bg-card text-foreground font-medium shadow-sm"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
-              }`}
-            >
-              <span className="flex items-center gap-2">
-                <List className="size-3.5 shrink-0" />
-                {t("sidebar.list")}
-              </span>
-              <span className="flex items-center gap-1">
-                {model && <span className="text-[11px] text-muted-foreground">{model.element_count}</span>}
-                {absentCount > 0 && <span className="text-[10px] font-bold rounded-full bg-amber-500/15 text-amber-600 px-1">{absentCount}</span>}
-              </span>
-            </Link>
-            {LAYER_GROUPS.map((group) => {
-              const active = pathname === "/elements" && currentLayer === group.key;
-              return (
-                <Link
-                  key={group.key}
-                  href={`/elements?layer=${group.key}`}
-                  onClick={onClose}
-                  className={`flex items-center justify-between gap-2 px-2 py-1.5 rounded-md text-sm no-underline transition-colors ${
-                    active
-                      ? "bg-card text-foreground font-medium shadow-sm"
-                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                  }`}
-                >
-                  <span className="flex items-center gap-2">
-                    <span
-                      className="size-1.5 rounded-full shrink-0"
-                      style={{ background: group.dot }}
-                    />
-                    {t(`layer.${group.key}` as Parameters<typeof t>[0]) || group.label}
-                  </span>
-                  <span className="text-[11px] text-muted-foreground">
-                    {layerCounts[group.key] || 0}
-                  </span>
-                </Link>
-              );
-            })}
-          </Section>
+          <ElementsNavSection
+            pathname={pathname}
+            currentLayer={currentLayer}
+            onClose={onClose}
+            model={model}
+            absentCount={absentCount}
+            layerCounts={layerCounts}
+            t={t}
+          />
 
           {/* Separator */}
           <div className="mx-4 mt-2 mb-1 border-t border-border" />
@@ -287,28 +348,41 @@ function SidebarInner({ open, onClose, collapsed, onToggleCollapse }: { open: bo
 
         </div>
 
-        {/* Settings — bottom */}
-        {mounted && isAdmin && (
-          <div className="border-t border-border px-2 py-2">
+        {/* Organisation & settings — bottom */}
+        <div className="border-t border-border px-2 py-2 flex flex-col gap-1">
+          {mounted && isOrgAdmin && (
             <Link
-              href="/settings"
+              href="/organization"
               onClick={onClose}
               className={`flex items-center gap-2.5 px-3 py-2 rounded-md text-sm no-underline transition-colors ${
-                pathname === "/settings" || pathname.startsWith("/settings/")
+                pathname === "/organization" || pathname.startsWith("/organization/")
                   ? "bg-card text-foreground font-medium shadow-sm"
                   : "text-muted-foreground hover:bg-muted hover:text-foreground"
               }`}
             >
-              <SettingsIcon className="size-4 shrink-0" />
-              {t("sidebar.settings")}
+              <Building2 className="size-4 shrink-0" />
+              {t("nav.organization")}
             </Link>
-          </div>
-        )}
+          )}
+          <Link
+            href="/settings"
+            onClick={onClose}
+            className={`flex items-center gap-2.5 px-3 py-2 rounded-md text-sm no-underline transition-colors ${
+              pathname === "/settings" || pathname.startsWith("/settings/")
+                ? "bg-card text-foreground font-medium shadow-sm"
+                : "text-muted-foreground hover:bg-muted hover:text-foreground"
+            }`}
+          >
+            <SettingsIcon className="size-4 shrink-0" />
+            {t("sidebar.settings")}
+          </Link>
+        </div>
         </div>
 
         {/* Icon rail — shown on desktop in place of the full content when collapsed */}
         <div className={`hidden flex-1 flex-col items-center gap-1 py-3 ${collapsed ? "md:flex" : ""}`}>
           <RailLink href="/" icon={LayoutDashboard} label={t("sidebar.overview")} active={pathname === "/"} onClick={onClose} />
+          <RailLink href="/workspaces" icon={FolderOpen} label={t("sidebar.workspaces")} active={pathname === "/workspaces"} onClick={onClose} />
           <div className="w-6 border-t border-border my-1" />
           <RailLink href="/elements" icon={List} label={t("sidebar.elements")} active={pathname === "/elements"} onClick={onClose} badge={absentCount > 0 ? "amber" : undefined} />
           <RailLink href="/relationships" icon={GitBranch} label={t("sidebar.relationships")} active={pathname === "/relationships"} onClick={onClose} badge={relConflictCount > 0 ? "destructive" : undefined} />
@@ -316,27 +390,15 @@ function SidebarInner({ open, onClose, collapsed, onToggleCollapse }: { open: bo
           <RailLink href="/properties" icon={Tag} label={t("sidebar.properties")} active={pathname === "/properties"} onClick={onClose} />
         </div>
 
-        {mounted && isAdmin && (
-          <div className={`hidden border-t border-border py-2 flex-col items-center ${collapsed ? "md:flex" : ""}`}>
-            <RailLink href="/settings" icon={SettingsIcon} label={t("sidebar.settings")} active={pathname === "/settings" || pathname.startsWith("/settings/")} onClick={onClose} />
-          </div>
-        )}
+        <div className={`hidden border-t border-border py-2 flex-col items-center gap-1 ${collapsed ? "md:flex" : ""}`}>
+          {mounted && isOrgAdmin && (
+            <RailLink href="/organization" icon={Building2} label={t("nav.organization")} active={pathname === "/organization" || pathname.startsWith("/organization/")} onClick={onClose} />
+          )}
+          <RailLink href="/settings" icon={SettingsIcon} label={t("sidebar.settings")} active={pathname === "/settings" || pathname.startsWith("/settings/")} onClick={onClose} />
+        </div>
 
         {/* Collapse / expand toggle — desktop only */}
-        <div className="hidden md:block border-t border-border px-2 py-2">
-          <button
-            type="button"
-            onClick={onToggleCollapse}
-            title={collapsed ? t("sidebar.expand") : t("sidebar.collapse")}
-            aria-label={collapsed ? t("sidebar.expand") : t("sidebar.collapse")}
-            className={`flex items-center gap-2.5 rounded-md text-sm w-full transition-colors text-muted-foreground hover:bg-muted hover:text-foreground ${
-              collapsed ? "justify-center size-9 mx-auto" : "px-3 py-2"
-            }`}
-          >
-            {collapsed ? <PanelLeftOpen className="size-4 shrink-0" /> : <PanelLeftClose className="size-4 shrink-0" />}
-            {!collapsed && t("sidebar.collapse")}
-          </button>
-        </div>
+        <CollapseToggle collapsed={collapsed} onToggleCollapse={onToggleCollapse} t={t} />
       </aside>
     </>
   );

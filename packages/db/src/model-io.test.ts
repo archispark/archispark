@@ -1,10 +1,17 @@
 import { describe, it, expect, beforeAll } from "vitest";
+import { randomUUID } from "node:crypto";
 import { seedWorkspace, modelFromDb, modelToDb } from "./model-io.js";
 import { runMigrations } from "./migrate.js";
+import { db } from "./connection.js";
+import { organizations } from "./schema.js";
 import type { ArchiModel } from "./model.js";
+
+let orgId: string;
 
 beforeAll(async () => {
   await runMigrations();
+  orgId = `org-model-io-test-${randomUUID()}`;
+  await db.insert(organizations).values({ id: orgId, name: orgId, slug: orgId, createdAt: new Date() });
 });
 
 function emptyModel(uuid: string, name = "Empty"): ArchiModel {
@@ -17,15 +24,15 @@ function emptyModel(uuid: string, name = "Empty"): ArchiModel {
 
 describe("seedWorkspace", () => {
   it("creates workspace and returns numeric id", async () => {
-    const id = await seedWorkspace(`SW-${Date.now()}`, emptyModel("sw-uuid-1"));
+    const id = await seedWorkspace(`SW-${Date.now()}`, emptyModel("sw-uuid-1"), orgId);
     expect(typeof id).toBe("number");
     expect(id).toBeGreaterThan(0);
   });
 
   it("returns existing id when name already exists (idempotent)", async () => {
     const name = `SW-dup-${Date.now()}`;
-    const id1 = await seedWorkspace(name, emptyModel("sw-dup-1"));
-    const id2 = await seedWorkspace(name, emptyModel("sw-dup-2"));
+    const id1 = await seedWorkspace(name, emptyModel("sw-dup-1"), orgId);
+    const id2 = await seedWorkspace(name, emptyModel("sw-dup-2"), orgId);
     expect(id2).toBe(id1);
   });
 });
@@ -129,7 +136,7 @@ describe("modelToDb + modelFromDb roundtrip", () => {
       ],
     };
 
-    const wsId = await seedWorkspace(`RT-WS-${Date.now()}`, model);
+    const wsId = await seedWorkspace(`RT-WS-${Date.now()}`, model, orgId);
     const loaded = await modelFromDb(wsId);
 
     expect(loaded.uuid).toBe(model.uuid);
@@ -186,7 +193,7 @@ describe("modelToDb + modelFromDb roundtrip", () => {
 
   it("replaces model data on second modelToDb call", async () => {
     const initial = emptyModel(`upd-uuid-${Date.now()}`, "Initial");
-    const wsId = await seedWorkspace(`Upd-WS-${Date.now()}`, initial);
+    const wsId = await seedWorkspace(`Upd-WS-${Date.now()}`, initial, orgId);
 
     const updated: ArchiModel = {
       ...initial,
@@ -218,7 +225,7 @@ describe("modelToDb + modelFromDb roundtrip", () => {
       ],
       relationships: [], views: [],
     };
-    const wsId = await seedWorkspace(`Props-WS-${Date.now()}`, model);
+    const wsId = await seedWorkspace(`Props-WS-${Date.now()}`, model, orgId);
     const loaded = await modelFromDb(wsId);
     expect(loaded.elements[0]!.props["p1"]).toBe("team-a");
     expect(loaded.elements[0]!.props["p2"]).toBe("1000");

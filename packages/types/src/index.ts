@@ -113,8 +113,11 @@ export interface PropertyDefinitionOut {
 export interface WorkspaceInfo {
   id: string;
   name: string;
+  description?: string | null;
   path?: string | null;
   active: boolean;
+  organization_id: string;
+  team_ids: string[];
 }
 
 export interface UserOut {
@@ -122,32 +125,4 @@ export interface UserOut {
   username: string;
   role: string;
   created_at: string;
-}
-
-export const PERMISSION_FLAGS = ["read", "create", "update", "delete"] as const;
-export type PermissionFlag = typeof PERMISSION_FLAGS[number];
-export type LayerPermissions = PermissionFlag[];
-
-export const ARCHIMATE_LAYERS = [
-  "Strategy",
-  "Business",
-  "Application",
-  "Technology",
-  "Motivation",
-  "Physical",
-  "Implementation",
-  "Composite",
-  "Relations",
-  "Views",
-] as const;
-export type ArchiLayer = typeof ARCHIMATE_LAYERS[number];
-
-export interface RoleOut {
-  id: string;
-  name: string;
-  description: string | null;
-  is_system: boolean;
-  created_at: string;
-  permissions: Record<ArchiLayer, LayerPermissions>;
-  user_ids: string[];
 }
