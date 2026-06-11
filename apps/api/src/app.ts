@@ -441,7 +441,7 @@ app.get("/settings/postgres", requireSuperAdmin as express.RequestHandler, async
 
 app.get("/settings/api-tokens", requireAuth as express.RequestHandler, async (req: AuthRequest, res: Response) => {
   const cols = { id: apiTokens.id, name: apiTokens.name, userId: apiTokens.userId, createdAt: apiTokens.createdAt, lastUsedAt: apiTokens.lastUsedAt, expiresAt: apiTokens.expiresAt };
-  const rows = req.user?.role === "admin"
+  const rows = req.user?.role === "platform_admin"
     ? await controlDb.select(cols).from(apiTokens)
     : await controlDb.select(cols).from(apiTokens).where(eq(apiTokens.userId, req.user!.id));
   res.json(rows.map((r) => ({ id: r.id, name: r.name, user_id: r.userId, created_at: r.createdAt, last_used_at: r.lastUsedAt ?? null, expires_at: r.expiresAt ?? null })));
@@ -469,7 +469,7 @@ app.delete("/settings/api-tokens/:id", requireAuth as express.RequestHandler, as
   if (isNaN(id)) { res.status(422).json({ detail: "ID invalide." }); return; }
   const [existing] = await controlDb.select({ userId: apiTokens.userId }).from(apiTokens).where(eq(apiTokens.id, id));
   if (!existing) { res.status(404).json({ detail: "Token introuvable." }); return; }
-  if (req.user?.role !== "admin" && existing.userId !== req.user?.id) {
+  if (req.user?.role !== "platform_admin" && existing.userId !== req.user?.id) {
     res.status(403).json({ detail: "Accès refusé." }); return;
   }
   await controlDb.delete(apiTokens).where(eq(apiTokens.id, id));

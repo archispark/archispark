@@ -94,7 +94,7 @@ const TEST_TOKEN = vi.hoisted(() => "test-mcp-bearer-token-fixture");
 // package wildcard exports, which Vitest resolves inconsistently in fork mode).
 vi.mock("./token-auth.js", () => ({
   lookupApiToken: vi.fn().mockImplementation((token: string) => {
-    if (token === TEST_TOKEN) return Promise.resolve({ id: "user-admin", username: "admin", role: "admin", organizationId: "org-1", workspaceId: null });
+    if (token === TEST_TOKEN) return Promise.resolve({ id: "user-admin", username: "admin", role: "platform_admin", organizationId: "org-1", workspaceId: null });
     return Promise.resolve(null);
   }),
   getMembershipContext: vi.fn().mockResolvedValue({ organizationId: "org-1", orgRole: "owner", teamIds: [] }),

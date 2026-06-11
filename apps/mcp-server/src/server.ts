@@ -75,7 +75,7 @@ const { version } = packageJson;
 // instance across sessions throws "Already connected to a transport" — which on
 // serverless means every request after the first on a warm instance 500s.
 function createMcpServer(user: TokenUser, ctx: WorkspaceContext): McpServer {
-  const isAdmin = user.role === "admin";
+  const isAdmin = user.role === "platform_admin";
 
   /** Blocks write operations for org members (read-only). Super admins always pass. */
   function requireWrite(): void {

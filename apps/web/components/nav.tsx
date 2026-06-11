@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
-import { Menu, FolderOpen, Building2, ShieldCheck } from "lucide-react";
+import { Menu, FolderOpen, Building2 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { type ElementOut } from "@/lib/api";
 import { useWorkspaces, useElement, useView } from "@/lib/queries";
@@ -33,7 +33,6 @@ export function Nav({ onToggleSidebar }: { onToggleSidebar: () => void }) {
 
   const activeWs = workspaces.find((w) => w.active);
   const segments = pathname.split("/").filter(Boolean);
-  const isAdminView = segments[0] === "admin";
   const isOrganizationView = segments[0] === "organization";
   const isOrgAdmin = useIsOrgAdmin();
 
@@ -112,18 +111,8 @@ properties: "breadcrumb.properties",
 
       <OrgSwitcher />
 
-      {/* Admin view has its own breadcrumb root, separate from the workspace tree. */}
-      {isAdminView && (
-        <div className="flex items-center gap-1.5 text-[13px] overflow-hidden">
-          <span className="flex items-center gap-1.5 text-foreground whitespace-nowrap shrink-0">
-            <ShieldCheck className="size-3.5 text-primary shrink-0" />
-            {t("breadcrumb.admin")}
-          </span>
-        </div>
-      )}
-
       {/* Unified breadcrumb: Organisation / Workspaces / nom projet / Section / leaf */}
-      {!isAdminView && workspaces.length > 0 && (
+      {workspaces.length > 0 && (
         <div className="flex items-center gap-1.5 text-[13px] text-muted-foreground overflow-hidden">
           {isOrgAdmin && (
             <>

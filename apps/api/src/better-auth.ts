@@ -162,12 +162,12 @@ function createAuthInstance(oauthConfig: unknown[]) {
       username(),
       admin({
         defaultRole: "user",
-        adminRole: "admin",
+        adminRole: "platform_admin",
       }),
       organization({
         teams: { enabled: true },
         // Only the platform super admin can create new organizations.
-        allowUserToCreateOrganization: async (user) => user.role === "admin",
+        allowUserToCreateOrganization: async (user) => user.role === "platform_admin",
         organizationHooks: {
           /* v8 ignore start -- requires NEON_API_KEY/NEON_PROJECT_ID + a live Neon project; exercised in production only */
           afterCreateOrganization: async ({ organization }) => {

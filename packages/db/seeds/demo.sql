@@ -25,7 +25,7 @@ BEGIN
 
   INSERT INTO member (id, organization_id, user_id, role, created_at)
   SELECT 'member-' || org_id || '-' || u.id, org_id, u.id,
-         CASE WHEN u.role = 'admin' THEN 'owner' ELSE 'member' END, NOW()
+         CASE WHEN u.role = 'platform_admin' THEN 'owner' ELSE 'member' END, NOW()
   FROM "user" u
   ON CONFLICT (organization_id, user_id) DO NOTHING;
 
@@ -5401,7 +5401,7 @@ BEGIN
 
   INSERT INTO member (id, organization_id, user_id, role, created_at)
   SELECT 'member-' || org_id || '-' || u.id, org_id, u.id,
-         CASE WHEN u.role = 'admin' THEN 'owner' ELSE 'member' END, NOW()
+         CASE WHEN u.role = 'platform_admin' THEN 'owner' ELSE 'member' END, NOW()
   FROM "user" u
   ON CONFLICT (organization_id, user_id) DO NOTHING;
 

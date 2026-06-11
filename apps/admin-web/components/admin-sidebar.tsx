@@ -1,33 +1,23 @@
 "use client";
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
-import { Suspense } from "react";
+import { usePathname } from "next/navigation";
 import { Users as UsersIcon, KeyRound, Database, Server, MessageSquare, Building2, PanelLeftClose, PanelLeftOpen } from "lucide-react";
-import { RailLink } from "@/components/sidebar";
+import { RailLink } from "@/components/rail-link";
 import { useT } from "@/lib/i18n";
 
 const ADMIN_TABS = [
-  { key: "organizations", icon: Building2, labelKey: "settings.org.orgs_title" },
-  { key: "messages", icon: MessageSquare, labelKey: "settings.tab_messages" },
-  { key: "members", icon: UsersIcon, labelKey: "settings.tab_members" },
-  { key: "authentication", icon: KeyRound, labelKey: "settings.tab_authentication" },
-  { key: "redis", icon: Database, labelKey: "settings.tab_redis" },
-  { key: "postgres", icon: Server, labelKey: "settings.tab_postgres" },
+  { href: "/organizations", icon: Building2, labelKey: "settings.org.orgs_title" },
+  { href: "/users", icon: UsersIcon, labelKey: "users.title" },
+  { href: "/authentication", icon: KeyRound, labelKey: "settings.tab_authentication" },
+  { href: "/redis", icon: Database, labelKey: "settings.tab_redis" },
+  { href: "/postgres", icon: Server, labelKey: "settings.tab_postgres" },
+  { href: "/messages", icon: MessageSquare, labelKey: "settings.tab_messages" },
 ] as const;
 
 export function AdminSidebar({ open, onClose, collapsed, onToggleCollapse }: { open: boolean; onClose: () => void; collapsed: boolean; onToggleCollapse: () => void }) {
-  return (
-    <Suspense>
-      <AdminSidebarInner open={open} onClose={onClose} collapsed={collapsed} onToggleCollapse={onToggleCollapse} />
-    </Suspense>
-  );
-}
-
-function AdminSidebarInner({ open, onClose, collapsed, onToggleCollapse }: { open: boolean; onClose: () => void; collapsed: boolean; onToggleCollapse: () => void }) {
-  const searchParams = useSearchParams();
+  const pathname = usePathname();
   const { t } = useT();
-  const currentTab = searchParams.get("tab") ?? "members";
 
   return (
     <>
@@ -45,19 +35,13 @@ function AdminSidebarInner({ open, onClose, collapsed, onToggleCollapse }: { ope
       >
         {/* Full content — hidden on desktop when the sidebar is collapsed to an icon rail */}
         <div className={collapsed ? "contents md:hidden" : "contents"}>
-          <div className="px-4 pt-4 pb-3 border-b border-border">
-            <div className="text-[13px] font-semibold text-foreground whitespace-nowrap overflow-hidden text-ellipsis">
-              {t("admin.title")}
-            </div>
-          </div>
-
           <div className="flex-1 py-2 overflow-y-auto">
-            {ADMIN_TABS.map(({ key, icon: Icon, labelKey }) => {
-              const active = currentTab === key;
+            {ADMIN_TABS.map(({ href, icon: Icon, labelKey }) => {
+              const active = pathname === href || pathname.startsWith(`${href}/`);
               return (
                 <Link
-                  key={key}
-                  href={`/admin?tab=${key}`}
+                  key={href}
+                  href={href}
                   onClick={onClose}
                   className={`flex items-center gap-2.5 px-3 py-2 mx-2 rounded-md text-sm no-underline transition-colors ${
                     active ? "bg-card text-foreground font-medium shadow-sm" : "text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -73,9 +57,12 @@ function AdminSidebarInner({ open, onClose, collapsed, onToggleCollapse }: { ope
 
         {/* Icon rail — shown on desktop in place of the full content when collapsed */}
         <div className={`hidden flex-1 flex-col items-center gap-1 py-3 ${collapsed ? "md:flex" : ""}`}>
-          {ADMIN_TABS.map(({ key, icon: Icon, labelKey }) => (
-            <RailLink key={key} href={`/admin?tab=${key}`} icon={Icon} label={t(labelKey)} active={currentTab === key} onClick={onClose} />
-          ))}
+          {ADMIN_TABS.map(({ href, icon: Icon, labelKey }) => {
+            const active = pathname === href || pathname.startsWith(`${href}/`);
+            return (
+              <RailLink key={href} href={href} icon={Icon} label={t(labelKey)} active={active} onClick={onClose} />
+            );
+          })}
         </div>
 
         {/* Collapse / expand toggle — desktop only */}

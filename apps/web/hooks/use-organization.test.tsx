@@ -185,7 +185,7 @@ describe("useIsOrgAdmin", () => {
   });
 
   it("returns true for a platform super admin regardless of org role", () => {
-    mocks._setMockUser({ id: "u1", name: "alice", username: "alice", role: "admin" });
+    mocks._setMockUser({ id: "u1", name: "alice", username: "alice", role: "platform_admin" });
     mocks._setMockMemberRole({ role: "member" });
     const { result } = renderHook(() => useIsOrgAdmin());
     expect(result.current).toBe(true);

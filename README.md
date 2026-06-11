@@ -9,13 +9,14 @@ ArchiMate 3.1 modeling tool — REST API, MCP server, and web UI.
 | API | Express + TypeScript ESM, PostgreSQL (Drizzle ORM), Better Auth (sessions) |
 | MCP | `@modelcontextprotocol/sdk` — Streamable HTTP transport, Bearer token auth |
 | Web | Next.js 16, React, shadcn/ui, Vercel Analytics + Speed Insights |
+| Admin web | Next.js 16 — platform admin console (`apps/admin-web`), `platform_admin` only |
 | Cache | Redis (required) — session store + distributed rate-limiting |
 
 ## Quick start
 
 ```bash
 pnpm install
-pnpm dev          # API :3000 · Web :8000 · MCP :3001 · all bound to 0.0.0.0
+pnpm dev          # API :3000 · Web :8000 · Admin :8001 · MCP :3001 · all bound to 0.0.0.0
 ```
 
 On first run the API:
@@ -275,27 +276,41 @@ Write operations (`POST`, `PUT`, `DELETE`) on workspace content require the `own
 | `GET` | `/me` | user | Returns current user |
 | `/auth/organization/*` | — | user | Better Auth organization plugin: list/create organizations, invite/remove members, manage teams, switch active organization, etc. |
 
-Default credentials: `admin` / `admin` (admin), `user` / `user` (read-only).
+Default credentials: `admin` / `admin` (`platform_admin`), `user` / `user` (read-only).
 
 ## Organizations & teams
 
 ArchiSpark is multi-tenant: each **organization** ("entreprise") has its own members, teams, and workspaces.
 
 - **Roles** (Better Auth organization plugin): `owner`, `admin`, `member` — scoped per organization. `owner`/`admin` can manage members, invitations, teams, and workspace content; `member` has read-only access.
-- **Platform super admin**: a user with the global `role: "admin"` (set via `/users`) bypasses organization role checks everywhere and can create new organizations (`allowUserToCreateOrganization`).
+- **Platform super admin**: a user with the global `role: "platform_admin"` (set via the [admin web](#admin-web) `/users` page, or `POST`/`PUT /users`) bypasses organization role checks everywhere and can create new organizations (`allowUserToCreateOrganization`).
 - **Teams** group members within an organization. A workspace with one or more `team_ids` is only visible to members of those teams (plus org owners/admins); a workspace with no teams is visible to the whole organization.
 - Each user has one **active workspace per organization**, switched via `POST /workspaces/:id/activate`.
 
-Org owners/admins (and platform super admins) see an **Organization** entry in the sidebar, opening a dedicated section (`/organization`) with its own sidebar and two tabs: **Workspace** (list every workspace in the organization — create, activate, rename, assign teams, or delete each one) and **Membres** (manage members, invitations, and teams). The platform-wide list of organizations is managed from **Admin → Organizations** (platform super admins only).
+Org owners/admins (and platform super admins) see an **Organization** entry in the sidebar, opening a dedicated section (`/organization`) with its own sidebar and two tabs: **Workspace** (list every workspace in the organization — create, activate, rename, assign teams, or delete each one) and **Membres** (manage members, invitations, and teams). The platform-wide list of organizations across every tenant is managed separately from the [admin web](#admin-web) console (`/organizations`, platform super admins only).
 
 **Settings** (`/settings`, visible to all users) is for importing/exporting the active workspace's model.
 
-## User management (platform admin only)
+## Admin web
+
+`apps/admin-web` is a separate Next.js app (port **8001**) providing a platform-wide admin console, restricted to users with `role: "platform_admin"` — anyone else is redirected to `/login`.
+
+| Route | Purpose |
+|-------|---------|
+| `/login` | Sign in (shares the Better Auth session with the main API) |
+| `/organizations` | List, create, rename, and delete organizations across every tenant (default landing page) |
+| `/users` | Manage platform users — create/update/delete, assign the `platform_admin` role |
+| `/authentication` | Manage OAuth/SSO providers |
+| `/redis` | Redis connection status |
+| `/postgres` | PostgreSQL connection status |
+| `/messages` | Configure the login-page message and the site-wide banner |
+
+### User management API (platform admin only)
 
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/users` | List all users |
-| `POST` | `/users` | Create user — body: `{ username, password, role? }`. The new user is added as a member of the requester's active organization (`owner` if `role === "admin"`, otherwise `member`) |
+| `POST` | `/users` | Create user — body: `{ username, password, role? }`. The new user is added as a member of the requester's active organization (`owner` if `role === "platform_admin"`, otherwise `member`) |
 | `PUT` | `/users/:id` | Update password and/or role |
 | `DELETE` | `/users/:id` | Delete user (last user protected) |
 

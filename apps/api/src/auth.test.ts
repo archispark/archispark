@@ -85,9 +85,9 @@ describe("POST/GET/PUT/DELETE /users lifecycle", () => {
   });
 
   it("updates user role (PUT /users/:id)", async () => {
-    const res = await request(app).put(`/users/${userId}`).send({ role: "admin" });
+    const res = await request(app).put(`/users/${userId}`).send({ role: "platform_admin" });
     expect(res.status).toBe(200);
-    expect(res.body.role).toBe("admin");
+    expect(res.body.role).toBe("platform_admin");
   });
 
   it("deletes the user (DELETE /users/:id)", async () => {

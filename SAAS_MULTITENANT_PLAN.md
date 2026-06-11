@@ -168,17 +168,57 @@ changent pas).
 
 ## Phase 4 — Split des interfaces (apps/admin-web)
 
-- [ ] Nouvelle app Next.js `apps/admin-web` (extraite de `apps/web/app/admin`)
-  - [ ] Gestion organisations/tenants (liste, statut provisioning, suspension)
-  - [ ] Gestion users globaux, OAuth providers, site settings
-  - [ ] Aucune route/dépendance vers les endpoints "data" tenant
-- [ ] Nouveau rôle `platform_admin` (remplace le bypass `user.role==="admin"` dans
-      `requireWorkspaceWrite`)
-- [ ] Retirer `/admin` de `apps/web`
+- [x] Nouveau rôle `platform_admin` (remplace le bypass `user.role==="admin"` dans
+      `requireWorkspaceWrite`) — migration `0010_platform_admin_role.sql`,
+      `requireSuperAdmin`, Better Auth `adminRole`, `allowUserToCreateOrganization`,
+      MCP `isAdmin`, `useIsAdmin()` (reste dans apps/web, utilisé pour le
+      bypass lecture-seule sur les pages tenant-data).
+
+### Phase 4a — Scaffold `apps/admin-web` (build complet, in-repo, testable)
+
+- [x] Config workspace : `package.json`, `next.config.ts`, `tsconfig.json`,
+      `eslint.config.js`, `postcss.config.mjs`, `components.json`,
+      `next-env.d.ts`, `vitest.config.ts`, `vitest.setup.ts`
+- [x] `proxy.ts` (+ test) — même garde de session Better Auth que `apps/web`
+- [x] `lib/auth-client.ts`, `lib/i18n.tsx` + `messages/{fr,en,es,de,it}.json`
+      (sous-ensemble de clés extrait de `apps/web/messages/*`)
+- [x] `lib/api.ts` + `lib/queries.ts` (sous-ensemble : users, OAuth providers,
+      redis/postgres status, site messages — aucun endpoint "data" tenant)
+- [x] `hooks/use-current-user.ts` (`useIsAdmin` = garde d'accès `platform_admin`),
+      `hooks/use-organization.ts` (sous-ensemble : `useOrganizations`,
+      `useCreateOrganization`, `useUpdateOrganization`)
+- [x] Composants partagés copiés/adaptés : `theme-provider`, `theme-toggle`,
+      `locale-switcher` + `flags`, `query-provider`, `data-table`, `user-menu`,
+      `client-layout`, `nav`, `admin-sidebar`, `hooks/use-form-modal`
+- [x] Pages : `/login`, `/organizations` (liste/CRUD), `/users` (CRUD + rôle),
+      `/authentication` (OAuth/OIDC CRUD), `/redis`, `/postgres`, `/messages`
+      (login/banner), `/` → redirect `/organizations`
+- [x] Garde d'accès `platform_admin` (redirection si non-admin)
+- [x] Tests (`pnpm --filter admin-web test:coverage` ≥ 60%)
+- [x] Retirer `/admin` de `apps/web` (page, `admin-sidebar`, lien `UserMenu`,
+      `client-layout`, `nav`, breadcrumb `isAdminView`) — `MembersTab` /
+      `app/users/page.tsx` désormais uniquement dans `admin-web`
+- [x] `pnpm run -w test`, `pnpm turbo run lint`, `pnpm turbo run typecheck`,
+      `pnpm turbo run build`
+- [x] Mettre à jour `README.md`
+- [ ] Commit Phase 4a
+
+### Phase 4b — Gestion organisations/tenants (suivi, hors build initial)
+
+- [ ] Endpoint admin `GET /admin/organizations` : liste organisations +
+      `tenant_databases.status` (pending/provisioning/active/error) — affichage
+      lecture seule dans `admin-web` (`/organizations`)
+- [ ] Suspension d'organisation : colonne `organizations.enabled` (migration),
+      endpoint admin pour bascule, vérification dans le middleware
+      d'auth/résolution tenant (bloquer les membres non-`platform_admin` d'une
+      org désactivée)
+- [ ] Tests db/api/admin-web associés
+- [ ] Commit Phase 4b
+
+### Phase 4c — Infra (sous-domaines / Vercel) — action utilisateur
+
 - [ ] Sous-domaines (`app.xxx` / `admin.xxx`) + cookie Better Auth sur domaine racine
 - [ ] Config Vercel : 2 projets
-- [ ] Mettre à jour `README.md`
-- [ ] Commit Phase 4
 
 ---
 

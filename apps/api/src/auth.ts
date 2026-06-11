@@ -63,7 +63,7 @@ export async function initUsers(): Promise<void> {
   const now = new Date();
 
   // Seed default users
-  const seedUser = async (username: string, password: string, role: "admin" | "user") => {
+  const seedUser = async (username: string, password: string, role: "platform_admin" | "user") => {
     const [existing] = await controlDb.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.username, username));
     let userId: string | null = existing?.id ?? null;
     if (!userId) {
@@ -83,7 +83,7 @@ export async function initUsers(): Promise<void> {
 
   const adminPwd = process.env["SEED_ADMIN_PASSWORD"] || "admin";
   const userPwd  = process.env["SEED_USER_PASSWORD"]  || "user";
-  const adminId = await seedUser("admin", adminPwd, "admin");
+  const adminId = await seedUser("admin", adminPwd, "platform_admin");
   const userId  = await seedUser("user",  userPwd,  "user");
   if (!process.env["SEED_ADMIN_PASSWORD"]) {
     console.warn("[auth] SEED_ADMIN_PASSWORD not set — using default 'admin'. Set it in production!");
@@ -126,7 +126,7 @@ export async function listUsers(): Promise<UserOut[]> {
 
 /**
  * Create a platform user. When `organizationId` is given, the new user is
- * also added as a member of that organization (owner if `role === "admin"`,
+ * also added as a member of that organization (owner if `role === "platform_admin"`,
  * member otherwise) so they can immediately access its workspaces.
  */
 export async function createUser(username: string, password: string, role: string = "user", organizationId?: string): Promise<UserOut> {
@@ -136,14 +136,14 @@ export async function createUser(username: string, password: string, role: strin
     body: { email: `${username}@archispark.internal`, password, name: username, username } as never,
   /* v8 ignore next */ }).catch(() => null);
   if (!res?.user) throw new ValidationError("Impossible de créer l'utilisateur.");
-  const validRole: "admin" | "user" = role === "admin" ? "admin" : "user";
+  const validRole: "platform_admin" | "user" = role === "platform_admin" ? "platform_admin" : "user";
   await controlDb.update(usersTable).set({ username, role: validRole }).where(eq(usersTable.id, res.user.id));
   if (organizationId) {
     await controlDb.insert(membersTable).values({
       id: randomUUID(),
       organizationId,
       userId: res.user.id,
-      role: validRole === "admin" ? "owner" : "member",
+      role: validRole === "platform_admin" ? "owner" : "member",
       createdAt: new Date(),
     }).onConflictDoNothing();
   }
@@ -157,7 +157,7 @@ export async function updateUserById(id: string, updates: { password?: string; r
   if (!existing) throw new NotFoundError(`Utilisateur '${id}' introuvable.`);
   const now = new Date();
   if (updates.role !== undefined) {
-    const validRole: "admin" | "user" = updates.role === "admin" ? "admin" : "user";
+    const validRole: "platform_admin" | "user" = updates.role === "platform_admin" ? "platform_admin" : "user";
     await controlDb.update(usersTable).set({ role: validRole, updatedAt: now }).where(eq(usersTable.id, id));
   }
   if (updates.password) {
@@ -263,7 +263,7 @@ export function requireAuth(req: AuthRequest, res: Response, next: NextFunction)
 
 export function requireSuperAdmin(req: AuthRequest, res: Response, next: NextFunction): void {
   requireAuth(req, res, () => {
-    if (req.user?.role !== "admin") {
+    if (req.user?.role !== "platform_admin") {
       res.status(403).json({ detail: "Accès réservé aux administrateurs." });
       return;
     }
@@ -305,7 +305,7 @@ export async function resolveWorkspaceContext(req: AuthRequest, res: Response, n
 
 /** Blocks write requests for org members (read-only). Super admins always pass. */
 export function requireWorkspaceWrite(req: AuthRequest, res: Response, next: NextFunction): void {
-  if (req.user?.role === "admin") { next(); return; }
+  if (req.user?.role === "platform_admin") { next(); return; }
   if (req.workspace?.orgRole === "member") {
     res.status(403).json({ detail: "Accès en lecture seule : modification réservée aux administrateurs et propriétaires de l'organisation." });
     return;

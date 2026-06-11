@@ -57,6 +57,8 @@ export const users = pgTable("user", {
   updatedAt:     timestamp("updated_at").notNull(),
   username:        text("username").notNull(),
   displayUsername: text("display_username"),
+  // Platform-wide role: "user" | "platform_admin". Distinct from the
+  // per-organization `members.role` ("owner" | "admin" | "member").
   role:            text("role").notNull().default("user"),
   banned:          boolean("banned"),
   banReason:       text("ban_reason"),

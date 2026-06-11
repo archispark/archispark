@@ -77,7 +77,7 @@ export default function UsersPage() {
       header: t("common.role"),
       cell: ({ row }) => {
         const r = row.getValue<string>("role");
-        return <Badge variant="secondary" className={r === "admin" ? "bg-primary/10 text-primary" : ""}>{r}</Badge>;
+        return <Badge variant="secondary" className={r === "platform_admin" ? "bg-primary/10 text-primary" : ""}>{r}</Badge>;
       },
     },
     {
@@ -129,7 +129,7 @@ export default function UsersPage() {
 
         <Dialog open={createModal.open} onOpenChange={(o) => !o && createActions.close()}>
           <DialogTrigger render={<Button size="sm" onClick={openCreate} />}>
-            <Plus className="size-4" /> Nouvel utilisateur
+            <Plus className="size-4" /> {t("users.new_btn")}
           </DialogTrigger>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
@@ -146,12 +146,12 @@ export default function UsersPage() {
                 <Input id="new-password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" />
               </div>
               <div className="flex flex-col gap-1.5">
-                <Label>Rôle</Label>
+                <Label>{t("common.role")}</Label>
                 <Select value={role} onValueChange={(v) => setRole(v ?? "user")}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="user">user</SelectItem>
-                    <SelectItem value="admin">admin</SelectItem>
+                    <SelectItem value="platform_admin">platform_admin</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -181,12 +181,12 @@ export default function UsersPage() {
               <Input id="edit-password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" placeholder="••••••••" />
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label>Rôle</Label>
+              <Label>{t("common.role")}</Label>
               <Select value={role} onValueChange={(v) => setRole(v ?? "user")}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="user">user</SelectItem>
-                  <SelectItem value="admin">admin</SelectItem>
+                  <SelectItem value="platform_admin">platform_admin</SelectItem>
                 </SelectContent>
               </Select>
             </div>

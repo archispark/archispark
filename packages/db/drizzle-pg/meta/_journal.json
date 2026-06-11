@@ -71,6 +71,13 @@
       "when": 1780650000000,
       "tag": "0009_tenant_drop_cross_schema_fks",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1780660000000,
+      "tag": "0010_platform_admin_role",
+      "breakpoints": true
     }
   ]
 }
