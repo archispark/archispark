@@ -201,19 +201,19 @@ changent pas).
 - [x] `pnpm run -w test`, `pnpm turbo run lint`, `pnpm turbo run typecheck`,
       `pnpm turbo run build`
 - [x] Mettre à jour `README.md`
-- [ ] Commit Phase 4a
+- [x] Commit Phase 4a
 
 ### Phase 4b — Gestion organisations/tenants (suivi, hors build initial)
 
-- [ ] Endpoint admin `GET /admin/organizations` : liste organisations +
+- [x] Endpoint admin `GET /admin/organizations` : liste organisations +
       `tenant_databases.status` (pending/provisioning/active/error) — affichage
       lecture seule dans `admin-web` (`/organizations`)
-- [ ] Suspension d'organisation : colonne `organizations.enabled` (migration),
+- [x] Suspension d'organisation : colonne `organizations.enabled` (migration),
       endpoint admin pour bascule, vérification dans le middleware
       d'auth/résolution tenant (bloquer les membres non-`platform_admin` d'une
       org désactivée)
-- [ ] Tests db/api/admin-web associés
-- [ ] Commit Phase 4b
+- [x] Tests db/api/admin-web associés
+- [x] Commit Phase 4b
 
 ### Phase 4c — Infra (sous-domaines / Vercel) — action utilisateur
 

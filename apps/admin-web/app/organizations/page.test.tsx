@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import OrganizationsPage from "./page";
 import { I18nProvider } from "@/lib/i18n";
 import type { OrganizationListItem } from "@/hooks/use-organization";
+import type { AdminOrganizationOut } from "@/lib/api";
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -18,6 +19,14 @@ vi.mock("@/hooks/use-organization", () => ({
   useOrganizations: () => mockOrgs.current,
   useCreateOrganization: () => ({ mutateAsync: createMutateAsync }),
   useUpdateOrganization: () => ({ mutateAsync: updateMutateAsync }),
+}));
+
+const mockAdminOrgs: { current: AdminOrganizationOut[]; isLoading: boolean } = { current: [], isLoading: false };
+const setEnabledMutateAsync = vi.fn();
+
+vi.mock("@/lib/queries", () => ({
+  useAdminOrganizations: () => ({ data: mockAdminOrgs.current, isLoading: mockAdminOrgs.isLoading }),
+  useSetOrganizationEnabled: () => ({ mutateAsync: setEnabledMutateAsync, isPending: false }),
 }));
 
 vi.mock("sonner", () => ({
@@ -72,8 +81,11 @@ function renderPage() {
 
 beforeEach(() => {
   mockOrgs.current = [];
+  mockAdminOrgs.current = [];
+  mockAdminOrgs.isLoading = false;
   createMutateAsync.mockReset();
   updateMutateAsync.mockReset();
+  setEnabledMutateAsync.mockReset();
 });
 
 describe("OrganizationsPage", () => {
@@ -141,5 +153,51 @@ describe("OrganizationsPage", () => {
     await waitFor(() => expect(updateMutateAsync).toHaveBeenCalledWith(
       expect.objectContaining({ organizationId: "org1", name: "Acme Renamed" }),
     ));
+  });
+});
+
+describe("AdminOrganizationsSection", () => {
+  const baseOrg: AdminOrganizationOut = {
+    id: "org1",
+    name: "Acme",
+    slug: "acme",
+    enabled: true,
+    created_at: new Date().toISOString(),
+    tenant_status: "active",
+  };
+
+  it("renders tenant monitoring section with status badges", () => {
+    mockAdminOrgs.current = [baseOrg];
+    renderPage();
+    expect(screen.getByText("Suivi des tenants")).toBeInTheDocument();
+    expect(screen.getByText("Dédiée")).toBeInTheDocument();
+    expect(screen.getByText("Active")).toBeInTheDocument();
+  });
+
+  it("opens the suspend confirmation dialog and calls setOrganizationEnabled", async () => {
+    setEnabledMutateAsync.mockResolvedValue({ ...baseOrg, enabled: false });
+    mockAdminOrgs.current = [baseOrg];
+    renderPage();
+
+    fireEvent.click(screen.getByRole("button", { name: "Suspendre" }));
+
+    const dialog = screen.getByRole("dialog");
+    expect(dialog).toHaveTextContent("Suspendre l'organisation ?");
+
+    const confirmBtn = Array.from(dialog.querySelectorAll("button")).find((b) => b.textContent === "Suspendre")!;
+    fireEvent.click(confirmBtn);
+
+    await waitFor(() => expect(setEnabledMutateAsync).toHaveBeenCalledWith({ id: "org1", enabled: false }));
+  });
+
+  it("activates a suspended organization without a confirmation dialog", async () => {
+    setEnabledMutateAsync.mockResolvedValue({ ...baseOrg, enabled: true });
+    mockAdminOrgs.current = [{ ...baseOrg, enabled: false, tenant_status: null }];
+    renderPage();
+
+    expect(screen.getByText("Suspendue")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Réactiver" }));
+
+    await waitFor(() => expect(setEnabledMutateAsync).toHaveBeenCalledWith({ id: "org1", enabled: true }));
   });
 });

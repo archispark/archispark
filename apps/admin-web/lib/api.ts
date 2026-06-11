@@ -94,6 +94,23 @@ export interface OAuthProviderUpdateIn {
   enabled?: boolean;
 }
 
+// --- Admin: organizations (platform-wide, includes tenant DB status) ---
+
+export type TenantStatus = "pending" | "provisioning" | "active" | "error" | null;
+
+export interface AdminOrganizationOut {
+  id: string;
+  name: string;
+  slug: string;
+  enabled: boolean;
+  created_at: string;
+  tenant_status: TenantStatus;
+}
+
+export const fetchAdminOrganizations = () => get<AdminOrganizationOut[]>("/admin/organizations");
+export const setOrganizationEnabledApi = (id: string, enabled: boolean) =>
+  put<AdminOrganizationOut>(`/admin/organizations/${encodeURIComponent(id)}`, { enabled });
+
 export const fetchProviders = () => get<OAuthProviderOut[]>("/settings/providers");
 export const createProvider = (body: OAuthProviderCreateIn) => post<OAuthProviderOut>("/settings/providers", body);
 export const updateProvider = (id: string, body: OAuthProviderUpdateIn) =>

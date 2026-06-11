@@ -65,6 +65,8 @@ import {
   createUser as createUserFn,
   updateUserById,
   deleteUserById,
+  listAdminOrganizations,
+  setOrganizationEnabled,
   requireAuth,
   requireSuperAdmin,
   resolveWorkspaceContext,
@@ -272,6 +274,23 @@ app.put("/users/:id", requireSuperAdmin as express.RequestHandler, async (req: R
 app.delete("/users/:id", requireSuperAdmin as express.RequestHandler, async (req: Request, res: Response) => {
   await deleteUserById(req.params["id"] as string);
   res.status(204).send();
+});
+
+// ---------------------------------------------------------------------------
+// Admin organizations routes (platform admin only)
+// ---------------------------------------------------------------------------
+
+app.get("/admin/organizations", requireSuperAdmin as express.RequestHandler, async (_req: Request, res: Response) => {
+  res.json(await listAdminOrganizations());
+});
+
+app.put("/admin/organizations/:id", requireSuperAdmin as express.RequestHandler, async (req: Request, res: Response) => {
+  const { enabled } = req.body as { enabled?: unknown };
+  if (typeof enabled !== "boolean") {
+    res.status(422).json({ detail: "Le champ 'enabled' (boolean) est requis." });
+    return;
+  }
+  res.json(await setOrganizationEnabled(req.params["id"] as string, enabled));
 });
 
 // ---------------------------------------------------------------------------

@@ -4,12 +4,15 @@ import {
   createUser,
   updateUserApi,
   deleteUserApi,
+  fetchAdminOrganizations,
+  setOrganizationEnabledApi,
   type UserCreateIn,
   type UserUpdateIn,
 } from "./api";
 
 export const queryKeys = {
   users: () => ["users"] as const,
+  adminOrganizations: () => ["admin-organizations"] as const,
 };
 
 export function useUsers() {
@@ -37,5 +40,17 @@ export function useDeleteUser() {
   return useMutation({
     mutationFn: (id: string) => deleteUserApi(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.users() }),
+  });
+}
+
+export function useAdminOrganizations() {
+  return useQuery({ queryKey: queryKeys.adminOrganizations(), queryFn: fetchAdminOrganizations });
+}
+
+export function useSetOrganizationEnabled() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, enabled }: { id: string; enabled: boolean }) => setOrganizationEnabledApi(id, enabled),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.adminOrganizations() }),
   });
 }

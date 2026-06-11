@@ -1,11 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import type { ColumnDef } from "@tanstack/react-table";
 import { Input } from "@workspace/ui/components/input";
 import { Button } from "@workspace/ui/components/button";
 import { Label } from "@workspace/ui/components/label";
+import { Badge } from "@workspace/ui/components/badge";
 import {
   Dialog,
   DialogContent,
@@ -19,12 +21,15 @@ import {
 import { Plus, Pencil, Building2 } from "lucide-react";
 import { useT } from "@/lib/i18n";
 import { useFormModal } from "@/hooks/use-form-modal";
+import { DataTable } from "@/components/data-table";
 import {
   useOrganizations,
   useCreateOrganization,
   useUpdateOrganization,
   type OrganizationListItem,
 } from "@/hooks/use-organization";
+import { useAdminOrganizations, useSetOrganizationEnabled } from "@/lib/queries";
+import type { AdminOrganizationOut, TenantStatus } from "@/lib/api";
 
 function slugify(value: string): string {
   return value.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
@@ -198,6 +203,133 @@ export default function OrganizationsPage() {
             <DialogClose render={<Button variant="outline" />}>{t("common.cancel")}</DialogClose>
             <Button onClick={handleEditSave} disabled={editModal.isPending || !editName.trim() || !editSlug.trim()}>
               {editModal.isPending ? t("common.saving") : t("common.save")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AdminOrganizationsSection />
+    </div>
+  );
+}
+
+const TENANT_STATUS_VARIANT: Record<Exclude<TenantStatus, null>, "default" | "secondary" | "outline" | "destructive"> = {
+  active: "default",
+  provisioning: "secondary",
+  pending: "outline",
+  error: "destructive",
+};
+
+function AdminOrganizationsSection() {
+  const { t } = useT();
+  const { data: orgs = [], isLoading } = useAdminOrganizations();
+  const setEnabled = useSetOrganizationEnabled();
+  const [suspendModal, suspendActions] = useFormModal<AdminOrganizationOut>();
+
+  async function handleSuspend() {
+    if (!suspendModal.target) return;
+    const target = suspendModal.target;
+    await suspendActions.run(async () => {
+      await setEnabled.mutateAsync({ id: target.id, enabled: false });
+      toast.success(t("settings.org.org_suspended", { name: target.name }));
+    });
+  }
+
+  async function handleActivate(org: AdminOrganizationOut) {
+    try {
+      await setEnabled.mutateAsync({ id: org.id, enabled: true });
+      toast.success(t("settings.org.org_activated", { name: org.name }));
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  }
+
+  const columns: ColumnDef<AdminOrganizationOut>[] = useMemo(() => [
+    {
+      accessorKey: "name",
+      header: t("settings.org.org_name"),
+      cell: ({ row }) => (
+        <div>
+          <div className="text-[14px]">{row.original.name}</div>
+          <div className="text-[11px] text-muted-foreground font-mono">{row.original.slug}</div>
+        </div>
+      ),
+    },
+    {
+      accessorKey: "tenant_status",
+      header: t("settings.org.tenant_status"),
+      cell: ({ row }) => {
+        const status = row.original.tenant_status;
+        return (
+          <Badge variant={status ? TENANT_STATUS_VARIANT[status] : "outline"}>
+            {t(`settings.org.tenant_status_${status ?? "shared"}`)}
+          </Badge>
+        );
+      },
+    },
+    {
+      accessorKey: "enabled",
+      header: t("settings.org.org_status"),
+      cell: ({ row }) => (
+        <Badge variant={row.original.enabled ? "outline" : "destructive"}>
+          {t(row.original.enabled ? "settings.org.org_status_enabled" : "settings.org.org_status_suspended")}
+        </Badge>
+      ),
+    },
+    {
+      accessorKey: "created_at",
+      header: t("users.created_at"),
+      cell: ({ row }) => (
+        <span className="text-[12px] text-muted-foreground">
+          {new Date(row.original.created_at).toLocaleDateString()}
+        </span>
+      ),
+    },
+    {
+      id: "actions",
+      header: "",
+      enableSorting: false,
+      cell: ({ row }) => (
+        <div className="flex justify-end">
+          {row.original.enabled ? (
+            <Button variant="outline" size="sm" onClick={() => suspendActions.openWith(row.original)}>
+              {t("settings.org.org_suspend")}
+            </Button>
+          ) : (
+            <Button variant="outline" size="sm" onClick={() => handleActivate(row.original)} disabled={setEnabled.isPending}>
+              {t("settings.org.org_activate")}
+            </Button>
+          )}
+        </div>
+      ),
+    },
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  ], [suspendActions, setEnabled.isPending]);
+
+  return (
+    <div className="space-y-3">
+      <div>
+        <h2 className="text-base font-semibold">{t("settings.org.tenants_title")}</h2>
+        <p className="text-muted-foreground text-[13px] mt-0.5">{t("settings.org.tenants_desc")}</p>
+      </div>
+
+      <DataTable columns={columns} data={orgs} loading={isLoading} />
+
+      <Dialog open={suspendModal.open} onOpenChange={(o) => !o && suspendActions.close()}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{t("settings.org.org_suspend_confirm_title")}</DialogTitle>
+            <DialogDescription>
+              {t("settings.org.org_suspend_confirm_desc", { name: suspendModal.target?.name ?? "" })}
+            </DialogDescription>
+          </DialogHeader>
+          {suspendModal.error && (
+            <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">{suspendModal.error}</div>
+          )}
+          <DialogFooter>
+            <DialogClose render={<Button variant="outline" />}>{t("common.cancel")}</DialogClose>
+            <Button variant="destructive" onClick={handleSuspend} disabled={suspendModal.isPending}>
+              {suspendModal.isPending ? t("common.saving") : t("settings.org.org_suspend")}
             </Button>
           </DialogFooter>
         </DialogContent>

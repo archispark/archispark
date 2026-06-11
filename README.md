@@ -286,6 +286,7 @@ ArchiSpark is multi-tenant: each **organization** ("entreprise") has its own mem
 - **Platform super admin**: a user with the global `role: "platform_admin"` (set via the [admin web](#admin-web) `/users` page, or `POST`/`PUT /users`) bypasses organization role checks everywhere and can create new organizations (`allowUserToCreateOrganization`).
 - **Teams** group members within an organization. A workspace with one or more `team_ids` is only visible to members of those teams (plus org owners/admins); a workspace with no teams is visible to the whole organization.
 - Each user has one **active workspace per organization**, switched via `POST /workspaces/:id/activate`.
+- A platform super admin can **suspend** an organization (`organizations.enabled = false`). Members of a suspended organization (other than platform super admins) get `403 Forbidden` on every request while it's resolved as their active organization; their data is left intact and access resumes once the organization is reactivated.
 
 Org owners/admins (and platform super admins) see an **Organization** entry in the sidebar, opening a dedicated section (`/organization`) with its own sidebar and two tabs: **Workspace** (list every workspace in the organization — create, activate, rename, assign teams, or delete each one) and **Membres** (manage members, invitations, and teams). The platform-wide list of organizations across every tenant is managed separately from the [admin web](#admin-web) console (`/organizations`, platform super admins only).
 
@@ -298,7 +299,7 @@ Org owners/admins (and platform super admins) see an **Organization** entry in t
 | Route | Purpose |
 |-------|---------|
 | `/login` | Sign in (shares the Better Auth session with the main API) |
-| `/organizations` | List, create, rename, and delete organizations across every tenant (default landing page) |
+| `/organizations` | List, create, rename, and delete organizations across every tenant (default landing page); also shows a read-only **tenant monitoring** table (tenant database status + enabled/suspended state per organization) with suspend/reactivate actions |
 | `/users` | Manage platform users — create/update/delete, assign the `platform_admin` role |
 | `/authentication` | Manage OAuth/SSO providers |
 | `/redis` | Redis connection status |
@@ -313,6 +314,13 @@ Org owners/admins (and platform super admins) see an **Organization** entry in t
 | `POST` | `/users` | Create user — body: `{ username, password, role? }`. The new user is added as a member of the requester's active organization (`owner` if `role === "platform_admin"`, otherwise `member`) |
 | `PUT` | `/users/:id` | Update password and/or role |
 | `DELETE` | `/users/:id` | Delete user (last user protected) |
+
+### Organization monitoring API (platform admin only)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/admin/organizations` | List every organization with `enabled` flag and `tenant_status` (`tenant_databases.status`, or `null` if it shares the control-plane database) |
+| `PUT` | `/admin/organizations/:id` | Suspend or reactivate an organization — body: `{ enabled: boolean }` |
 
 ## Workspace management
 

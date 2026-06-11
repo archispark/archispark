@@ -78,6 +78,13 @@
       "when": 1780660000000,
       "tag": "0010_platform_admin_role",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1780670000000,
+      "tag": "0011_organization_enabled",
+      "breakpoints": true
     }
   ]
 }

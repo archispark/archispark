@@ -4,8 +4,11 @@
 
 import { describe, it, expect, beforeAll, vi } from "vitest";
 import _request from "supertest";
+import { eq } from "drizzle-orm";
+import { controlDb, organizations as organizationsTable } from "@workspace/db";
 import { app } from "../src/app.js";
-import { getAdminCookie, getUserCookie } from "../src/test-helper.js";
+import { createUser } from "../src/auth.js";
+import { getAdminCookie, getUserCookie, getAdminWorkspaceContext } from "../src/test-helper.js";
 
 let adminCookie: string;
 let userCookie: string;
@@ -313,5 +316,111 @@ describe("API token expiry", () => {
     const res = await _request(app).get("/me").set("Authorization", `Bearer ${token}`);
     expect(res.status).toBe(401);
     await request(app).delete(`/settings/api-tokens/${id}`);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Admin organizations — GET/PUT /admin/organizations
+// ---------------------------------------------------------------------------
+
+describe("GET /admin/organizations", () => {
+  it("returns 403 for non-admin", async () => {
+    const res = await request(app, userCookie).get("/admin/organizations");
+    expect(res.status).toBe(403);
+  });
+
+  it("returns organizations with enabled flag and tenant status", async () => {
+    const res = await request(app).get("/admin/organizations");
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+    expect(res.body.length).toBeGreaterThanOrEqual(1);
+    const org = res.body[0] as Record<string, unknown>;
+    expect(org).toHaveProperty("id");
+    expect(org).toHaveProperty("name");
+    expect(org).toHaveProperty("slug");
+    expect(org).toHaveProperty("enabled");
+    expect(org).toHaveProperty("created_at");
+    expect(org).toHaveProperty("tenant_status");
+  });
+});
+
+describe("PUT /admin/organizations/:id", () => {
+  it("returns 403 for non-admin", async () => {
+    const res = await request(app, userCookie).put("/admin/organizations/whatever").send({ enabled: false });
+    expect(res.status).toBe(403);
+  });
+
+  it("returns 422 when 'enabled' is missing or not boolean", async () => {
+    const res = await request(app).put("/admin/organizations/whatever").send({ enabled: "nope" });
+    expect(res.status).toBe(422);
+  });
+
+  it("returns 404 for an unknown organization", async () => {
+    const res = await request(app).put("/admin/organizations/does-not-exist").send({ enabled: false });
+    expect(res.status).toBe(404);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// resolveWorkspaceContext — blocks members of a disabled organization
+// ---------------------------------------------------------------------------
+
+describe("Disabled organization blocks non-admin members", () => {
+  const orgId = "test-disabled-org";
+  let memberCookie: string;
+  let memberUserId: string;
+
+  beforeAll(async () => {
+    await controlDb.insert(organizationsTable).values({
+      id: orgId, name: "Test Disabled Org", slug: "test-disabled-org", createdAt: new Date(),
+    }).onConflictDoNothing();
+    const created = await createUser("member_disabled_org", "password123", "user", orgId);
+    memberUserId = created.id;
+    const signin = await _request(app).post("/auth/sign-in/username").send({ username: "member_disabled_org", password: "password123" });
+    const setCookie = signin.headers["set-cookie"];
+    if (!setCookie) throw new Error("Sign-in failed for member_disabled_org");
+    const cookies = Array.isArray(setCookie) ? setCookie : [setCookie];
+    memberCookie = cookies.map((c: string) => c.split(";")[0]).join("; ");
+  });
+
+  it("member can access /me while the organization is enabled", async () => {
+    const res = await request(app, memberCookie).get("/me");
+    expect(res.status).toBe(200);
+  });
+
+  it("admin disables the organization", async () => {
+    const res = await request(app).put(`/admin/organizations/${orgId}`).send({ enabled: false });
+    expect(res.status).toBe(200);
+    expect(res.body.enabled).toBe(false);
+  });
+
+  it("member is blocked once the organization is disabled", async () => {
+    const res = await request(app, memberCookie).get("/me");
+    expect(res.status).toBe(403);
+    expect(res.body.detail).toMatch(/désactivée/);
+  });
+
+  it("platform admin bypasses the disabled-organization check on their own org", async () => {
+    const { ctx } = await getAdminWorkspaceContext();
+    await controlDb.update(organizationsTable).set({ enabled: false }).where(eq(organizationsTable.id, ctx.organizationId));
+    const res = await request(app).get("/admin/organizations");
+    expect(res.status).toBe(200);
+    await controlDb.update(organizationsTable).set({ enabled: true }).where(eq(organizationsTable.id, ctx.organizationId));
+  });
+
+  it("admin re-enables the organization", async () => {
+    const res = await request(app).put(`/admin/organizations/${orgId}`).send({ enabled: true });
+    expect(res.status).toBe(200);
+    expect(res.body.enabled).toBe(true);
+  });
+
+  it("member regains access once re-enabled", async () => {
+    const res = await request(app, memberCookie).get("/me");
+    expect(res.status).toBe(200);
+  });
+
+  it("cleans up test organization and user", async () => {
+    await request(app).delete(`/users/${memberUserId}`);
+    await controlDb.delete(organizationsTable).where(eq(organizationsTable.id, orgId));
   });
 });

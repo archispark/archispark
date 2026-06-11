@@ -29,6 +29,9 @@ export const organizations = pgTable("organization", {
   logo:      text("logo"),
   metadata:  text("metadata"),
   createdAt: timestamp("created_at").notNull(),
+  // Platform admins can suspend an organization (blocks non-platform_admin
+  // members in resolveWorkspaceContext) without deleting its data.
+  enabled:   boolean("enabled").notNull().default(true),
 }, (t) => [
   uniqueIndex("organization_slug_uniq").on(t.slug),
 ]);

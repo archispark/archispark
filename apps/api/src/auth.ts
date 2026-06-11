@@ -10,6 +10,7 @@ import {
   members as membersTable,
   teams as teamsTable,
   teamMembers as teamMembersTable,
+  tenantDatabases as tenantDatabasesTable,
 } from "@workspace/db";
 import { getAuth } from "./better-auth.js";
 import { fromNodeHeaders } from "better-auth/node";
@@ -176,6 +177,66 @@ export async function deleteUserById(id: string): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// Admin: organizations management (platform admin only)
+// ---------------------------------------------------------------------------
+
+export interface AdminOrganizationOut {
+  id: string;
+  name: string;
+  slug: string;
+  enabled: boolean;
+  created_at: string;
+  tenant_status: "pending" | "provisioning" | "active" | "error" | null;
+}
+
+type AdminOrgRow = {
+  id: string;
+  name: string;
+  slug: string;
+  enabled: boolean;
+  createdAt: Date;
+  tenantStatus: "pending" | "provisioning" | "active" | "error" | null;
+};
+
+function mapAdminOrgRow(r: AdminOrgRow): AdminOrganizationOut {
+  return {
+    id: r.id,
+    name: r.name,
+    slug: r.slug,
+    enabled: r.enabled,
+    created_at: r.createdAt.toISOString(),
+    tenant_status: r.tenantStatus,
+  };
+}
+
+const adminOrgSelection = {
+  id: organizationsTable.id,
+  name: organizationsTable.name,
+  slug: organizationsTable.slug,
+  enabled: organizationsTable.enabled,
+  createdAt: organizationsTable.createdAt,
+  tenantStatus: tenantDatabasesTable.status,
+};
+
+export async function listAdminOrganizations(): Promise<AdminOrganizationOut[]> {
+  const rows = await controlDb.select(adminOrgSelection).from(organizationsTable)
+    .leftJoin(tenantDatabasesTable, eq(tenantDatabasesTable.organizationId, organizationsTable.id))
+    .orderBy(organizationsTable.createdAt);
+  return rows.map(mapAdminOrgRow);
+}
+
+export async function setOrganizationEnabled(id: string, enabled: boolean): Promise<AdminOrganizationOut> {
+  const [existing] = await controlDb.select({ id: organizationsTable.id }).from(organizationsTable).where(eq(organizationsTable.id, id));
+  if (!existing) throw new NotFoundError(`Organisation '${id}' introuvable.`);
+  await controlDb.update(organizationsTable).set({ enabled }).where(eq(organizationsTable.id, id));
+  const [row] = await controlDb.select(adminOrgSelection).from(organizationsTable)
+    .leftJoin(tenantDatabasesTable, eq(tenantDatabasesTable.organizationId, organizationsTable.id))
+    .where(eq(organizationsTable.id, id));
+  if (!row) throw new NotFoundError(`Organisation '${id}' introuvable.`);
+  return mapAdminOrgRow(row);
+}
+
+// ---------------------------------------------------------------------------
 // API token lookup (used by REST middleware and MCP server)
 // ---------------------------------------------------------------------------
 
@@ -297,6 +358,15 @@ export async function resolveWorkspaceContext(req: AuthRequest, res: Response, n
   if (!ctx) {
     res.status(403).json({ detail: "Accès à cette organisation refusé." });
     return;
+  }
+
+  if (req.user.role !== "platform_admin") {
+    const [org] = await controlDb.select({ enabled: organizationsTable.enabled }).from(organizationsTable)
+      .where(eq(organizationsTable.id, organizationId));
+    if (org && !org.enabled) {
+      res.status(403).json({ detail: "Cette organisation a été désactivée par un administrateur de la plateforme." });
+      return;
+    }
   }
 
   req.workspace = ctx;
