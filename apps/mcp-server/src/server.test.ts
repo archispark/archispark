@@ -803,3 +803,136 @@ describe("RBAC: read-only org member", () => {
       .rejects.toThrow(/lecture seule/i);
   });
 });
+
+// ---------------------------------------------------------------------------
+// RBAC: non-admin org owner can write (requireWrite false branch for orgRole)
+// ---------------------------------------------------------------------------
+
+describe("RBAC: non-admin org owner can write", () => {
+  beforeAll(async () => {
+    // Non-platform-admin but org owner — requireWrite() must NOT throw
+    vi.mocked(lookupApiToken).mockResolvedValueOnce({ id: "u-owner", username: "owner", role: "user", organizationId: "org-1", workspaceId: null });
+    vi.mocked(getMembershipContext).mockResolvedValueOnce({ organizationId: "org-1", orgRole: "owner", teamIds: [] });
+    await request(app).post("/mcp/").set("Authorization", `Bearer ${TEST_TOKEN}`).send({ jsonrpc: "2.0", method: "initialize", id: 1 });
+  });
+
+  afterAll(async () => {
+    await initSession();
+  });
+
+  it("create_element succeeds for org owner (requireWrite does not throw for owner)", async () => {
+    const result = await callTool("create_element", { name: "App", type: "ApplicationComponent" });
+    expect(vi.mocked(createElement)).toHaveBeenCalled();
+    expect(result.content[0].text).toContain("e1");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// update_* tools — branch coverage for optional input fields
+// ---------------------------------------------------------------------------
+
+describe("MCP tool: update_element — optional field branches", () => {
+  it("passes documentation and properties when provided", async () => {
+    await callTool("update_element", {
+      element_id: "e1",
+      documentation: "Some docs",
+      properties: [{ property_definition_ref: "pd1", value: "v1" }],
+    });
+    expect(vi.mocked(updateElement)).toHaveBeenCalledWith(
+      1,
+      "e1",
+      expect.objectContaining({ documentation: "Some docs", properties: expect.any(Array) }),
+    );
+  });
+
+  it("passes valid type through to update input", async () => {
+    await callTool("update_element", { element_id: "e1", type: "BusinessActor" });
+    expect(vi.mocked(updateElement)).toHaveBeenCalledWith(
+      1,
+      "e1",
+      expect.objectContaining({ type: "BusinessActor" }),
+    );
+  });
+});
+
+describe("MCP tool: update_view — viewpoint branch", () => {
+  it("passes viewpoint when provided", async () => {
+    await callTool("update_view", { view_id: "v1", viewpoint: "Layered" });
+    expect(vi.mocked(updateView)).toHaveBeenCalledWith(
+      1,
+      "v1",
+      expect.objectContaining({ viewpoint: "Layered" }),
+    );
+  });
+});
+
+describe("MCP tool: update_node — optional dimension and name branches", () => {
+  it("passes w, h and name when provided", async () => {
+    await callTool("update_node", { view_id: "v1", node_id: "n1", w: 200, h: 80, name: "Renamed" });
+    expect(vi.mocked(updateViewNode)).toHaveBeenCalledWith(
+      1,
+      "v1",
+      "n1",
+      expect.objectContaining({ w: 200, h: 80, name: "Renamed" }),
+    );
+  });
+});
+
+describe("MCP tool: update_connection — optional field branches", () => {
+  it("passes source, target, source_side and target_side when provided", async () => {
+    await callTool("update_connection", {
+      view_id: "v1",
+      connection_id: "c1",
+      source: "n2",
+      target: "n3",
+      source_side: "right",
+      target_side: "left",
+    });
+    expect(vi.mocked(updateViewConnection)).toHaveBeenCalledWith(
+      1,
+      "v1",
+      "c1",
+      expect.objectContaining({ source: "n2", target: "n3", source_side: "right", target_side: "left" }),
+    );
+  });
+});
+
+describe("MCP tool: update_relationship — optional field branches", () => {
+  it("passes multiple optional fields through to update input", async () => {
+    await callTool("update_relationship", {
+      relationship_id: "r1",
+      type: "Realization",
+      source: "e2",
+      target: "e3",
+      documentation: "Docs",
+      properties: [{ property_definition_ref: "pd1", value: "v1" }],
+      access_type: "Read",
+      is_directed: true,
+      influence_strength: "++",
+    });
+    expect(vi.mocked(updateRelationship)).toHaveBeenCalledWith(
+      1,
+      "r1",
+      expect.objectContaining({
+        type: "Realization",
+        source: "e2",
+        target: "e3",
+        documentation: "Docs",
+        access_type: "Read",
+        is_directed: true,
+        influence_strength: "++",
+      }),
+    );
+  });
+});
+
+describe("MCP tool: update_property_definition — valid type branch", () => {
+  it("passes valid type through to update input (covers if-type branch)", async () => {
+    await callTool("update_property_definition", { id: "pd1", type: "number" });
+    expect(vi.mocked(updatePropertyDefinition)).toHaveBeenCalledWith(
+      1,
+      "pd1",
+      expect.objectContaining({ type: "number" }),
+    );
+  });
+});

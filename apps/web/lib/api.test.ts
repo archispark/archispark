@@ -4,6 +4,8 @@ const clearCookie = () => {};
 import {
   viewImageUrl, fetchElements, fetchRelationships,
   fetchModel, fetchElementTypes, fetchRelationshipTypes, fetchViews, fetchView,
+  fetchElement, fetchElementRelationships, fetchElementViews, fetchElementsInViews,
+  fetchRelationship, fetchRelationshipViews,
   createElement, updateElement, deleteElement,
   createRelationship, updateRelationship, deleteRelationship,
   createView, updateView, deleteView,
@@ -14,6 +16,10 @@ import {
   fetchPropertyDefinitions, createPropertyDefinition, updatePropertyDefinition, deletePropertyDefinition,
   fetchWorkspaces, createWorkspaceApi, updateWorkspaceApi, deleteWorkspaceApi, activateWorkspaceApi,
   fetchViewpoints,
+  fetchProviders, createProvider, updateProvider, deleteProvider,
+  fetchRedisStatus, fetchPostgresStatus,
+  fetchApiTokens, createApiToken, deleteApiToken,
+  fetchSiteMessages, updateSiteMessages,
 } from "./api";
 
 describe("viewImageUrl", () => {
@@ -505,5 +511,336 @@ describe("createUser and fetchViewpoints", () => {
     mockFetchOk(["Layered", "Application Usage"]);
     const vps = await fetchViewpoints();
     expect(vps).toContain("Layered");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Element detail helpers (previously uncovered)
+// ---------------------------------------------------------------------------
+
+describe("element detail helpers", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("fetchElement returns element detail", async () => {
+    mockFetchOk({ identifier: "e1", name: "App", type: "ApplicationComponent", documentation: null, properties: [] });
+    const el = await fetchElement("e1");
+    expect(el.identifier).toBe("e1");
+    expect(vi.mocked(fetch)).toHaveBeenCalledWith(
+      expect.stringContaining("/elements/e1"),
+      expect.any(Object)
+    );
+  });
+
+  it("fetchElementRelationships returns relationships", async () => {
+    mockFetchOk([{ identifier: "r1", type: "Association", source: "e1", target: "e2" }]);
+    const rels = await fetchElementRelationships("e1");
+    expect(rels[0]!.identifier).toBe("r1");
+    expect(vi.mocked(fetch)).toHaveBeenCalledWith(
+      expect.stringContaining("/elements/e1/relationships"),
+      expect.any(Object)
+    );
+  });
+
+  it("fetchElementViews returns views", async () => {
+    mockFetchOk([{ identifier: "v1", name: "View 1" }]);
+    const views = await fetchElementViews("e1");
+    expect(views[0]!.identifier).toBe("v1");
+    expect(vi.mocked(fetch)).toHaveBeenCalledWith(
+      expect.stringContaining("/elements/e1/views"),
+      expect.any(Object)
+    );
+  });
+
+  it("fetchElementsInViews returns id array", async () => {
+    mockFetchOk(["e1", "e2"]);
+    const ids = await fetchElementsInViews();
+    expect(ids).toContain("e1");
+    expect(vi.mocked(fetch)).toHaveBeenCalledWith(
+      expect.stringContaining("/elements/in-views"),
+      expect.any(Object)
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Relationship detail helpers
+// ---------------------------------------------------------------------------
+
+describe("relationship detail helpers", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("fetchRelationship returns relationship detail", async () => {
+    mockFetchOk({ identifier: "r1", name: null, type: "Association", source: "e1", target: "e2", documentation: null, properties: [] });
+    const rel = await fetchRelationship("r1");
+    expect(rel.identifier).toBe("r1");
+    expect(vi.mocked(fetch)).toHaveBeenCalledWith(
+      expect.stringContaining("/relationships/r1"),
+      expect.any(Object)
+    );
+  });
+
+  it("fetchRelationshipViews returns views", async () => {
+    mockFetchOk([{ identifier: "v1", name: "View 1" }]);
+    const views = await fetchRelationshipViews("r1");
+    expect(views[0]!.identifier).toBe("v1");
+    expect(vi.mocked(fetch)).toHaveBeenCalledWith(
+      expect.stringContaining("/relationships/r1/views"),
+      expect.any(Object)
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// OAuth Provider mutations
+// ---------------------------------------------------------------------------
+
+describe("OAuth provider mutations", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("fetchProviders returns provider list", async () => {
+    mockFetchOk([{ id: "p1", provider_id: "google", type: "google", name: "Google", client_id: "cid", issuer_url: null, tenant_id: null, enabled: true, created_at: 0 }]);
+    const providers = await fetchProviders();
+    expect(providers[0]!.id).toBe("p1");
+  });
+
+  it("createProvider posts and returns provider", async () => {
+    mockFetchOk({ id: "p1", provider_id: "google", type: "google", name: "Google", client_id: "cid", issuer_url: null, tenant_id: null, enabled: true, created_at: 0 });
+    const p = await createProvider({ type: "google", name: "Google", client_id: "cid", client_secret: "secret" });
+    expect(p.id).toBe("p1");
+    expect(vi.mocked(fetch)).toHaveBeenCalledWith(
+      expect.stringContaining("/settings/providers"),
+      expect.objectContaining({ method: "POST" })
+    );
+  });
+
+  it("updateProvider puts and returns provider", async () => {
+    mockFetchOk({ id: "p1", provider_id: "google", type: "google", name: "Updated", client_id: "cid", issuer_url: null, tenant_id: null, enabled: true, created_at: 0 });
+    const p = await updateProvider("p1", { name: "Updated" });
+    expect(p.name).toBe("Updated");
+    expect(vi.mocked(fetch)).toHaveBeenCalledWith(
+      expect.stringContaining("/settings/providers/p1"),
+      expect.objectContaining({ method: "PUT" })
+    );
+  });
+
+  it("deleteProvider sends DELETE", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true }));
+    await deleteProvider("p1");
+    expect(vi.mocked(fetch)).toHaveBeenCalledWith(
+      expect.stringContaining("/settings/providers/p1"),
+      expect.objectContaining({ method: "DELETE" })
+    );
+  });
+
+  it("updateProvider throws when PUT fails and json parse also fails (covers .catch branch)", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: false,
+      status: 500,
+      json: async () => { throw new Error("parse fail"); },
+    }));
+    await expect(updateProvider("p1", { name: "X" })).rejects.toThrow();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Settings — Redis, Postgres
+// ---------------------------------------------------------------------------
+
+describe("settings status helpers", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("fetchRedisStatus returns redis status", async () => {
+    mockFetchOk({ connected: true, host: "localhost", port: 6379 });
+    const status = await fetchRedisStatus();
+    expect(status.connected).toBe(true);
+  });
+
+  it("fetchPostgresStatus returns postgres status", async () => {
+    mockFetchOk({ connected: true, host: "localhost", port: 5432, database: "app", version: "14" });
+    const status = await fetchPostgresStatus();
+    expect(status.connected).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// API Tokens
+// ---------------------------------------------------------------------------
+
+describe("API token mutations", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("fetchApiTokens returns token list", async () => {
+    mockFetchOk([{ id: 1, name: "CI", user_id: "u1", created_at: 0, last_used_at: null, expires_at: null }]);
+    const tokens = await fetchApiTokens();
+    expect(tokens[0]!.name).toBe("CI");
+  });
+
+  it("createApiToken posts without expiresAt", async () => {
+    mockFetchOk({ id: 2, name: "My Token", user_id: "u1", created_at: 0, last_used_at: null, expires_at: null, token: "tok-abc" });
+    const t = await createApiToken("My Token");
+    expect(t.token).toBe("tok-abc");
+    expect(vi.mocked(fetch)).toHaveBeenCalledWith(
+      expect.stringContaining("/settings/api-tokens"),
+      expect.objectContaining({ method: "POST" })
+    );
+  });
+
+  it("createApiToken posts with expiresAt (covers ?? branch)", async () => {
+    mockFetchOk({ id: 3, name: "Expiring", user_id: "u1", created_at: 0, last_used_at: null, expires_at: 9999, token: "tok-exp" });
+    const t = await createApiToken("Expiring", 9999);
+    expect(t.expires_at).toBe(9999);
+  });
+
+  it("deleteApiToken sends DELETE", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true }));
+    await deleteApiToken(1);
+    expect(vi.mocked(fetch)).toHaveBeenCalledWith(
+      expect.stringContaining("/settings/api-tokens/1"),
+      expect.objectContaining({ method: "DELETE" })
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Site messages
+// ---------------------------------------------------------------------------
+
+describe("site messages", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("fetchSiteMessages returns site messages", async () => {
+    mockFetchOk({ login_message: "Welcome", login_message_enabled: true, banner_message: null, banner_message_enabled: false });
+    const msgs = await fetchSiteMessages();
+    expect(msgs.login_message).toBe("Welcome");
+  });
+
+  it("updateSiteMessages puts and returns ok", async () => {
+    mockFetchOk({ ok: true });
+    const res = await updateSiteMessages({ login_message: "Hi", login_message_enabled: false, banner_message: null, banner_message_enabled: false });
+    expect(res.ok).toBe(true);
+    expect(vi.mocked(fetch)).toHaveBeenCalledWith(
+      expect.stringContaining("/settings/messages"),
+      expect.objectContaining({ method: "PUT" })
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// POST error handling — json parse failure in post() (covers lines 154-155)
+// ---------------------------------------------------------------------------
+
+describe("POST error handling — json parse failure", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("createElement throws with fallback message when POST fails and json parse also fails", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: false,
+      status: 503,
+      json: async () => { throw new Error("parse fail"); },
+    }));
+    await expect(createElement({ name: "App", type: "ApplicationComponent" })).rejects.toThrow("HTTP 503");
+  });
+
+  it("createElement throws with err.detail when POST fails with parseable json but no detail", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: false,
+      status: 400,
+      json: async () => ({}),
+    }));
+    await expect(createElement({ name: "App", type: "ApplicationComponent" })).rejects.toThrow("API error: 400");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// fetchRelationships — name param branch (line 132)
+// ---------------------------------------------------------------------------
+
+describe("fetchRelationships with name param", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("passes name query param when provided", async () => {
+    mockFetchOk([]);
+    await fetchRelationships(undefined, "MyRel");
+    const url = (vi.mocked(fetch).mock.calls[0]![0] as string);
+    expect(url).toContain("name=MyRel");
+  });
+
+  it("passes both type and name query params when both provided", async () => {
+    mockFetchOk([]);
+    await fetchRelationships("Association", "Link");
+    const url = (vi.mocked(fetch).mock.calls[0]![0] as string);
+    expect(url).toContain("type=Association");
+    expect(url).toContain("name=Link");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// PUT error handling — json parse branches (covers lines 190-191)
+// ---------------------------------------------------------------------------
+
+describe("PUT error handling branches", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("updateElement throws fallback when PUT fails and json has no detail", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: false,
+      status: 422,
+      json: async () => ({}),
+    }));
+    await expect(updateElement("e1", { name: "X" })).rejects.toThrow("API error: 422");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// DELETE error handling — json parse branches (covers lines 199-200)
+// ---------------------------------------------------------------------------
+
+describe("DELETE error handling branches", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("deleteElement throws with fallback message when DELETE fails and json parse also fails", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: false,
+      status: 500,
+      json: async () => { throw new Error("parse fail"); },
+    }));
+    await expect(deleteElement("e1")).rejects.toThrow("HTTP 500");
+  });
+
+  it("deleteElement throws fallback when DELETE fails and json has no detail", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: false,
+      status: 404,
+      json: async () => ({}),
+    }));
+    await expect(deleteElement("e1")).rejects.toThrow("API error: 404");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// importModel error handling — json parse branches (covers lines 317-318)
+// ---------------------------------------------------------------------------
+
+describe("importModel error handling branches", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("importModel throws with fallback message when POST fails and json parse also fails", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: false,
+      status: 413,
+      json: async () => { throw new Error("parse fail"); },
+    }));
+    const file = new File(["data"], "model.xml", { type: "text/xml" });
+    await expect(importModel(file)).rejects.toThrow("HTTP 413");
+  });
+
+  it("importModel throws fallback when POST fails and json has no detail", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: false,
+      status: 400,
+      json: async () => ({}),
+    }));
+    const file = new File(["data"], "model.xml", { type: "text/xml" });
+    await expect(importModel(file)).rejects.toThrow("API error: 400");
   });
 });

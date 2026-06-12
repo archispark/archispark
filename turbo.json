@@ -40,7 +40,9 @@
         "HOST",
         "TENANT_API_URL",
         "TENANT_JWT_SECRET",
-        "TENANT_DB_ENCRYPTION_KEY"
+        "TENANT_DB_ENCRYPTION_KEY",
+        "TENANT_DATABASE_URL",
+        "TENANT_DB_PASSWORD"
       ]
     }
   }

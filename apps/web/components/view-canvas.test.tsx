@@ -343,7 +343,10 @@ describe("ViewCanvas", () => {
 
   it("covers different archimateEdgeStyle cases via relType", () => {
     const nodes = [makeNode("a"), makeNode("b")];
-    const relTypes = ["Triggering", "Flow", "Realization", "Specialization", "Access", "Influence"];
+    const relTypes = [
+      "Triggering", "Flow", "Realization", "Specialization", "Access", "Influence",
+      "Composition", "Aggregation", "Assignment", "Serving", "UsedBy",
+    ];
     for (const relType of relTypes) {
       const relTypesMap = new Map([["rel-1", relType]]);
       const { unmount } = render(
