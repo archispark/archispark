@@ -1,6 +1,6 @@
 /**
  * Internal model types for ArchiMate models (Open Exchange Format).
- * Parsing is handled by oxf-parser.ts in apps/api.
+ * Parsing is handled by oxf-parser.ts in apps/tenant-api.
  */
 
 export interface ArchiColor {

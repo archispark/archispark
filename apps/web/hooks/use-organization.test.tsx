@@ -9,8 +9,6 @@ import {
   useTeams,
   useTeamMembers,
   useSetActiveOrganization,
-  useCreateOrganization,
-  useUpdateOrganization,
   useInviteMember,
   useCancelInvitation,
   useUpdateMemberRole,
@@ -37,8 +35,6 @@ vi.mock("@/lib/auth-client", () => {
     listTeams: vi.fn(),
     listTeamMembers: vi.fn(),
     setActive: vi.fn(),
-    create: vi.fn(),
-    update: vi.fn(),
     inviteMember: vi.fn(),
     cancelInvitation: vi.fn(),
     updateMemberRole: vi.fn(),
@@ -85,7 +81,6 @@ const mocks = authClient as unknown as {
 const sampleOrg: ActiveOrganization = {
   id: "org1",
   name: "Acme",
-  slug: "acme",
   createdAt: new Date("2024-01-01"),
   members: [],
   invitations: [],
@@ -140,7 +135,7 @@ describe("useOrganizations", () => {
   });
 
   it("returns the list of organizations", () => {
-    mocks._setMockOrgList([{ id: "org1", name: "Acme", slug: "acme", createdAt: new Date() }]);
+    mocks._setMockOrgList([{ id: "org1", name: "Acme", createdAt: new Date() }]);
     const { result } = renderHook(() => useOrganizations());
     expect(result.current).toHaveLength(1);
     expect(result.current[0]!.id).toBe("org1");
@@ -266,53 +261,6 @@ describe("useSetActiveOrganization", () => {
     const { wrapper } = createWrapper();
     const { result } = renderHook(() => useSetActiveOrganization(), { wrapper });
     await expect(result.current.mutateAsync("org1")).rejects.toThrow("nope");
-  });
-});
-
-describe("useCreateOrganization", () => {
-  it("calls organization.create", async () => {
-    mocks._organization.create.mockResolvedValue({ data: { id: "org2", name: "Acme 2", slug: "acme-2" }, error: null });
-    const { wrapper } = createWrapper();
-    const { result } = renderHook(() => useCreateOrganization(), { wrapper });
-    const data = await result.current.mutateAsync({ name: "Acme 2", slug: "acme-2" });
-    expect(data).toEqual({ id: "org2", name: "Acme 2", slug: "acme-2" });
-    expect(mocks._organization.create).toHaveBeenCalledWith({ name: "Acme 2", slug: "acme-2" });
-  });
-
-  it("throws when the API returns an error", async () => {
-    mocks._organization.create.mockResolvedValue({ data: null, error: { message: "slug taken" } });
-    const { wrapper } = createWrapper();
-    const { result } = renderHook(() => useCreateOrganization(), { wrapper });
-    await expect(result.current.mutateAsync({ name: "Acme 2", slug: "acme" })).rejects.toThrow("slug taken");
-  });
-});
-
-describe("useUpdateOrganization", () => {
-  it("calls organization.update and invalidates queries", async () => {
-    mocks._organization.update.mockResolvedValue({ data: { id: "org1" }, error: null });
-    const { wrapper, queryClient } = createWrapper();
-    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
-    const { result } = renderHook(() => useUpdateOrganization(), { wrapper });
-    await result.current.mutateAsync({
-      organizationId: "org1",
-      name: "Acme",
-      slug: "acme",
-      metadata: { description: "A description" },
-    });
-    expect(mocks._organization.update).toHaveBeenCalledWith({
-      organizationId: "org1",
-      data: { name: "Acme", slug: "acme", metadata: { description: "A description" } },
-    });
-    await waitFor(() => expect(invalidateSpy).toHaveBeenCalled());
-  });
-
-  it("throws when the API returns an error", async () => {
-    mocks._organization.update.mockResolvedValue({ data: null, error: { message: "not allowed" } });
-    const { wrapper } = createWrapper();
-    const { result } = renderHook(() => useUpdateOrganization(), { wrapper });
-    await expect(
-      result.current.mutateAsync({ organizationId: "org1", name: "Acme", slug: "acme" }),
-    ).rejects.toThrow("not allowed");
   });
 });
 

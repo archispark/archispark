@@ -51,7 +51,6 @@ export interface OrgMetadata {
 export interface ActiveOrganization {
   id: string;
   name: string;
-  slug: string;
   createdAt: string | Date;
   logo?: string | null;
   metadata?: OrgMetadata | null;
@@ -62,7 +61,6 @@ export interface ActiveOrganization {
 export interface OrganizationListItem {
   id: string;
   name: string;
-  slug: string;
   createdAt: string | Date;
   logo?: string | null;
   metadata?: OrgMetadata | null;
@@ -120,29 +118,6 @@ export function useTeamMembers(teamId: string | null) {
 export function useSetActiveOrganization() {
   return useMutation({
     mutationFn: (organizationId: string) => unwrap(authClient.organization.setActive({ organizationId })),
-  });
-}
-
-export function useCreateOrganization() {
-  return useMutation({
-    mutationFn: (body: { name: string; slug: string; description?: string }) =>
-      unwrap(authClient.organization.create({
-        name: body.name,
-        slug: body.slug,
-        metadata: body.description ? { description: body.description } : undefined,
-      })),
-  });
-}
-
-export function useUpdateOrganization() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (body: { organizationId: string; name: string; slug: string; metadata?: OrgMetadata }) =>
-      unwrap(authClient.organization.update({
-        organizationId: body.organizationId,
-        data: { name: body.name, slug: body.slug, metadata: body.metadata },
-      })),
-    onSuccess: () => qc.invalidateQueries(),
   });
 }
 

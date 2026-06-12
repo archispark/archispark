@@ -203,7 +203,7 @@ The workflow offers a **reset** checkbox (on by default): when checked it delete
 ## Persistence
 
 All data lives in PostgreSQL, shared between the API and MCP server.  
-Schema follows ArchiMate 3 Open Exchange XSDs (`apps/api/models/xsd/`).
+Schema follows ArchiMate 3 Open Exchange XSDs (`models/xsd/`).
 
 The test suite runs against [PGlite](https://pglite.dev) (Postgres compiled to
 WASM, in-memory) — full Postgres fidelity, no Docker required.
@@ -232,8 +232,8 @@ DB_DRIVER=postgres npx drizzle-kit generate --config drizzle.config.tenant.ts  #
 
 #### Provisioning tenant databases (Neon)
 
-Set `NEON_API_KEY` and `NEON_PROJECT_ID` (apps/api only, never exposed to the
-frontend) to enable per-tenant Neon databases. `NEON_BRANCH_ID` is optional —
+Set `NEON_API_KEY` and `NEON_PROJECT_ID` (apps/control-api only, never exposed
+to the frontend) to enable per-tenant Neon databases. `NEON_BRANCH_ID` is optional —
 defaults to the project's default branch. While these are unset, every
 organization keeps sharing the control-plane database (transitional mode);
 `getTenantDb`/`db` fall back to it.
@@ -245,7 +245,7 @@ organization keeps sharing the control-plane database (transitional mode);
   `schema.tenant.ts` — no control-plane FKs), seeds an empty "Default"
   workspace, encrypts and stores the connection string in `tenant_databases`,
   and marks it `"active"`. Failures mark the row `"error"` (retryable).
-- **Existing organizations**: `pnpm --filter api migrate-tenant <organizationId>`
+- **Existing organizations**: `pnpm --filter control-api migrate-tenant <organizationId>`
   provisions the dedicated database and copies all of the organization's
   workspaces (full ArchiMate content, `workspace_teams`, and
   `user_active_workspace`) into it, then marks `tenant_databases` `"active"`.
@@ -260,6 +260,52 @@ Tenant databases use `drizzle-orm/neon-serverless` (websocket `Pool`), which
 supports real interactive transactions — required by `seedWorkspace`/`modelToDb`.
 The control-plane database always uses `drizzle-orm/node-postgres`
 (`pg.Pool`, or PGlite in tests).
+
+### Control-api / tenant-api split
+
+`apps/control-api` is the single public entry point — it owns Better Auth,
+sessions, API tokens, organizations/teams, settings, and the platform admin
+routes (`/me`, `/users*`, `/admin/organizations*`, `/settings/*`,
+`/auth/*`). Everything else (workspaces, elements, relationships, views,
+property definitions, model import/export, `/openapi.json`, `/docs`) is
+implemented by `apps/tenant-api`, an internal data-plane service that
+control-api reverse-proxies to.
+
+For every proxied request, control-api runs its usual
+`requireAuth` → `resolveWorkspaceContext` → `requireWorkspaceWrite` checks
+(so 401/403 happen without ever reaching tenant-api), then signs a
+short-lived (60s) inter-service JWT and forwards the request to
+`TENANT_API_URL` with `Authorization: Bearer <token>`. tenant-api verifies
+the token with the shared `TENANT_JWT_SECRET` and reconstructs
+`req.user`/`req.workspace` from its claims:
+
+```ts
+{ sub, username, platform_role, organization_id, org_role, team_ids, tenant_db }
+```
+
+`tenant_db` is the organization's **encrypted** Neon connection string (or
+`null` for organizations still on the shared database) — control-api passes
+it through without decrypting it; only tenant-api (and mcp-server) hold
+`TENANT_DB_ENCRYPTION_KEY`.
+
+Credential separation:
+
+| Env var | control-api | tenant-api |
+|---|---|---|
+| `DATABASE_URL` | ✅ (control schema + Better Auth) | ✅ (fallback, tenant tables only) |
+| `JWT_SECRET` | ✅ (Better Auth) | — |
+| `NEON_API_KEY` / `NEON_PROJECT_ID` / `NEON_BRANCH_ID` | ✅ | — |
+| `TENANT_API_URL` | ✅ (where to proxy) | — |
+| `TENANT_JWT_SECRET` | ✅ (sign) | ✅ (verify) |
+| `TENANT_DB_ENCRYPTION_KEY` | — | ✅ (decrypt `tenant_db`) |
+| `REDIS_URL` | ✅ | ✅ |
+
+Self-hosted Docker: `tenant-api` runs as an internal-only Compose service
+(no Traefik labels), reached by `control-api` over the `archispark` network
+at `http://tenant-api:3002`. Vercel: `tenant-api` is its own project
+(`archispark-tenant-api`, root directory `apps/tenant-api`), reached at its
+default `*.vercel.app` deployment URL (no custom domain needed) — see
+[Vercel](#vercel).
 
 ## Authentication
 
@@ -284,7 +330,7 @@ By default the session cookie is scoped to whichever origin served the
 request (works for self-hosted single-domain deployments). When `apps/web`
 and `apps/admin-web` are deployed on subdomains of the same root domain (e.g.
 `app.example.com` / `admin.example.com`), set `COOKIE_DOMAIN=.example.com` on
-`apps/api` — Better Auth then issues the session cookie for that root domain,
+`apps/control-api` — Better Auth then issues the session cookie for that root domain,
 so signing in on either subdomain authenticates both. Also list every
 subdomain origin in `TRUSTED_ORIGINS` (comma-separated).
 
@@ -334,6 +380,8 @@ Org owners/admins (and platform super admins) see an **Organization** entry in t
 
 ## Workspace management
 
+*tenant-api route — see [Control-api / tenant-api split](#control-api--tenant-api-split).*
+
 Workspaces belong to an organization (`organization_id`) and are listed only if the current user is a member of that organization (and, when `team_ids` is non-empty, a member of one of those teams or an org owner/admin).
 
 | Method | Path | Description |
@@ -346,6 +394,8 @@ Workspaces belong to an organization (`organization_id`) and are listed only if 
 
 ## Model routes
 
+*tenant-api route — see [Control-api / tenant-api split](#control-api--tenant-api-split).*
+
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/` | Active workspace info + model metadata |
@@ -354,6 +404,8 @@ Workspaces belong to an organization (`organization_id`) and are listed only if 
 | `POST` | `/import` | Replace the active workspace model from an XML body |
 
 ## Elements
+
+*tenant-api route — see [Control-api / tenant-api split](#control-api--tenant-api-split).*
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -366,6 +418,8 @@ Workspaces belong to an organization (`organization_id`) and are listed only if 
 
 ## Relationships
 
+*tenant-api route — see [Control-api / tenant-api split](#control-api--tenant-api-split).*
+
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/relationships/types` | Sorted list of relationship types present |
@@ -376,6 +430,8 @@ Workspaces belong to an organization (`organization_id`) and are listed only if 
 | `DELETE` | `/relationships/:id` | Delete |
 
 ## Views
+
+*tenant-api route — see [Control-api / tenant-api split](#control-api--tenant-api-split).*
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -388,6 +444,8 @@ Workspaces belong to an organization (`organization_id`) and are listed only if 
 | `GET` | `/views/:id/image` | Render view as SVG (`?format=svg`; PNG export is client-side) |
 
 ## Property definitions
+
+*tenant-api route — see [Control-api / tenant-api split](#control-api--tenant-api-split).*
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -431,15 +489,20 @@ pnpm run -w test:coverage   # ≥80% coverage required
 
 ## Vercel
 
-1. **Link Supabase** — In Vercel → Storage, attach your Supabase project to both `archispark-api` and `archispark-web`. This auto-injects `POSTGRES_URL`, `POSTGRES_URL_NON_POOLING`, etc.
+1. **Create the `archispark-tenant-api` project** (Phase 5, one-time) — import
+   the repo as a second Vercel project with root directory `apps/tenant-api`.
+   It's internal-only (no custom domain needed, the default `*.vercel.app`
+   URL is fine — see [Control-api / tenant-api split](#control-api--tenant-api-split)).
 
-2. **Set environment variables** — grab a Vercel token from Account Settings → Tokens, then:
+2. **Link Supabase** — In Vercel → Storage, attach your Supabase project to `archispark-api`, `archispark-tenant-api`, and `archispark-web`. This auto-injects `POSTGRES_URL`, `POSTGRES_URL_NON_POOLING`, etc.
+
+3. **Set environment variables** — grab a Vercel token from Account Settings → Tokens, then:
 
 ```bash
 VERCEL_TOKEN=xxx \
 SEED_ADMIN_PASSWORD=<strong-password> \
 SEED_USER_PASSWORD=<another-password> \
-bash apps/api/scripts/setup-vercel-env.sh
+bash apps/control-api/scripts/setup-vercel-env.sh
 ```
 
 The script configures:
@@ -451,7 +514,12 @@ The script configures:
 | `TRUSTED_ORIGINS` | api | your public URL |
 | `SEED_ADMIN_PASSWORD` | api | your choice |
 | `SEED_USER_PASSWORD` | api | your choice |
+| `TENANT_API_URL` | api | `archispark-tenant-api`'s deployment URL |
+| `TENANT_JWT_SECRET` | api, tenant-api | shared (auto-generated) |
+| `TENANT_DB_ENCRYPTION_KEY` | tenant-api | auto-generated |
 | `ARCHIMATE_API_URL` | web | API Vercel deployment URL |
+
+4. **Redeploy** `archispark-api` and `archispark-tenant-api`.
 
 ### Subdomain topology (`app.<domain>` / `admin.<domain>`)
 
@@ -472,7 +540,7 @@ ADMIN_URL="https://admin.<domain>" \
 COOKIE_DOMAIN=".<domain>" \
 SEED_ADMIN_PASSWORD=<strong-password> \
 SEED_USER_PASSWORD=<another-password> \
-bash apps/api/scripts/setup-vercel-env.sh
+bash apps/control-api/scripts/setup-vercel-env.sh
 ```
 
 This sets `archispark-admin-web`'s `ARCHIMATE_API_URL`, adds `ADMIN_URL` to

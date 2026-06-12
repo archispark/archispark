@@ -236,10 +236,74 @@ changent pas).
 
 ## Phase 5 — Split API (optionnel, si exigence contractuelle forte)
 
-- [ ] Extraire `apps/control-api` et `apps/tenant-api` à partir de `apps/api`
-- [ ] Auth inter-services : JWT signé par control-api (org_id, user_id, rôle),
+- [x] Extraire `apps/control-api` et `apps/tenant-api` à partir de `apps/api`
+  - [x] `apps/control-api` (point d'entrée public, inchangé pour
+        `apps/web`/`apps/admin-web`) garde l'auth Better Auth, `/me`,
+        `/users*`, `/admin/organizations*`, `/settings/*`, `/auth/*` —
+        toute autre requête authentifiée est reverse-proxifiée vers
+        `TENANT_API_URL`
+  - [x] `apps/tenant-api` (nouveau, port 3002, interne) reçoit `store.ts`,
+        `registry.ts`, `model.ts`, `renderer.ts`, `oxf-parser`/`oxf-serializer`,
+        `schemas.ts`, `validation.ts`, `serializers.ts`, `openapi.ts`,
+        `archimate-icons.ts`, `xml-escape.ts` et les routes data
+        (`/workspaces`, `/elements`, `/relationships`, `/views`,
+        `/property-definitions`, `/export*`, `/import`, `/viewpoints`,
+        `/openapi.json`, `/docs`, `/`, `/save`)
+- [x] Auth inter-services : JWT signé par control-api (org_id, user_id, rôle),
       vérifié par tenant-api
-- [ ] Suppression complète des credentials control-plane du process tenant-api (et inversement)
+  - [x] `packages/db/src/tenant-jwt.ts` (`signTenantToken`/`verifyTenantToken`,
+        expiration 60s, secret partagé `TENANT_JWT_SECRET`) — claims `sub`,
+        `username`, `platform_role`, `organization_id`, `org_role`,
+        `team_ids`, `tenant_db` (connection string Neon chiffrée du tenant
+        actif, ou `null`)
+  - [x] control-api (`app.ts`, middleware proxy final) signe le token après
+        `requireAuth`/`resolveWorkspaceContext`/`requireWorkspaceWrite` (donc
+        après les 401/403) et appelle
+        `getTenantConnectionStringEncrypted(organizationId)` pour le claim
+        `tenant_db`
+  - [x] tenant-api (`tenant-auth.ts`, `requireTenantToken`) vérifie le token,
+        reconstruit `req.user`/`req.workspace`, et si `tenant_db` est présent
+        déchiffre (`TENANT_DB_ENCRYPTION_KEY`/`decryptConnectionString`) et lie
+        la requête via `runWithTenantDb(createTenantDb(...), next)` — sinon
+        repli sur sa propre `DATABASE_URL` (mode transitoire Phase 2/3,
+        inchangé)
+  - [x] `/openapi.json`/`/docs` restent publics sur tenant-api (avant
+        `requireTenantToken`) ; control-api les laisse passer sans
+        `authorization` (proxy public-path)
+- [x] Suppression complète des credentials control-plane du process tenant-api (et inversement)
+  - [x] control-api garde `DATABASE_URL` (schéma control + Better Auth),
+        `JWT_SECRET`, `NEON_API_KEY`/`NEON_PROJECT_ID`/`NEON_BRANCH_ID`,
+        nouveau `TENANT_JWT_SECRET` (signe) + `TENANT_API_URL` — **n'a plus**
+        `TENANT_DB_ENCRYPTION_KEY` (ne fait que transmettre le chiffré)
+  - [x] tenant-api a `DATABASE_URL` (repli, tables `schema.tenant.ts`
+        uniquement), `TENANT_JWT_SECRET` (vérifie), `TENANT_DB_ENCRYPTION_KEY`
+        (déchiffre), `REDIS_URL` — n'importe jamais Better Auth,
+        `NEON_API_KEY` ni `schema.control.ts`
+  - [x] `apps/mcp-server` reste hors périmètre (process backend de confiance) :
+        importe `control-api` (`lookupApiToken`, `getMembershipContext`) et
+        `tenant-api` (`store`, `registry`, `renderViewToSvg`, schémas) en
+        process, garde `DATABASE_URL` + `TENANT_DB_ENCRYPTION_KEY`
+- [x] Docker : nouveaux `.docker/tenant-api/{alpine,trixie-slim}`, service
+      interne `tenant-api` (port 3002, sans label Traefik) dans
+      `docker-compose.yml` — `control-api` en dépend
+      (`condition: service_healthy`) et reçoit `TENANT_API_URL` +
+      `TENANT_JWT_SECRET` ; `mcp-server` reçoit `TENANT_DB_ENCRYPTION_KEY`
+- [x] Vercel : `apps/tenant-api/vercel.json` + `api/index.ts` (même forme que
+      control-api), buildCommand de `apps/mcp-server` étendu (`@workspace/db`
+      → `control-api` → `tenant-api` → `mcp-server`),
+      `apps/control-api/scripts/setup-vercel-env.sh` configure
+      `archispark-tenant-api` (`TENANT_JWT_SECRET`, `TENANT_DB_ENCRYPTION_KEY`)
+      et pose `TENANT_API_URL`/`TENANT_JWT_SECRET` sur `archispark-api`
+- [x] `pnpm run -w test` (control-api, tenant-api, mcp-server, web,
+      admin-web, @workspace/db — couverture ≥ 80%) et `pnpm turbo run lint`
+      (0 erreur) passent
+- [x] **Reste action utilisateur** : créer le projet Vercel
+      `archispark-tenant-api` (root directory `apps/tenant-api`), lier
+      l'intégration Supabase, générer `TENANT_JWT_SECRET` et
+      `TENANT_DB_ENCRYPTION_KEY` (`openssl rand -hex 32`), lancer
+      `setup-vercel-env.sh` et redéployer `archispark-api` +
+      `archispark-tenant-api` + `archispark-mcp-server`
+- [ ] Commit Phase 5
 
 ---
 

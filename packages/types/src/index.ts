@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------------
 // Shared API types — single source of truth for API ↔ Web
-// These types mirror the output schemas in apps/api/src/schemas.ts
+// These types mirror the output schemas in apps/tenant-api/src/schemas.ts
 // ---------------------------------------------------------------------------
 
 export interface RGBColor {

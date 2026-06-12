@@ -12,7 +12,8 @@ RUN --mount=type=cache,id=pnpm-debian,target=/pnpm/store \
     pnpm install --frozen-lockfile
 
 RUN pnpm --filter @workspace/db build
-RUN pnpm --filter api build
+RUN pnpm --filter control-api build
+RUN pnpm --filter tenant-api build
 RUN pnpm --filter mcp-server build
 
 # ── Stage 2 : runtime ─────────────────────────────────────────────────────────
@@ -28,7 +29,8 @@ COPY --from=build /repo/pnpm-workspace.yaml                          ./
 COPY --from=build /repo/pnpm-lock.yaml                               ./
 COPY --from=build /repo/package.json                                  ./
 COPY --from=build /repo/apps/mcp-server/package.json                  apps/mcp-server/
-COPY --from=build /repo/apps/api/package.json                         apps/api/
+COPY --from=build /repo/apps/control-api/package.json                 apps/control-api/
+COPY --from=build /repo/apps/tenant-api/package.json                  apps/tenant-api/
 COPY --from=build /repo/packages/db/package.json                      packages/db/
 COPY --from=build /repo/packages/types/package.json                   packages/types/
 COPY --from=build /repo/packages/typescript-config/package.json       packages/typescript-config/
@@ -37,9 +39,10 @@ COPY --from=build /repo/packages/eslint-config/package.json           packages/e
 RUN --mount=type=cache,id=pnpm-debian,target=/pnpm/store \
     pnpm install --frozen-lockfile --prod
 
-COPY --from=build /repo/apps/mcp-server/dist apps/mcp-server/dist
-COPY --from=build /repo/apps/api/dist        apps/api/dist
-COPY --from=build /repo/packages/db/dist     packages/db/dist
+COPY --from=build /repo/apps/mcp-server/dist  apps/mcp-server/dist
+COPY --from=build /repo/apps/control-api/dist apps/control-api/dist
+COPY --from=build /repo/apps/tenant-api/dist  apps/tenant-api/dist
+COPY --from=build /repo/packages/db/dist      packages/db/dist
 
 ENV NODE_ENV=production
 ENV MCP_PORT=3001

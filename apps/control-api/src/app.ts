@@ -1,65 +1,42 @@
 /**
- * REST service to explore and edit ArchiMate models.
+ * Control-plane REST service: authentication, users, organizations, settings.
  *
- * Multi-workspace mode: workspaces listed in workspaces.json; one is active at a time.
+ * Every request is authenticated (Better Auth session cookie or personal API
+ * token, via `requireAuth`), its organization/team membership resolved
+ * (`resolveWorkspaceContext`), and write operations are gated to org
+ * owners/admins (`requireWorkspaceWrite`) — all before anything reaches
+ * `apps/tenant-api`. Any request that doesn't match a control-plane route
+ * below is reverse-proxied to `TENANT_API_URL` with a short-lived
+ * inter-service JWT (`signTenantToken`, see `@workspace/db`'s tenant-jwt.ts)
+ * carrying the resolved identity, workspace, and — if the organization has an
+ * active dedicated database — the encrypted tenant connection string.
+ * control-api never holds `TENANT_DB_ENCRYPTION_KEY`; it only passes the
+ * ciphertext through.
  *
  * Routes:
- *   GET /workspaces
- *   POST /workspaces
- *   PUT /workspaces/:id
- *   DELETE /workspaces/:id
- *   POST /workspaces/:id/activate
- *   GET /openapi.json
- *   GET /docs
- *   GET /
- *   POST /save
- *   GET /elements[/types|/:id]
- *   POST|PUT|DELETE /elements[/:id]
- *   GET /relationships[/types|/:id]
- *   POST|PUT|DELETE /relationships[/:id]
- *   GET /views[/:id]
- *   POST /views
- *   POST /views/:view_id/nodes
- *   GET /property-definitions[/:id]
- *   POST|PUT|DELETE /property-definitions[/:id]
+ *   GET /me
+ *   GET|POST /users, PUT|DELETE /users/:id
+ *   GET /admin/organizations, PUT /admin/organizations/:id
+ *   GET|POST /settings/providers, PUT|DELETE /settings/providers/:id
+ *   GET /settings/redis
+ *   GET /settings/postgres
+ *   GET|POST /settings/api-tokens, DELETE /settings/api-tokens/:id
+ *   GET|PUT /settings/messages
+ *   *  -> proxied to TENANT_API_URL (workspaces, elements, relationships,
+ *         views, property-definitions, export/import, openapi/docs, ...)
  */
 
 import express, { Request, Response, NextFunction } from "express";
 import { randomUUID } from "crypto";
+import { Readable } from "node:stream";
 import cors from "cors";
 import helmet from "helmet";
 import { rateLimit } from "express-rate-limit";
 import { RedisStore } from "rate-limit-redis";
 import { getRedis } from "./redis.js";
-import multer from "multer";
-// archiver@8 is a pure-ESM package whose runtime exports a named `ZipArchive`
-// class. A static namespace import is statically analyzable, so the bundler
-// (Vercel) includes archiver in the function — unlike the old createRequire()
-// form which crashed at load with "Cannot find module 'archiver'". The cast
-// bridges the @types/archiver typings (which still describe the old CJS API and
-// don't declare ZipArchive).
-import type { Archiver, ZipOptions } from "archiver";
-import * as archiverNs from "archiver";
-const ZipArchive = (archiverNs as unknown as { ZipArchive: new (opts?: ZipOptions) => Archiver }).ZipArchive;
-import { AppError, ValidationError } from "./errors.js";
-import { controlDb, getTenantDb, runWithTenantDb, oauthProviders, apiTokens, siteSettings, modelFromDb, modelToDb } from "@workspace/db";
+import { AppError } from "./errors.js";
+import { controlDb, oauthProviders, apiTokens, siteSettings, getTenantConnectionStringEncrypted, signTenantToken } from "@workspace/db";
 import { eq, sql } from "drizzle-orm";
-import * as store from "./store.js";
-import {
-  getActiveWorkspaceId,
-  getWorkspaces,
-  activateWorkspace,
-  createWorkspace,
-  updateWorkspace,
-  deleteWorkspace,
-} from "./registry.js";
-import { serializeToOpenExchange } from "./oxf-serializer.js";
-import { parseOpenExchange } from "./oxf-parser.js";
-import { openApiSpec } from "./openapi.js";
-import { renderViewToSvg } from "./renderer.js";
-// Pure DTO converters live in serializers.js; re-export the ones historically
-// imported from this module (used by the MCP server and unit tests).
-export { hexToRgb, elementOut, relOut, nodeOut, connectionOut, viewOut, pdOut } from "./serializers.js";
 import {
   listUsers,
   createUser as createUserFn,
@@ -75,40 +52,6 @@ import {
 } from "./auth.js";
 import { getAuth, getConfiguredProviders, reloadAuth } from "./better-auth.js";
 import { toNodeHandler } from "better-auth/node";
-import {
-  VIEWPOINTS,
-  ElementCreateIn,
-  ElementUpdateIn,
-  PropertyDefinitionCreateIn,
-  PropertyDefinitionUpdateIn,
-  RelationshipCreateIn,
-  RelationshipUpdateIn,
-  NodeCreateIn,
-  NodeUpdateIn,
-  ConnectionCreateIn,
-  ConnectionUpdateIn,
-  ViewCreateIn,
-  ViewUpdateIn,
-} from "./schemas.js";
-import {
-  parseBody,
-  ElementCreateSchema,
-  ElementUpdateSchema,
-  ElementQuerySchema,
-  RelationshipCreateSchema,
-  RelationshipUpdateSchema,
-  RelationshipQuerySchema,
-  ViewCreateSchema,
-  ViewUpdateSchema,
-  NodeCreateSchema,
-  NodeUpdateSchema,
-  ConnectionCreateSchema,
-  ConnectionUpdateSchema,
-  PropertyDefinitionCreateSchema,
-  PropertyDefinitionUpdateSchema,
-  WorkspaceCreateSchema,
-  WorkspaceUpdateSchema,
-} from "./validation.js";
 
 // ---------------------------------------------------------------------------
 // Express app
@@ -145,24 +88,6 @@ const authRateLimit = rateLimit({
   store: redisStore("rl:auth:"),
 });
 
-const xmlUpload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 50 * 1024 * 1024 },
-  fileFilter: (_req, file, cb) => {
-    const ok = file.mimetype === "text/xml" || file.mimetype === "application/xml" || file.originalname.endsWith(".xml");
-    cb(null, ok);
-  },
-});
-
-const importRateLimit = rateLimit({
-  windowMs: 60 * 1000,
-  max: 10,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { detail: "Trop d'imports, réessayez dans 1 minute." },
-  store: redisStore("rl:import:"),
-});
-
 const apiRateLimit = rateLimit({
   windowMs: 60 * 1000,
   max: 300,
@@ -190,6 +115,8 @@ app.all("/auth/*path", authRateLimit, (req, res) => toNodeHandler(getAuth())(req
 app.use(apiRateLimit);
 
 // Paths that don't require authentication or organization context.
+// /openapi.json and /docs live in apps/tenant-api now but are proxied through
+// here unauthenticated — tenant-api registers them before its own JWT check.
 function isPublicPath(req: Request): boolean {
   return (
     req.path.startsWith("/auth") ||
@@ -206,25 +133,18 @@ app.use((req: AuthRequest, res, next) => {
 });
 
 // Resolve the organization (and team memberships) the request operates in —
-// used for workspace visibility and the write-permission check below.
+// used for workspace visibility, the write-permission check below, and the
+// claims of the inter-service JWT forwarded to apps/tenant-api.
 app.use(async (req: AuthRequest, res, next) => {
   if (isPublicPath(req)) { next(); return; }
   await resolveWorkspaceContext(req, res, next);
 });
 
-// Bind `db` (from @workspace/db) to this organization's database for the rest
-// of the request — store.ts/registry.ts/model-io.ts read it via AsyncLocalStorage.
-app.use((req: AuthRequest, res, next) => {
-  if (isPublicPath(req)) { next(); return; }
-  getTenantDb(req.workspace!.organizationId)
-    .then((tenantDb) => runWithTenantDb(tenantDb, next))
-    .catch(next);
-});
-
 // Write operations (POST/PUT/DELETE) on workspace content are reserved for
 // org owners/admins (platform super admins always pass); org members are
 // read-only. Exempt /auth/*, /users and /settings/api-tokens (users manage
-// their own tokens).
+// their own tokens). This runs BEFORE the tenant-api proxy, so a read-only
+// member's write request never reaches tenant-api.
 app.use((req: AuthRequest, res, next) => {
   if (
     ["POST", "PUT", "DELETE"].includes(req.method) &&
@@ -534,315 +454,60 @@ app.put("/settings/messages", requireSuperAdmin as express.RequestHandler, async
 });
 
 // ---------------------------------------------------------------------------
-// Workspace routes
+// Reverse proxy to apps/tenant-api — everything else (workspaces, elements,
+// relationships, views, property-definitions, export/import, openapi/docs).
 // ---------------------------------------------------------------------------
 
-app.get("/workspaces", async (req: AuthRequest, res: Response) => {
-  res.json(await getWorkspaces(req.workspace!, req.user!.id));
-});
+const NON_FORWARDED_RESPONSE_HEADERS = new Set(["content-encoding", "transfer-encoding", "connection"]);
 
-app.post("/workspaces", async (req: AuthRequest, res: Response) => {
-  const body = parseBody(WorkspaceCreateSchema, req.body, res);
-  if (!body) return;
-  res.status(201).json(await createWorkspace(req.workspace!, req.user!.id, body.name, body.path, body.description, body.team_ids));
-});
+app.use(async (req: AuthRequest, res: Response, next: NextFunction) => {
+  const base = process.env["TENANT_API_URL"];
+  if (!base) { next(new AppError("TENANT_API_URL non configuré.", 500)); return; }
 
-app.put("/workspaces/:id", async (req: AuthRequest, res: Response) => {
-  const body = parseBody(WorkspaceUpdateSchema, req.body, res);
-  if (!body) return;
-  res.json(await updateWorkspace(req.params["id"] as string, body.name, req.workspace!, req.user!.id, body.team_ids));
-});
-
-app.delete("/workspaces/:id", async (req: AuthRequest, res: Response) => {
-  await deleteWorkspace(req.params["id"] as string, req.workspace!.organizationId);
-    res.status(204).send();
-});
-
-app.post("/workspaces/:id/activate", async (req: AuthRequest, res: Response) => {
-  res.json(await activateWorkspace(req.params["id"] as string, req.workspace!, req.user!.id));
-});
-
-// OpenAPI spec and Swagger UI
-app.get("/openapi.json", (_req: Request, res: Response) => {
-  res.json(openApiSpec);
-});
-
-app.get("/docs", (_req: Request, res: Response) => {
-  res.setHeader("Content-Type", "text/html; charset=utf-8");
-  res.send(`<!DOCTYPE html>
-<html lang="fr">
-<head>
-  <meta charset="utf-8"/>
-  <title>ArchiSpark API — Documentation</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css"/>
-</head>
-<body>
-<div id="swagger-ui"></div>
-<script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
-<script>
-  SwaggerUIBundle({
-    url: "/openapi.json",
-    dom_id: "#swagger-ui",
-    presets: [SwaggerUIBundle.presets.apis, SwaggerUIBundle.SwaggerUIStandalonePreset],
-    layout: "BaseLayout",
-    persistAuthorization: true,
-    tryItOutEnabled: true,
-  });
-</script>
-</body>
-</html>`);
-});
-
-app.get("/viewpoints", (_req: Request, res: Response) => {
-  res.json([...VIEWPOINTS].sort((a, b) => a.localeCompare(b)));
-});
-
-
-// Model info
-app.get("/", async (req: AuthRequest, res: Response) => {
-  const wsId = await getActiveWorkspaceId(req.workspace!, req.user!.id);
-  const workspaces = await getWorkspaces(req.workspace!, req.user!.id);
-  const active = workspaces.find((w) => w.active);
-  res.json({ ...(await store.getModelInfo(wsId)), workspace_id: active?.id ?? null, workspace_name: active?.name ?? null });
-});
-
-// Persistence is immediate (every write hits Postgres); /save is a no-op kept
-// for backwards compatibility with existing clients.
-app.post("/save", async (_req: Request, res: Response) => {
-  res.json({ saved: true, path: "postgres" });
-});
-
-// Export model as XML
-app.get("/export", async (req: AuthRequest, res: Response) => {
-  const model = await modelFromDb(await getActiveWorkspaceId(req.workspace!, req.user!.id));
-  const xml = serializeToOpenExchange(model);
-  res.setHeader("Content-Type", "application/xml; charset=utf-8");
-  res.setHeader("Content-Disposition", `attachment; filename="${model.name || "model"}.xml"`);
-  res.send(xml);
-});
-
-// Export model + all view SVGs as a ZIP archive
-app.get("/export/zip", async (req: AuthRequest, res: Response) => {
-  const model = await modelFromDb(await getActiveWorkspaceId(req.workspace!, req.user!.id));
-  const modelName = model.name || "model";
-  res.setHeader("Content-Type", "application/zip");
-  res.setHeader("Content-Disposition", `attachment; filename="${modelName}.zip"`);
-  const archive = new ZipArchive({ zlib: { level: 9 } });
-  archive.on("error", (err: Error) => { res.status(500).json({ detail: err.message }); });
-  archive.pipe(res);
-  archive.append(serializeToOpenExchange(model), { name: `${modelName}.xml` });
-  for (const view of model.views) {
-    const svg = renderViewToSvg(view, model);
-    const safeName = view.name.replace(/[^a-zA-Z0-9_-]/g, "_");
-    archive.append(svg, { name: `views/${safeName}.svg` });
+  const headers = new Headers();
+  // req.user/req.workspace are set together by requireAuth + resolveWorkspaceContext
+  // above, skipped only for public paths (openapi/docs) — those forward with no token.
+  if (req.user) {
+    const tenantDb = await getTenantConnectionStringEncrypted(req.workspace!.organizationId);
+    const token = signTenantToken({
+      sub: req.user.id,
+      username: req.user.username,
+      platform_role: req.user.role,
+      organization_id: req.workspace!.organizationId,
+      org_role: req.workspace!.orgRole,
+      team_ids: req.workspace!.teamIds,
+      tenant_db: tenantDb,
+    });
+    headers.set("authorization", `Bearer ${token}`);
   }
-  await archive.finalize();
-});
 
-// Import model from XML — accepts multipart/form-data (file field "file") or raw XML body
-app.post("/import", importRateLimit,
-  (req, res, next) => {
-    if (req.is("multipart/form-data")) {
-      xmlUpload.single("file")(req, res, next);
+  const contentType = req.headers["content-type"];
+  if (contentType) headers.set("content-type", contentType);
+
+  let body: BodyInit | undefined;
+  let duplex: "half" | undefined;
+  if (!["GET", "HEAD"].includes(req.method)) {
+    if (contentType?.startsWith("application/json")) {
+      // express.json() already consumed the request stream and parsed req.body.
+      body = JSON.stringify(req.body);
     } else {
-      express.text({ type: ["text/xml", "application/xml", "text/plain"], limit: "50mb" })(req, res, next);
+      // Not application/json — express.json() left the stream untouched
+      // (multipart uploads for /import, raw XML bodies, or no body at all).
+      body = Readable.toWeb(req) as ReadableStream;
+      duplex = "half";
     }
-  },
-  async (req: AuthRequest, res: Response) => {
-    const xml: string = (req as Request & { file?: Express.Multer.File }).file
-      ? (req as Request & { file?: Express.Multer.File }).file!.buffer.toString("utf-8")
-      : (req.body as string);
-    if (!xml || typeof xml !== "string") throw new ValidationError("Le corps de la requête doit être un XML valide.");
-    let newModel: ReturnType<typeof parseOpenExchange>;
-    try { newModel = parseOpenExchange(xml); }
-    catch (err) { throw new ValidationError(`Erreur de parsing XML : ${(err as Error).message}`); }
-    const wsId = await getActiveWorkspaceId(req.workspace!, req.user!.id);
-    await modelToDb(wsId, newModel);
-    res.json(await store.getModelInfo(wsId));
-});
-
-// Elements
-app.get("/elements/types", async (req: AuthRequest, res: Response) => {
-  res.json(await store.listElementTypes(await getActiveWorkspaceId(req.workspace!, req.user!.id)));
-});
-
-app.get("/elements", async (req: AuthRequest, res: Response) => {
-  const q = parseBody(ElementQuerySchema, req.query, res);
-  if (!q) return;
-  res.json(await store.listElements(await getActiveWorkspaceId(req.workspace!, req.user!.id), q.type ?? null, q.name ?? null));
-});
-
-app.get("/elements/in-views", async (req: AuthRequest, res: Response) => {
-  res.json(await store.listElementsInViews(await getActiveWorkspaceId(req.workspace!, req.user!.id)));
-});
-
-app.get("/elements/:element_id", async (req: AuthRequest, res: Response) => {
-  res.json(await store.getElementById(await getActiveWorkspaceId(req.workspace!, req.user!.id), req.params["element_id"] as string));
-});
-
-app.get("/elements/:element_id/views", async (req: AuthRequest, res: Response) => {
-  res.json(await store.getElementViews(await getActiveWorkspaceId(req.workspace!, req.user!.id), req.params["element_id"] as string));
-});
-
-app.get("/elements/:element_id/relationships", async (req: AuthRequest, res: Response) => {
-  res.json(await store.getElementRelationships(await getActiveWorkspaceId(req.workspace!, req.user!.id), req.params["element_id"] as string));
-});
-
-app.post("/elements", async (req: AuthRequest, res: Response) => {
-  const body = parseBody(ElementCreateSchema, req.body, res);
-  if (!body) return;
-  res.status(201).json(await store.createElement(await getActiveWorkspaceId(req.workspace!, req.user!.id), body as ElementCreateIn));
-});
-
-app.put("/elements/:element_id", async (req: AuthRequest, res: Response) => {
-  const body = parseBody(ElementUpdateSchema, req.body, res);
-  if (!body) return;
-  res.json(await store.updateElement(await getActiveWorkspaceId(req.workspace!, req.user!.id), req.params["element_id"] as string, body as ElementUpdateIn));
-});
-
-app.delete("/elements/:element_id", async (req: AuthRequest, res: Response) => {
-  await store.deleteElement(await getActiveWorkspaceId(req.workspace!, req.user!.id), req.params["element_id"] as string);
-  res.status(204).send();
-});
-
-// Relationships
-app.get("/relationships/types", async (req: AuthRequest, res: Response) => {
-  res.json(await store.listRelationshipTypes(await getActiveWorkspaceId(req.workspace!, req.user!.id)));
-});
-
-app.get("/relationships", async (req: AuthRequest, res: Response) => {
-  const q = parseBody(RelationshipQuerySchema, req.query, res);
-  if (!q) return;
-  res.json(await store.listRelationships(await getActiveWorkspaceId(req.workspace!, req.user!.id), q.type ?? null, q.source_id ?? null, q.target_id ?? null));
-});
-
-app.get("/relationships/:relationship_id/views", async (req: AuthRequest, res: Response) => {
-  res.json(await store.getRelationshipViews(await getActiveWorkspaceId(req.workspace!, req.user!.id), req.params["relationship_id"] as string));
-});
-
-app.get("/relationships/:relationship_id", async (req: AuthRequest, res: Response) => {
-  res.json(await store.getRelationshipById(await getActiveWorkspaceId(req.workspace!, req.user!.id), req.params["relationship_id"] as string));
-});
-
-app.post("/relationships", async (req: AuthRequest, res: Response) => {
-  const body = parseBody(RelationshipCreateSchema, req.body, res);
-  if (!body) return;
-  res.status(201).json(await store.createRelationship(await getActiveWorkspaceId(req.workspace!, req.user!.id), body as RelationshipCreateIn));
-});
-
-app.put("/relationships/:relationship_id", async (req: AuthRequest, res: Response) => {
-  const body = parseBody(RelationshipUpdateSchema, req.body, res);
-  if (!body) return;
-  res.json(await store.updateRelationship(await getActiveWorkspaceId(req.workspace!, req.user!.id), req.params["relationship_id"] as string, body as RelationshipUpdateIn));
-});
-
-app.delete("/relationships/:relationship_id", async (req: AuthRequest, res: Response) => {
-  await store.deleteRelationship(await getActiveWorkspaceId(req.workspace!, req.user!.id), req.params["relationship_id"] as string);
-  res.status(204).send();
-});
-
-// Views
-app.get("/views", async (req: AuthRequest, res: Response) => {
-  res.json(await store.listViews(await getActiveWorkspaceId(req.workspace!, req.user!.id)));
-});
-
-app.get("/views/:view_id", async (req: AuthRequest, res: Response) => {
-  res.json(await store.getViewById(await getActiveWorkspaceId(req.workspace!, req.user!.id), req.params["view_id"] as string));
-});
-
-app.post("/views", async (req: AuthRequest, res: Response) => {
-  const body = parseBody(ViewCreateSchema, req.body, res);
-  if (!body) return;
-  res.status(201).json(await store.createView(await getActiveWorkspaceId(req.workspace!, req.user!.id), body as ViewCreateIn));
-});
-
-app.put("/views/:view_id", async (req: AuthRequest, res: Response) => {
-  const body = parseBody(ViewUpdateSchema, req.body, res);
-  if (!body) return;
-  res.json(await store.updateView(await getActiveWorkspaceId(req.workspace!, req.user!.id), req.params["view_id"] as string, body as ViewUpdateIn));
-});
-
-app.delete("/views/:view_id", async (req: AuthRequest, res: Response) => {
-  await store.deleteView(await getActiveWorkspaceId(req.workspace!, req.user!.id), req.params["view_id"] as string);
-  res.status(204).send();
-});
-
-app.post("/views/:view_id/nodes", async (req: AuthRequest, res: Response) => {
-  const body = parseBody(NodeCreateSchema, req.body, res);
-  if (!body) return;
-  res.status(201).json(await store.createNode(await getActiveWorkspaceId(req.workspace!, req.user!.id), req.params["view_id"] as string, body as NodeCreateIn));
-});
-
-app.put("/views/:view_id/nodes/:node_id", async (req: AuthRequest, res: Response) => {
-  const body = parseBody(NodeUpdateSchema, req.body, res);
-  if (!body) return;
-  res.json(await store.updateViewNode(await getActiveWorkspaceId(req.workspace!, req.user!.id), req.params["view_id"] as string, req.params["node_id"] as string, body as NodeUpdateIn));
-});
-
-app.delete("/views/:view_id/nodes/:node_id", async (req: AuthRequest, res: Response) => {
-  await store.deleteViewNode(await getActiveWorkspaceId(req.workspace!, req.user!.id), req.params["view_id"] as string, req.params["node_id"] as string);
-  res.status(204).send();
-});
-
-app.post("/views/:view_id/connections", async (req: AuthRequest, res: Response) => {
-  const body = parseBody(ConnectionCreateSchema, req.body, res);
-  if (!body) return;
-  res.status(201).json(await store.createViewConnection(await getActiveWorkspaceId(req.workspace!, req.user!.id), req.params["view_id"] as string, body as ConnectionCreateIn));
-});
-
-app.put("/views/:view_id/connections/:conn_id", async (req: AuthRequest, res: Response) => {
-  const body = parseBody(ConnectionUpdateSchema, req.body, res);
-  if (!body) return;
-  res.json(await store.updateViewConnection(await getActiveWorkspaceId(req.workspace!, req.user!.id), req.params["view_id"] as string, req.params["conn_id"] as string, body as ConnectionUpdateIn));
-});
-
-app.delete("/views/:view_id/connections/:conn_id", async (req: AuthRequest, res: Response) => {
-  await store.deleteViewConnection(await getActiveWorkspaceId(req.workspace!, req.user!.id), req.params["view_id"] as string, req.params["conn_id"] as string);
-  res.status(204).send();
-});
-
-app.get("/views/:view_id/image", async (req: AuthRequest, res: Response) => {
-  const format = (req.query["format"] as string) || "svg";
-  if (format !== "svg") {
-    res.status(422).json({ detail: "Format invalide. Seul 'svg' est supporté côté serveur (l'export PNG se fait côté client)." });
-    return;
   }
-  const model = await modelFromDb(await getActiveWorkspaceId(req.workspace!, req.user!.id));
-  const view = model.views.find((v) => v.uuid === req.params["view_id"]);
-  if (!view) {
-    res.status(404).json({ detail: `Vue '${req.params["view_id"]}' introuvable.` });
-    return;
-  }
-  const svg = renderViewToSvg(view, model);
-  res.setHeader("Content-Type", "image/svg+xml; charset=utf-8");
-  res.send(svg);
-});
 
-// PropertyDefinitions
-app.get("/property-definitions", async (req: AuthRequest, res: Response) => {
-  res.json(await store.listPropertyDefinitions(await getActiveWorkspaceId(req.workspace!, req.user!.id)));
-});
-
-app.get("/property-definitions/:id", async (req: AuthRequest, res: Response) => {
-  res.json(await store.getPropertyDefinitionById(await getActiveWorkspaceId(req.workspace!, req.user!.id), req.params["id"] as string));
-});
-
-app.post("/property-definitions", async (req: AuthRequest, res: Response) => {
-  const body = parseBody(PropertyDefinitionCreateSchema, req.body, res);
-  if (!body) return;
-  res.status(201).json(await store.createPropertyDefinition(await getActiveWorkspaceId(req.workspace!, req.user!.id), body as PropertyDefinitionCreateIn));
-});
-
-app.put("/property-definitions/:id", async (req: AuthRequest, res: Response) => {
-  const body = parseBody(PropertyDefinitionUpdateSchema, req.body, res);
-  if (!body) return;
-  res.json(await store.updatePropertyDefinition(await getActiveWorkspaceId(req.workspace!, req.user!.id), req.params["id"] as string, body as PropertyDefinitionUpdateIn));
-});
-
-app.delete("/property-definitions/:id", async (req: AuthRequest, res: Response) => {
-  await store.deletePropertyDefinition(await getActiveWorkspaceId(req.workspace!, req.user!.id), req.params["id"] as string);
-  res.status(204).send();
+  try {
+    const init: RequestInit & { duplex?: "half" } = { method: req.method, headers, body, duplex };
+    const upstream = await fetch(new URL(req.originalUrl, base), init);
+    res.status(upstream.status);
+    for (const [key, value] of upstream.headers) {
+      if (!NON_FORWARDED_RESPONSE_HEADERS.has(key)) res.setHeader(key, value);
+    }
+    if (upstream.body) Readable.fromWeb(upstream.body as never).pipe(res);
+    else res.end();
+  } catch (err) { next(err); }
 });
 
 // ---------------------------------------------------------------------------

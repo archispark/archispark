@@ -1,6 +1,6 @@
 /**
  * Generates packages/db/seeds/demo.sql from data/ArchiSurance.xml and data/ArchiMetal.xml.
- * Usage: tsx apps/api/scripts/generate-demo-seed.ts
+ * Usage: tsx apps/tenant-api/scripts/generate-demo-seed.ts
  */
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { resolve, dirname } from "node:path";

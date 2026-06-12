@@ -122,11 +122,8 @@ importers:
         specifier: ^4.1.8
         version: 4.1.8(@types/node@25.9.2)(@vitest/coverage-v8@4.1.8)(jsdom@29.1.1(@noble/hashes@2.2.0))(msw@2.14.6(@types/node@25.9.2)(typescript@6.0.3))(vite@8.0.16(@types/node@25.9.2)(esbuild@0.28.0)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
 
-  apps/api:
+  apps/control-api:
     dependencies:
-      '@asteasolutions/zod-to-openapi':
-        specifier: ^8.5.0
-        version: 8.5.0(zod@4.4.3)
       '@codecov/vite-plugin':
         specifier: ^2.0.1
         version: 2.0.1(vite@8.0.16(@types/node@25.9.2)(esbuild@0.28.0)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
@@ -139,18 +136,12 @@ importers:
       '@workspace/db':
         specifier: workspace:*
         version: link:../../packages/db
-      archiver:
-        specifier: ^8.0.0
-        version: 8.0.0
       bcryptjs:
         specifier: ^3.0.3
         version: 3.0.3
       better-auth:
         specifier: ^1.6.15
         version: 1.6.15(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(@electric-sql/pglite@0.5.1)(@neondatabase/serverless@0.10.4)(@types/pg@8.20.0)(kysely@0.28.17)(pg@8.21.0))(next@16.2.7(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(pg@8.21.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vitest@4.1.8)
-      colord:
-        specifier: ^2.9.3
-        version: 2.9.3
       cors:
         specifier: ^2.8.6
         version: 2.8.6
@@ -163,9 +154,6 @@ importers:
       express-rate-limit:
         specifier: ^8.5.2
         version: 8.5.2(express@5.2.1)
-      fast-xml-parser:
-        specifier: ^5.8.0
-        version: 5.8.0
       helmet:
         specifier: ^8.2.0
         version: 8.2.0
@@ -175,12 +163,6 @@ importers:
       jsonwebtoken:
         specifier: ^9.0.3
         version: 9.0.3
-      lru-cache:
-        specifier: ^11.5.1
-        version: 11.5.1
-      multer:
-        specifier: ^2.1.1
-        version: 2.1.1
       rate-limit-redis:
         specifier: ^5.0.0
         version: 5.0.0(express-rate-limit@8.5.2(express@5.2.1))
@@ -188,9 +170,6 @@ importers:
         specifier: ^4.4.3
         version: 4.4.3
     devDependencies:
-      '@types/archiver':
-        specifier: ^8.0.0
-        version: 8.0.0
       '@types/bcryptjs':
         specifier: ^3.0.0
         version: 3.0.0
@@ -203,9 +182,6 @@ importers:
       '@types/jsonwebtoken':
         specifier: ^9.0.10
         version: 9.0.10
-      '@types/multer':
-        specifier: ^2.1.0
-        version: 2.1.0
       '@types/node':
         specifier: ^25.9.2
         version: 25.9.2
@@ -239,12 +215,15 @@ importers:
       '@modelcontextprotocol/sdk':
         specifier: ^1.12.0
         version: 1.29.0(zod@4.4.3)
-      api:
+      control-api:
         specifier: workspace:*
-        version: link:../api
+        version: link:../control-api
       express:
         specifier: ^5.2.1
         version: 5.2.1
+      tenant-api:
+        specifier: workspace:*
+        version: link:../tenant-api
       zod:
         specifier: ^4.4.3
         version: 4.4.3
@@ -273,6 +252,100 @@ importers:
       vitest:
         specifier: ^4.1.8
         version: 4.1.8(@types/node@22.19.19)(@vitest/coverage-v8@4.1.8)(jsdom@29.1.1(@noble/hashes@2.2.0))(msw@2.14.6(@types/node@22.19.19)(typescript@6.0.3))(vite@8.0.16(@types/node@22.19.19)(esbuild@0.28.0)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
+
+  apps/tenant-api:
+    dependencies:
+      '@asteasolutions/zod-to-openapi':
+        specifier: ^8.5.0
+        version: 8.5.0(zod@4.4.3)
+      '@workspace/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      archiver:
+        specifier: ^8.0.0
+        version: 8.0.0
+      colord:
+        specifier: ^2.9.3
+        version: 2.9.3
+      cors:
+        specifier: ^2.8.6
+        version: 2.8.6
+      drizzle-orm:
+        specifier: ^0.45.2
+        version: 0.45.2(@electric-sql/pglite@0.5.1)(@neondatabase/serverless@0.10.4)(@types/pg@8.20.0)(kysely@0.28.17)(pg@8.21.0)
+      express:
+        specifier: ^5.2.1
+        version: 5.2.1
+      express-rate-limit:
+        specifier: ^8.5.2
+        version: 8.5.2(express@5.2.1)
+      fast-xml-parser:
+        specifier: ^5.8.0
+        version: 5.8.0
+      helmet:
+        specifier: ^8.2.0
+        version: 8.2.0
+      ioredis:
+        specifier: ^5.11.1
+        version: 5.11.1
+      lru-cache:
+        specifier: ^11.5.1
+        version: 11.5.1
+      multer:
+        specifier: ^2.1.1
+        version: 2.1.1
+      rate-limit-redis:
+        specifier: ^5.0.0
+        version: 5.0.0(express-rate-limit@8.5.2(express@5.2.1))
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@codecov/vite-plugin':
+        specifier: ^2.0.1
+        version: 2.0.1(vite@8.0.16(@types/node@25.9.2)(esbuild@0.28.0)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
+      '@eslint/js':
+        specifier: ^10.0.1
+        version: 10.0.1(eslint@10.4.1(jiti@2.7.0))
+      '@types/archiver':
+        specifier: ^8.0.0
+        version: 8.0.0
+      '@types/cors':
+        specifier: ^2.8.19
+        version: 2.8.19
+      '@types/express':
+        specifier: ^5.0.0
+        version: 5.0.6
+      '@types/multer':
+        specifier: ^2.1.0
+        version: 2.1.0
+      '@types/node':
+        specifier: ^25.9.2
+        version: 25.9.2
+      '@types/supertest':
+        specifier: ^7.2.0
+        version: 7.2.0
+      '@vitest/coverage-v8':
+        specifier: ^4.1.8
+        version: 4.1.8(vitest@4.1.8)
+      eslint:
+        specifier: ^10.4.1
+        version: 10.4.1(jiti@2.7.0)
+      supertest:
+        specifier: ^7.0.0
+        version: 7.2.2
+      tsx:
+        specifier: ^4.22.4
+        version: 4.22.4
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+      typescript-eslint:
+        specifier: ^8.61.0
+        version: 8.61.0(eslint@10.4.1(jiti@2.7.0))(typescript@6.0.3)
+      vitest:
+        specifier: ^4.1.8
+        version: 4.1.8(@types/node@25.9.2)(@vitest/coverage-v8@4.1.8)(jsdom@29.1.1(@noble/hashes@2.2.0))(msw@2.14.6(@types/node@25.9.2)(typescript@6.0.3))(vite@8.0.16(@types/node@25.9.2)(esbuild@0.28.0)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
 
   apps/web:
     dependencies:
@@ -388,6 +461,9 @@ importers:
       drizzle-orm:
         specifier: ^0.45.2
         version: 0.45.2(@electric-sql/pglite@0.5.1)(@neondatabase/serverless@0.10.4)(@types/pg@8.20.0)(kysely@0.28.17)(pg@8.21.0)
+      jsonwebtoken:
+        specifier: ^9.0.3
+        version: 9.0.3
       pg:
         specifier: ^8.13.3
         version: 8.21.0
@@ -395,6 +471,9 @@ importers:
       '@electric-sql/pglite':
         specifier: ^0.5.1
         version: 0.5.1
+      '@types/jsonwebtoken':
+        specifier: ^9.0.10
+        version: 9.0.10
       '@types/node':
         specifier: ^22.0.0
         version: 22.19.19
@@ -7291,8 +7370,8 @@ snapshots:
 
   '@typescript-eslint/project-service@8.60.0(typescript@6.0.3)':
     dependencies:
-      '@typescript-eslint/tsconfig-utils': 8.60.0(typescript@6.0.3)
-      '@typescript-eslint/types': 8.60.0
+      '@typescript-eslint/tsconfig-utils': 8.61.0(typescript@6.0.3)
+      '@typescript-eslint/types': 8.61.0
       debug: 4.4.3
       typescript: 6.0.3
     transitivePeerDependencies:

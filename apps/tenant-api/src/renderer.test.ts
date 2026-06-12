@@ -9,21 +9,21 @@ import { app } from "../src/app.js";
 import type { ArchiElement, ArchiRelationship, ArchiNode, ArchiConnection, ArchiView } from "../src/model.js";
 import type { ArchiModel } from "../src/model.js";
 import type { ViewOut } from "../src/schemas.js";
-import { getAdminCookie } from "../src/test-helper.js";
+import { getAdminToken } from "../src/test-helper.js";
 
-let adminCookie: string;
+let adminToken: string;
 
 beforeAll(async () => {
-  adminCookie = await getAdminCookie();
-  // _init() no longer seeds a default workspace; create one if the DB is empty.
-  const list = await _request(app).get("/workspaces").set("Cookie", adminCookie);
+  adminToken = getAdminToken();
+  // Ensure at least one workspace exists.
+  const list = await _request(app).get("/workspaces").set("Authorization", `Bearer ${adminToken}`);
   if ((list.body as unknown[]).length === 0) {
-    await _request(app).post("/workspaces").set("Cookie", adminCookie).send({ name: "Default" });
+    await _request(app).post("/workspaces").set("Authorization", `Bearer ${adminToken}`).send({ name: "Default" });
   }
 });
 
 function request(appArg: Parameters<typeof _request>[0]) {
-  return _request.agent(appArg).set("Cookie", adminCookie);
+  return _request.agent(appArg).set("Authorization", `Bearer ${adminToken}`);
 }
 
 const UNKNOWN_ID = "id-does-not-exist";

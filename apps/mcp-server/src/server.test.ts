@@ -28,18 +28,18 @@ const shared = vi.hoisted(() => {
 });
 
 // ---------------------------------------------------------------------------
-// Mock api package
+// Mock control-api / tenant-api packages
 // ---------------------------------------------------------------------------
 
-vi.mock("api/package.json", () => ({ default: { version: "0.0.0-test" } }));
+vi.mock("control-api/package.json", () => ({ default: { version: "0.0.0-test" } }));
 
-vi.mock("api/src/registry.js", () => ({
+vi.mock("tenant-api/src/registry.js", () => ({
   getActiveWorkspaceId: vi.fn().mockResolvedValue(1),
   getWorkspaces: vi.fn().mockResolvedValue([{ id: "1", name: "Default", active: true }]),
   activateWorkspace: vi.fn().mockResolvedValue({ id: "2", name: "Other", active: true }),
 }));
 
-vi.mock("api/src/store.js", () => ({
+vi.mock("tenant-api/src/store.js", () => ({
   getModelInfo: vi.fn().mockResolvedValue({ identifier: "m1", name: "Test" }),
   listElementTypes: vi.fn().mockResolvedValue(["ApplicationComponent"]),
   listElements: vi.fn().mockResolvedValue([]),
@@ -76,11 +76,11 @@ vi.mock("api/src/store.js", () => ({
   importModelFromXml: vi.fn().mockResolvedValue({ identifier: "m1", name: "Imported" }),
 }));
 
-vi.mock("api/src/renderer.js", () => ({
+vi.mock("tenant-api/src/renderer.js", () => ({
   renderViewToSvg: vi.fn().mockReturnValue("<svg/>"),
 }));
 
-vi.mock("api/src/schemas.js", () => ({
+vi.mock("tenant-api/src/schemas.js", () => ({
   ELEMENT_TYPES: new Set(["ApplicationComponent", "BusinessActor"]),
   RELATIONSHIP_TYPES: new Set(["Association", "Realization"]),
   PROPERTY_DEFINITION_TYPES: new Set(["string", "number"]),
@@ -149,9 +149,9 @@ import {
   listPropertyDefinitions, getPropertyDefinitionById,
   createPropertyDefinition, updatePropertyDefinition, deletePropertyDefinition,
   loadModel, exportModelToXml, importModelFromXml,
-} from "api/src/store.js";
-import { getWorkspaces, activateWorkspace } from "api/src/registry.js";
-import { renderViewToSvg } from "api/src/renderer.js";
+} from "tenant-api/src/store.js";
+import { getWorkspaces, activateWorkspace } from "tenant-api/src/registry.js";
+import { renderViewToSvg } from "tenant-api/src/renderer.js";
 import { lookupApiToken, getMembershipContext } from "./token-auth.js";
 
 // ---------------------------------------------------------------------------

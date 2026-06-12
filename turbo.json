@@ -37,7 +37,10 @@
         "ARCHIMATE_API_URL",
         "NODE_OPTIONS",
         "PORT",
-        "HOST"
+        "HOST",
+        "TENANT_API_URL",
+        "TENANT_JWT_SECRET",
+        "TENANT_DB_ENCRYPTION_KEY"
       ]
     }
   }

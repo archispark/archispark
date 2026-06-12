@@ -31,7 +31,7 @@ services:
       # Stockage persistant des certificats Let's Encrypt
       - traefik_certs:/letsencrypt
     depends_on:
-      api:
+      control-api:
         condition: service_healthy
       web:
         condition: service_healthy
@@ -41,14 +41,16 @@ services:
       - archispark
 
 
-  # ── REST API ───────────────────────────────────────────────────────────────
-  api:
-    image: archispark/archispark-api:${ARCHISPARK_OS:-alpine}-${ARCHISPARK_VERSION:-latest}
+  # ── REST API (control-plane) ────────────────────────────────────────────────
+  control-api:
+    image: archispark/archispark-control-api:${ARCHISPARK_OS:-alpine}-${ARCHISPARK_VERSION:-latest}
     restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      tenant-api:
         condition: service_healthy
     environment:
       NODE_ENV:            production
@@ -69,6 +71,11 @@ services:
       SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-}
       # Mot de passe du compte utilisateur de démonstration (seed)
       SEED_USER_PASSWORD:  ${SEED_USER_PASSWORD:-}
+      # URL interne du service tenant-api (réseau Docker) — requêtes de
+      # modélisation (elements, relationships, views, workspaces, import/export)
+      TENANT_API_URL:      "http://tenant-api:3002"
+      # Secret partagé avec tenant-api pour signer/vérifier le JWT inter-service
+      TENANT_JWT_SECRET:   ${TENANT_JWT_SECRET:?Set TENANT_JWT_SECRET in .env}
     healthcheck:
       test:     ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/health"]
       interval: 10s
@@ -101,9 +108,42 @@ services:
       - "traefik.http.routers.auth.middlewares=security-headers"
       - "traefik.http.routers.auth.service=api"
 
+  # ── REST API (tenant data-plane) ────────────────────────────────────────────
+  # Service interne, non exposé via Traefik. Reçoit les requêtes de modélisation
+  # proxifiées par control-api, authentifiées par un JWT inter-service de courte
+  # durée (TENANT_JWT_SECRET) plutôt qu'une session Better Auth.
+  tenant-api:
+    image: archispark/archispark-tenant-api:${ARCHISPARK_OS:-alpine}-${ARCHISPARK_VERSION:-latest}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV:                  production
+      PORT:                      "3002"
+      HOST:                      "0.0.0.0"
+      # Connexion PostgreSQL de repli pour les organisations sans base Neon
+      # dédiée (la connexion par-tenant arrive chiffrée dans le JWT)
+      DATABASE_URL:              "postgresql://archispark:${DB_PASSWORD}@postgres:5432/archispark"
+      REDIS_URL:                 ${REDIS_URL:-redis://redis:6379}
+      # Secret partagé avec control-api pour vérifier le JWT inter-service
+      TENANT_JWT_SECRET:         ${TENANT_JWT_SECRET:?Set TENANT_JWT_SECRET in .env}
+      # Clé de déchiffrement des chaînes de connexion Neon par-tenant
+      TENANT_DB_ENCRYPTION_KEY:  ${TENANT_DB_ENCRYPTION_KEY:?Set TENANT_DB_ENCRYPTION_KEY in .env}
+    healthcheck:
+      test:     ["CMD", "wget", "-qO-", "http://127.0.0.1:3002/health"]
+      interval: 10s
+      timeout:  5s
+      retries:  5
+      start_period: 30s
+    networks:
+      - archispark
+
   # ── MCP Server ─────────────────────────────────────────────────────────────
   # Serveur Model Context Protocol — expose les outils ArchiMate aux agents IA.
-  # Démarre uniquement après que l'API soit saine (dépend de api:healthy).
+  # Démarre uniquement après que l'API soit saine (dépend de control-api:healthy).
   mcp-server:
     image: archispark/archispark-mcp-server:${ARCHISPARK_OS:-alpine}-${ARCHISPARK_VERSION:-latest}
     restart: unless-stopped
@@ -111,11 +151,14 @@ services:
       NODE_ENV:        production
       MCP_PORT:        "3001"
       HOST:            "0.0.0.0"
-      # Connexion directe à PostgreSQL (le MCP server importe le package api qui lit la DB)
+      # Connexion directe à PostgreSQL (le MCP server importe les packages
+      # control-api/tenant-api qui lisent la DB)
       DATABASE_URL:    "postgresql://archispark:${DB_PASSWORD}@postgres:5432/archispark"
       REDIS_URL:       ${REDIS_URL:-redis://redis:6379}
+      # Clé de déchiffrement des chaînes de connexion Neon par-tenant (registry/store)
+      TENANT_DB_ENCRYPTION_KEY: ${TENANT_DB_ENCRYPTION_KEY:?Set TENANT_DB_ENCRYPTION_KEY in .env}
     depends_on:
-      api:
+      control-api:
         condition: service_healthy
     networks:
       - archispark
@@ -143,7 +186,7 @@ services:
       # Note : NEXT_PUBLIC_MCP_SERVER_URL est inlinée au build — non modifiable ici.
       # Pour la changer, rebuilder l'image avec docker-compose.build.yml.
     depends_on:
-      api:
+      control-api:
         condition: service_healthy
     healthcheck:
       test:     ["CMD", "wget", "-qO-", "http://127.0.0.1:8000/"]

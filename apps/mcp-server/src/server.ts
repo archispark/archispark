@@ -12,10 +12,11 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { z } from "zod";
 
-import packageJson from "api/package.json" with { type: "json" };
-// Import from the `api` package root (its `.` export), not deep `api/src/*.js`
-// paths: the `.` export is traced into `dist/` by Vercel's bundler, the wildcard
-// `./src/*.js` export is not (caused ERR_MODULE_NOT_FOUND on the deployed lambda).
+import packageJson from "control-api/package.json" with { type: "json" };
+// Import from the `tenant-api` package root (its `.` export), not deep
+// `tenant-api/src/*.js` paths: the `.` export is traced into `dist/` by
+// Vercel's bundler, the wildcard `./src/*.js` export is not (caused
+// ERR_MODULE_NOT_FOUND on the deployed lambda).
 import {
   getActiveWorkspaceId,
   getWorkspaces,
@@ -33,7 +34,7 @@ import {
   type NodeUpdateIn,
   type ConnectionCreateIn,
   type ConnectionUpdateIn,
-} from "api";
+} from "tenant-api";
 // Auth helpers in a local wrapper so tests can mock them with a simple relative path
 // (mocking api sub-modules via wildcard package exports is unreliable in Vitest).
 import { lookupApiToken, getMembershipContext, type TokenUser, type WorkspaceContext } from "./token-auth.js";

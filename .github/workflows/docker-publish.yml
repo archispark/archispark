@@ -21,7 +21,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        service: [api, web, mcp-server]
+        service: [control-api, tenant-api, web, mcp-server]
         variant: [alpine, trixie-slim]
 
     steps:
@@ -105,7 +105,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        service: [api, web, mcp-server]
+        service: [control-api, tenant-api, web, mcp-server]
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -114,9 +114,10 @@ jobs:
         id: desc
         run: |
           case "${{ matrix.service }}" in
-            api)        echo "short=REST API for ArchiSpark — ArchiMate 3.1 modeling (Express, PostgreSQL, Better Auth)" >> "$GITHUB_OUTPUT" ;;
-            web)        echo "short=Next.js front-end for ArchiSpark — interactive ArchiMate 3.1 canvas and workspace UI" >> "$GITHUB_OUTPUT" ;;
-            mcp-server) echo "short=MCP server for ArchiSpark — 38 tools, 2 prompts and 2 resources for AI-driven ArchiMate 3.1 modeling" >> "$GITHUB_OUTPUT" ;;
+            control-api) echo "short=Control-plane REST API for ArchiSpark — auth, organizations, settings (Express, PostgreSQL, Better Auth)" >> "$GITHUB_OUTPUT" ;;
+            tenant-api)  echo "short=Tenant data-plane REST API for ArchiSpark — ArchiMate 3.1 modeling (Express, PostgreSQL)" >> "$GITHUB_OUTPUT" ;;
+            web)         echo "short=Next.js front-end for ArchiSpark — interactive ArchiMate 3.1 canvas and workspace UI" >> "$GITHUB_OUTPUT" ;;
+            mcp-server)  echo "short=MCP server for ArchiSpark — 38 tools, 2 prompts and 2 resources for AI-driven ArchiMate 3.1 modeling" >> "$GITHUB_OUTPUT" ;;
           esac
 
       - name: Update Docker Hub description
@@ -126,4 +127,4 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
           repository: archispark/archispark-${{ matrix.service }}
           short-description: ${{ steps.desc.outputs.short }}
-          readme-filepath: ./.docker/${{ matrix.service }}descriptions/.md
+          readme-filepath: ./.docker/${{ matrix.service }}/descriptions.md

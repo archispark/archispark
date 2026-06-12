@@ -11,10 +11,6 @@
  * (userId, organizationId) — different users in the same organization can
  * work on different workspaces at the same time.
  *
- * Startup (top-level await at import):
- *   1. runMigrations() — idempotently applies pending SQL migrations.
- *   2. initUsers() — seeds default users + a default organization.
- *
  * Demo data is loaded on demand via `pnpm seed:demo` (packages/db/seeds/demo.sql).
  */
 
@@ -22,10 +18,9 @@ import { readFileSync, existsSync } from "fs";
 import { randomUUID } from "crypto";
 import { join } from "path";
 import { and, eq, inArray } from "drizzle-orm";
-import { db, runMigrations, workspaces as wsTable, workspaceTeams, userActiveWorkspace, seedWorkspace } from "@workspace/db";
+import { db, workspaces as wsTable, workspaceTeams, userActiveWorkspace, seedWorkspace } from "@workspace/db";
 import { parseOpenExchange } from "./oxf-parser.js";
-import { initUsers } from "./auth.js";
-import type { WorkspaceContext } from "./auth.js";
+import type { WorkspaceContext } from "./tenant-auth.js";
 import { NotFoundError, ValidationError } from "./errors.js";
 
 // ---------------------------------------------------------------------------
@@ -89,23 +84,6 @@ function toWorkspaceOut(row: typeof wsTable.$inferSelect, activeId: number | nul
     team_ids: teamIds,
   };
 }
-
-// ---------------------------------------------------------------------------
-// Auto-init at module load time via top-level await
-// (runs migrations + seeds default users/organization if DB is empty)
-// ---------------------------------------------------------------------------
-
-/* v8 ignore start */
-async function _init(): Promise<void> {
-  await runMigrations();
-  await initUsers();
-}
-
-// Non-fatal: in serverless a cold start that can't reach the DB must not crash
-// module load — requests then surface a clear per-request error instead of
-// FUNCTION_INVOCATION_FAILED.
-await _init().catch((err) => console.error("[registry] init failed:", err));
-/* v8 ignore stop */
 
 // ---------------------------------------------------------------------------
 // Queries

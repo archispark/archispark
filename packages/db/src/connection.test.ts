@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import { randomUUID } from "node:crypto";
 import { runMigrations } from "./migrate.js";
-import { controlDb, db, getTenantDb, runWithTenantDb } from "./connection.js";
+import { controlDb, db, getTenantDb, getTenantConnectionStringEncrypted, runWithTenantDb } from "./connection.js";
 import { organizations, tenantDatabases } from "./schema.js";
 import { eq } from "drizzle-orm";
 import { encryptConnectionString } from "./tenant-crypto.js";
@@ -49,6 +49,38 @@ describe("getTenantDb", () => {
     expect(tenantDb).not.toBe(controlDb);
     // Cached: a second call returns the exact same instance.
     expect(await getTenantDb(orgId)).toBe(tenantDb);
+  });
+});
+
+describe("getTenantConnectionStringEncrypted", () => {
+  it("returns null when the organization has no tenant_databases row", async () => {
+    const orgId = await makeOrg();
+    expect(await getTenantConnectionStringEncrypted(orgId)).toBeNull();
+  });
+
+  it("returns null when the tenant database is not active", async () => {
+    const orgId = await makeOrg();
+    await controlDb.insert(tenantDatabases).values({
+      organizationId: orgId,
+      neonDatabaseName: "tenant_db",
+      neonRoleName: "tenant",
+      connectionStringEncrypted: "irrelevant-while-pending",
+      status: "pending",
+    });
+    expect(await getTenantConnectionStringEncrypted(orgId)).toBeNull();
+  });
+
+  it("returns the ciphertext as-is once the tenant database is active", async () => {
+    const orgId = await makeOrg();
+    const ciphertext = encryptConnectionString("postgresql://tenant:secret@ep-fake-tenant.us-east-2.aws.neon.tech/tenant_db");
+    await controlDb.insert(tenantDatabases).values({
+      organizationId: orgId,
+      neonDatabaseName: "tenant_db",
+      neonRoleName: "tenant",
+      connectionStringEncrypted: ciphertext,
+      status: "active",
+    });
+    expect(await getTenantConnectionStringEncrypted(orgId)).toBe(ciphertext);
   });
 });
 

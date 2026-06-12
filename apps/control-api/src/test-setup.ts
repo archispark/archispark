@@ -1,6 +1,11 @@
 import { vi } from "vitest";
 import { runMigrations } from "@workspace/db";
 
+// Shared with the proxy middleware in app.ts (signs) and tenant-api's
+// requireTenantToken (verifies) — set here so app.test.ts can mint/verify
+// inter-service tokens without TENANT_JWT_SECRET being unset.
+process.env["TENANT_JWT_SECRET"] ??= "test-tenant-jwt-secret";
+
 // Redis n'est pas disponible dans l'environnement de test. Ce mock est appliqué
 // globalement (avant le chargement de tout module) afin que app.ts et
 // better-auth.ts reçoivent un faux client Redis au lieu de throw.

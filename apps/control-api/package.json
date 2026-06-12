@@ -1,5 +1,5 @@
 {
-  "name": "api",
+  "name": "control-api",
   "version": "0.1.0",
   "description": "REST and MCP services to explore an ArchiMate model",
   "type": "module",
@@ -26,7 +26,6 @@
     "test:coverage": "vitest run --coverage",
     "test:ci": "vitest run --reporter=junit --outputFile=test-report.junit.xml",
     "lint": "eslint . --ext .ts",
-    "openapi": "tsx scripts/generate-openapi.ts",
     "migrate-tenant": "tsx scripts/migrate-existing-tenant.ts"
   },
   "keywords": [
@@ -43,35 +42,27 @@
     "url": "https://github.com/archispark/mcp-archimate"
   },
   "dependencies": {
-    "@asteasolutions/zod-to-openapi": "^8.5.0",
     "@codecov/vite-plugin": "^2.0.1",
     "@eslint/js": "^10.0.1",
     "@modelcontextprotocol/sdk": "^1.12.0",
     "@workspace/db": "workspace:*",
-    "archiver": "^8.0.0",
     "bcryptjs": "^3.0.3",
     "better-auth": "^1.6.15",
-    "colord": "^2.9.3",
     "cors": "^2.8.6",
     "drizzle-orm": "^0.45.2",
     "express": "^5.2.1",
     "express-rate-limit": "^8.5.2",
-    "fast-xml-parser": "^5.8.0",
     "helmet": "^8.2.0",
     "ioredis": "^5.11.1",
     "jsonwebtoken": "^9.0.3",
-    "lru-cache": "^11.5.1",
-    "multer": "^2.1.1",
     "rate-limit-redis": "^5.0.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@types/archiver": "^8.0.0",
     "@types/bcryptjs": "^3.0.0",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.0",
     "@types/jsonwebtoken": "^9.0.10",
-    "@types/multer": "^2.1.0",
     "@types/node": "^25.9.2",
     "@types/supertest": "^7.2.0",
     "@vitest/coverage-v8": "^4.1.8",

@@ -59,7 +59,7 @@ export const LAYER_LABELS: Record<string, string> = {
 
 /**
  * Full ArchiMate 3.1 element-type catalogue (mirrors `ELEMENT_TYPES` in
- * apps/api/src/schemas.ts — the API's validation source of truth). Used to
+ * apps/tenant-api/src/schemas.ts — the API's validation source of truth). Used to
  * populate the "new element" type picker, which must offer every type even in
  * an empty workspace — unlike `/elements/types`, which only returns the types
  * already present in the model. Junctions are connectors, not palette elements,

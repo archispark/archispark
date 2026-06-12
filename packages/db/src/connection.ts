@@ -102,6 +102,12 @@ export function createTenantDb(connectionString: string): NodePgDatabase<typeof 
 }
 /* v8 ignore stop */
 
+async function lookupTenantDatabaseRow(organizationId: string) {
+  const [row] = await controlDb.select().from(schema.tenantDatabases)
+    .where(eq(schema.tenantDatabases.organizationId, organizationId));
+  return row;
+}
+
 /**
  * Resolves the Drizzle client for `organizationId`'s ArchiMate content.
  *
@@ -113,13 +119,23 @@ export async function getTenantDb(organizationId: string): Promise<NodePgDatabas
   const cached = tenantDbCache.get(organizationId);
   if (cached) return cached;
 
-  const [row] = await controlDb.select().from(schema.tenantDatabases)
-    .where(eq(schema.tenantDatabases.organizationId, organizationId));
+  const row = await lookupTenantDatabaseRow(organizationId);
   if (row?.status !== "active") return controlDb;
 
   const tenantDb = createTenantDb(decryptConnectionString(row.connectionStringEncrypted));
   tenantDbCache.set(organizationId, tenantDb);
   return tenantDb;
+}
+
+/**
+ * Returns the encrypted tenant connection string for `organizationId` if it
+ * has an active dedicated database, or `null` otherwise (Phase 5: control-api
+ * passes this ciphertext through to tenant-api in the inter-service JWT
+ * without ever decrypting it itself).
+ */
+export async function getTenantConnectionStringEncrypted(organizationId: string): Promise<string | null> {
+  const row = await lookupTenantDatabaseRow(organizationId);
+  return row?.status === "active" ? row.connectionStringEncrypted : null;
 }
 
 /** Runs `fn` with `db` (below) resolving to `tenantDb` for its whole async extent. */
@@ -129,7 +145,7 @@ export function runWithTenantDb<T>(tenantDb: NodePgDatabase<typeof schema>, fn: 
 
 /**
  * Tenant-scoped client for the current request, set per-request via
- * `runWithTenantDb` (see apps/api/src/app.ts). Falls back to `controlDb`
+ * `runWithTenantDb` (see apps/tenant-api/src/app.ts). Falls back to `controlDb`
  * outside of a request — migrations, scripts — or while the active
  * organization has no dedicated database yet (Phase 3).
  */

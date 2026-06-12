@@ -16,11 +16,6 @@ let userCookie: string;
 beforeAll(async () => {
   adminCookie = await getAdminCookie();
   userCookie = await getUserCookie();
-  // _init() no longer seeds a default workspace; create one if the DB is empty.
-  const list = await _request(app).get("/workspaces").set("Cookie", adminCookie);
-  if ((list.body as unknown[]).length === 0) {
-    await _request(app).post("/workspaces").set("Cookie", adminCookie).send({ name: "Default" });
-  }
 });
 
 function request(appArg: Parameters<typeof _request>[0], cookie = adminCookie) {
@@ -103,6 +98,13 @@ describe("POST /users validation", () => {
   it("returns 422 when username or password is missing", async () => {
     const res = await request(app).post("/users").send({ username: "x" });
     expect(res.status).toBe(422);
+  });
+
+  it("defaults role to 'user' when role is omitted", async () => {
+    const res = await request(app).post("/users").send({ username: "testuser_norole", password: "password123" });
+    expect(res.status).toBe(201);
+    expect(res.body.role).toBe("user");
+    await request(app).delete(`/users/${(res.body as { id: string }).id}`);
   });
 });
 
@@ -240,7 +242,7 @@ describe("Bearer token authentication", () => {
   });
 
   it("can access protected routes via Bearer token", async () => {
-    const res = await _request(app).get("/workspaces").set("Authorization", `Bearer ${token}`);
+    const res = await _request(app).get("/settings/api-tokens").set("Authorization", `Bearer ${token}`);
     expect(res.status).toBe(200);
   });
 

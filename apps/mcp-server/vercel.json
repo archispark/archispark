@@ -1,7 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
-  "buildCommand": "cd ../.. && pnpm --filter @workspace/db build && pnpm --filter api build && pnpm --filter mcp-server build",
+  "buildCommand": "cd ../.. && pnpm --filter @workspace/db build && pnpm --filter control-api build && pnpm --filter tenant-api build && pnpm --filter mcp-server build",
   "rewrites": [
     { "source": "/(.*)", "destination": "/api/index" }
   ]
