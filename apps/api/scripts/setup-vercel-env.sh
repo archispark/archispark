@@ -57,15 +57,18 @@ add_env() {
 
 update_project_settings() {
   local project="$1"
-  echo "  → framework=null, buildCommand=pnpm build"
-  # outputDirectory must stay unset: this is a serverless-function-only project
-  # (api/index.ts), with no static frontend. Setting it to "dist" makes Vercel
-  # publish dist/ as static output, and dist/index.js then shadows both
-  # /index.js and / (root index resolution), bypassing the catch-all rewrite.
+  echo "  → framework=null, buildCommand=pnpm build, outputDirectory=public"
+  # outputDirectory must point at the empty apps/api/public/ dir: this is a
+  # serverless-function-only project (api/index.ts), with no static frontend.
+  # - outputDirectory:"dist" makes Vercel publish dist/ as static output, and
+  #   dist/index.js then shadows both /index.js and / (root index resolution),
+  #   bypassing the catch-all rewrite.
+  # - outputDirectory:null makes Vercel default to "public", which doesn't
+  #   exist, and the build fails with "No Output Directory named public found".
   curl -s -X PATCH "https://api.vercel.com/v9/projects/${project}?teamId=${TEAM_ID}" \
     -H "Authorization: Bearer ${VERCEL_TOKEN}" \
     -H "Content-Type: application/json" \
-    -d '{"framework":null,"buildCommand":"pnpm build","outputDirectory":null,"installCommand":"pnpm install"}' \
+    -d '{"framework":null,"buildCommand":"pnpm build","outputDirectory":"public","installCommand":"pnpm install"}' \
   | jq -r 'if .error then "    ERROR: \(.error.message)" else "    OK: framework updated to \(.framework // "null")" end'
 }
 
