@@ -12,6 +12,7 @@ node_modules
 .env.development.local
 .env.test.local
 .env.production.local
+.env.prod
 
 # Certificats TLS (générés par Traefik/Caddy)
 letsencrypt/
