@@ -7,7 +7,7 @@ import { Menu, FolderOpen, Building2 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { type ElementOut } from "@/lib/api";
 import { useWorkspaces, useElement, useView } from "@/lib/queries";
-import { useIsOrgAdmin } from "@/hooks/use-organization";
+import { useIsOrgAdmin, useAutoActivateOrganization } from "@/hooks/use-organization";
 import { useT } from "@/lib/i18n";
 import { LocaleSwitcher } from "@/components/locale-switcher";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -35,6 +35,7 @@ export function Nav({ onToggleSidebar }: { onToggleSidebar: () => void }) {
   const segments = pathname.split("/").filter(Boolean);
   const isOrganizationView = segments[0] === "organization";
   const isOrgAdmin = useIsOrgAdmin();
+  useAutoActivateOrganization();
 
   // On /elements/[id], resolve the element so the breadcrumb shows its name, not
   // the raw id. useElement is reactive (unlike qc.getQueryData), so the breadcrumb

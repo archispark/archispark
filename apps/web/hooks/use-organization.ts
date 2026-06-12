@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { authClient } from "@/lib/auth-client";
 import { useIsAdmin } from "./use-current-user";
@@ -119,6 +119,31 @@ export function useSetActiveOrganization() {
   return useMutation({
     mutationFn: (organizationId: string) => unwrap(authClient.organization.setActive({ organizationId })),
   });
+}
+
+/**
+ * Better Auth's org-scoped hooks (`useActiveOrganization`, `useActiveMemberRole`,
+ * and therefore `useIsOrgAdmin`) all key off `session.activeOrganizationId`,
+ * which stays unset until `organization.setActive` is called at least once.
+ * `OrgSwitcher` only renders (and calls it) when a user belongs to 2+ orgs, so
+ * single-org members/admins/owners never get an active org and silently fall
+ * back to "no role" — e.g. an org admin/owner sees the read-only UI. Activate
+ * the user's first organization automatically once, the first time none is set.
+ */
+export function useAutoActivateOrganization(): void {
+  const organizations = useOrganizations();
+  const activeOrg = useActiveOrganization();
+  const setActiveOrg = useSetActiveOrganization();
+  const qc = useQueryClient();
+  const triedRef = useRef(false);
+
+  useEffect(() => {
+    if (triedRef.current || activeOrg || organizations.length === 0) return;
+    triedRef.current = true;
+    setActiveOrg.mutate(organizations[0]!.id, {
+      onSuccess: () => qc.invalidateQueries(),
+    });
+  }, [activeOrg, organizations, setActiveOrg, qc]);
 }
 
 export function useInviteMember() {
