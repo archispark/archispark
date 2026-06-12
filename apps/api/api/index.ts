@@ -14,7 +14,9 @@ import { reloadAuth } from "../dist/better-auth.js";
 import { initRedis } from "../dist/redis.js";
 
 // registry.ts runs runMigrations() + initUsers() via top-level await at import.
-initRedis();
+// Catch connection errors here: an unhandled rejection from a transient Redis
+// connect timeout would otherwise crash the whole serverless process.
+await initRedis().catch((err: Error) => console.error("[redis] init failed:", err.message));
 await reloadAuth();
 
 export default app;

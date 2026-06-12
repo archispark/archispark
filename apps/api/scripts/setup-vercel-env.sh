@@ -22,7 +22,7 @@ SEED_USER_PASSWORD="${SEED_USER_PASSWORD:-}"
 
 WEB_URL="https://demo.archispark.cloud"
 API_URL="https://demo.archispark.cloud"
-API_VERCEL_URL="https://archispark-api-lacrifs-projects.vercel.app"
+API_VERCEL_URL="https://api.archispark.cloud"
 
 # Phase 4c (optional) — subdomain SaaS topology: app.<domain> (archispark-web)
 # and admin.<domain> (archispark-admin-web) sharing one Better Auth session

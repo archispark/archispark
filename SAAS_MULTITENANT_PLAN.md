@@ -226,7 +226,7 @@ changent pas).
       `ADMIN_URL` / `COOKIE_DOMAIN` → configure `archispark-admin-web`
       (`ARCHIMATE_API_URL`), étend `TRUSTED_ORIGINS`, pose `COOKIE_DOMAIN`
       sur l'api — doc README ("Subdomain topology")
-- [ ] **Reste action utilisateur** : créer le projet Vercel
+- [x] **Reste action utilisateur** : créer le projet Vercel
       `archispark-admin-web` (root directory `apps/admin-web`), acheter/poser
       les sous-domaines `app.<domain>` / `admin.<domain>` (DNS), les attacher
       aux 2 projets web dans le dashboard Vercel, puis lancer le script avec
