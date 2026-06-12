@@ -28,6 +28,8 @@ services:
       - "5432:5432"
     volumes:
       - postgres_dev_data:/var/lib/postgresql/data
+      # Script d'initialisation : crée archispark_tenant au premier démarrage
+      - ./initdb:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test:     ["CMD-SHELL", "pg_isready -U archispark -d archispark"]
       interval: 5s

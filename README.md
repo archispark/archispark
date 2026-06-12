@@ -290,35 +290,36 @@ it through without decrypting it; only tenant-api (and mcp-server) hold
 
 Credential separation:
 
-| Env var | control-api | tenant-api |
-|---|---|---|
-| `DATABASE_URL` | ✅ (control schema + Better Auth) | ✅ (fallback, role `archispark_tenant` — tenant tables only) |
-| `JWT_SECRET` | ✅ (Better Auth) | — |
-| `NEON_API_KEY` / `NEON_PROJECT_ID` / `NEON_BRANCH_ID` | ✅ | — |
-| `TENANT_API_URL` | ✅ (where to proxy) | — |
-| `TENANT_JWT_SECRET` | ✅ (sign) | ✅ (verify) |
-| `TENANT_DB_ENCRYPTION_KEY` | — | ✅ (decrypt `tenant_db`) |
-| `TENANT_DB_PASSWORD` | ✅ (creates/maintains `archispark_tenant` role) | — |
-| `REDIS_URL` | ✅ | ✅ |
+| Env var | control-api | tenant-api | mcp-server |
+|---|---|---|---|
+| `DATABASE_URL` | ✅ (control DB — `archispark`) | — | ✅ (control DB) |
+| `TENANT_DATABASE_URL` | — | ✅ (fallback DB — `archispark_tenant`) | ✅ (fallback DB) |
+| `JWT_SECRET` | ✅ (Better Auth) | — | — |
+| `NEON_API_KEY` / `NEON_PROJECT_ID` / `NEON_BRANCH_ID` | ✅ | — | — |
+| `TENANT_API_URL` | ✅ (where to proxy) | — | — |
+| `TENANT_JWT_SECRET` | ✅ (sign) | ✅ (verify) | — |
+| `TENANT_DB_ENCRYPTION_KEY` | — | ✅ (decrypt `tenant_db`) | ✅ |
+| `TENANT_DB_PASSWORD` | ✅ (creates/maintains `archispark_tenant` role) | — | — |
+| `REDIS_URL` | ✅ | ✅ | ✅ |
 
 ### Tenant Postgres role
 
-Phase 7 adds a restricted `archispark_tenant` Postgres role used by `tenant-api` when
-connecting to the fallback shared database (organizations without a dedicated Neon DB).
+Phase 7 adds physical database separation and a restricted `archispark_tenant` Postgres role:
 
-The role has `SELECT/INSERT/UPDATE/DELETE` on the 12 tables in `schema.tenant.ts`
-(`workspaces`, `workspace_teams`, `user_active_workspace`, `elements`, `relationships`,
-`property_definitions`, `element_properties`, `relationship_properties`, `views`, `nodes`,
-`connections`, `bendpoints`) and `USAGE` on all sequences, but cannot read any
-control-plane table (`users`, `sessions`, `organizations`, etc.).
+- **`archispark`** (control DB, `DATABASE_URL`) — control-plane only: users, sessions,
+  organizations, tenant registry. Never accessed by tenant-api.
+- **`archispark_tenant`** (tenant fallback DB, `TENANT_DATABASE_URL`) — shared fallback for
+  organizations not yet provisioned with a dedicated Neon DB. Tenant-api and mcp-server
+  connect here in fallback mode using the restricted `archispark_tenant` role.
+
+The `archispark_tenant` role has `SELECT/INSERT/UPDATE/DELETE` on the 12 tables in
+`schema.tenant.ts` and `USAGE` on all sequences. It cannot read any control-plane table.
 
 `control-api` calls `ensureTenantRole(TENANT_DB_PASSWORD)` at startup (after migrations),
-so the role and its grants are always in sync. The password is never given to `tenant-api`
-— only the resulting restricted `DATABASE_URL` is.
+creating the role if absent and keeping its grants in sync.
 
 **Maintenance:** when adding a new table to `schema.tenant.ts`, also add its SQL name
-to `TENANT_TABLES` in `packages/db/src/tenant-role.ts` — the grant runs on every
-control-api restart, so the new table will be covered automatically after one redeploy.
+to `TENANT_TABLES` in `packages/db/src/tenant-role.ts` — grants reapply on next restart.
 
 Self-hosted Docker: `tenant-api` runs as an internal-only Compose service
 (no Traefik labels), reached by `control-api` over the `archispark` network

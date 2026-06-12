@@ -1,9 +1,10 @@
+import { migrate as pgMigrate } from "drizzle-orm/node-postgres/migrator";
 import { migrate as neonMigrate } from "drizzle-orm/neon-serverless/migrator";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { join } from "path";
 import { fileURLToPath } from "url";
 import * as schema from "./schema.js";
-import { USE_PGLITE } from "./connection.js";
+import { USE_PGLITE, tenantFallbackDb, controlDb } from "./connection.js";
 
 // Same dist/ vs source resolution as migrate.ts, but for the tenant-only
 // migration folder (schema.tenant.ts — no control-plane FKs).
@@ -25,5 +26,21 @@ export async function runTenantMigrations(tenantDb: NodePgDatabase<typeof schema
   }
   /* v8 ignore start -- real tenant databases only (neon-http), unreachable under PGlite tests */
   await neonMigrate(tenantDb as unknown as Parameters<typeof neonMigrate>[0], { migrationsFolder: TENANT_MIGRATIONS_PG });
+  /* v8 ignore stop */
+}
+
+/**
+ * Runs the tenant-only migrations against the shared tenant fallback database
+ * (archispark_tenant). Called by tenant-api at startup so the fallback DB
+ * always has an up-to-date schema.
+ *
+ * No-op under PGlite (controlDb == tenantFallbackDb, already migrated by
+ * runMigrations) and when TENANT_DATABASE_URL is not set (same condition).
+ */
+export async function runTenantFallbackMigrations(): Promise<void> {
+  if (USE_PGLITE || tenantFallbackDb === controlDb) return;
+
+  /* v8 ignore start -- requires live separate tenant DB */
+  await pgMigrate(tenantFallbackDb as unknown as Parameters<typeof pgMigrate>[0], { migrationsFolder: TENANT_MIGRATIONS_PG });
   /* v8 ignore stop */
 }

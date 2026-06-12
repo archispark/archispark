@@ -1,9 +1,11 @@
+import { runTenantFallbackMigrations } from "@workspace/db";
 import { initRedis } from "./redis.js";
 
 const PORT = process.env["PORT"] ? parseInt(process.env["PORT"]) : 3002;
 const HOST = process.env["HOST"] ?? "0.0.0.0";
 
 initRedis()
+  .then(() => runTenantFallbackMigrations())
   .then(async () => {
     // Dynamic import so app.ts (and its rateLimit/RedisStore) is loaded only
     // after initRedis() has connected, avoiding the "Non initialisé" error.

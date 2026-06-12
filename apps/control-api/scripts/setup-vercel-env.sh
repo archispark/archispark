@@ -111,6 +111,12 @@ update_project_settings "$TENANT_API_PROJECT"
 add_env "$TENANT_API_PROJECT" "DB_DRIVER"                "postgres"
 add_env "$TENANT_API_PROJECT" "TENANT_JWT_SECRET"        "$TENANT_JWT_SECRET"        "true"
 add_env "$TENANT_API_PROJECT" "TENANT_DB_ENCRYPTION_KEY" "$TENANT_DB_ENCRYPTION_KEY" "true"
+# Phase 7: TENANT_DATABASE_URL points to the shared tenant fallback DB (separate
+# from the control DB). Build it from POSTGRES_URL replacing user:password and
+# changing the database name to archispark_tenant (or your equivalent name).
+# Example: if POSTGRES_URL=postgresql://user:pass@host:5432/archispark_control
+# then TENANT_DATABASE_URL=postgresql://archispark_tenant:TENANT_DB_PASSWORD@host:5432/archispark_tenant
+# Set this value manually (encrypted) in the Vercel dashboard or add it here.
 
 echo ""
 echo "=== Configuring archispark-web ==="
