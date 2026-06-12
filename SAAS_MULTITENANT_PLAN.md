@@ -162,7 +162,7 @@ changent pas).
   - [x] Bascule `tenant_databases.status = "active"` + vérification (compare
         le nombre de workspaces source/tenant) + nettoyage de l'ancienne DB
         partagée (`cleanupMigratedSharedData`, `--cleanup --yes`)
-- [ ] Commit Phase 3
+- [x] Commit Phase 3
 
 ---
 
@@ -303,7 +303,7 @@ changent pas).
       `TENANT_DB_ENCRYPTION_KEY` (`openssl rand -hex 32`), lancer
       `setup-vercel-env.sh` et redéployer `archispark-api` +
       `archispark-tenant-api` + `archispark-mcp-server`
-- [ ] Commit Phase 5
+- [x] Commit Phase 5
 
 ---
 
@@ -313,3 +313,73 @@ changent pas).
 - [ ] Rotation des secrets / connection strings tenant
 - [ ] Tests automatisés : aucune route control-plane n'importe `getTenantDb` et
       aucune route tenant n'importe `controlDb` directement (sauf whitelist explicite)
+
+---
+
+## Phase 7 — Séparation physique control-api / tenant-api (2 bases + rôle restreint)
+
+**État : implémenté, en cours de validation locale.**
+
+Approche retenue (révisée par rapport à l'intention initiale) :
+**séparation physique en 2 bases** dans le même cluster Postgres :
+- `archispark` — control-plane uniquement (`schema.control.ts`) ; accessible
+  en lecture/écriture complète par control-api et mcp-server.
+- `archispark_tenant` — fallback tenant (`schema.tenant.ts`) ; accessible
+  par le rôle restreint `archispark_tenant` (GRANT SELECT/INSERT/UPDATE/DELETE
+  sur les 12 tables + USAGE sur les séquences). control-api y accède aussi
+  via le rôle admin pour les migrations (`runTenantFallbackMigrations`).
+
+Migration `0012_drop_tenant_tables_from_control.sql` supprime les tables
+tenant de la base control (DROP TABLE … CASCADE) — isolation physique complète.
+`mcp-server` reçoit `TENANT_DATABASE_URL` (accès admin, les deux schémas
+restent accessibles via deux connexions dans `connection.ts`).
+
+- [x] `packages/db/src/tenant-role.ts` : `ensureTenantRole(password)`
+      (idempotent — CREATE/ALTER ROLE via `controlDb`, GRANT via
+      `tenantFallbackDb`), `TENANT_DB_ROLE = "archispark_tenant"`,
+      `TENANT_TABLES` (12 tables) — no-op sous PGlite et si `password` vide ;
+      exporté depuis `packages/db/src/index.ts`
+- [x] `packages/db/src/tenant-role.test.ts` : no-op PGlite, `TENANT_TABLES`
+      ↔ `schema.tenant.ts` en phase (drizzle `is(v, Table)` + `getTableName`)
+- [x] `packages/db/src/connection.ts` : `createDb(urlOverride?)`,
+      `tenantFallbackDb` (= `controlDb` si `TENANT_DATABASE_URL` absent ou
+      PGlite, sinon nouvelle connexion), `getTenantDb` et proxy `db` replient
+      sur `tenantFallbackDb` (plus `controlDb`)
+- [x] `packages/db/src/migrate-tenant.ts` : `runTenantFallbackMigrations()`
+      — joue `drizzle-pg/tenant/` sur `tenantFallbackDb` via node-postgres ;
+      no-op si `tenantFallbackDb === controlDb`
+- [x] `packages/db/src/index.ts` : exporte `tenantFallbackDb` +
+      `runTenantFallbackMigrations`
+- [x] `packages/db/drizzle-pg/0012_drop_tenant_tables_from_control.sql` +
+      entrée `idx: 12` dans `meta/_journal.json` — supprime les 12 tables
+      tenant de la base control
+- [x] `packages/db/src/scripts/verify-tenant-role.ts` — smoke-test
+      d'intégration (19 checks : migrations, rôle, DML, isolation physique) ;
+      résultat : **19/19 passés**
+- [x] `apps/control-api/src/main.ts` : `runMigrations()` →
+      `ensureTenantRole(TENANT_DB_PASSWORD)` → `initUsers()` → `app.listen()`
+- [x] `apps/tenant-api/src/main.ts` : `runTenantFallbackMigrations()` avant
+      `app.listen()`
+- [x] `.docker/initdb/01-create-tenant-db.sql` : crée `archispark_tenant` +
+      GRANT ALL au rôle admin au premier démarrage (initdb)
+- [x] `.docker/docker-compose.yml` : postgres monte `./initdb` ;
+      control-api reçoit `TENANT_DATABASE_URL` + `TENANT_DB_PASSWORD` ;
+      tenant-api `DATABASE_URL` → `archispark_tenant` (rôle restreint) ;
+      mcp-server reçoit `TENANT_DATABASE_URL`
+- [x] `.docker/docker-compose.dev.yml` : postgres monte `./initdb`
+- [x] `turbo.json` `passThroughEnv` : ajout `TENANT_DATABASE_URL` +
+      `TENANT_DB_PASSWORD` (Turbo v2 strip sinon)
+- [x] `.env` (local dev) + `.env.example` : `TENANT_DATABASE_URL`,
+      `TENANT_DB_PASSWORD`, `TENANT_API_URL`, `TENANT_JWT_SECRET`
+- [x] `apps/control-api/scripts/setup-vercel-env.sh` : `TENANT_DB_PASSWORD`
+      sur `archispark-api` ; bloc d'instructions Phase 7 Vercel
+- [x] `README.md` : tableau "Credential separation" étendu (mcp-server,
+      `TENANT_DATABASE_URL`, `TENANT_DB_PASSWORD`) ; sous-section "Tenant
+      Postgres role" mise à jour (architecture 2 bases)
+- [ ] `pnpm run -w test` (≥ 80%) + `pnpm turbo run lint typecheck` — à valider
+- [ ] **Reste action utilisateur (Vercel)** : créer base `archispark_tenant`
+      dans Supabase, générer `TENANT_DB_PASSWORD` (`openssl rand -hex 32`),
+      configurer `DATABASE_URL` de `archispark-tenant-api` sur le rôle
+      restreint, redéployer `archispark-api` + `archispark-tenant-api` +
+      `archispark-mcp-server`
+- [ ] Commit Phase 7

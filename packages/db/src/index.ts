@@ -1,8 +1,8 @@
 export * from "./model.js";
 export * from "./schema.js";
-export { db, controlDb, getTenantDb, getTenantConnectionStringEncrypted, createTenantDb, runWithTenantDb } from "./connection.js";
+export { db, controlDb, tenantFallbackDb, getTenantDb, getTenantConnectionStringEncrypted, createTenantDb, runWithTenantDb } from "./connection.js";
 export { runMigrations } from "./migrate.js";
-export { runTenantMigrations } from "./migrate-tenant.js";
+export { runTenantMigrations, runTenantFallbackMigrations } from "./migrate-tenant.js";
 export { provisionTenantDatabase, provisionTenantInfrastructure, activateTenantDatabase } from "./tenant-provisioning.js";
 export type { ProvisionTenantDatabaseOptions, ProvisionTenantInfrastructureOptions, TenantInfrastructure } from "./tenant-provisioning.js";
 export { migrateExistingTenant, cleanupMigratedSharedData } from "./tenant-migration.js";
@@ -12,3 +12,4 @@ export { rowToColor, colorToRow, buildNodeTree, flattenNodes } from "./model-io.
 export { encryptConnectionString, decryptConnectionString } from "./tenant-crypto.js";
 export { signTenantToken, verifyTenantToken } from "./tenant-jwt.js";
 export type { TenantTokenPayload } from "./tenant-jwt.js";
+export { ensureTenantRole, TENANT_DB_ROLE, TENANT_TABLES } from "./tenant-role.js";

@@ -58,6 +58,8 @@ services:
       HOST:                "0.0.0.0"
       # Connexion PostgreSQL (réseau Docker interne)
       DATABASE_URL:        "postgresql://archispark:${DB_PASSWORD}@postgres:5432/archispark"
+      # Base de données partagée pour les tenants sans Neon dédié
+      TENANT_DATABASE_URL: "postgresql://archispark:${DB_PASSWORD}@postgres:5432/archispark_tenant"
       # Connexion Redis — si REDIS_PASSWORD est défini dans .env, remplacer par
       # redis://:${REDIS_PASSWORD}@redis:6379
       REDIS_URL:           ${REDIS_URL:-redis://redis:6379}
@@ -76,6 +78,9 @@ services:
       TENANT_API_URL:      "http://tenant-api:3002"
       # Secret partagé avec tenant-api pour signer/vérifier le JWT inter-service
       TENANT_JWT_SECRET:   ${TENANT_JWT_SECRET:?Set TENANT_JWT_SECRET in .env}
+      # Mot de passe du rôle Postgres restreint archispark_tenant (créé au
+      # premier démarrage de control-api via ensureTenantRole)
+      TENANT_DB_PASSWORD:  ${TENANT_DB_PASSWORD:?Set TENANT_DB_PASSWORD in .env}
     healthcheck:
       test:     ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/health"]
       interval: 10s
@@ -124,9 +129,10 @@ services:
       NODE_ENV:                  production
       PORT:                      "3002"
       HOST:                      "0.0.0.0"
-      # Connexion PostgreSQL de repli pour les organisations sans base Neon
-      # dédiée (la connexion par-tenant arrive chiffrée dans le JWT)
-      DATABASE_URL:              "postgresql://archispark:${DB_PASSWORD}@postgres:5432/archispark"
+      # Connexion PostgreSQL de repli — base archispark_tenant, rôle restreint
+      # archispark_tenant (SELECT/INSERT/UPDATE/DELETE sur schema.tenant.ts only)
+      DATABASE_URL:              "postgresql://archispark_tenant:${TENANT_DB_PASSWORD}@postgres:5432/archispark_tenant"
+      TENANT_DATABASE_URL:       "postgresql://archispark_tenant:${TENANT_DB_PASSWORD}@postgres:5432/archispark_tenant"
       REDIS_URL:                 ${REDIS_URL:-redis://redis:6379}
       # Secret partagé avec control-api pour vérifier le JWT inter-service
       TENANT_JWT_SECRET:         ${TENANT_JWT_SECRET:?Set TENANT_JWT_SECRET in .env}
@@ -151,9 +157,10 @@ services:
       NODE_ENV:        production
       MCP_PORT:        "3001"
       HOST:            "0.0.0.0"
-      # Connexion directe à PostgreSQL (le MCP server importe les packages
-      # control-api/tenant-api qui lisent la DB)
+      # Connexion directe à PostgreSQL — base control pour auth/lookups
       DATABASE_URL:    "postgresql://archispark:${DB_PASSWORD}@postgres:5432/archispark"
+      # Base partagée tenant pour store/registry en mode repli
+      TENANT_DATABASE_URL: "postgresql://archispark:${DB_PASSWORD}@postgres:5432/archispark_tenant"
       REDIS_URL:       ${REDIS_URL:-redis://redis:6379}
       # Clé de déchiffrement des chaînes de connexion Neon par-tenant (registry/store)
       TENANT_DB_ENCRYPTION_KEY: ${TENANT_DB_ENCRYPTION_KEY:?Set TENANT_DB_ENCRYPTION_KEY in .env}
@@ -220,6 +227,8 @@ services:
     volumes:
       # Volume nommé pour la persistance des données entre les redémarrages
       - postgres_data:/var/lib/postgresql/data
+      # Script d'initialisation : crée archispark_tenant au premier démarrage
+      - ./initdb:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test:     ["CMD-SHELL", "pg_isready -U archispark -d archispark"]
       interval: 5s

@@ -19,7 +19,7 @@ import { decryptConnectionString } from "./tenant-crypto.js";
 // v8 ignore next
 export const USE_PGLITE = Boolean(process.env["VITEST"]) || process.env["DB_CLIENT"] === "pglite";
 
-async function createDb(): Promise<NodePgDatabase<typeof schema>> {
+async function createDb(urlOverride?: string): Promise<NodePgDatabase<typeof schema>> {
   // v8 ignore start
   if (USE_PGLITE) {
     // Indirect specifiers: keep these test-only deps (PGlite ships WASM) out of
@@ -36,11 +36,13 @@ async function createDb(): Promise<NodePgDatabase<typeof schema>> {
   }
   // v8 ignore stop
 
-  // Priority: explicit DATABASE_URL → Supabase pooled (IPv4 — works from
+  // urlOverride takes priority (used for tenantFallbackDb).
+  // Otherwise: explicit DATABASE_URL → Supabase pooled (IPv4 — works from
   // serverless/Vercel) → Supabase direct (IPv6 — only reachable locally/in a
   // container). Serverless functions must use the pooled connection: the direct
   // host is IPv6-only and unreachable from Lambdas.
   const rawConnectionString =
+    urlOverride ??
     process.env["DATABASE_URL"] ??
     process.env["POSTGRES_URL"] ??
     process.env["POSTGRES_URL_NON_POOLING"];
@@ -83,6 +85,20 @@ function stripSslmode(cs: string): string {
  */
 export const controlDb: NodePgDatabase<typeof schema> = await createDb();
 
+/**
+ * Shared tenant fallback connection: schema.tenant.ts tables for organizations
+ * that have not yet been provisioned with a dedicated Neon database (Phase 3).
+ * Points to a physically separate database (archispark_tenant) when
+ * TENANT_DATABASE_URL is set, so control-plane tables are never reachable from
+ * tenant-api. Falls back to controlDb only when TENANT_DATABASE_URL is absent
+ * (local dev without the split, or PGlite tests).
+ */
+export const tenantFallbackDb: NodePgDatabase<typeof schema> =
+  // v8 ignore next
+  USE_PGLITE || !process.env["TENANT_DATABASE_URL"]
+    ? controlDb
+    : await createDb(process.env["TENANT_DATABASE_URL"]);
+
 // ---------------------------------------------------------------------------
 // Per-tenant connections (schema.tenant.ts)
 // ---------------------------------------------------------------------------
@@ -111,16 +127,17 @@ async function lookupTenantDatabaseRow(organizationId: string) {
 /**
  * Resolves the Drizzle client for `organizationId`'s ArchiMate content.
  *
- * Until Phase 3 provisions a dedicated database (no `tenant_databases` row,
- * or `status !== "active"`), this returns `controlDb` — every organization's
- * data still lives in the single shared database.
+ * Phase 3 provisions a dedicated Neon database per organization. Until then
+ * (no `tenant_databases` row, or `status !== "active"`), returns
+ * `tenantFallbackDb` — the shared tenant database, physically separate from
+ * the control-plane database.
  */
 export async function getTenantDb(organizationId: string): Promise<NodePgDatabase<typeof schema>> {
   const cached = tenantDbCache.get(organizationId);
   if (cached) return cached;
 
   const row = await lookupTenantDatabaseRow(organizationId);
-  if (row?.status !== "active") return controlDb;
+  if (row?.status !== "active") return tenantFallbackDb;
 
   const tenantDb = createTenantDb(decryptConnectionString(row.connectionStringEncrypted));
   tenantDbCache.set(organizationId, tenantDb);
@@ -145,13 +162,13 @@ export function runWithTenantDb<T>(tenantDb: NodePgDatabase<typeof schema>, fn: 
 
 /**
  * Tenant-scoped client for the current request, set per-request via
- * `runWithTenantDb` (see apps/tenant-api/src/app.ts). Falls back to `controlDb`
- * outside of a request — migrations, scripts — or while the active
- * organization has no dedicated database yet (Phase 3).
+ * `runWithTenantDb` (see apps/tenant-api/src/app.ts). Falls back to
+ * `tenantFallbackDb` outside of a request — migrations, scripts — or while
+ * the active organization has no dedicated database yet (Phase 3).
  */
 export const db: NodePgDatabase<typeof schema> = new Proxy({} as NodePgDatabase<typeof schema>, {
   get(_target, prop, _receiver) {
-    const current = tenantDbStorage.getStore() ?? controlDb;
+    const current = tenantDbStorage.getStore() ?? tenantFallbackDb;
     const value = Reflect.get(current, prop, current);
     return typeof value === "function" ? value.bind(current) : value;
   },
