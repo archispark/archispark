@@ -12,11 +12,14 @@
 import { app } from "../dist/app.js";
 import { reloadAuth } from "../dist/better-auth.js";
 import { initRedis } from "../dist/redis.js";
+import { runMigrations } from "@workspace/db";
+import { initUsers } from "../dist/auth.js";
 
-// registry.ts runs runMigrations() + initUsers() via top-level await at import.
-// Catch connection errors here: an unhandled rejection from a transient Redis
-// connect timeout would otherwise crash the whole serverless process.
+// Initialization order matters: Redis must be ready before initUsers() because
+// Better Auth's signUpEmail writes to secondaryStorage (Redis) during user creation.
 await initRedis().catch((err: Error) => console.error("[redis] init failed:", err.message));
+await runMigrations().catch((err: Error) => console.error("[db] migrations failed:", err.message));
 await reloadAuth();
+await initUsers().catch((err: Error) => console.error("[auth] initUsers failed:", err.message));
 
 export default app;
