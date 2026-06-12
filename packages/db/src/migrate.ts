@@ -16,6 +16,12 @@ export async function runMigrations(): Promise<void> {
     const pgliteMigratorPkg = "drizzle-orm/pglite/migrator";
     const { migrate: pgliteMigrate } = await import(pgliteMigratorPkg);
     await pgliteMigrate(controlDb as unknown as Parameters<typeof pgliteMigrate>[0], { migrationsFolder: MIGRATIONS_PG });
+    // Control migration 0012 drops tenant tables from the control DB. Under
+    // PGlite both databases share the same instance, so re-apply the tenant
+    // schema so tests can query workspaces/elements/etc as usual.
+    const _tenantDir = new URL(import.meta.url).pathname.includes("/dist/") ? "./drizzle-pg/tenant" : "../drizzle-pg/tenant";
+    const TENANT_MIGRATIONS_PG = join(fileURLToPath(new URL(_tenantDir, import.meta.url)));
+    await pgliteMigrate(controlDb as unknown as Parameters<typeof pgliteMigrate>[0], { migrationsFolder: TENANT_MIGRATIONS_PG });
     return;
   }
   // v8 ignore stop

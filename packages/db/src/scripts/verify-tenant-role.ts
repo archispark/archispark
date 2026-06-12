@@ -1,15 +1,17 @@
 /**
  * Integration smoke-test for ensureTenantRole (Phase 7).
  *
- * Requires a running Postgres reachable at DATABASE_URL.
+ * Requires a running Postgres with two databases (archispark + archispark_tenant).
  * Run (from repo root):
  *   DATABASE_URL=postgresql://archispark:archispark@localhost:5432/archispark \
+ *   TENANT_DATABASE_URL=postgresql://archispark:archispark@localhost:5432/archispark_tenant \
  *   TENANT_DB_PASSWORD=test-tenant-password-phase7 \
- *   pnpm --filter @workspace/db tsx src/scripts/verify-tenant-role.ts
+ *   pnpm -C packages/db exec tsx src/scripts/verify-tenant-role.ts
  */
 
 import { Pool } from "pg";
 import { runMigrations } from "../migrate.js";
+import { runTenantFallbackMigrations } from "../migrate-tenant.js";
 import { ensureTenantRole, TENANT_DB_ROLE, TENANT_TABLES } from "../tenant-role.js";
 
 const DB_URL = process.env["DATABASE_URL"];
@@ -44,17 +46,21 @@ function fail(label: string, err: unknown) {
 async function run() {
   console.log("\n=== Phase 7 — verify-tenant-role ===\n");
 
-  // 1. Migrations
-  process.stdout.write("1. Running migrations... ");
+  // 1. Migrations: control DB first, then tenant fallback DB
+  process.stdout.write("1. Running control migrations... ");
   await runMigrations();
   console.log("done");
 
-  // 2. Create/update archispark_tenant role
-  process.stdout.write("2. ensureTenantRole... ");
+  process.stdout.write("2. Running tenant fallback migrations... ");
+  await runTenantFallbackMigrations();
+  console.log("done");
+
+  // 3. Create/update archispark_tenant role
+  process.stdout.write("3. ensureTenantRole... ");
   await ensureTenantRole(TENANT_PASSWORD);
   console.log("done");
 
-  // 3. Verify role exists in pg_roles
+  // 4. Verify role exists in pg_roles
   const adminPool = new Pool({ connectionString: DB_URL, ssl: false });
   try {
     const { rows } = await adminPool.query(
@@ -70,12 +76,12 @@ async function run() {
     await adminPool.end();
   }
 
-  // 4. Connect as archispark_tenant and verify access
-  // DB_URL is guaranteed non-empty: the module-level guard exits before run() is called.
-  const tenantUrl = buildTenantUrl(DB_URL!, TENANT_DB_ROLE, TENANT_PASSWORD);
+  // 5. Connect as archispark_tenant against archispark_TENANT DB and verify access
+  const tenantDbUrl = process.env["TENANT_DATABASE_URL"] ?? DB_URL!;
+  const tenantUrl = buildTenantUrl(tenantDbUrl, TENANT_DB_ROLE, TENANT_PASSWORD);
   const tenantPool = new Pool({ connectionString: tenantUrl, ssl: false });
 
-  console.log("\n3. Tenant-role grants:");
+  console.log("\n5. Tenant-role grants on archispark_tenant DB:");
 
   // SELECT on each tenant table should succeed
   for (const table of TENANT_TABLES) {
@@ -88,7 +94,7 @@ async function run() {
   }
 
   // INSERT on workspaces should succeed (needs sequence too)
-  console.log("\n4. DML on workspaces:");
+  console.log("\n6. DML on workspaces (in archispark_tenant DB):");
   let insertedId: number | undefined;
   try {
     const res = await tenantPool.query<{ id: number }>(
@@ -115,23 +121,41 @@ async function run() {
     }
   }
 
-  // SELECT on control-plane table should be DENIED
-  console.log("\n5. Control-plane access (must be denied):");
+  // SELECT on control-plane table should be DENIED (user/org tables don't even
+  // exist in archispark_tenant DB — "does not exist" is also an acceptable error)
+  console.log("\n6. Control-plane access on tenant DB (must be denied):");
   try {
     await tenantPool.query(`SELECT 1 FROM "user" LIMIT 0`);
     fail('SELECT on "user" should be denied', "got no error");
   } catch {
-    ok(`SELECT on "user" is denied (permission denied as expected)`);
+    ok(`SELECT on "user" is denied (as expected)`);
   }
 
   try {
     await tenantPool.query(`SELECT 1 FROM "organization" LIMIT 0`);
     fail('SELECT on "organization" should be denied', "got no error");
   } catch {
-    ok(`SELECT on "organization" is denied (permission denied as expected)`);
+    ok(`SELECT on "organization" is denied (as expected)`);
   }
 
   await tenantPool.end();
+
+  // 7. Verify control DB does NOT contain tenant tables (physical isolation)
+  console.log("\n7. Physical isolation — tenant tables absent from control DB:");
+  const ctrlPool = new Pool({ connectionString: DB_URL!, ssl: false });
+  try {
+    const { rows } = await ctrlPool.query<{ tablename: string }>(
+      `SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename = ANY($1)`,
+      [["workspaces", "elements", "views"]],
+    );
+    if (rows.length === 0) {
+      ok("tenant tables (workspaces, elements, views) absent from archispark (control DB)");
+    } else {
+      fail("tenant tables absent from control DB", `found: ${rows.map(r => r.tablename).join(", ")}`);
+    }
+  } finally {
+    await ctrlPool.end();
+  }
 
   console.log(`\n${"─".repeat(40)}`);
   console.log(`Passed: ${passed}  Failed: ${failed}`);
