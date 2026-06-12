@@ -24,10 +24,6 @@ BEGIN
     VALUES ('id-f0607ad9eb0845a8829f43f5f7c676ff', 'ArchiSurance', NULL, NULL, org_id, EXTRACT(EPOCH FROM NOW())::INT, EXTRACT(EPOCH FROM NOW())::INT)
     RETURNING id INTO ws_id;
 
-  INSERT INTO user_active_workspace (user_id, organization_id, workspace_id)
-  SELECT u.id, org_id, ws_id FROM "user" u
-  ON CONFLICT (user_id, organization_id) DO UPDATE SET workspace_id = EXCLUDED.workspace_id;
-
     INSERT INTO property_definitions (workspace_id, uuid, name, type)
       VALUES (ws_id, 'propid-2', 'Capability Level', 'string');
     INSERT INTO property_definitions (workspace_id, uuid, name, type)
@@ -5389,10 +5385,6 @@ BEGIN
   INSERT INTO workspaces (uuid, name, description, version, organization_id, created_at, updated_at)
     VALUES ('id-e42df43bd2104e9aa7ccc8fd25a80ac6', 'ArchiMetal', NULL, NULL, org_id, EXTRACT(EPOCH FROM NOW())::INT, EXTRACT(EPOCH FROM NOW())::INT)
     RETURNING id INTO ws_id;
-
-  INSERT INTO user_active_workspace (user_id, organization_id, workspace_id)
-  SELECT u.id, org_id, ws_id FROM "user" u
-  ON CONFLICT (user_id, organization_id) DO UPDATE SET workspace_id = EXCLUDED.workspace_id;
 
     INSERT INTO property_definitions (workspace_id, uuid, name, type)
       VALUES (ws_id, 'propid-1', 'Last Update', 'string');

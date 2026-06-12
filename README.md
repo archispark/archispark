@@ -529,7 +529,22 @@ pnpm run -w test:coverage   # ≥80% coverage required
    - `archispark-control` → attached to `archispark-control-api` and `archispark-mcp-server`. Neon auto-injects `DATABASE_URL` (pooled) and `DATABASE_URL_UNPOOLED` (direct).
    - `archispark-tenant-fallback` → attached to `archispark-tenant-api`, `archispark-control-api`, and `archispark-mcp-server`. Rename the injected `DATABASE_URL` → `TENANT_DATABASE_URL` and `DATABASE_URL_UNPOOLED` → `TENANT_DATABASE_URL_UNPOOLED`.
 
-3. **Set environment variables** — grab a Vercel token from Account Settings → Tokens, then:
+3. **Apply database migrations** — run the control DB migrations manually, then deploy tenant-api so it auto-applies the tenant schema on first cold start:
+
+```bash
+# Control DB (migrations 0000 → 0012, runs against DATABASE_URL)
+DATABASE_URL="<neon-control-pooled>" pnpm --filter @workspace/db migrate:prod
+
+# Tenant DB — two options:
+# Option A (recommended): deploy tenant-api with TENANT_DATABASE_URL set;
+#   runTenantFallbackMigrations() applies drizzle-pg/tenant/ automatically on cold start.
+# Option B (manual, if tenant-api not yet deployed):
+DATABASE_URL="<neon-tenant-pooled>" pnpm --filter @workspace/db exec drizzle-kit migrate --config drizzle.config.tenant.ts
+```
+
+> **Important:** the tenant DB schema (`workspaces`, `elements`, `views`, etc.) is separate from the control DB schema and must be migrated independently. Forgetting this step results in "relation does not exist" errors on workspace creation.
+
+4. **Set environment variables** — grab a Vercel token from Account Settings → Tokens, then:
 
 ```bash
 VERCEL_TOKEN=xxx \
@@ -552,7 +567,7 @@ The script configures:
 | `TENANT_DB_ENCRYPTION_KEY` | tenant-api | auto-generated |
 | `ARCHIMATE_API_URL` | web | API Vercel deployment URL |
 
-4. **Redeploy** `archispark-api` and `archispark-tenant-api`.
+5. **Redeploy** `archispark-control-api` and `archispark-tenant-api`.
 
 ### Subdomain topology (`app.<domain>` / `admin.<domain>`)
 
