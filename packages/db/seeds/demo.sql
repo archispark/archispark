@@ -17,7 +17,7 @@ BEGIN
   -- =================================================================
   -- Workspace: ArchiSurance  (257 elements, 402 rels, 40 views)
   -- =================================================================
-  org_id := 'org-archisurance';
+  org_id := '__ORG_ID__';
 
   DELETE FROM workspaces WHERE organization_id = org_id AND name = 'ArchiSurance';
   INSERT INTO workspaces (uuid, name, description, version, organization_id, created_at, updated_at)
@@ -5379,7 +5379,7 @@ BEGIN
   -- =================================================================
   -- Workspace: ArchiMetal  (294 elements, 476 rels, 33 views)
   -- =================================================================
-  org_id := 'org-archimetal';
+  org_id := '__ORG_ID__';
 
   DELETE FROM workspaces WHERE organization_id = org_id AND name = 'ArchiMetal';
   INSERT INTO workspaces (uuid, name, description, version, organization_id, created_at, updated_at)

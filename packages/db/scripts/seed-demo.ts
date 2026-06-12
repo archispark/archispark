@@ -5,10 +5,11 @@
  *   pnpm --filter @workspace/db seed:demo
  *
  * Requires:
- *   DATABASE_URL        — control DB (organizations, members)
+ *   DATABASE_URL        — control DB (reads first organization id)
  *   TENANT_DATABASE_URL — tenant fallback DB (workspaces, elements, …)
  *                         Falls back to DATABASE_URL for unified local dev.
  *
+ * Both workspaces are created inside the first existing organization.
  * Destructive reset: deletes existing ArchiSurance/ArchiMetal workspaces (CASCADE)
  * then reimports from the generated SQL. Safe to run multiple times.
  */
@@ -17,10 +18,8 @@ import { readFileSync } from "fs";
 import { resolve } from "path";
 import pg from "pg";
 
-const CONTROL_SQL_PATH = resolve(import.meta.dirname, "../seeds/demo-control.sql");
 const TENANT_SQL_PATH = resolve(import.meta.dirname, "../seeds/demo.sql");
-const controlSql = readFileSync(CONTROL_SQL_PATH, "utf-8");
-const tenantSql = readFileSync(TENANT_SQL_PATH, "utf-8");
+const tenantSqlTemplate = readFileSync(TENANT_SQL_PATH, "utf-8");
 
 const controlUrl = process.env["DATABASE_URL"];
 if (!controlUrl) {
@@ -53,9 +52,19 @@ function makeClient(url: string): pg.Client {
 
 const controlClient = makeClient(controlUrl);
 await controlClient.connect();
-console.log("Seeding control DB (organizations, members)…");
-await controlClient.query(controlSql);
+const { rows } = await controlClient.query<{ id: string }>(
+  "SELECT id FROM organization ORDER BY created_at LIMIT 1"
+);
 await controlClient.end();
+
+if (!rows[0]) {
+  console.error("Error: no organization found in control DB. Create one first.");
+  process.exit(1);
+}
+const orgId = rows[0].id;
+console.log(`Using organization: ${orgId}`);
+
+const tenantSql = tenantSqlTemplate.replaceAll("'__ORG_ID__'", `'${orgId}'`);
 
 const tenantClient = makeClient(tenantUrl);
 await tenantClient.connect();
