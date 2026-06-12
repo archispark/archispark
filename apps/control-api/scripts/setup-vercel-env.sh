@@ -22,6 +22,10 @@ JWT_SECRET="${JWT_SECRET:-39ea557f68e4dae99a76697df559fdd6291f0e1af9fe668a006ea3
 TENANT_JWT_SECRET="${TENANT_JWT_SECRET:-ff40a24687f21c5cb7954ad52667f06c7aa6ab89852e9ad1c747a1fc9a661521}"
 # Phase 5 — decrypts per-tenant Neon connection strings (tenant-api, mcp-server).
 TENANT_DB_ENCRYPTION_KEY="${TENANT_DB_ENCRYPTION_KEY:-84090c5a681dedd60b487875d5a7a6a94dd2d62b016e93464eecdcf02a1a999f}"
+# Phase 7 — password for the restricted archispark_tenant Postgres role used by
+# tenant-api in fallback mode (set by control-api via ensureTenantRole on startup).
+# Generate with: openssl rand -hex 32
+TENANT_DB_PASSWORD="${TENANT_DB_PASSWORD:-}"
 SEED_ADMIN_PASSWORD="${SEED_ADMIN_PASSWORD:-}"
 SEED_USER_PASSWORD="${SEED_USER_PASSWORD:-}"
 
@@ -98,6 +102,8 @@ add_env "$API_PROJECT" "TRUSTED_ORIGINS"      "$TRUSTED_ORIGINS"
 # signing a short-lived inter-service JWT with TENANT_JWT_SECRET.
 add_env "$API_PROJECT" "TENANT_API_URL"       "$TENANT_API_VERCEL_URL"
 add_env "$API_PROJECT" "TENANT_JWT_SECRET"    "$TENANT_JWT_SECRET"      "true"
+# Phase 7 — control-api uses this to create/maintain the archispark_tenant role
+[[ -n "$TENANT_DB_PASSWORD" ]] && add_env "$API_PROJECT" "TENANT_DB_PASSWORD" "$TENANT_DB_PASSWORD" "true"
 
 echo ""
 echo "=== Configuring archispark-tenant-api ==="
@@ -136,3 +142,13 @@ if [[ -n "$COOKIE_DOMAIN" ]]; then
   echo "Attach the matching custom domains to archispark-web / archispark-admin-web"
   echo "in the Vercel dashboard, then redeploy all three projects."
 fi
+echo ""
+echo "Phase 7 (Postgres role separation):"
+echo "  1. Generate TENANT_DB_PASSWORD: openssl rand -hex 32"
+echo "  2. Re-run this script with TENANT_DB_PASSWORD=<value> — it will set it on archispark-api."
+echo "     control-api creates/maintains the archispark_tenant role on every cold start."
+echo "  3. Build the restricted DATABASE_URL for archispark-tenant-api:"
+echo "     take POSTGRES_URL from archispark-api (Supabase integration) and replace"
+echo "     user:password with archispark_tenant:\$TENANT_DB_PASSWORD"
+echo "  4. Set that URL as DATABASE_URL on archispark-tenant-api (encrypted), then"
+echo "     redeploy archispark-api (to provision the role) and archispark-tenant-api."

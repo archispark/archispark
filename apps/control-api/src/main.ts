@@ -1,4 +1,4 @@
-import { runMigrations } from "@workspace/db";
+import { runMigrations, ensureTenantRole } from "@workspace/db";
 import { initUsers } from "./auth.js";
 import { reloadAuth } from "./better-auth.js";
 import { initRedis } from "./redis.js";
@@ -8,6 +8,7 @@ const HOST = process.env["HOST"] ?? "0.0.0.0";
 
 initRedis()
   .then(() => runMigrations())
+  .then(() => ensureTenantRole(process.env["TENANT_DB_PASSWORD"] ?? ""))
   .then(() => initUsers())
   .then(() => reloadAuth())
   .then(async () => {

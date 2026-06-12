@@ -292,13 +292,33 @@ Credential separation:
 
 | Env var | control-api | tenant-api |
 |---|---|---|
-| `DATABASE_URL` | ✅ (control schema + Better Auth) | ✅ (fallback, tenant tables only) |
+| `DATABASE_URL` | ✅ (control schema + Better Auth) | ✅ (fallback, role `archispark_tenant` — tenant tables only) |
 | `JWT_SECRET` | ✅ (Better Auth) | — |
 | `NEON_API_KEY` / `NEON_PROJECT_ID` / `NEON_BRANCH_ID` | ✅ | — |
 | `TENANT_API_URL` | ✅ (where to proxy) | — |
 | `TENANT_JWT_SECRET` | ✅ (sign) | ✅ (verify) |
 | `TENANT_DB_ENCRYPTION_KEY` | — | ✅ (decrypt `tenant_db`) |
+| `TENANT_DB_PASSWORD` | ✅ (creates/maintains `archispark_tenant` role) | — |
 | `REDIS_URL` | ✅ | ✅ |
+
+### Tenant Postgres role
+
+Phase 7 adds a restricted `archispark_tenant` Postgres role used by `tenant-api` when
+connecting to the fallback shared database (organizations without a dedicated Neon DB).
+
+The role has `SELECT/INSERT/UPDATE/DELETE` on the 12 tables in `schema.tenant.ts`
+(`workspaces`, `workspace_teams`, `user_active_workspace`, `elements`, `relationships`,
+`property_definitions`, `element_properties`, `relationship_properties`, `views`, `nodes`,
+`connections`, `bendpoints`) and `USAGE` on all sequences, but cannot read any
+control-plane table (`users`, `sessions`, `organizations`, etc.).
+
+`control-api` calls `ensureTenantRole(TENANT_DB_PASSWORD)` at startup (after migrations),
+so the role and its grants are always in sync. The password is never given to `tenant-api`
+— only the resulting restricted `DATABASE_URL` is.
+
+**Maintenance:** when adding a new table to `schema.tenant.ts`, also add its SQL name
+to `TENANT_TABLES` in `packages/db/src/tenant-role.ts` — the grant runs on every
+control-api restart, so the new table will be covered automatically after one redeploy.
 
 Self-hosted Docker: `tenant-api` runs as an internal-only Compose service
 (no Traefik labels), reached by `control-api` over the `archispark` network

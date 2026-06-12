@@ -12,3 +12,4 @@ export { rowToColor, colorToRow, buildNodeTree, flattenNodes } from "./model-io.
 export { encryptConnectionString, decryptConnectionString } from "./tenant-crypto.js";
 export { signTenantToken, verifyTenantToken } from "./tenant-jwt.js";
 export type { TenantTokenPayload } from "./tenant-jwt.js";
+export { ensureTenantRole, TENANT_DB_ROLE, TENANT_TABLES } from "./tenant-role.js";

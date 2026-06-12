@@ -76,6 +76,9 @@ services:
       TENANT_API_URL:      "http://tenant-api:3002"
       # Secret partagé avec tenant-api pour signer/vérifier le JWT inter-service
       TENANT_JWT_SECRET:   ${TENANT_JWT_SECRET:?Set TENANT_JWT_SECRET in .env}
+      # Mot de passe du rôle Postgres restreint archispark_tenant (créé au
+      # premier démarrage de control-api via ensureTenantRole)
+      TENANT_DB_PASSWORD:  ${TENANT_DB_PASSWORD:?Set TENANT_DB_PASSWORD in .env}
     healthcheck:
       test:     ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/health"]
       interval: 10s
@@ -124,9 +127,9 @@ services:
       NODE_ENV:                  production
       PORT:                      "3002"
       HOST:                      "0.0.0.0"
-      # Connexion PostgreSQL de repli pour les organisations sans base Neon
-      # dédiée (la connexion par-tenant arrive chiffrée dans le JWT)
-      DATABASE_URL:              "postgresql://archispark:${DB_PASSWORD}@postgres:5432/archispark"
+      # Connexion PostgreSQL de repli — rôle restreint archispark_tenant
+      # (SELECT/INSERT/UPDATE/DELETE sur les tables schema.tenant.ts uniquement)
+      DATABASE_URL:              "postgresql://archispark_tenant:${TENANT_DB_PASSWORD}@postgres:5432/archispark"
       REDIS_URL:                 ${REDIS_URL:-redis://redis:6379}
       # Secret partagé avec control-api pour vérifier le JWT inter-service
       TENANT_JWT_SECRET:         ${TENANT_JWT_SECRET:?Set TENANT_JWT_SECRET in .env}
