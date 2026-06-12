@@ -9,6 +9,7 @@ import {
   useTeams,
   useTeamMembers,
   useSetActiveOrganization,
+  useAutoActivateOrganization,
   useInviteMember,
   useCancelInvitation,
   useUpdateMemberRole,
@@ -261,6 +262,32 @@ describe("useSetActiveOrganization", () => {
     const { wrapper } = createWrapper();
     const { result } = renderHook(() => useSetActiveOrganization(), { wrapper });
     await expect(result.current.mutateAsync("org1")).rejects.toThrow("nope");
+  });
+});
+
+describe("useAutoActivateOrganization", () => {
+  it("activates the user's first organization when none is active", async () => {
+    mocks._setMockOrgList([{ id: "org1", name: "Acme", createdAt: new Date() }]);
+    mocks._organization.setActive.mockResolvedValue({ data: { id: "org1" }, error: null });
+    const { wrapper, queryClient } = createWrapper();
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+    renderHook(() => useAutoActivateOrganization(), { wrapper });
+    await waitFor(() => expect(mocks._organization.setActive).toHaveBeenCalledWith({ organizationId: "org1" }));
+    await waitFor(() => expect(invalidateSpy).toHaveBeenCalled());
+  });
+
+  it("does nothing when an organization is already active", () => {
+    mocks._setMockActiveOrg(sampleOrg);
+    mocks._setMockOrgList([{ id: "org1", name: "Acme", createdAt: new Date() }]);
+    const { wrapper } = createWrapper();
+    renderHook(() => useAutoActivateOrganization(), { wrapper });
+    expect(mocks._organization.setActive).not.toHaveBeenCalled();
+  });
+
+  it("does nothing when the user has no organizations", () => {
+    const { wrapper } = createWrapper();
+    renderHook(() => useAutoActivateOrganization(), { wrapper });
+    expect(mocks._organization.setActive).not.toHaveBeenCalled();
   });
 });
 
