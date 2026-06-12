@@ -82,10 +82,14 @@ export async function initUsers(): Promise<void> {
     return userId!;
   };
 
-  const adminPwd = process.env["SEED_ADMIN_PASSWORD"] || "admin";
-  const userPwd  = process.env["SEED_USER_PASSWORD"]  || "user";
-  const adminId = await seedUser("admin", adminPwd, "platform_admin");
-  const userId  = await seedUser("user",  userPwd,  "user");
+  const adminPwd   = process.env["SEED_ADMIN_PASSWORD"]   || "admin";
+  const userPwd    = process.env["SEED_USER_PASSWORD"]    || "user";
+  const contribPwd = process.env["SEED_CONTRIB_PASSWORD"] || "contrib";
+  const archiPwd   = process.env["SEED_ARCHI_PASSWORD"]   || "archi";
+  const adminId   = await seedUser("admin",   adminPwd,   "platform_admin");
+  const userId    = await seedUser("user",    userPwd,    "user");
+  const contribId = await seedUser("contrib", contribPwd, "user");
+  const archiId   = await seedUser("archi",   archiPwd,   "user");
   if (!process.env["SEED_ADMIN_PASSWORD"]) {
     console.warn("[auth] SEED_ADMIN_PASSWORD not set — using default 'admin'. Set it in production!");
   }
@@ -102,6 +106,12 @@ export async function initUsers(): Promise<void> {
   }
   if (userId) {
     await controlDb.insert(membersTable).values({ id: randomUUID(), organizationId: orgId, userId, role: "member", createdAt: now }).onConflictDoNothing();
+  }
+  if (contribId) {
+    await controlDb.insert(membersTable).values({ id: randomUUID(), organizationId: orgId, userId: contribId, role: "admin", createdAt: now }).onConflictDoNothing();
+  }
+  if (archiId) {
+    await controlDb.insert(membersTable).values({ id: randomUUID(), organizationId: orgId, userId: archiId, role: "owner", createdAt: now }).onConflictDoNothing();
   }
 
   console.log("[auth] Better Auth users ready.");

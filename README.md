@@ -21,7 +21,7 @@ pnpm dev          # API :3000 · Web :8000 · Admin :8001 · MCP :3001 · all bo
 
 On first run the API:
 1. Applies pending PostgreSQL migrations (`packages/db/drizzle-pg/`)
-2. Seeds default users (`admin/admin` and `user/user`) if the `users` table is empty
+2. Seeds default users (`admin/admin`, `user/user`, `contrib/contrib`, `archi/archi`) if the `users` table is empty
 3. Seeds workspaces from `workspaces.json` or `config.json` + XML files if present
 
 `DATABASE_URL` is **required** (the Supabase/Vercel `POSTGRES_URL_NON_POOLING` /
@@ -322,7 +322,7 @@ Write operations (`POST`, `PUT`, `DELETE`) on workspace content require the `own
 | `GET` | `/me` | user | Returns current user |
 | `/auth/organization/*` | — | user | Better Auth organization plugin: list/create organizations, invite/remove members, manage teams, switch active organization, etc. |
 
-Default credentials: `admin` / `admin` (`platform_admin`), `user` / `user` (read-only).
+Default credentials: `admin` / `admin` (`platform_admin`, org `owner`), `user` / `user` (org `member`, read-only), `contrib` / `contrib` (org `admin`), `archi` / `archi` (org `owner`).
 
 ### Cross-subdomain sessions (SaaS topology)
 
