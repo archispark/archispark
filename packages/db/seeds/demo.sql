@@ -17,17 +17,7 @@ BEGIN
   -- =================================================================
   -- Workspace: ArchiSurance  (257 elements, 402 rels, 40 views)
   -- =================================================================
-  -- Organization: ArchiSurance
-  INSERT INTO organization (id, name, slug, created_at)
-    VALUES ('org-archisurance', 'ArchiSurance', 'archisurance', NOW())
-    ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name
-    RETURNING id INTO org_id;
-
-  INSERT INTO member (id, organization_id, user_id, role, created_at)
-  SELECT 'member-' || org_id || '-' || u.id, org_id, u.id,
-         CASE WHEN u.role = 'platform_admin' THEN 'owner' ELSE 'member' END, NOW()
-  FROM "user" u
-  ON CONFLICT (organization_id, user_id) DO NOTHING;
+  org_id := 'org-archisurance';
 
   DELETE FROM workspaces WHERE organization_id = org_id AND name = 'ArchiSurance';
   INSERT INTO workspaces (uuid, name, description, version, organization_id, created_at, updated_at)
@@ -5393,17 +5383,7 @@ BEGIN
   -- =================================================================
   -- Workspace: ArchiMetal  (294 elements, 476 rels, 33 views)
   -- =================================================================
-  -- Organization: ArchiMetal
-  INSERT INTO organization (id, name, slug, created_at)
-    VALUES ('org-archimetal', 'ArchiMetal', 'archimetal', NOW())
-    ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name
-    RETURNING id INTO org_id;
-
-  INSERT INTO member (id, organization_id, user_id, role, created_at)
-  SELECT 'member-' || org_id || '-' || u.id, org_id, u.id,
-         CASE WHEN u.role = 'platform_admin' THEN 'owner' ELSE 'member' END, NOW()
-  FROM "user" u
-  ON CONFLICT (organization_id, user_id) DO NOTHING;
+  org_id := 'org-archimetal';
 
   DELETE FROM workspaces WHERE organization_id = org_id AND name = 'ArchiMetal';
   INSERT INTO workspaces (uuid, name, description, version, organization_id, created_at, updated_at)

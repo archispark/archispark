@@ -2,13 +2,13 @@
  * Apply pending Drizzle migrations to a production PostgreSQL database.
  *
  * Usage:
- *   POSTGRES_URL=<url> pnpm --filter @workspace/db migrate:prod
+ *   DATABASE_URL=<url> pnpm --filter @workspace/db migrate:prod
  *   # or pass an env file:
  *   pnpm --filter @workspace/db migrate:prod /tmp/vercel-prod.env
  *
- * Reads POSTGRES_URL (or DATABASE_URL) from the environment or from the .env
- * file passed as the first argument. Runs all pending migrations from
- * packages/db/drizzle-pg/ and exits.
+ * Reads DATABASE_URL from the environment or from the .env file passed as
+ * the first argument. Runs all pending migrations from packages/db/drizzle-pg/
+ * and exits.
  */
 
 import { readFileSync, existsSync } from "fs";
@@ -38,13 +38,10 @@ if (envFile) {
 
 // ── 2. Resolve connection string ─────────────────────────────────────────────
 
-const rawUrl =
-  process.env["DATABASE_URL"] ??
-  process.env["POSTGRES_URL"] ??
-  process.env["POSTGRES_URL_NON_POOLING"];
+const rawUrl = process.env["DATABASE_URL"];
 
 if (!rawUrl) {
-  console.error("Missing DATABASE_URL / POSTGRES_URL. Pass an env file as argument or set the variable.");
+  console.error("Missing DATABASE_URL. Pass an env file as argument or set the variable.");
   process.exit(1);
 }
 

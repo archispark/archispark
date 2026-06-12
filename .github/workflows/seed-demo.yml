@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   seed:
-    name: Seed demo data on Vercel Postgres
+    name: Seed demo data on Neon
     runs-on: ubuntu-latest
 
     steps:
@@ -34,12 +34,14 @@ jobs:
         if: inputs.reset == true
         # CASCADE on workspaces.id removes all child rows (elements, relationships,
         # views, nodes, connections, bendpoints, property_definitions, …).
-        run: psql "$POSTGRES_URL_NON_POOLING" -c "DELETE FROM workspaces WHERE name IN ('ArchiMetal', 'ArchiSurance');"
+        # workspaces lives in the tenant fallback DB after Phase 7.
+        run: psql "$TENANT_DATABASE_URL_UNPOOLED" -c "DELETE FROM workspaces WHERE name IN ('ArchiMetal', 'ArchiSurance');"
         env:
-          POSTGRES_URL_NON_POOLING: ${{ secrets.POSTGRES_URL_NON_POOLING }}
+          TENANT_DATABASE_URL_UNPOOLED: ${{ secrets.TENANT_DATABASE_URL_UNPOOLED }}
           PGSSLMODE: require
 
       - name: Seed demo data
         run: pnpm --filter @workspace/db seed:demo
         env:
-          POSTGRES_URL_NON_POOLING: ${{ secrets.POSTGRES_URL_NON_POOLING }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL_UNPOOLED }}
+          TENANT_DATABASE_URL: ${{ secrets.TENANT_DATABASE_URL_UNPOOLED }}

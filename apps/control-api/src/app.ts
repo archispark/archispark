@@ -353,7 +353,7 @@ app.get("/settings/redis", requireSuperAdmin as express.RequestHandler, async (_
 // ---------------------------------------------------------------------------
 
 app.get("/settings/postgres", requireSuperAdmin as express.RequestHandler, async (_req: Request, res: Response) => {
-  const url = process.env["DATABASE_URL"] ?? process.env["POSTGRES_URL"] ?? process.env["POSTGRES_URL_NON_POOLING"];
+  const url = process.env["DATABASE_URL"];
   let host: string | null = null;
   let port: number | null = null;
   let database: string | null = null;

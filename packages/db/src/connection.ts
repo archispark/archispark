@@ -11,7 +11,7 @@ import { decryptConnectionString } from "./tenant-crypto.js";
 /**
  * Single database driver: PostgreSQL.
  *
- * Production / dev use node-postgres against a real Postgres (Supabase, local,
+ * Production / dev use node-postgres against a real Postgres (Neon, local,
  * etc.). The test suite uses PGlite — Postgres compiled to WASM, in-memory and
  * in-process — so tests keep full Postgres fidelity without Docker. Both share
  * the same `schema` and the same `drizzle-pg` migrations (identical SQL dialect).
@@ -37,18 +37,10 @@ async function createDb(urlOverride?: string): Promise<NodePgDatabase<typeof sch
   // v8 ignore stop
 
   // urlOverride takes priority (used for tenantFallbackDb).
-  // Otherwise: explicit DATABASE_URL → Supabase pooled (IPv4 — works from
-  // serverless/Vercel) → Supabase direct (IPv6 — only reachable locally/in a
-  // container). Serverless functions must use the pooled connection: the direct
-  // host is IPv6-only and unreachable from Lambdas.
-  const rawConnectionString =
-    urlOverride ??
-    process.env["DATABASE_URL"] ??
-    process.env["POSTGRES_URL"] ??
-    process.env["POSTGRES_URL_NON_POOLING"];
+  const rawConnectionString = urlOverride ?? process.env["DATABASE_URL"];
 
   if (!rawConnectionString) {
-    throw new Error("DATABASE_URL (or POSTGRES_URL / POSTGRES_URL_NON_POOLING) is required");
+    throw new Error("DATABASE_URL is required");
   }
 
   // isLocal: standard local hostnames OR explicit sslmode=disable in the URL
@@ -58,7 +50,7 @@ async function createDb(urlOverride?: string): Promise<NodePgDatabase<typeof sch
     /@(localhost|127\.0\.0\.1|\[::1\]|postgres)[:/]/.test(rawConnectionString) ||
     /[?&]sslmode=disable/i.test(rawConnectionString);
 
-  // Managed Postgres (Supabase, etc.) serves TLS with a private-CA certificate.
+  // Managed Postgres (Neon, etc.) serves TLS with a private-CA certificate.
   // node-postgres treats the URL's `sslmode=require` as verify-full and rejects
   // that cert, overriding the ssl option — so strip sslmode from the URL and
   // accept the cert via `ssl: { rejectUnauthorized: false }` instead. Local/dev

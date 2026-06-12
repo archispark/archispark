@@ -24,8 +24,7 @@ On first run the API:
 2. Seeds default users (`admin/admin`, `user/user`, `contrib/contrib`, `archi/archi`) if the `users` table is empty
 3. Seeds workspaces from `workspaces.json` or `config.json` + XML files if present
 
-`DATABASE_URL` is **required** (the Supabase/Vercel `POSTGRES_URL_NON_POOLING` /
-`POSTGRES_URL` vars are also picked up as fallbacks) — there is no hardcoded
+`DATABASE_URL` is **required** — there is no hardcoded
 default. For local development, `make dev` sources `.env`, which sets
 `DATABASE_URL=postgresql://archispark:${DB_PASSWORD}@localhost:5432/archispark`
 to match the Postgres container started by `make dev-infra`.
@@ -183,7 +182,7 @@ Each model is seeded into its own demo organization (`ArchiMetal` / `ArchiSuranc
 The seed is **idempotent** — re-running it upserts the demo organizations/memberships and replaces the matching workspace's content.
 
 ```bash
-# Requires DATABASE_URL (or POSTGRES_URL) pointing to a running Postgres instance.
+# Requires DATABASE_URL (control DB) and TENANT_DATABASE_URL (tenant DB).
 pnpm seed:demo
 
 # Equivalent alternatives:
@@ -195,7 +194,7 @@ psql $DATABASE_URL -f packages/db/seeds/demo.sql
 
 The workflow **Actions → Restore demo data** can be triggered manually from GitHub to reset the Vercel Postgres database to the demo state.
 
-**Required GitHub secret** — add `POSTGRES_URL_NON_POOLING` to the repository secrets (Settings → Secrets and variables → Actions). Copy the value from the Vercel project environment variables.
+**Required GitHub secrets** — add `DATABASE_URL_UNPOOLED` (Neon control DB direct URL) and `TENANT_DATABASE_URL_UNPOOLED` (Neon tenant fallback DB direct URL) to the repository secrets (Settings → Secrets and variables → Actions). Copy the values from the Vercel project environment variables.
 
 The workflow offers a **reset** checkbox (on by default): when checked it deletes the existing ArchiMetal and ArchiSurance workspaces (all child data is removed via CASCADE) before re-seeding. Uncheck it to seed only if those workspaces do not yet exist.
 
@@ -526,7 +525,9 @@ pnpm run -w test:coverage   # ≥80% coverage required
    It's internal-only (no custom domain needed, the default `*.vercel.app`
    URL is fine — see [Control-api / tenant-api split](#control-api--tenant-api-split)).
 
-2. **Link Supabase** — In Vercel → Storage, attach your Supabase project to `archispark-api`, `archispark-tenant-api`, and `archispark-web`. This auto-injects `POSTGRES_URL`, `POSTGRES_URL_NON_POOLING`, etc.
+2. **Add Neon** — In Vercel → Storage, add two Neon Postgres databases:
+   - `archispark-control` → attached to `archispark-control-api` and `archispark-mcp-server`. Neon auto-injects `DATABASE_URL` (pooled) and `DATABASE_URL_UNPOOLED` (direct).
+   - `archispark-tenant-fallback` → attached to `archispark-tenant-api`, `archispark-control-api`, and `archispark-mcp-server`. Rename the injected `DATABASE_URL` → `TENANT_DATABASE_URL` and `DATABASE_URL_UNPOOLED` → `TENANT_DATABASE_URL_UNPOOLED`.
 
 3. **Set environment variables** — grab a Vercel token from Account Settings → Tokens, then:
 
