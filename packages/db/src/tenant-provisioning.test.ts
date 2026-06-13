@@ -5,10 +5,21 @@ import { drizzle } from "drizzle-orm/pglite";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { eq } from "drizzle-orm";
 import { runMigrations } from "./migrate.js";
+import { runTenantMigrations } from "./migrate-tenant.js";
 import { controlDb } from "./connection.js";
 import * as schema from "./schema.js";
 import { provisionTenantDatabase } from "./tenant-provisioning.js";
 import { decryptConnectionString } from "./tenant-crypto.js";
+import { canProvisionLocally, provisionLocalTenantInfrastructure } from "./local-provisioning.js";
+
+vi.mock("./local-provisioning.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./local-provisioning.js")>();
+  return {
+    ...actual,
+    canProvisionLocally: vi.fn(actual.canProvisionLocally),
+    provisionLocalTenantInfrastructure: vi.fn(actual.provisionLocalTenantInfrastructure),
+  };
+});
 
 const ORIGINAL_ENV = { ...process.env };
 
@@ -141,5 +152,32 @@ describe("provisionTenantDatabase", () => {
     const [row] = await controlDb.select().from(schema.tenantDatabases)
       .where(eq(schema.tenantDatabases.organizationId, orgId));
     expect(row?.status).toBe("active");
+  });
+
+  it("falls back to local-Postgres provisioning when Neon is not configured but local provisioning is possible", async () => {
+    delete process.env["NEON_API_KEY"];
+    delete process.env["NEON_PROJECT_ID"];
+    const orgId = await makeOrg();
+    const slug = `tenant_${orgId.toLowerCase().replace(/[^a-z0-9_]/g, "_")}`;
+    await controlDb.insert(schema.tenantDatabases).values({
+      organizationId: orgId, neonProjectId: null,
+      neonDatabaseName: slug, neonRoleName: "archispark",
+      connectionStringEncrypted: "", status: "provisioning",
+    });
+
+    const tenantDb = makePgliteTenantDb();
+    await runTenantMigrations(tenantDb);
+    const connectionString = "postgresql://archispark:archispark@localhost:5432/tenant_orange";
+
+    vi.mocked(canProvisionLocally).mockReturnValueOnce(true);
+    vi.mocked(provisionLocalTenantInfrastructure).mockResolvedValueOnce({ tenantDb, connectionString });
+
+    await provisionTenantDatabase(orgId);
+
+    const [row] = await controlDb.select().from(schema.tenantDatabases)
+      .where(eq(schema.tenantDatabases.organizationId, orgId));
+    expect(row?.status).toBe("active");
+    expect(row?.neonProjectId).toBeNull();
+    expect(decryptConnectionString(row!.connectionStringEncrypted)).toBe(connectionString);
   });
 });

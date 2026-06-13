@@ -18,7 +18,8 @@ import {
   DialogClose,
   DialogTrigger,
 } from "@workspace/ui/components/dialog";
-import { Plus, RefreshCw, ShieldCheck, AlertTriangle } from "lucide-react";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@workspace/ui/components/select";
+import { Plus, RefreshCw, ShieldCheck, AlertTriangle, Copy } from "lucide-react";
 import { useT } from "@/lib/i18n";
 import { useFormModal } from "@/hooks/use-form-modal";
 import { DataTable } from "@/components/data-table";
@@ -29,8 +30,9 @@ import {
   useCreateAdminOrganization,
   useVerifyOrganizationDb,
   useReprovisionOrganization,
+  useUsers,
 } from "@/lib/queries";
-import type { AdminOrganizationOut, TenantStatus } from "@/lib/api";
+import type { AdminOrganizationOut, GeneratedOwner, TenantStatus } from "@/lib/api";
 
 function slugify(value: string): string {
   return value.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
@@ -53,16 +55,22 @@ export default function OrganizationsPage() {
   const verifyDb = useVerifyOrganizationDb();
   const reprovision = useReprovisionOrganization();
 
+  const { data: users = [] } = useUsers();
+
   const [suspendModal, suspendActions] = useFormModal<AdminOrganizationOut>();
   const [createModal, createActions] = useFormModal<null>();
+  const [credentialsModal, credentialsActions] = useFormModal<GeneratedOwner & { orgName: string }>();
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
   const [slugEdited, setSlugEdited] = useState(false);
+  const [ownerMode, setOwnerMode] = useState<"generate" | "existing">("generate");
+  const [ownerUserId, setOwnerUserId] = useState("");
 
   const neonReady = !neonStatus || (neonStatus.configured && neonStatus.reachable);
 
   function openCreate() {
     setName(""); setSlug(""); setSlugEdited(false);
+    setOwnerMode("generate"); setOwnerUserId("");
     createActions.openNew();
   }
 
@@ -80,11 +88,26 @@ export default function OrganizationsPage() {
     const trimmedName = name.trim();
     const trimmedSlug = slug.trim();
     if (!trimmedName || !trimmedSlug) return;
+    if (ownerMode === "existing" && !ownerUserId) return;
+    let generatedOwner: GeneratedOwner | undefined;
     await createActions.run(async () => {
-      await createOrg.mutateAsync({ name: trimmedName, slug: trimmedSlug });
+      const result = await createOrg.mutateAsync({
+        name: trimmedName,
+        slug: trimmedSlug,
+        initial_owner_user_id: ownerMode === "existing" ? ownerUserId : undefined,
+      });
       toast.success(t("settings.org.org_created", { name: trimmedName }));
       qc.invalidateQueries();
+      generatedOwner = result.initial_owner;
     });
+    if (generatedOwner) {
+      credentialsActions.openWith({ ...generatedOwner, orgName: trimmedName });
+    }
+  }
+
+  function handleCopy(value: string) {
+    navigator.clipboard.writeText(value);
+    toast.success(t("common.copied"));
   }
 
   async function handleSuspend() {
@@ -238,13 +261,38 @@ export default function OrganizationsPage() {
                 <Label htmlFor="org-slug">{t("settings.org.org_slug")} *</Label>
                 <Input id="org-slug" value={slug} onChange={(e) => handleSlugChange(e.target.value)} autoComplete="off" />
               </div>
+              <div className="flex flex-col gap-1.5">
+                <Label>{t("settings.org.org_owner_label")}</Label>
+                <Select value={ownerMode} onValueChange={(v) => setOwnerMode((v as "generate" | "existing") ?? "generate")}>
+                  <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="generate">{t("settings.org.org_owner_generate")}</SelectItem>
+                    <SelectItem value="existing">{t("settings.org.org_owner_existing")}</SelectItem>
+                  </SelectContent>
+                </Select>
+                {ownerMode === "generate" && (
+                  <p className="text-[12px] text-muted-foreground">
+                    {t("settings.org.org_owner_generated_hint", { username: `admin-${slug || "..."}` })}
+                  </p>
+                )}
+                {ownerMode === "existing" && (
+                  <Select value={ownerUserId} onValueChange={(v) => setOwnerUserId(v ?? "")}>
+                    <SelectTrigger className="w-full"><SelectValue placeholder={t("settings.org.org_owner_select_placeholder")} /></SelectTrigger>
+                    <SelectContent>
+                      {users.map((u) => (
+                        <SelectItem key={u.id} value={u.id}>{u.username}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
             </div>
             {createModal.error && (
               <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">{createModal.error}</div>
             )}
             <DialogFooter>
               <DialogClose render={<Button variant="outline" />}>{t("common.cancel")}</DialogClose>
-              <Button onClick={handleCreate} disabled={createModal.isPending || !name.trim() || !slug.trim()}>
+              <Button onClick={handleCreate} disabled={createModal.isPending || !name.trim() || !slug.trim() || (ownerMode === "existing" && !ownerUserId)}>
                 {createModal.isPending ? t("settings.org.org_creating_with_db") : t("common.create")}
               </Button>
             </DialogFooter>
@@ -277,6 +325,40 @@ export default function OrganizationsPage() {
             <Button variant="destructive" onClick={handleSuspend} disabled={suspendModal.isPending}>
               {suspendModal.isPending ? t("common.saving") : t("settings.org.org_suspend")}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={credentialsModal.open} onOpenChange={(o) => !o && credentialsActions.close()}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{t("settings.org.owner_credentials_title")}</DialogTitle>
+            <DialogDescription>
+              {t("settings.org.owner_credentials_desc", { name: credentialsModal.target?.orgName ?? "" })}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-3 py-2">
+            <div className="flex flex-col gap-1.5">
+              <Label>{t("settings.org.owner_credentials_username")}</Label>
+              <div className="flex items-center gap-2">
+                <Input readOnly value={credentialsModal.target?.username ?? ""} className="font-mono" />
+                <Button variant="outline" size="icon" onClick={() => handleCopy(credentialsModal.target?.username ?? "")}>
+                  <Copy className="size-4" />
+                </Button>
+              </div>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label>{t("settings.org.owner_credentials_password")}</Label>
+              <div className="flex items-center gap-2">
+                <Input readOnly value={credentialsModal.target?.password ?? ""} className="font-mono" />
+                <Button variant="outline" size="icon" onClick={() => handleCopy(credentialsModal.target?.password ?? "")}>
+                  <Copy className="size-4" />
+                </Button>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => credentialsActions.close()}>{t("common.close")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

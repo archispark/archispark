@@ -175,7 +175,9 @@ function createAuthInstance(oauthConfig: unknown[]) {
     },
 
     plugins: [
-      username(),
+      // Default validator forbids "-", but generated owner accounts are named
+      // "admin-<slug>" and slugs are hyphenated — allow it alongside the defaults.
+      username({ usernameValidator: (value) => /^[a-zA-Z0-9_.-]+$/.test(value) }),
       admin({
         defaultRole: "user",
         adminRole: "platform_admin",

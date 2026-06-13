@@ -108,9 +108,20 @@ export interface AdminOrganizationOut {
   last_error: string | null;
 }
 
+export interface GeneratedOwner {
+  username: string;
+  password: string;
+}
+
+export interface AdminOrganizationCreateOut extends AdminOrganizationOut {
+  /** Only present once, in the response to creation, when no `initial_owner_user_id` was given. */
+  initial_owner?: GeneratedOwner;
+}
+
 export interface NeonStatus {
   configured: boolean;
   reachable: boolean;
+  provider: "neon" | "local" | "none";
 }
 
 export interface VerifyDbResult {
@@ -122,6 +133,8 @@ export interface VerifyDbResult {
 export interface AdminOrganizationCreateIn {
   name: string;
   slug: string;
+  /** Existing platform user to make owner of the new organization. If omitted, a fresh "admin-<slug>" account is generated and returned once as `initial_owner`. */
+  initial_owner_user_id?: string;
 }
 
 export const fetchAdminOrganizations = () => get<AdminOrganizationOut[]>("/admin/organizations");
@@ -129,7 +142,7 @@ export const setOrganizationEnabledApi = (id: string, enabled: boolean) =>
   put<AdminOrganizationOut>(`/admin/organizations/${encodeURIComponent(id)}`, { enabled });
 export const fetchNeonStatus = () => get<NeonStatus>("/admin/neon/status");
 export const createAdminOrganization = (body: AdminOrganizationCreateIn) =>
-  post<AdminOrganizationOut>("/admin/organizations", body);
+  post<AdminOrganizationCreateOut>("/admin/organizations", body);
 export const verifyOrganizationDb = (id: string) =>
   post<VerifyDbResult>(`/admin/organizations/${encodeURIComponent(id)}/verify-db`, {});
 export const reprovisionOrganization = (id: string) =>

@@ -32,6 +32,11 @@ to match the Postgres container started by `make dev-infra`.
 Redis is **required** — set `REDIS_URL` (e.g. `redis://localhost:6379`). It is used
 for session storage and distributed rate-limiting. The API will fail to start without it.
 
+Locked out by rate-limiting (`rl:auth:*` 15min/100, `rl:api:*` 1min/300,
+`rl:import:*` 1min/10)? Reset the Redis counters with
+`pnpm --filter control-api reset-rate-limit [ip] [--all --yes]` — works against
+any `REDIS_URL`, local or remote (Vercel).
+
 ## Docker & Makefile
 
 Two Docker Compose files cover every deployment mode:
@@ -212,13 +217,16 @@ The schema is split into two logical parts: **control-plane** (`schema.control.t
 — identity, organizations/teams/members, API tokens, OAuth providers, site
 settings, and the tenant database registry) and **tenant** (`schema.tenant.ts`
 — workspaces and all ArchiMate content). An organization is moved to its own
-dedicated Postgres database (Neon) by adding a `tenant_databases` row with
-`status: "active"` — until then its content stays in the shared (control-plane)
-database.
+dedicated Postgres database — Neon in preview/production, or a sibling
+database on the local dev Postgres instance (see
+[Provisioning tenant databases](#provisioning-tenant-databases)) — by adding a
+`tenant_databases` row with `status: "active"`; until then its content stays
+in the shared (control-plane) database.
 
 `TENANT_DB_ENCRYPTION_KEY` — required once any `tenant_databases` row is
-`active`. Encrypts/decrypts the per-tenant connection string at rest
-(AES-256-GCM, key derived from this value via scrypt).
+`active`, including locally-provisioned ones. Encrypts/decrypts the per-tenant
+connection string at rest (AES-256-GCM, key derived from this value via
+scrypt).
 
 To generate a migration after a schema change:
 
@@ -228,36 +236,77 @@ DB_DRIVER=postgres npx drizzle-kit generate                                # con
 DB_DRIVER=postgres npx drizzle-kit generate --config drizzle.config.tenant.ts  # tenant: writes to drizzle-pg/tenant/
 ```
 
-#### Provisioning tenant databases (Neon)
+#### Provisioning tenant databases
 
-Set `NEON_API_KEY` and `NEON_PROJECT_ID` (apps/control-api only, never exposed
-to the frontend) to enable per-tenant Neon databases. `NEON_BRANCH_ID` is optional —
-defaults to the project's default branch. While these are unset, every
-organization keeps sharing the control-plane database (transitional mode);
-`getTenantDb`/`db` fall back to it.
+`provisionTenantDatabase(organizationId)` is the entry point — it dispatches
+to one of two backends depending on environment, both producing the same
+`tenant_databases` row shape (`status`, `neonProjectId`, `neonDatabaseName`,
+`neonRoleName`, encrypted connection string):
 
-- **New organizations**: `provisionTenantDatabase(organizationId)` runs
-  automatically via the Better Auth `afterCreateOrganization` hook. It creates
-  a dedicated Neon role + database (named `tenant_<sanitized org id>`), runs
-  the tenant-only migrations (`drizzle-pg/tenant/`, generated from
-  `schema.tenant.ts` — no control-plane FKs), seeds an empty "Default"
-  workspace, encrypts and stores the connection string in `tenant_databases`,
-  and marks it `"active"`. Failures mark the row `"error"` (retryable).
-- **Existing organizations**: `pnpm --filter control-api migrate-tenant <organizationId>`
-  provisions the dedicated database and copies all of the organization's
+- **Neon (preview/production)** — set `NEON_API_KEY` and `NEON_PROJECT_ID`
+  (apps/control-api only, never exposed to the frontend). `NEON_BRANCH_ID` is
+  optional — defaults to the project's default branch. Creates a dedicated
+  Neon role + database (named `tenant_<sanitized org id>`).
+- **Local Postgres (dev)** — when Neon isn't configured and `DATABASE_URL`
+  points at the docker-compose dev Postgres (`canProvisionLocally()`), creates
+  a sibling database `tenant_<sanitized org id>` on that same instance,
+  reusing the `archispark` role from `DATABASE_URL`. `neonProjectId` is stored
+  as `null`. See `packages/db/src/local-provisioning.ts`.
+- If neither is available, `provisionTenantDatabase` is a no-op and the
+  organization keeps sharing the control-plane database; `getTenantDb`/`db`
+  fall back to it and `tenant_status` is reported as `null` ("Partagée" in
+  admin-web).
+
+Either way, provisioning runs the tenant-only migrations (`drizzle-pg/tenant/`,
+generated from `schema.tenant.ts` — no control-plane FKs), seeds an empty
+"Default" workspace, encrypts and stores the connection string in
+`tenant_databases`, and marks it `"active"`. Failures mark the row `"error"`
+(retryable).
+
+- **New organizations**: super-admins create them via
+  `POST /admin/organizations` in admin-web ("Nouvelle organisation"), which
+  provisions the dedicated database immediately. The Better Auth
+  `afterCreateOrganization` hook is a no-op — normal signups always land on
+  the shared database until explicitly provisioned.
+- **Existing/errored organizations**: `POST /admin/organizations/:id/reprovision`
+  (admin-web) or `pnpm --filter control-api migrate-tenant <organizationId>`
+  retries provisioning. The CLI also copies all of the organization's
   workspaces (full ArchiMate content, `workspace_teams`, and
-  `user_active_workspace`) into it, then marks `tenant_databases` `"active"`.
-  The shared database rows are left untouched. Use `--all` to migrate every
-  organization not yet active/provisioning. Once the new database is verified,
-  re-run with `--cleanup --yes` (or `--all --cleanup --yes`) to irreversibly
-  delete the now-redundant rows from the shared database — refuses unless the
-  tenant database is `"active"` and holds at least as many workspaces as the
-  shared database.
+  `user_active_workspace`) into the new database, then marks
+  `tenant_databases` `"active"`. The shared database rows are left untouched.
+  Use `--all` to migrate every organization not yet active/provisioning. Once
+  the new database is verified, re-run with `--cleanup --yes` (or
+  `--all --cleanup --yes`) to irreversibly delete the now-redundant rows from
+  the shared database — refuses unless the tenant database is `"active"` and
+  holds at least as many workspaces as the shared database.
+- `GET /admin/neon/status` reports `{ configured, reachable, provider }`,
+  where `provider` is `"neon"`, `"local"`, or `"none"` — admin-web only
+  disables "Nouvelle organisation" when `provider === "none"`.
 
-Tenant databases use `drizzle-orm/neon-serverless` (websocket `Pool`), which
-supports real interactive transactions — required by `seedWorkspace`/`modelToDb`.
-The control-plane database always uses `drizzle-orm/node-postgres`
-(`pg.Pool`, or PGlite in tests).
+#### Initial organization owner
+
+Platform admins have no access to tenant data — creating an organization via
+`POST /admin/organizations` never adds the calling admin as a member of it.
+The new organization needs an initial `owner`:
+
+- **Generated account (default)**: if `initial_owner_user_id` is omitted, a
+  fresh `admin-<slug>` account with a random password is created as `owner`
+  and returned once in the response as `initial_owner: { username, password }`
+  for the calling admin to hand to the customer. It is never shown again.
+- **Existing user**: pass `initial_owner_user_id` (an existing platform
+  user's id) to make that user `owner` instead — no account is generated and
+  `initial_owner` is absent from the response.
+
+If tenant database provisioning then fails, the organization (and any
+generated owner account) is rolled back and the request returns `503`.
+
+`createTenantDb(connectionString)` picks the driver based on the connection
+string (`isLocalConnectionString`): local Postgres connections (docker-compose
+dev) use `drizzle-orm/node-postgres` (`pg.Pool`); everything else (Neon) uses
+`drizzle-orm/neon-serverless` (websocket `Pool`), which supports real
+interactive transactions — required by `seedWorkspace`/`modelToDb`. The
+control-plane database always uses `drizzle-orm/node-postgres` (`pg.Pool`, or
+PGlite in tests).
 
 ### Control-api / tenant-api split
 
@@ -359,6 +408,7 @@ ArchiSpark is multi-tenant: each **organization** ("entreprise") has its own mem
 
 - **Roles** (Better Auth organization plugin): `owner`, `admin`, `member` — scoped per organization. `owner`/`admin` can manage members, invitations, teams, and workspace content; `member` has read-only access.
 - **Platform super admin**: a user with the global `role: "platform_admin"` (set via the [admin web](#admin-web) `/users` page, or `POST`/`PUT /users`) bypasses organization role checks everywhere and can create new organizations (`allowUserToCreateOrganization`).
+- `apps/web` (the workspace UI) blocks `platform_admin` sessions: instead of the normal nav/sidebar/workspace content, it shows a notice screen with a sign-out button. Platform admins manage organizations from [admin web](#admin-web) and have no need for tenant workspace access; `admin`/`admin` still holds an `owner` membership in a default organization (required by `control-api` so admin web itself stays functional), but that membership is now inert from `apps/web`'s perspective.
 - **Teams** group members within an organization. A workspace with one or more `team_ids` is only visible to members of those teams (plus org owners/admins); a workspace with no teams is visible to the whole organization.
 - Each user has one **active workspace per organization**, switched via `POST /workspaces/:id/activate`.
 - A platform super admin can **suspend** an organization (`organizations.enabled = false`). Members of a suspended organization (other than platform super admins) get `403 Forbidden` on every request while it's resolved as their active organization; their data is left intact and access resumes once the organization is reactivated.
@@ -395,6 +445,7 @@ Org owners/admins (and platform super admins) see an **Organization** entry in t
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/admin/organizations` | List every organization with `enabled` flag and `tenant_status` (`tenant_databases.status`, or `null` if it shares the control-plane database) |
+| `POST` | `/admin/organizations` | Create an organization and provision its tenant database — body: `{ name, slug?, initial_owner_user_id? }`. See [Initial organization owner](#initial-organization-owner) below |
 | `PUT` | `/admin/organizations/:id` | Suspend or reactivate an organization — body: `{ enabled: boolean }` |
 
 ## Workspace management

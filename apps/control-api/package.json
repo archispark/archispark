@@ -26,7 +26,8 @@
     "test:coverage": "vitest run --coverage",
     "test:ci": "vitest run --reporter=junit --outputFile=test-report.junit.xml",
     "lint": "eslint . --ext .ts",
-    "migrate-tenant": "tsx scripts/migrate-existing-tenant.ts"
+    "migrate-tenant": "tsx scripts/migrate-existing-tenant.ts",
+    "reset-rate-limit": "tsx scripts/reset-rate-limit.ts"
   },
   "keywords": [
     "archimate",

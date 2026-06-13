@@ -45,6 +45,7 @@ help:
 	@printf "  \033[36mdev-down\033[0m        Arrêter l'infrastructure de dev\n"
 	@printf "  \033[36mdev-logs\033[0m        Suivre les logs de dev\n"
 	@printf "  \033[36mdev-ps\033[0m          État des services de dev\n"
+	@printf "  \033[36mdev-rrl\033[0m         Réinitialiser les compteurs Redis de rate-limiting (ARGS=\"<ip> | --all --yes\")\n"
 	@printf "\n\033[4mBuild\033[0m (OS=$(OS) VERSION=$(VERSION))\n"
 	@printf "  \033[36mbuild\033[0m           Builder toutes les images pour l'OS courant\n"
 	@printf "  \033[36mbuild-api\033[0m       Builder l'image API\n"
@@ -93,7 +94,7 @@ pull:
 #  Développement
 # =============================================================================
 
-.PHONY: dev dev-infra dev-down dev-logs dev-ps
+.PHONY: dev dev-infra dev-down dev-logs dev-ps dev-rrl
 
 dev: dev-infra
 	. $(NVM_DIR)/nvm.sh && nvm use 24 && set -a && . ./.env && set +a && pnpm dev
@@ -109,6 +110,12 @@ dev-logs:
 
 dev-ps:
 	$(DC_DEV) ps
+
+# Réinitialise les compteurs Redis de rate-limiting.
+# Usage : make dev-rrl [ARGS="<ip> | --all --yes"]
+dev-rrl:
+	. $(NVM_DIR)/nvm.sh && nvm use 24 && set -a && . ./.env && set +a && \
+		pnpm --filter control-api reset-rate-limit $(ARGS)
 
 # =============================================================================
 #  Build des images

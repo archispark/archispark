@@ -50,6 +50,22 @@ describe("getTenantDb", () => {
     // Cached: a second call returns the exact same instance.
     expect(await getTenantDb(orgId)).toBe(tenantDb);
   });
+
+  it("returns a node-postgres-backed client for a local (docker-compose dev) active tenant database", async () => {
+    process.env["TENANT_DB_ENCRYPTION_KEY"] = "test-tenant-db-encryption-key";
+    const orgId = await makeOrg();
+    const connectionString = "postgresql://archispark:archispark@localhost:5432/tenant_local_test";
+    await controlDb.insert(tenantDatabases).values({
+      organizationId: orgId,
+      neonDatabaseName: "tenant_local_test",
+      neonRoleName: "archispark",
+      connectionStringEncrypted: encryptConnectionString(connectionString),
+      status: "active",
+    });
+    const tenantDb = await getTenantDb(orgId);
+    expect(tenantDb).not.toBe(controlDb);
+    expect(await getTenantDb(orgId)).toBe(tenantDb);
+  });
 });
 
 describe("getTenantConnectionStringEncrypted", () => {

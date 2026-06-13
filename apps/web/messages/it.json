@@ -309,5 +309,7 @@
   "settings.org.team_delete_title": "Elimina team",
   "settings.org.team_delete_desc": "Eliminare il team {name}? Questa azione è irreversibile.",
   "settings.general.teams_label": "Team",
-  "settings.general.teams_hint": "Team con accesso a questo workspace, oltre ai proprietari/amministratori dell'organizzazione."
+  "settings.general.teams_hint": "Team con accesso a questo workspace, oltre ai proprietari/amministratori dell'organizzazione.",
+  "platform_admin_block.title": "Accesso non disponibile",
+  "platform_admin_block.desc": "Gli account amministratore della piattaforma gestiscono le organizzazioni dall'interfaccia di amministrazione e non hanno accesso agli spazi di lavoro delle organizzazioni."
 }

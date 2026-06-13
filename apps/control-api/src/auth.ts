@@ -198,6 +198,8 @@ export interface AdminOrganizationOut {
   created_at: string;
   tenant_status: "pending" | "provisioning" | "active" | "error" | null;
   last_error: string | null;
+  /** Only present in the response to `POST /admin/organizations` when no `initial_owner_user_id` was given — shown once. */
+  initial_owner?: { username: string; password: string };
 }
 
 type AdminOrgRow = {
@@ -250,7 +252,7 @@ export async function setOrganizationEnabled(id: string, enabled: boolean): Prom
   return mapAdminOrgRow(row);
 }
 
-export async function createAdminOrganization(name: string, slug: string, creatorUserId: string): Promise<AdminOrganizationOut> {
+export async function createAdminOrganization(name: string, slug: string, ownerUserId: string): Promise<AdminOrganizationOut> {
   const [slugConflict] = await controlDb.select({ id: organizationsTable.id }).from(organizationsTable)
     .where(eq(organizationsTable.slug, slug));
   if (slugConflict) throw new ValidationError(`Le slug '${slug}' est déjà utilisé.`);
@@ -258,13 +260,55 @@ export async function createAdminOrganization(name: string, slug: string, creato
   const now = new Date();
   const orgId = randomUUID();
   await controlDb.insert(organizationsTable).values({ id: orgId, name, slug, createdAt: now });
-  await controlDb.insert(membersTable).values({ id: randomUUID(), organizationId: orgId, userId: creatorUserId, role: "owner", createdAt: now });
+  await controlDb.insert(membersTable).values({ id: randomUUID(), organizationId: orgId, userId: ownerUserId, role: "owner", createdAt: now });
 
   const [row] = await controlDb.select(adminOrgSelection).from(organizationsTable)
     .leftJoin(tenantDatabasesTable, eq(tenantDatabasesTable.organizationId, organizationsTable.id))
     .where(eq(organizationsTable.id, orgId));
   if (!row) throw new ValidationError("Organisation introuvable après création.");
   return mapAdminOrgRow(row);
+}
+
+export interface CreateOrganizationResult {
+  org: AdminOrganizationOut;
+  /** Set when no `initialOwnerUserId` was given: a freshly generated owner account, returned once. */
+  generatedOwner?: { userId: string; username: string; password: string };
+}
+
+/**
+ * Creates an organization and assigns its initial owner — the platform admin
+ * creating it never becomes a member, matching the rule that platform admins
+ * have no access to tenant data. If `initialOwnerUserId` references an
+ * existing platform user, that user becomes owner; otherwise a fresh
+ * `admin-<slug>` account with a random password is created and returned once
+ * via `generatedOwner` for the platform admin to hand to the customer.
+ */
+export async function createOrganizationWithOwner(
+  name: string,
+  slug: string,
+  initialOwnerUserId?: string,
+): Promise<CreateOrganizationResult> {
+  const [slugConflict] = await controlDb.select({ id: organizationsTable.id }).from(organizationsTable)
+    .where(eq(organizationsTable.slug, slug));
+  if (slugConflict) throw new ValidationError(`Le slug '${slug}' est déjà utilisé.`);
+
+  let ownerUserId: string;
+  let generatedOwner: { userId: string; username: string; password: string } | undefined;
+
+  if (initialOwnerUserId) {
+    const [owner] = await controlDb.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.id, initialOwnerUserId));
+    if (!owner) throw new ValidationError(`Utilisateur '${initialOwnerUserId}' introuvable.`);
+    ownerUserId = owner.id;
+  } else {
+    const username = `admin-${slug}`;
+    const password = randomBytes(9).toString("base64url");
+    const created = await createUser(username, password, "user");
+    ownerUserId = created.id;
+    generatedOwner = { userId: created.id, username, password };
+  }
+
+  const org = await createAdminOrganization(name, slug, ownerUserId);
+  return { org, generatedOwner };
 }
 
 export async function deleteOrganization(id: string): Promise<void> {

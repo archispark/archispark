@@ -10,10 +10,11 @@ BEGIN
     ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name
     RETURNING id INTO org_id;
 
+  -- Platform admins have no tenant access — exclude them from organization membership.
   INSERT INTO member (id, organization_id, user_id, role, created_at)
-  SELECT 'member-' || org_id || '-' || u.id, org_id, u.id,
-         CASE WHEN u.role = 'platform_admin' THEN 'owner' ELSE 'member' END, NOW()
+  SELECT 'member-' || org_id || '-' || u.id, org_id, u.id, 'member', NOW()
   FROM "user" u
+  WHERE u.role != 'platform_admin'
   ON CONFLICT (organization_id, user_id) DO NOTHING;
 
   -- ArchiMetal
@@ -22,9 +23,10 @@ BEGIN
     ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name
     RETURNING id INTO org_id;
 
+  -- Platform admins have no tenant access — exclude them from organization membership.
   INSERT INTO member (id, organization_id, user_id, role, created_at)
-  SELECT 'member-' || org_id || '-' || u.id, org_id, u.id,
-         CASE WHEN u.role = 'platform_admin' THEN 'owner' ELSE 'member' END, NOW()
+  SELECT 'member-' || org_id || '-' || u.id, org_id, u.id, 'member', NOW()
   FROM "user" u
+  WHERE u.role != 'platform_admin'
   ON CONFLICT (organization_id, user_id) DO NOTHING;
 END $$;

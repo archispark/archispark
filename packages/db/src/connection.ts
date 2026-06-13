@@ -43,12 +43,7 @@ async function createDb(urlOverride?: string): Promise<NodePgDatabase<typeof sch
     throw new Error("DATABASE_URL is required");
   }
 
-  // isLocal: standard local hostnames OR explicit sslmode=disable in the URL
-  // (covers K8s/Docker internal hostnames like archispark-postgres that don't
-  // match the localhost pattern but also have no SSL).
-  const isLocal =
-    /@(localhost|127\.0\.0\.1|\[::1\]|postgres)[:/]/.test(rawConnectionString) ||
-    /[?&]sslmode=disable/i.test(rawConnectionString);
+  const isLocal = isLocalConnectionString(rawConnectionString);
 
   // Managed Postgres (Neon, etc.) serves TLS with a private-CA certificate.
   // node-postgres treats the URL's `sslmode=require` as verify-full and rejects
@@ -58,6 +53,15 @@ async function createDb(urlOverride?: string): Promise<NodePgDatabase<typeof sch
   const connectionString = isLocal ? rawConnectionString : stripSslmode(rawConnectionString);
   const ssl = isLocal ? undefined : { rejectUnauthorized: false };
   return pgDrizzle(new Pool({ connectionString, ssl }), { schema });
+}
+
+/**
+ * `true` for standard local hostnames OR explicit `sslmode=disable` in the
+ * URL (covers K8s/Docker internal hostnames like `archispark-postgres` that
+ * don't match the localhost pattern but also have no SSL).
+ */
+export function isLocalConnectionString(cs: string): boolean {
+  return /@(localhost|127\.0\.0\.1|\[::1\]|postgres)[:/]/.test(cs) || /[?&]sslmode=disable/i.test(cs);
 }
 
 function stripSslmode(cs: string): string {
@@ -98,17 +102,22 @@ export const tenantFallbackDb: NodePgDatabase<typeof schema> =
 const tenantDbStorage = new AsyncLocalStorage<NodePgDatabase<typeof schema>>();
 const tenantDbCache = new Map<string, NodePgDatabase<typeof schema>>();
 
-/* v8 ignore start -- only reached once a tenant_databases row is "active" (Phase 3) */
 export function createTenantDb(connectionString: string): NodePgDatabase<typeof schema> {
-  // neon-serverless (websocket Pool) supports real interactive transactions —
-  // unlike neon-http (a previous candidate driver, used over plain fetch),
-  // which rejects `.transaction()` outright. modelToDb (via seedWorkspace)
-  // needs a real transaction, so tenant databases use neon-serverless.
-  // Cast: NeonDatabase and NodePgDatabase share the same Drizzle query API; the
-  // cast lets callers type against a single db shape (see createDb above).
-  return neonDrizzle(new NeonPool({ connectionString }), { schema }) as unknown as NodePgDatabase<typeof schema>;
+  // Local tenant databases (docker-compose dev) are plain Postgres — use the
+  // same node-postgres driver as the control DB.
+  if (isLocalConnectionString(connectionString)) {
+    return pgDrizzle(new Pool({ connectionString }), { schema });
+  }
+
+  // Managed Postgres (Neon): neon-serverless (websocket Pool) supports real
+  // interactive transactions — unlike neon-http (a previous candidate driver,
+  // used over plain fetch), which rejects `.transaction()` outright.
+  // modelToDb (via seedWorkspace) needs a real transaction, so remote tenant
+  // databases use neon-serverless. Cast: NeonDatabase and NodePgDatabase share
+  // the same Drizzle query API; the cast lets callers type against a single
+  // db shape (see createDb above).
+  return neonDrizzle(new NeonPool({ connectionString: stripSslmode(connectionString) }), { schema }) as unknown as NodePgDatabase<typeof schema>;
 }
-/* v8 ignore stop */
 
 async function lookupTenantDatabaseRow(organizationId: string) {
   const [row] = await controlDb.select().from(schema.tenantDatabases)
@@ -167,8 +176,7 @@ export async function verifyTenantDatabaseConnectivity(organizationId: string): 
   if (!row || row.status !== "active") return { connected: false, latency_ms: 0 };
 
   const raw = decryptConnectionString(row.connectionStringEncrypted);
-  const isLocal = /@(localhost|127\.0\.0\.1|\[::1\]|postgres)[:/]/.test(raw) ||
-    /[?&]sslmode=disable/i.test(raw);
+  const isLocal = isLocalConnectionString(raw);
   const connectionString = isLocal ? raw : stripSslmode(raw);
   const ssl = isLocal ? undefined : { rejectUnauthorized: false };
 

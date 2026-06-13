@@ -309,5 +309,7 @@
   "settings.org.team_delete_title": "Delete team",
   "settings.org.team_delete_desc": "Delete team {name}? This action is irreversible.",
   "settings.general.teams_label": "Teams",
-  "settings.general.teams_hint": "Teams with access to this workspace, in addition to organization owners/admins."
+  "settings.general.teams_hint": "Teams with access to this workspace, in addition to organization owners/admins.",
+  "platform_admin_block.title": "Access unavailable",
+  "platform_admin_block.desc": "Platform admin accounts manage organizations from the admin interface and don't have access to organization workspaces."
 }

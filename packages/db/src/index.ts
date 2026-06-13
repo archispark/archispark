@@ -14,4 +14,5 @@ export { signTenantToken, verifyTenantToken } from "./tenant-jwt.js";
 export type { TenantTokenPayload } from "./tenant-jwt.js";
 export { ensureTenantRole, TENANT_DB_ROLE, TENANT_TABLES } from "./tenant-role.js";
 export { getNeonApiConfig, getDefaultBranchId } from "./neon-api.js";
-export { verifyTenantDatabaseConnectivity } from "./connection.js";
+export { verifyTenantDatabaseConnectivity, isLocalConnectionString } from "./connection.js";
+export { canProvisionLocally } from "./local-provisioning.js";

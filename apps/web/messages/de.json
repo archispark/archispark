@@ -309,5 +309,7 @@
   "settings.org.team_delete_title": "Team löschen",
   "settings.org.team_delete_desc": "Team {name} löschen? Diese Aktion ist unwiderruflich.",
   "settings.general.teams_label": "Teams",
-  "settings.general.teams_hint": "Teams mit Zugriff auf diesen Workspace, zusätzlich zu Inhabern/Administratoren der Organisation."
+  "settings.general.teams_hint": "Teams mit Zugriff auf diesen Workspace, zusätzlich zu Inhabern/Administratoren der Organisation.",
+  "platform_admin_block.title": "Zugriff nicht verfügbar",
+  "platform_admin_block.desc": "Plattform-Administratorkonten verwalten Organisationen über die Admin-Oberfläche und haben keinen Zugriff auf die Arbeitsbereiche der Organisationen."
 }

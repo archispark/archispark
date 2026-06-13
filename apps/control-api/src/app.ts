@@ -35,7 +35,7 @@ import { rateLimit } from "express-rate-limit";
 import { RedisStore } from "rate-limit-redis";
 import { getRedis } from "./redis.js";
 import { AppError } from "./errors.js";
-import { controlDb, oauthProviders, apiTokens, siteSettings, getTenantConnectionStringEncrypted, signTenantToken, getNeonApiConfig, getDefaultBranchId, provisionTenantDatabase, verifyTenantDatabaseConnectivity } from "@workspace/db";
+import { controlDb, oauthProviders, apiTokens, siteSettings, getTenantConnectionStringEncrypted, signTenantToken, getNeonApiConfig, getDefaultBranchId, provisionTenantDatabase, verifyTenantDatabaseConnectivity, canProvisionLocally } from "@workspace/db";
 import { eq, sql } from "drizzle-orm";
 import {
   listUsers,
@@ -44,7 +44,7 @@ import {
   deleteUserById,
   listAdminOrganizations,
   setOrganizationEnabled,
-  createAdminOrganization,
+  createOrganizationWithOwner,
   deleteOrganization,
   requireAuth,
   requireSuperAdmin,
@@ -217,20 +217,24 @@ app.put("/admin/organizations/:id", requireSuperAdmin as express.RequestHandler,
 
 app.get("/admin/neon/status", requireSuperAdmin as express.RequestHandler, async (_req: Request, res: Response) => {
   const config = getNeonApiConfig();
-  if (!config) {
-    res.json({ configured: false, reachable: false });
+  if (config) {
+    try {
+      await getDefaultBranchId(config);
+      res.json({ configured: true, reachable: true, provider: "neon" });
+    } catch {
+      res.json({ configured: true, reachable: false, provider: "neon" });
+    }
     return;
   }
-  try {
-    await getDefaultBranchId(config);
-    res.json({ configured: true, reachable: true });
-  } catch {
-    res.json({ configured: true, reachable: false });
+  if (canProvisionLocally()) {
+    res.json({ configured: true, reachable: true, provider: "local" });
+    return;
   }
+  res.json({ configured: false, reachable: false, provider: "none" });
 });
 
 app.post("/admin/organizations", requireSuperAdmin as express.RequestHandler, async (req: AuthRequest, res: Response) => {
-  const { name, slug } = req.body as { name?: unknown; slug?: unknown };
+  const { name, slug, initial_owner_user_id } = req.body as { name?: unknown; slug?: unknown; initial_owner_user_id?: unknown };
   if (!name || typeof name !== "string" || !name.trim()) {
     res.status(422).json({ detail: "Le champ 'name' est requis." });
     return;
@@ -239,6 +243,7 @@ app.post("/admin/organizations", requireSuperAdmin as express.RequestHandler, as
   const trimmedSlug = typeof slug === "string" && slug.trim()
     ? slug.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")
     : trimmedName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+  const initialOwnerUserId = typeof initial_owner_user_id === "string" && initial_owner_user_id ? initial_owner_user_id : undefined;
 
   const neonConfig = getNeonApiConfig();
   if (neonConfig) {
@@ -250,19 +255,23 @@ app.post("/admin/organizations", requireSuperAdmin as express.RequestHandler, as
     }
   }
 
-  const org = await createAdminOrganization(trimmedName, trimmedSlug, req.user!.id);
+  const { org, generatedOwner } = await createOrganizationWithOwner(trimmedName, trimmedSlug, initialOwnerUserId);
 
   try {
     await provisionTenantDatabase(org.id);
   } catch (err) {
     await deleteOrganization(org.id).catch(() => {});
+    if (generatedOwner) await deleteUserById(generatedOwner.userId).catch(() => {});
     res.status(503).json({ detail: `Échec du provisionnement de la base de données : ${(err as Error).message}` });
     return;
   }
 
   const all = await listAdminOrganizations();
   const updated = all.find(o => o.id === org.id);
-  res.status(201).json(updated ?? org);
+  res.status(201).json({
+    ...(updated ?? org),
+    ...(generatedOwner ? { initial_owner: { username: generatedOwner.username, password: generatedOwner.password } } : {}),
+  });
 });
 
 app.post("/admin/organizations/:id/verify-db", requireSuperAdmin as express.RequestHandler, async (req: Request, res: Response) => {
