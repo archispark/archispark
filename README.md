@@ -396,7 +396,7 @@ Write operations (`POST`, `PUT`, `DELETE`) on workspace content require the `own
 
 Default credentials: `admin` / `admin` (`platform_admin`, org `owner`), `user` / `user` (org `member`, read-only), `contrib` / `contrib` (org `admin`), `archi` / `archi` (org `owner`).
 
-### Keycloak (in progress — Stage 1)
+### Keycloak (in progress — Stage 2)
 
 `make dev-infra` also starts a local Keycloak (Phasetwo distribution,
 `http://localhost:8080`, admin console login from `KEYCLOAK_ADMIN`/`KEYCLOAK_ADMIN_PASSWORD`
@@ -409,10 +409,22 @@ users as above (passwords match usernames).
 accepts a Keycloak-issued access token as a Bearer token: `requireAuth` verifies
 it against the realm's JWKS (`KEYCLOAK_URL`/`KEYCLOAK_REALM`). This is additive
 and non-breaking — Better Auth sessions and personal API tokens are unaffected.
-Keycloak users are **not yet** mapped to organizations/members, so an
-authenticated Keycloak request currently passes `requireAuth` but then gets
-`403 Aucune organisation associée à cet utilisateur.` from the workspace
-resolver. Org/team integration is a later stage.
+
+**Identity bridge (Stage 2):** the `user` table has a nullable `keycloak_sub`
+column (unique index) linking a Keycloak `sub` claim to an existing control-db
+user. When a Keycloak Bearer token verifies successfully, `requireAuth` looks
+up `users` by `keycloakSub = claims.sub`; if found, `req.user` is populated
+from that row (`id`/`username`/`role`), so org/team resolution and write
+permissions work exactly as they do for a Better Auth session for the same
+person. The demo users (`admin`/`user`/`contrib`/`archi`) are seeded with
+fixed `keycloak_sub` UUIDs matching the `id`s pinned in
+`.docker/keycloak/realm-export.json`. If no matching `keycloakSub` row is
+found, `requireAuth` falls back to the Stage-1 behaviour: `req.user` is derived
+directly from the token claims (`preferred_username`/`realm_access.roles`),
+and since that synthetic user has no organization membership, the request then
+gets `403 Aucune organisation associée à cet utilisateur.` from the workspace
+resolver. Full self-service Keycloak signup (auto-provisioning new control-db
+users on first login) is a later stage.
 
 ### Cross-subdomain sessions (SaaS topology)
 

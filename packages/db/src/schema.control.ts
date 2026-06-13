@@ -66,8 +66,13 @@ export const users = pgTable("user", {
   banned:          boolean("banned"),
   banReason:       text("ban_reason"),
   banExpires:      integer("ban_expires"),
+  // Bridges Keycloak `sub` claims to this row during the Better Auth ->
+  // Keycloak migration (Stage 2). NULL for users not yet provisioned in
+  // Keycloak.
+  keycloakSub:     text("keycloak_sub"),
 }, (t) => [
   uniqueIndex("user_username_uniq").on(t.username),
+  uniqueIndex("user_keycloak_sub_uniq").on(t.keycloakSub),
 ]);
 
 export const sessions = pgTable("session", {

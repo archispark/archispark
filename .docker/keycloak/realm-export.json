@@ -61,6 +61,7 @@
   ],
   "users": [
     {
+      "id": "c8a1f6c0-0000-4000-8000-000000000001",
       "username": "admin",
       "enabled": true,
       "email": "admin@archispark.internal",
@@ -71,6 +72,7 @@
       "realmRoles": ["platform_admin"]
     },
     {
+      "id": "c8a1f6c0-0000-4000-8000-000000000002",
       "username": "user",
       "enabled": true,
       "email": "user@archispark.internal",
@@ -80,6 +82,7 @@
       "credentials": [{ "type": "password", "value": "user", "temporary": false }]
     },
     {
+      "id": "c8a1f6c0-0000-4000-8000-000000000003",
       "username": "contrib",
       "enabled": true,
       "email": "contrib@archispark.internal",
@@ -89,6 +92,7 @@
       "credentials": [{ "type": "password", "value": "contrib", "temporary": false }]
     },
     {
+      "id": "c8a1f6c0-0000-4000-8000-000000000004",
       "username": "archi",
       "enabled": true,
       "email": "archi@archispark.internal",

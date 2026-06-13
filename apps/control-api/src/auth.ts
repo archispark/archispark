@@ -59,6 +59,17 @@ export interface AuthRequest extends Request {
 // Bootstrap: seed default users + a default organization for fresh installs
 // ---------------------------------------------------------------------------
 
+// Fixed Keycloak `sub` UUIDs for the demo accounts, matching the `id` fields
+// pinned in .docker/keycloak/realm-export.json. Bridges Keycloak-issued JWTs
+// to these existing control-db users (Stage 2 of the Better Auth -> Keycloak
+// migration).
+const DEMO_KEYCLOAK_SUBS: Record<string, string> = {
+  admin:   "c8a1f6c0-0000-4000-8000-000000000001",
+  user:    "c8a1f6c0-0000-4000-8000-000000000002",
+  contrib: "c8a1f6c0-0000-4000-8000-000000000003",
+  archi:   "c8a1f6c0-0000-4000-8000-000000000004",
+};
+
 export async function initUsers(): Promise<void> {
   // All tables (model + Better Auth) are created by runMigrations()
   // from the drizzle-pg/ folder before this runs.
@@ -79,7 +90,7 @@ export async function initUsers(): Promise<void> {
       const hash = await hashPassword(password);
       await controlDb.update(accounts).set({ password: hash }).where(and(eq(accounts.userId, userId), eq(accounts.providerId, "credential")));
     }
-    await controlDb.update(usersTable).set({ username, role }).where(eq(usersTable.id, userId!));
+    await controlDb.update(usersTable).set({ username, role, keycloakSub: DEMO_KEYCLOAK_SUBS[username] ?? null }).where(eq(usersTable.id, userId!));
     return userId!;
   };
 
@@ -386,11 +397,23 @@ export function requireAuth(req: AuthRequest, res: Response, next: NextFunction)
         // Not a personal API token — try a Keycloak-issued access token.
         const claims = await verifyAccessToken(token);
         if (!claims) { res.status(401).json({ detail: "Token invalide." }); return; }
-        req.user = {
-          id: claims.sub,
-          username: claims.preferred_username ?? claims.sub,
-          role: claims.realm_access?.roles?.includes("platform_admin") ? "platform_admin" : "user",
-        };
+        // Bridge claims.sub to an existing control-db user (Stage 2 of the
+        // Better Auth -> Keycloak migration), so downstream org/role
+        // resolution works exactly as it does for Better Auth sessions.
+        const [dbUser] = await controlDb
+          .select({ id: usersTable.id, username: usersTable.username, role: usersTable.role })
+          .from(usersTable)
+          .where(eq(usersTable.keycloakSub, claims.sub))
+          .limit(1);
+        if (dbUser) {
+          req.user = { id: dbUser.id, username: dbUser.username, role: dbUser.role };
+        } else {
+          req.user = {
+            id: claims.sub,
+            username: claims.preferred_username ?? claims.sub,
+            role: claims.realm_access?.roles?.includes("platform_admin") ? "platform_admin" : "user",
+          };
+        }
         req.sessionActiveOrgId = null;
         next();
       })

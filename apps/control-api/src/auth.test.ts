@@ -101,6 +101,41 @@ describe("requireAuth — Keycloak bearer token", () => {
 
     expect(req.user).toEqual({ id: "kc-user-3", username: "kcuser3", role: "user" });
   });
+
+  it("bridges the demo admin's pinned Keycloak sub to the existing control-db user — same identity as the Better Auth session", async () => {
+    vi.mocked(verifyAccessToken).mockResolvedValueOnce({
+      sub: "c8a1f6c0-0000-4000-8000-000000000001",
+      preferred_username: "admin",
+      realm_access: { roles: ["platform_admin"] },
+    });
+    const sessionRes = await request(app).get("/me");
+    const kcRes = await _request(app).get("/me").set("Authorization", "Bearer kc-fake-jwt-token");
+
+    expect(kcRes.status).toBe(200);
+    expect(kcRes.body).toEqual(sessionRes.body);
+  });
+
+  it("bridges the demo member's pinned Keycloak sub: /me resolves the org role and write routes stay read-only", async () => {
+    vi.mocked(verifyAccessToken).mockResolvedValueOnce({
+      sub: "c8a1f6c0-0000-4000-8000-000000000002",
+      preferred_username: "user",
+    });
+    const sessionRes = await request(app, userCookie).get("/me");
+    const kcRes = await _request(app).get("/me").set("Authorization", "Bearer kc-fake-jwt-token");
+
+    expect(kcRes.status).toBe(200);
+    expect(kcRes.body).toEqual(sessionRes.body);
+
+    vi.mocked(verifyAccessToken).mockResolvedValueOnce({
+      sub: "c8a1f6c0-0000-4000-8000-000000000002",
+      preferred_username: "user",
+    });
+    const writeRes = await _request(app)
+      .post("/workspaces")
+      .set("Authorization", "Bearer kc-fake-jwt-token")
+      .send({ name: "Demo" });
+    expect(writeRes.status).toBe(403);
+  });
 });
 
 describe("requireSuperAdmin middleware", () => {
