@@ -3,8 +3,7 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState, useMemo } from "react";
-import { LayoutDashboard, LayoutGrid, Tag, Building2, FolderOpen, Settings as SettingsIcon, GitBranch, List, ChevronDown, PanelLeftClose, PanelLeftOpen } from "lucide-react";
-import { useIsOrgAdmin } from "@/hooks/use-organization";
+import { LayoutDashboard, LayoutGrid, Tag, Settings as SettingsIcon, GitBranch, List, ChevronDown, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { getLayer, LAYER_HEX_COLORS, LAYER_LABELS } from "@/lib/archimate-helpers";
 import { allowedRelationships } from "@/lib/archimate-rules";
 import { useModel, useElements, useRelationships, useElementsInViews } from "@/lib/queries";
@@ -173,7 +172,6 @@ function SidebarInner({ open, onClose, collapsed, onToggleCollapse }: { open: bo
   const { data: relationships = [] } = useRelationships();
   const { data: inViews = [] } = useElementsInViews();
   const [mounted, setMounted] = useState(false);
-  const isOrgAdmin = useIsOrgAdmin();
 
   useEffect(() => { setMounted(true); }, []);
 
@@ -244,19 +242,6 @@ function SidebarInner({ open, onClose, collapsed, onToggleCollapse }: { open: bo
           >
             <LayoutDashboard className="size-4 shrink-0" />
             {t("sidebar.overview")}
-          </Link>
-
-          <Link
-            href="/workspaces"
-            onClick={onClose}
-            className={`flex items-center gap-2.5 px-3 py-2 mx-2 rounded-md text-sm no-underline transition-colors ${
-              pathname === "/workspaces"
-                ? "bg-card text-foreground font-medium shadow-sm"
-                : "text-muted-foreground hover:bg-muted hover:text-foreground"
-            }`}
-          >
-            <FolderOpen className="size-4 shrink-0" />
-            {t("sidebar.workspaces")}
           </Link>
 
           {/* Separator */}
@@ -350,20 +335,6 @@ function SidebarInner({ open, onClose, collapsed, onToggleCollapse }: { open: bo
 
         {/* Organisation & settings — bottom */}
         <div className="border-t border-border px-2 py-2 flex flex-col gap-1">
-          {mounted && isOrgAdmin && (
-            <Link
-              href="/organization"
-              onClick={onClose}
-              className={`flex items-center gap-2.5 px-3 py-2 rounded-md text-sm no-underline transition-colors ${
-                pathname === "/organization" || pathname.startsWith("/organization/")
-                  ? "bg-card text-foreground font-medium shadow-sm"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
-              }`}
-            >
-              <Building2 className="size-4 shrink-0" />
-              {t("nav.organization")}
-            </Link>
-          )}
           <Link
             href="/settings"
             onClick={onClose}
@@ -382,7 +353,6 @@ function SidebarInner({ open, onClose, collapsed, onToggleCollapse }: { open: bo
         {/* Icon rail — shown on desktop in place of the full content when collapsed */}
         <div className={`hidden flex-1 flex-col items-center gap-1 py-3 ${collapsed ? "md:flex" : ""}`}>
           <RailLink href="/" icon={LayoutDashboard} label={t("sidebar.overview")} active={pathname === "/"} onClick={onClose} />
-          <RailLink href="/workspaces" icon={FolderOpen} label={t("sidebar.workspaces")} active={pathname === "/workspaces"} onClick={onClose} />
           <div className="w-6 border-t border-border my-1" />
           <RailLink href="/elements" icon={List} label={t("sidebar.elements")} active={pathname === "/elements"} onClick={onClose} badge={absentCount > 0 ? "amber" : undefined} />
           <RailLink href="/relationships" icon={GitBranch} label={t("sidebar.relationships")} active={pathname === "/relationships"} onClick={onClose} badge={relConflictCount > 0 ? "destructive" : undefined} />
@@ -391,9 +361,6 @@ function SidebarInner({ open, onClose, collapsed, onToggleCollapse }: { open: bo
         </div>
 
         <div className={`hidden border-t border-border py-2 flex-col items-center gap-1 ${collapsed ? "md:flex" : ""}`}>
-          {mounted && isOrgAdmin && (
-            <RailLink href="/organization" icon={Building2} label={t("nav.organization")} active={pathname === "/organization" || pathname.startsWith("/organization/")} onClick={onClose} />
-          )}
           <RailLink href="/settings" icon={SettingsIcon} label={t("sidebar.settings")} active={pathname === "/settings" || pathname.startsWith("/settings/")} onClick={onClose} />
         </div>
 

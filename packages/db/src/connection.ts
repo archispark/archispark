@@ -153,6 +153,44 @@ export function runWithTenantDb<T>(tenantDb: NodePgDatabase<typeof schema>, fn: 
 }
 
 /**
+ * Checks connectivity to `organizationId`'s dedicated tenant database by
+ * opening a temporary connection and running `SELECT version()`.
+ * Returns `connected: false` if no active tenant_databases row exists.
+ */
+export async function verifyTenantDatabaseConnectivity(organizationId: string): Promise<{
+  connected: boolean;
+  latency_ms: number;
+  version?: string;
+}> {
+  /* v8 ignore start -- requires active tenant database */
+  const row = await lookupTenantDatabaseRow(organizationId);
+  if (!row || row.status !== "active") return { connected: false, latency_ms: 0 };
+
+  const raw = decryptConnectionString(row.connectionStringEncrypted);
+  const isLocal = /@(localhost|127\.0\.0\.1|\[::1\]|postgres)[:/]/.test(raw) ||
+    /[?&]sslmode=disable/i.test(raw);
+  const connectionString = isLocal ? raw : stripSslmode(raw);
+  const ssl = isLocal ? undefined : { rejectUnauthorized: false };
+
+  const pool = new Pool({ connectionString, ssl, max: 1, connectionTimeoutMillis: 5000 });
+  const start = Date.now();
+  try {
+    const client = await pool.connect();
+    try {
+      const result = await client.query<{ version: string }>("SELECT version()");
+      return { connected: true, latency_ms: Date.now() - start, version: result.rows[0]?.version };
+    } finally {
+      client.release();
+    }
+  } catch {
+    return { connected: false, latency_ms: Date.now() - start };
+  } finally {
+    await pool.end().catch(() => {});
+  }
+  /* v8 ignore stop */
+}
+
+/**
  * Tenant-scoped client for the current request, set per-request via
  * `runWithTenantDb` (see apps/tenant-api/src/app.ts). Falls back to
  * `tenantFallbackDb` outside of a request — migrations, scripts — or while

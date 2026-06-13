@@ -13,3 +13,5 @@ export { encryptConnectionString, decryptConnectionString } from "./tenant-crypt
 export { signTenantToken, verifyTenantToken } from "./tenant-jwt.js";
 export type { TenantTokenPayload } from "./tenant-jwt.js";
 export { ensureTenantRole, TENANT_DB_ROLE, TENANT_TABLES } from "./tenant-role.js";
+export { getNeonApiConfig, getDefaultBranchId } from "./neon-api.js";
+export { verifyTenantDatabaseConnectivity } from "./connection.js";

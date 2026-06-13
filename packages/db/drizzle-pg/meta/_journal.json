@@ -92,6 +92,13 @@
       "when": 1780680000000,
       "tag": "0012_drop_tenant_tables_from_control",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1780690000000,
+      "tag": "0013_tenant_db_verified_at_last_error",
+      "breakpoints": true
     }
   ]
 }

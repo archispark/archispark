@@ -2,7 +2,7 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { username, admin, organization, genericOAuth, microsoftEntraId } from "better-auth/plugins";
 import { eq } from "drizzle-orm";
-import { controlDb, users, sessions, accounts, verifications, organizations, members, invitations, teams, teamMembers, oauthProviders, provisionTenantDatabase } from "@workspace/db";
+import { controlDb, users, sessions, accounts, verifications, organizations, members, invitations, teams, teamMembers, oauthProviders } from "@workspace/db";
 import { getRedis } from "./redis.js";
 
 export interface OAuthProvider {
@@ -185,15 +185,8 @@ function createAuthInstance(oauthConfig: unknown[]) {
         // Only the platform super admin can create new organizations.
         allowUserToCreateOrganization: async (user) => user.role === "platform_admin",
         organizationHooks: {
-          /* v8 ignore start -- requires NEON_API_KEY/NEON_PROJECT_ID + a live Neon project; exercised in production only */
-          afterCreateOrganization: async ({ organization }) => {
-            try {
-              await provisionTenantDatabase(organization.id);
-            } catch (err) {
-              console.error(`[tenant-provisioning] failed for organization ${organization.id}:`, err);
-            }
-          },
-          /* v8 ignore stop */
+          // Provisioning now triggered synchronously via POST /admin/organizations.
+          afterCreateOrganization: async () => {},
         },
       }),
       ...(oauthConfig.length > 0 ? [genericOAuth({ config: oauthConfig as Parameters<typeof genericOAuth>[0]["config"] })] : []),

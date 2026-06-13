@@ -4,29 +4,25 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import OrganizationsPage from "./page";
 import { I18nProvider } from "@/lib/i18n";
-import type { OrganizationListItem } from "@/hooks/use-organization";
 import type { AdminOrganizationOut } from "@/lib/api";
 
 // ---------------------------------------------------------------------------
 // Mocks
 // ---------------------------------------------------------------------------
 
-const mockOrgs: { current: OrganizationListItem[] } = { current: [] };
-const createMutateAsync = vi.fn();
-const updateMutateAsync = vi.fn();
-
-vi.mock("@/hooks/use-organization", () => ({
-  useOrganizations: () => mockOrgs.current,
-  useCreateOrganization: () => ({ mutateAsync: createMutateAsync }),
-  useUpdateOrganization: () => ({ mutateAsync: updateMutateAsync }),
-}));
-
 const mockAdminOrgs: { current: AdminOrganizationOut[]; isLoading: boolean } = { current: [], isLoading: false };
 const setEnabledMutateAsync = vi.fn();
+const createOrgMutateAsync = vi.fn();
+const verifyDbMutateAsync = vi.fn();
+const reprovisionMutateAsync = vi.fn();
 
 vi.mock("@/lib/queries", () => ({
   useAdminOrganizations: () => ({ data: mockAdminOrgs.current, isLoading: mockAdminOrgs.isLoading }),
   useSetOrganizationEnabled: () => ({ mutateAsync: setEnabledMutateAsync, isPending: false }),
+  useNeonStatus: () => ({ data: { configured: true, reachable: true } }),
+  useCreateAdminOrganization: () => ({ mutateAsync: createOrgMutateAsync, isPending: false }),
+  useVerifyOrganizationDb: () => ({ mutateAsync: verifyDbMutateAsync, isPending: false }),
+  useReprovisionOrganization: () => ({ mutateAsync: reprovisionMutateAsync, isPending: false }),
 }));
 
 vi.mock("sonner", () => ({
@@ -79,24 +75,33 @@ function renderPage() {
   );
 }
 
+const baseOrg: AdminOrganizationOut = {
+  id: "org1",
+  name: "Acme",
+  slug: "acme",
+  enabled: true,
+  created_at: new Date().toISOString(),
+  tenant_status: "active",
+  last_error: null,
+};
+
 beforeEach(() => {
-  mockOrgs.current = [];
   mockAdminOrgs.current = [];
   mockAdminOrgs.isLoading = false;
-  createMutateAsync.mockReset();
-  updateMutateAsync.mockReset();
   setEnabledMutateAsync.mockReset();
+  createOrgMutateAsync.mockReset();
+  verifyDbMutateAsync.mockReset();
+  reprovisionMutateAsync.mockReset();
 });
 
 describe("OrganizationsPage", () => {
-  it("renders the list of organizations", () => {
-    mockOrgs.current = [
-      { id: "org1", name: "Acme", slug: "acme", createdAt: new Date(), metadata: { description: "An org" } },
-    ];
+  it("renders the organizations table with status badges", () => {
+    mockAdminOrgs.current = [baseOrg];
     renderPage();
     expect(screen.getByText("Acme")).toBeInTheDocument();
     expect(screen.getByText("acme")).toBeInTheDocument();
-    expect(screen.getByText("An org")).toBeInTheDocument();
+    expect(screen.getByText("Dédiée")).toBeInTheDocument();
+    expect(screen.getByText("Active")).toBeInTheDocument();
   });
 
   it("opens the create dialog and auto-fills the slug from the name", () => {
@@ -110,8 +115,8 @@ describe("OrganizationsPage", () => {
     expect(slugInput.value).toBe("my-org");
   });
 
-  it("submits the create form and calls createOrganization.mutateAsync", async () => {
-    createMutateAsync.mockResolvedValue({ id: "org-new" });
+  it("submits the create form and calls createAdminOrganization.mutateAsync", async () => {
+    createOrgMutateAsync.mockResolvedValue({ ...baseOrg, id: "org-new" });
     renderPage();
     fireEvent.click(screen.getByRole("button", { name: /Nouvelle organisation|New organization/i }));
 
@@ -124,54 +129,9 @@ describe("OrganizationsPage", () => {
     )!;
     fireEvent.click(createBtn);
 
-    await waitFor(() => expect(createMutateAsync).toHaveBeenCalledWith(
+    await waitFor(() => expect(createOrgMutateAsync).toHaveBeenCalledWith(
       expect.objectContaining({ name: "New Org", slug: "new-org" }),
     ));
-  });
-
-  it("opens the edit dialog for an organization and submits the update", async () => {
-    updateMutateAsync.mockResolvedValue({ id: "org1" });
-    mockOrgs.current = [
-      { id: "org1", name: "Acme", slug: "acme", createdAt: new Date(), metadata: { description: "Desc" } },
-    ];
-    renderPage();
-
-    const editButtons = screen.getAllByRole("button", { name: /Modifier|Edit/i });
-    fireEvent.click(editButtons[0]!);
-
-    const dialog = screen.getByRole("dialog");
-    const nameInput = screen.getByLabelText(/^Nom \*/) as HTMLInputElement;
-    expect(nameInput.value).toBe("Acme");
-
-    fireEvent.change(nameInput, { target: { value: "Acme Renamed" } });
-
-    const saveBtn = Array.from(dialog.querySelectorAll("button")).find((b) =>
-      /Enregistrer|Save/.test(b.textContent ?? ""),
-    )!;
-    fireEvent.click(saveBtn);
-
-    await waitFor(() => expect(updateMutateAsync).toHaveBeenCalledWith(
-      expect.objectContaining({ organizationId: "org1", name: "Acme Renamed" }),
-    ));
-  });
-});
-
-describe("AdminOrganizationsSection", () => {
-  const baseOrg: AdminOrganizationOut = {
-    id: "org1",
-    name: "Acme",
-    slug: "acme",
-    enabled: true,
-    created_at: new Date().toISOString(),
-    tenant_status: "active",
-  };
-
-  it("renders tenant monitoring section with status badges", () => {
-    mockAdminOrgs.current = [baseOrg];
-    renderPage();
-    expect(screen.getByText("Suivi des tenants")).toBeInTheDocument();
-    expect(screen.getByText("Dédiée")).toBeInTheDocument();
-    expect(screen.getByText("Active")).toBeInTheDocument();
   });
 
   it("opens the suspend confirmation dialog and calls setOrganizationEnabled", async () => {
@@ -199,5 +159,21 @@ describe("AdminOrganizationsSection", () => {
     fireEvent.click(screen.getByRole("button", { name: "Réactiver" }));
 
     await waitFor(() => expect(setEnabledMutateAsync).toHaveBeenCalledWith({ id: "org1", enabled: true }));
+  });
+
+  it("shows reprovision button for orgs in error state", () => {
+    mockAdminOrgs.current = [{ ...baseOrg, tenant_status: "error", last_error: "connection refused" }];
+    renderPage();
+    expect(screen.getByRole("button", { name: /Reprovisionner|Reprovision/i })).toBeInTheDocument();
+  });
+
+  it("calls reprovisionOrganization when reprovision button clicked", async () => {
+    reprovisionMutateAsync.mockResolvedValue({ ...baseOrg, tenant_status: "active" });
+    mockAdminOrgs.current = [{ ...baseOrg, tenant_status: "error", last_error: "timeout" }];
+    renderPage();
+
+    fireEvent.click(screen.getByRole("button", { name: /Reprovisionner|Reprovision/i }));
+
+    await waitFor(() => expect(reprovisionMutateAsync).toHaveBeenCalledWith("org1"));
   });
 });

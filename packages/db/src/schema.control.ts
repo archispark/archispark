@@ -222,6 +222,8 @@ export const tenantDatabases = pgTable("tenant_databases", {
   connectionStringEncrypted: text("connection_string_encrypted").notNull(),
   status:            text("status", { enum: ["pending", "provisioning", "active", "error"] }).notNull().default("pending"),
   region:            text("region"),
+  verifiedAt:        timestamp("verified_at"),
+  lastError:         text("last_error"),
   createdAt:         timestamp("created_at").notNull().defaultNow(),
   updatedAt:         timestamp("updated_at").notNull().defaultNow(),
 }, (t) => [

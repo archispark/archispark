@@ -66,8 +66,9 @@ function emptyModel(): ArchiModel {
   };
 }
 
-async function markTenantDatabaseError(organizationId: string): Promise<void> {
-  await controlDb.update(schema.tenantDatabases).set({ status: "error", updatedAt: new Date() })
+async function markTenantDatabaseError(organizationId: string, err?: unknown): Promise<void> {
+  const lastError = err instanceof Error ? err.message : (err ? String(err) : null);
+  await controlDb.update(schema.tenantDatabases).set({ status: "error", lastError, updatedAt: new Date() })
     .where(eq(schema.tenantDatabases.organizationId, organizationId));
 }
 
@@ -136,7 +137,7 @@ export async function provisionTenantInfrastructure(
     await runTenantMigrations(tenantDb);
     return { tenantDb, connectionString };
   } catch (err) {
-    await markTenantDatabaseError(organizationId);
+    await markTenantDatabaseError(organizationId, err);
     throw err;
   }
 }
@@ -158,7 +159,7 @@ export async function provisionTenantDatabase(
     await runWithTenantDb(infra.tenantDb, () => seedWorkspace(DEFAULT_WORKSPACE_NAME, emptyModel(), organizationId));
     await activateTenantDatabase(organizationId, infra.connectionString, config.projectId);
   } catch (err) {
-    await markTenantDatabaseError(organizationId);
+    await markTenantDatabaseError(organizationId, err);
     throw err;
   }
 }

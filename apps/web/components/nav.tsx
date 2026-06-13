@@ -3,11 +3,11 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
-import { Menu, FolderOpen, Building2 } from "lucide-react";
+import { Menu, FolderOpen } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { type ElementOut } from "@/lib/api";
 import { useWorkspaces, useElement, useView } from "@/lib/queries";
-import { useIsOrgAdmin, useAutoActivateOrganization } from "@/hooks/use-organization";
+import { useAutoActivateOrganization } from "@/hooks/use-organization";
 import { useT } from "@/lib/i18n";
 import { LocaleSwitcher } from "@/components/locale-switcher";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -34,7 +34,6 @@ export function Nav({ onToggleSidebar }: { onToggleSidebar: () => void }) {
   const activeWs = workspaces.find((w) => w.active);
   const segments = pathname.split("/").filter(Boolean);
   const isOrganizationView = segments[0] === "organization";
-  const isOrgAdmin = useIsOrgAdmin();
   useAutoActivateOrganization();
 
   // On /elements/[id], resolve the element so the breadcrumb shows its name, not
@@ -115,19 +114,6 @@ properties: "breadcrumb.properties",
       {/* Unified breadcrumb: Organisation / Workspaces / nom projet / Section / leaf */}
       {workspaces.length > 0 && (
         <div className="flex items-center gap-1.5 text-[13px] text-muted-foreground overflow-hidden">
-          {isOrgAdmin && (
-            <>
-              <Link
-                href="/organization"
-                className="flex items-center gap-1.5 hover:text-foreground no-underline whitespace-nowrap shrink-0"
-              >
-                <Building2 className="size-3.5 text-primary shrink-0" />
-                {t("breadcrumb.organization")}
-              </Link>
-              {!isOrganizationView && <span className="text-border">/</span>}
-            </>
-          )}
-
           {/* The /organization view is its own root, like /workspaces below. */}
           {!isOrganizationView && (
           <>

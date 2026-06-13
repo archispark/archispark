@@ -197,6 +197,7 @@ export interface AdminOrganizationOut {
   enabled: boolean;
   created_at: string;
   tenant_status: "pending" | "provisioning" | "active" | "error" | null;
+  last_error: string | null;
 }
 
 type AdminOrgRow = {
@@ -206,6 +207,7 @@ type AdminOrgRow = {
   enabled: boolean;
   createdAt: Date;
   tenantStatus: "pending" | "provisioning" | "active" | "error" | null;
+  lastError: string | null;
 };
 
 function mapAdminOrgRow(r: AdminOrgRow): AdminOrganizationOut {
@@ -216,6 +218,7 @@ function mapAdminOrgRow(r: AdminOrgRow): AdminOrganizationOut {
     enabled: r.enabled,
     created_at: r.createdAt.toISOString(),
     tenant_status: r.tenantStatus,
+    last_error: r.lastError ?? null,
   };
 }
 
@@ -226,6 +229,7 @@ const adminOrgSelection = {
   enabled: organizationsTable.enabled,
   createdAt: organizationsTable.createdAt,
   tenantStatus: tenantDatabasesTable.status,
+  lastError: tenantDatabasesTable.lastError,
 };
 
 export async function listAdminOrganizations(): Promise<AdminOrganizationOut[]> {
@@ -244,6 +248,28 @@ export async function setOrganizationEnabled(id: string, enabled: boolean): Prom
     .where(eq(organizationsTable.id, id));
   if (!row) throw new NotFoundError(`Organisation '${id}' introuvable.`);
   return mapAdminOrgRow(row);
+}
+
+export async function createAdminOrganization(name: string, slug: string, creatorUserId: string): Promise<AdminOrganizationOut> {
+  const [slugConflict] = await controlDb.select({ id: organizationsTable.id }).from(organizationsTable)
+    .where(eq(organizationsTable.slug, slug));
+  if (slugConflict) throw new ValidationError(`Le slug '${slug}' est déjà utilisé.`);
+
+  const now = new Date();
+  const orgId = randomUUID();
+  await controlDb.insert(organizationsTable).values({ id: orgId, name, slug, createdAt: now });
+  await controlDb.insert(membersTable).values({ id: randomUUID(), organizationId: orgId, userId: creatorUserId, role: "owner", createdAt: now });
+
+  const [row] = await controlDb.select(adminOrgSelection).from(organizationsTable)
+    .leftJoin(tenantDatabasesTable, eq(tenantDatabasesTable.organizationId, organizationsTable.id))
+    .where(eq(organizationsTable.id, orgId));
+  if (!row) throw new ValidationError("Organisation introuvable après création.");
+  return mapAdminOrgRow(row);
+}
+
+export async function deleteOrganization(id: string): Promise<void> {
+  // cascade handles members, teams, invitations, tenantDatabases, apiTokens
+  await controlDb.delete(organizationsTable).where(eq(organizationsTable.id, id));
 }
 
 // ---------------------------------------------------------------------------

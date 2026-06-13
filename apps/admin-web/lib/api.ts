@@ -105,11 +105,35 @@ export interface AdminOrganizationOut {
   enabled: boolean;
   created_at: string;
   tenant_status: TenantStatus;
+  last_error: string | null;
+}
+
+export interface NeonStatus {
+  configured: boolean;
+  reachable: boolean;
+}
+
+export interface VerifyDbResult {
+  connected: boolean;
+  latency_ms: number;
+  version?: string;
+}
+
+export interface AdminOrganizationCreateIn {
+  name: string;
+  slug: string;
 }
 
 export const fetchAdminOrganizations = () => get<AdminOrganizationOut[]>("/admin/organizations");
 export const setOrganizationEnabledApi = (id: string, enabled: boolean) =>
   put<AdminOrganizationOut>(`/admin/organizations/${encodeURIComponent(id)}`, { enabled });
+export const fetchNeonStatus = () => get<NeonStatus>("/admin/neon/status");
+export const createAdminOrganization = (body: AdminOrganizationCreateIn) =>
+  post<AdminOrganizationOut>("/admin/organizations", body);
+export const verifyOrganizationDb = (id: string) =>
+  post<VerifyDbResult>(`/admin/organizations/${encodeURIComponent(id)}/verify-db`, {});
+export const reprovisionOrganization = (id: string) =>
+  post<AdminOrganizationOut>(`/admin/organizations/${encodeURIComponent(id)}/reprovision`, {});
 
 export const fetchProviders = () => get<OAuthProviderOut[]>("/settings/providers");
 export const createProvider = (body: OAuthProviderCreateIn) => post<OAuthProviderOut>("/settings/providers", body);

@@ -35,7 +35,7 @@ import { rateLimit } from "express-rate-limit";
 import { RedisStore } from "rate-limit-redis";
 import { getRedis } from "./redis.js";
 import { AppError } from "./errors.js";
-import { controlDb, oauthProviders, apiTokens, siteSettings, getTenantConnectionStringEncrypted, signTenantToken } from "@workspace/db";
+import { controlDb, oauthProviders, apiTokens, siteSettings, getTenantConnectionStringEncrypted, signTenantToken, getNeonApiConfig, getDefaultBranchId, provisionTenantDatabase, verifyTenantDatabaseConnectivity } from "@workspace/db";
 import { eq, sql } from "drizzle-orm";
 import {
   listUsers,
@@ -44,6 +44,8 @@ import {
   deleteUserById,
   listAdminOrganizations,
   setOrganizationEnabled,
+  createAdminOrganization,
+  deleteOrganization,
   requireAuth,
   requireSuperAdmin,
   resolveWorkspaceContext,
@@ -81,7 +83,7 @@ function redisStore(prefix: string): RedisStore {
 
 const authRateLimit = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 50,
+  max: 100,
   standardHeaders: true,
   legacyHeaders: false,
   message: { detail: "Trop de tentatives, réessayez dans 15 minutes." },
@@ -211,6 +213,75 @@ app.put("/admin/organizations/:id", requireSuperAdmin as express.RequestHandler,
     return;
   }
   res.json(await setOrganizationEnabled(req.params["id"] as string, enabled));
+});
+
+app.get("/admin/neon/status", requireSuperAdmin as express.RequestHandler, async (_req: Request, res: Response) => {
+  const config = getNeonApiConfig();
+  if (!config) {
+    res.json({ configured: false, reachable: false });
+    return;
+  }
+  try {
+    await getDefaultBranchId(config);
+    res.json({ configured: true, reachable: true });
+  } catch {
+    res.json({ configured: true, reachable: false });
+  }
+});
+
+app.post("/admin/organizations", requireSuperAdmin as express.RequestHandler, async (req: AuthRequest, res: Response) => {
+  const { name, slug } = req.body as { name?: unknown; slug?: unknown };
+  if (!name || typeof name !== "string" || !name.trim()) {
+    res.status(422).json({ detail: "Le champ 'name' est requis." });
+    return;
+  }
+  const trimmedName = name.trim();
+  const trimmedSlug = typeof slug === "string" && slug.trim()
+    ? slug.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")
+    : trimmedName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+
+  const neonConfig = getNeonApiConfig();
+  if (neonConfig) {
+    try {
+      await getDefaultBranchId(neonConfig);
+    } catch {
+      res.status(503).json({ detail: "Neon inaccessible — impossible de créer l'organisation sans base de données dédiée." });
+      return;
+    }
+  }
+
+  const org = await createAdminOrganization(trimmedName, trimmedSlug, req.user!.id);
+
+  try {
+    await provisionTenantDatabase(org.id);
+  } catch (err) {
+    await deleteOrganization(org.id).catch(() => {});
+    res.status(503).json({ detail: `Échec du provisionnement de la base de données : ${(err as Error).message}` });
+    return;
+  }
+
+  const all = await listAdminOrganizations();
+  const updated = all.find(o => o.id === org.id);
+  res.status(201).json(updated ?? org);
+});
+
+app.post("/admin/organizations/:id/verify-db", requireSuperAdmin as express.RequestHandler, async (req: Request, res: Response) => {
+  const result = await verifyTenantDatabaseConnectivity(req.params["id"] as string);
+  res.json(result);
+});
+
+app.post("/admin/organizations/:id/reprovision", requireSuperAdmin as express.RequestHandler, async (req: AuthRequest, res: Response) => {
+  const id = req.params["id"] as string;
+  try {
+    await provisionTenantDatabase(id);
+  } catch (err) {
+    res.status(503).json({ detail: `Échec du reprovisionnement : ${(err as Error).message}` });
+    return;
+  }
+  const all = await listAdminOrganizations();
+  const org = all.find(o => o.id === id);
+  if (!org) { res.status(404).json({ detail: "Organisation introuvable." }); return; }
+  res.json(org);
 });
 
 // ---------------------------------------------------------------------------
