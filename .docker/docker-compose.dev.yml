@@ -53,6 +53,37 @@ services:
       timeout:  5s
       retries:  10
 
+  # ── Identity (Keycloak / Phasetwo) ───────────────────────────────────────
+  keycloak:
+    image: quay.io/phasetwo/phasetwo-keycloak:26.0.2
+    restart: unless-stopped
+    command: start-dev --import-realm
+    environment:
+      KC_DB:          postgres
+      KC_DB_URL:      jdbc:postgresql://postgres:5432/archispark_keycloak
+      KC_DB_USERNAME: archispark
+      KC_DB_PASSWORD: ${DB_PASSWORD:-archispark}
+      KC_HOSTNAME:        localhost
+      KC_HOSTNAME_PORT:   "8080"
+      KC_HOSTNAME_STRICT: "false"
+      KC_HTTP_ENABLED:    "true"
+      KEYCLOAK_ADMIN:          ${KEYCLOAK_ADMIN:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+    ports:
+      - "8080:8080"
+    volumes:
+      # Realm import: clients, roles and demo users for local dev.
+      - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:     ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/8080"]
+      interval: 5s
+      timeout:  5s
+      retries:  30
+      start_period: 30s
+
 volumes:
   postgres_dev_data:
   redis_dev_data:

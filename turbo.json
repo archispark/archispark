@@ -32,6 +32,8 @@
         "BETTER_AUTH_SECRET",
         "WEB_URL",
         "TRUSTED_ORIGINS",
+        "KEYCLOAK_URL",
+        "KEYCLOAK_REALM",
         "SEED_ADMIN_PASSWORD",
         "SEED_USER_PASSWORD",
         "ARCHIMATE_API_URL",

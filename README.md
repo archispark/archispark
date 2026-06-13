@@ -44,7 +44,7 @@ Two Docker Compose files cover every deployment mode:
 | File | Purpose |
 |------|---------|
 | `docker-compose.yml` | **Production** — pulls published images from Docker Hub (Traefik, control-api, tenant-api, mcp-server, web, PostgreSQL, Redis) |
-| `docker-compose.dev.yml` | **Development infra** — PostgreSQL + Redis only, used by `make dev-infra` while apps run via `pnpm dev` |
+| `docker-compose.dev.yml` | **Development infra** — PostgreSQL + Redis + Keycloak only, used by `make dev-infra` while apps run via `pnpm dev` |
 
 The `Makefile` wraps the most common operations. Run `make` or `make help` for the full list.
 
@@ -59,7 +59,11 @@ make logs
 
 # Development
 make dev            # full hot-reload stack
-make dev-infra      # postgres + redis only, then run pnpm dev on the host
+make dev-infra      # postgres + redis + keycloak only, then run pnpm dev on the host
+# Note: on a Postgres volume that pre-dates Keycloak, .docker/initdb/02-create-keycloak-db.sql
+# won't run (it only fires on first init). Create the DB once manually:
+#   docker exec <postgres-container> psql -U archispark -d postgres -c "CREATE DATABASE archispark_keycloak;"
+#   docker exec <postgres-container> psql -U archispark -d postgres -c "GRANT ALL PRIVILEGES ON DATABASE archispark_keycloak TO archispark;"
 
 # Build images from source (OS=alpine|trixie-slim, VERSION auto-read from package.json)
 make build          # build all images for current OS variant
@@ -391,6 +395,24 @@ Write operations (`POST`, `PUT`, `DELETE`) on workspace content require the `own
 | `/auth/organization/*` | — | user | Better Auth organization plugin: list/create organizations, invite/remove members, manage teams, switch active organization, etc. |
 
 Default credentials: `admin` / `admin` (`platform_admin`, org `owner`), `user` / `user` (org `member`, read-only), `contrib` / `contrib` (org `admin`), `archi` / `archi` (org `owner`).
+
+### Keycloak (in progress — Stage 1)
+
+`make dev-infra` also starts a local Keycloak (Phasetwo distribution,
+`http://localhost:8080`, admin console login from `KEYCLOAK_ADMIN`/`KEYCLOAK_ADMIN_PASSWORD`
+in `.env`), pre-loaded from `.docker/keycloak/realm-export.json` with realm
+`archispark`, clients `archispark-web` / `archispark-admin-web` /
+`archispark-control-api`, the `platform_admin` realm role, and the same demo
+users as above (passwords match usernames).
+
+`apps/control-api` (via `@workspace/auth`, `packages/auth`) additionally
+accepts a Keycloak-issued access token as a Bearer token: `requireAuth` verifies
+it against the realm's JWKS (`KEYCLOAK_URL`/`KEYCLOAK_REALM`). This is additive
+and non-breaking — Better Auth sessions and personal API tokens are unaffected.
+Keycloak users are **not yet** mapped to organizations/members, so an
+authenticated Keycloak request currently passes `requireAuth` but then gets
+`403 Aucune organisation associée à cet utilisateur.` from the workspace
+resolver. Org/team integration is a later stage.
 
 ### Cross-subdomain sessions (SaaS topology)
 

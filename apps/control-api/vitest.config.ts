@@ -5,6 +5,7 @@ export default defineConfig({
   resolve: {
     alias: {
       "@workspace/db": resolve(__dirname, "../../packages/db/src/index.ts"),
+      "@workspace/auth": resolve(__dirname, "../../packages/auth/src/index.ts"),
     },
   },
   test: {

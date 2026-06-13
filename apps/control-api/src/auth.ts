@@ -14,6 +14,7 @@ import {
 } from "@workspace/db";
 import { getAuth } from "./better-auth.js";
 import { fromNodeHeaders } from "better-auth/node";
+import { verifyAccessToken } from "@workspace/auth";
 import { NotFoundError, ValidationError } from "./errors.js";
 
 // Same scrypt parameters as @better-auth/utils/password
@@ -373,11 +374,24 @@ interface SessionResult {
 export function requireAuth(req: AuthRequest, res: Response, next: NextFunction): void {
   const authHeader = req.headers["authorization"];
   if (authHeader?.startsWith("Bearer ")) {
-    lookupApiToken(authHeader.slice(7).trim())
-      .then((tokenUser) => {
-        if (!tokenUser) { res.status(401).json({ detail: "Token invalide." }); return; }
-        req.user = { id: tokenUser.id, username: tokenUser.username, role: tokenUser.role };
-        req.tokenContext = { organizationId: tokenUser.organizationId, workspaceId: tokenUser.workspaceId };
+    const token = authHeader.slice(7).trim();
+    lookupApiToken(token)
+      .then(async (tokenUser) => {
+        if (tokenUser) {
+          req.user = { id: tokenUser.id, username: tokenUser.username, role: tokenUser.role };
+          req.tokenContext = { organizationId: tokenUser.organizationId, workspaceId: tokenUser.workspaceId };
+          next();
+          return;
+        }
+        // Not a personal API token — try a Keycloak-issued access token.
+        const claims = await verifyAccessToken(token);
+        if (!claims) { res.status(401).json({ detail: "Token invalide." }); return; }
+        req.user = {
+          id: claims.sub,
+          username: claims.preferred_username ?? claims.sub,
+          role: claims.realm_access?.roles?.includes("platform_admin") ? "platform_admin" : "user",
+        };
+        req.sessionActiveOrgId = null;
         next();
       })
       .catch(() => { res.status(401).json({ detail: "Erreur d'authentification." }); });

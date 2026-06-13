@@ -4,11 +4,17 @@
 
 import { describe, it, expect, beforeAll, vi } from "vitest";
 import _request from "supertest";
+import type { Response, NextFunction } from "express";
 import { eq } from "drizzle-orm";
 import { controlDb, organizations as organizationsTable } from "@workspace/db";
 import { app } from "../src/app.js";
-import { createUser } from "../src/auth.js";
+import { createUser, requireAuth, type AuthRequest } from "../src/auth.js";
 import { getAdminCookie, getUserCookie, getAdminWorkspaceContext } from "../src/test-helper.js";
+import { verifyAccessToken } from "@workspace/auth";
+
+vi.mock("@workspace/auth", () => ({
+  verifyAccessToken: vi.fn(),
+}));
 
 let adminCookie: string;
 let userCookie: string;
@@ -36,6 +42,64 @@ describe("requireAuth middleware", () => {
     const res = await request(app).get("/me");
     expect(res.status).toBe(200);
     expect(res.body.username).toBe("admin");
+  });
+});
+
+describe("requireAuth — Keycloak bearer token", () => {
+  it("authenticates a valid Keycloak token (then fails workspace resolution — Stage 4)", async () => {
+    vi.mocked(verifyAccessToken).mockResolvedValueOnce({
+      sub: "kc-user-1",
+      preferred_username: "kcuser",
+      realm_access: { roles: ["platform_admin"] },
+    });
+    const res = await _request(app).get("/me").set("Authorization", "Bearer kc-fake-jwt-token");
+    // requireAuth succeeded (no longer 401) — blocked at resolveWorkspaceContext
+    // because the Keycloak sub isn't re-keyed to an organization yet.
+    expect(res.status).toBe(403);
+    expect(res.body.detail).toBe("Aucune organisation associée à cet utilisateur.");
+  });
+
+  it("returns 401 when the token is neither a valid API token nor a Keycloak token", async () => {
+    vi.mocked(verifyAccessToken).mockResolvedValueOnce(null);
+    const res = await _request(app).get("/me").set("Authorization", "Bearer not-a-token");
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 401 when Keycloak verification throws", async () => {
+    vi.mocked(verifyAccessToken).mockRejectedValueOnce(new Error("jwks unreachable"));
+    const res = await _request(app).get("/me").set("Authorization", "Bearer not-a-token");
+    expect(res.status).toBe(401);
+  });
+
+  it("falls back to the subject as username when preferred_username is absent, and role 'user' when realm_access has no platform_admin role", async () => {
+    vi.mocked(verifyAccessToken).mockResolvedValueOnce({
+      sub: "kc-user-2",
+      realm_access: { roles: ["member"] },
+    });
+    const req = { headers: { authorization: "Bearer kc-fake-jwt-token" } } as unknown as AuthRequest;
+    const res = {} as Response;
+    const next = vi.fn() as unknown as NextFunction;
+
+    requireAuth(req, res, next);
+    await vi.waitFor(() => expect(next).toHaveBeenCalled());
+
+    expect(req.user).toEqual({ id: "kc-user-2", username: "kc-user-2", role: "user" });
+    expect(req.sessionActiveOrgId).toBeNull();
+  });
+
+  it("falls back to role 'user' when realm_access is absent entirely", async () => {
+    vi.mocked(verifyAccessToken).mockResolvedValueOnce({
+      sub: "kc-user-3",
+      preferred_username: "kcuser3",
+    });
+    const req = { headers: { authorization: "Bearer kc-fake-jwt-token" } } as unknown as AuthRequest;
+    const res = {} as Response;
+    const next = vi.fn() as unknown as NextFunction;
+
+    requireAuth(req, res, next);
+    await vi.waitFor(() => expect(next).toHaveBeenCalled());
+
+    expect(req.user).toEqual({ id: "kc-user-3", username: "kcuser3", role: "user" });
   });
 });
 
