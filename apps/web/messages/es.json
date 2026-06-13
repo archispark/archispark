@@ -205,7 +205,7 @@
   "settings.auth.new_btn": "Nuevo proveedor",
   "settings.auth.oidc_required": "La URL del emisor es obligatoria para OIDC.",
   "login.title": "Iniciar sesión",
-  "login.subtitle": "Introduzca sus credenciales para acceder al modelo.",
+  "login.subtitle": "Inicie sesión con su cuenta para acceder a la plataforma.",
   "login.username": "Nombre de usuario",
   "login.password": "Contraseña",
   "login.submit": "Iniciar sesión",

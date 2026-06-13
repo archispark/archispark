@@ -22,7 +22,7 @@
   "login.redirecting": "Redirecting…",
   "login.submit": "Sign in",
   "login.submitting": "Signing in…",
-  "login.subtitle": "Enter your credentials to access the model.",
+  "login.subtitle": "Sign in with your account to access the platform.",
   "login.title": "Sign in",
   "login.username": "Username",
   "login.wrong_credentials": "Invalid credentials.",

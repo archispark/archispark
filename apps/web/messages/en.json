@@ -205,7 +205,7 @@
   "settings.auth.new_btn": "New provider",
   "settings.auth.oidc_required": "Issuer URL is required for OIDC.",
   "login.title": "Sign in",
-  "login.subtitle": "Enter your credentials to access the model.",
+  "login.subtitle": "Sign in with your account to access the platform.",
   "login.username": "Username",
   "login.password": "Password",
   "login.submit": "Sign in",

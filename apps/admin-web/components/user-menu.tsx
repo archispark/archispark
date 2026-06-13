@@ -1,12 +1,10 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { LogOut } from "lucide-react";
 import { useCurrentUser } from "@/hooks/use-current-user";
 
 export function UserMenu() {
-  const router = useRouter();
   const user = useCurrentUser();
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -22,11 +20,8 @@ export function UserMenu() {
     return () => document.removeEventListener("mousedown", handleClick);
   }, [open]);
 
-  async function logout() {
-    const { signOut } = await import("@/lib/auth-client");
-    await signOut();
-    router.push("/login");
-    router.refresh();
+  function logout() {
+    window.location.href = "/api/auth/logout";
   }
 
   const initial = user?.username?.[0]?.toUpperCase() ?? "?";

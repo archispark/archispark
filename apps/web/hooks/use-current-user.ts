@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useSession } from "@/lib/auth-client";
+import { useQuery } from "@tanstack/react-query";
 
 export interface CurrentUser {
   id: string;
@@ -11,22 +10,23 @@ export interface CurrentUser {
   role: string;
 }
 
+async function fetchCurrentUser(): Promise<CurrentUser | null> {
+  const res = await fetch("/api/auth/me", { credentials: "include" });
+  if (!res.ok) return null;
+  return (await res.json()) as CurrentUser;
+}
+
 export function useCurrentUser(): CurrentUser | null {
-  const { data } = useSession();
-  if (!data?.user) return null;
-  const u = data.user as unknown as { id: string; name: string; email?: string | null; username?: string; role?: string };
-  return {
-    id: u.id,
-    username: u.username ?? u.name,
-    name: u.name,
-    email: u.email ?? null,
-    role: u.role ?? "user",
-  };
+  const { data } = useQuery({
+    queryKey: ["auth", "me"],
+    queryFn: fetchCurrentUser,
+    retry: false,
+    staleTime: 60_000,
+  });
+  return data ?? null;
 }
 
 export function useIsAdmin(): boolean {
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
   const user = useCurrentUser();
-  return mounted && user?.role === "platform_admin";
+  return user?.role === "platform_admin";
 }

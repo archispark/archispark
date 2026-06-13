@@ -22,7 +22,7 @@
   "login.redirecting": "Redirection…",
   "login.submit": "Se connecter",
   "login.submitting": "Connexion…",
-  "login.subtitle": "Entrez vos identifiants pour accéder au modèle.",
+  "login.subtitle": "Connectez-vous avec votre compte pour accéder à la plateforme.",
   "login.title": "Connexion",
   "login.username": "Nom d'utilisateur",
   "login.wrong_credentials": "Identifiants incorrects.",

@@ -205,7 +205,7 @@
   "settings.auth.new_btn": "Nouveau fournisseur",
   "settings.auth.oidc_required": "Issuer URL requis pour OIDC.",
   "login.title": "Connexion",
-  "login.subtitle": "Entrez vos identifiants pour accéder au modèle.",
+  "login.subtitle": "Connectez-vous avec votre compte pour accéder à la plateforme.",
   "login.username": "Nom d'utilisateur",
   "login.password": "Mot de passe",
   "login.submit": "Se connecter",

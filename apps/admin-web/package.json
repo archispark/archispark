@@ -18,6 +18,7 @@
     "@tanstack/react-table": "^8.21.3",
     "@vercel/analytics": "^2.0.1",
     "@vercel/speed-insights": "^2.0.0",
+    "@workspace/auth": "workspace:*",
     "@workspace/ui": "workspace:*",
     "better-auth": "^1.6.15",
     "lucide-react": "^1.17.0",

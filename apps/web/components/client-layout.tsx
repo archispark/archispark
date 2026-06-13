@@ -4,7 +4,6 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { Nav } from "@/components/nav";
 import { Sidebar } from "@/components/sidebar";
 import { OrganizationSidebar } from "@/components/organization-sidebar";
-import { QueryProvider } from "@/components/query-provider";
 import { PlatformAdminBlock } from "@/components/platform-admin-block";
 import { useIsAdmin } from "@/hooks/use-current-user";
 import { useState, useEffect, useCallback } from "react";
@@ -77,50 +76,46 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
 
   if (!isLogin && isPlatformAdmin) {
     return (
-      <QueryProvider>
-        <ThemeProvider>
-          <PlatformAdminBlock />
-          <Toaster richColors position="bottom-right" />
-        </ThemeProvider>
-      </QueryProvider>
+      <ThemeProvider>
+        <PlatformAdminBlock />
+        <Toaster richColors position="bottom-right" />
+      </ThemeProvider>
     );
   }
 
   return (
-    <QueryProvider>
-      <ThemeProvider>
-        {!isLogin && <Nav onToggleSidebar={() => setSidebarOpen((v) => !v)} />}
-        {!hideSidebar && (
-          isOrganizationView ? (
-            <OrganizationSidebar
-              open={sidebarOpen}
-              onClose={() => setSidebarOpen(false)}
-              collapsed={sidebarCollapsed}
-              onToggleCollapse={toggleSidebarCollapsed}
-            />
-          ) : (
-            <Sidebar
-              open={sidebarOpen}
-              onClose={() => setSidebarOpen(false)}
-              collapsed={sidebarCollapsed}
-              onToggleCollapse={toggleSidebarCollapsed}
-            />
-          )
-        )}
-        <main
-          className={
-            isLogin
-              ? ""
-              : `mt-[var(--nav-h)] min-h-[calc(100vh-var(--nav-h))] transition-[margin-left] duration-200 ${
-                  hideSidebar ? "" : sidebarCollapsed ? "md:ml-[var(--sidebar-w-collapsed,56px)]" : "md:ml-[var(--sidebar-w)]"
-                }`
-          }
-        >
-          {!isLogin && <SiteBanner />}
-          {children}
-        </main>
-        <Toaster richColors position="bottom-right" />
-      </ThemeProvider>
-    </QueryProvider>
+    <ThemeProvider>
+      {!isLogin && <Nav onToggleSidebar={() => setSidebarOpen((v) => !v)} />}
+      {!hideSidebar && (
+        isOrganizationView ? (
+          <OrganizationSidebar
+            open={sidebarOpen}
+            onClose={() => setSidebarOpen(false)}
+            collapsed={sidebarCollapsed}
+            onToggleCollapse={toggleSidebarCollapsed}
+          />
+        ) : (
+          <Sidebar
+            open={sidebarOpen}
+            onClose={() => setSidebarOpen(false)}
+            collapsed={sidebarCollapsed}
+            onToggleCollapse={toggleSidebarCollapsed}
+          />
+        )
+      )}
+      <main
+        className={
+          isLogin
+            ? ""
+            : `mt-[var(--nav-h)] min-h-[calc(100vh-var(--nav-h))] transition-[margin-left] duration-200 ${
+                hideSidebar ? "" : sidebarCollapsed ? "md:ml-[var(--sidebar-w-collapsed,56px)]" : "md:ml-[var(--sidebar-w)]"
+              }`
+        }
+      >
+        {!isLogin && <SiteBanner />}
+        {children}
+      </main>
+      <Toaster richColors position="bottom-right" />
+    </ThemeProvider>
   );
 }

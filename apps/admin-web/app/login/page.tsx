@@ -1,34 +1,26 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { signIn } from "@/lib/auth-client";
-import { Input } from "@workspace/ui/components/input";
+import { Suspense, useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { useT } from "@/lib/i18n";
 import { Button } from "@workspace/ui/components/button";
-import { Label } from "@workspace/ui/components/label";
 import { LocaleSwitcher } from "@/components/locale-switcher";
 import { ThemeToggle } from "@/components/theme-toggle";
 
-interface OAuthProvider {
-  id: string;
-  name: string;
+export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginPageInner />
+    </Suspense>
+  );
 }
 
-export default function LoginPage() {
+function LoginPageInner() {
   const { t } = useT();
-  const router = useRouter();
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [providers, setProviders] = useState<OAuthProvider[]>([]);
-  const [ssoLoading, setSsoLoading] = useState<string | null>(null);
+  const searchParams = useSearchParams();
   const [loginMessage, setLoginMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch("/auth/providers")
-      .then((r) => r.json())
-      .then((data: OAuthProvider[]) => setProviders(data))
-      .catch(() => {});
     fetch("/api/settings/messages")
       .then((r) => r.json())
       .then((d: { login_message: string | null; login_message_enabled: boolean }) => {
@@ -37,38 +29,8 @@ export default function LoginPage() {
       .catch(() => {});
   }, []);
 
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const fd = new FormData(e.currentTarget);
-    const u = (fd.get("username") as string | null)?.trim() ?? "";
-    const p = (fd.get("password") as string | null) ?? "";
-    if (!u || !p) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const result = await signIn.username({ username: u, password: p });
-      if (result.error) {
-        setError(result.error.message ?? t("login.wrong_credentials"));
-        return;
-      }
-      router.push("/");
-      router.refresh();
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleSso(providerId: string) {
-    setSsoLoading(providerId);
-    try {
-      await signIn.oauth2({ providerId, callbackURL: "/" });
-    } catch (err) {
-      setError((err as Error).message);
-      setSsoLoading(null);
-    }
-  }
+  const from = searchParams.get("from");
+  const loginUrl = from ? `/api/auth/login?from=${encodeURIComponent(from)}` : "/api/auth/login";
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background px-4">
@@ -101,64 +63,9 @@ export default function LoginPage() {
           <h1 className="text-base font-semibold mb-1">{t("login.title")}</h1>
           <p className="text-[13px] text-muted-foreground mb-5">{t("login.subtitle")}</p>
 
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="username">{t("login.username")}</Label>
-              <Input
-                id="username"
-                name="username"
-                required
-                autoFocus
-                autoComplete="username"
-                placeholder="admin"
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="password">{t("login.password")}</Label>
-              <Input
-                id="password"
-                name="password"
-                type="password"
-                required
-                autoComplete="current-password"
-                placeholder="••••••••"
-              />
-            </div>
-
-            {error && (
-              <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">
-                {error}
-              </div>
-            )}
-
-            <Button type="submit" disabled={loading} className="w-full">
-              {loading ? t("login.submitting") : t("login.submit")}
-            </Button>
-          </form>
-
-          {providers.length > 0 && (
-            <>
-              <div className="flex items-center gap-3 my-4">
-                <div className="flex-1 h-px bg-border" />
-                <span className="text-[11px] text-muted-foreground uppercase tracking-wide">ou</span>
-                <div className="flex-1 h-px bg-border" />
-              </div>
-              <div className="flex flex-col gap-2">
-                {providers.map((p) => (
-                  <Button
-                    key={p.id}
-                    type="button"
-                    variant="outline"
-                    className="w-full"
-                    disabled={ssoLoading !== null}
-                    onClick={() => handleSso(p.id)}
-                  >
-                    {ssoLoading === p.id ? t("login.redirecting") : t("login.continue_with", { name: p.name })}
-                  </Button>
-                ))}
-              </div>
-            </>
-          )}
+          <Button render={<a href={loginUrl} />} className="w-full">
+            {t("login.submit")}
+          </Button>
         </div>
 
         {loginMessage && (

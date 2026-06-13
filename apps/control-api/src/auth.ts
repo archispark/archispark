@@ -382,6 +382,39 @@ interface SessionResult {
   session: { activeOrganizationId?: string | null; [k: string]: unknown };
 }
 
+/**
+ * Verifies a Keycloak-issued access token and bridges `claims.sub` to an
+ * existing control-db user (Stage 2 of the Better Auth -> Keycloak
+ * migration), so downstream org/role resolution works exactly as it does for
+ * Better Auth sessions. Returns `null` if the token is missing or invalid.
+ */
+async function resolveKeycloakUser(token: string): Promise<{ id: string; username: string; role: string } | null> {
+  const claims = await verifyAccessToken(token);
+  if (!claims) return null;
+  const [dbUser] = await controlDb
+    .select({ id: usersTable.id, username: usersTable.username, role: usersTable.role })
+    .from(usersTable)
+    .where(eq(usersTable.keycloakSub, claims.sub))
+    .limit(1);
+  if (dbUser) return dbUser;
+  return {
+    id: claims.sub,
+    username: claims.preferred_username ?? claims.sub,
+    role: claims.realm_access?.roles?.includes("platform_admin") ? "platform_admin" : "user",
+  };
+}
+
+/** Reads a single cookie value from a raw `Cookie` request header. */
+function getCookieValue(cookieHeader: string | undefined, name: string): string | undefined {
+  if (!cookieHeader) return undefined;
+  for (const part of cookieHeader.split(";")) {
+    const eq = part.indexOf("=");
+    if (eq === -1) continue;
+    if (part.slice(0, eq).trim() === name) return decodeURIComponent(part.slice(eq + 1).trim());
+  }
+  return undefined;
+}
+
 export function requireAuth(req: AuthRequest, res: Response, next: NextFunction): void {
   const authHeader = req.headers["authorization"];
   if (authHeader?.startsWith("Bearer ")) {
@@ -395,25 +428,9 @@ export function requireAuth(req: AuthRequest, res: Response, next: NextFunction)
           return;
         }
         // Not a personal API token — try a Keycloak-issued access token.
-        const claims = await verifyAccessToken(token);
-        if (!claims) { res.status(401).json({ detail: "Token invalide." }); return; }
-        // Bridge claims.sub to an existing control-db user (Stage 2 of the
-        // Better Auth -> Keycloak migration), so downstream org/role
-        // resolution works exactly as it does for Better Auth sessions.
-        const [dbUser] = await controlDb
-          .select({ id: usersTable.id, username: usersTable.username, role: usersTable.role })
-          .from(usersTable)
-          .where(eq(usersTable.keycloakSub, claims.sub))
-          .limit(1);
-        if (dbUser) {
-          req.user = { id: dbUser.id, username: dbUser.username, role: dbUser.role };
-        } else {
-          req.user = {
-            id: claims.sub,
-            username: claims.preferred_username ?? claims.sub,
-            role: claims.realm_access?.roles?.includes("platform_admin") ? "platform_admin" : "user",
-          };
-        }
+        const kcUser = await resolveKeycloakUser(token);
+        if (!kcUser) { res.status(401).json({ detail: "Token invalide." }); return; }
+        req.user = kcUser;
         req.sessionActiveOrgId = null;
         next();
       })
@@ -421,17 +438,27 @@ export function requireAuth(req: AuthRequest, res: Response, next: NextFunction)
     return;
   }
   getAuth().api.getSession({ headers: fromNodeHeaders(req.headers) })
-    .then((session: SessionResult | null) => {
-      if (!session?.user) {
+    .then(async (session: SessionResult | null) => {
+      if (session?.user) {
+        req.user = {
+          id: session.user.id,
+          username: (session.user as unknown as { username?: string }).username ?? session.user.name,
+          role: (session.user as unknown as { role?: string }).role ?? "user",
+        };
+        req.sessionActiveOrgId = session.session?.activeOrganizationId ?? null;
+        next();
+        return;
+      }
+      // No Better Auth session — fall back to a Keycloak access_token cookie
+      // (Stage 3 of the Better Auth -> Keycloak migration).
+      const cookieToken = getCookieValue(req.headers["cookie"], "access_token");
+      const kcUser = cookieToken ? await resolveKeycloakUser(cookieToken) : null;
+      if (!kcUser) {
         res.status(401).json({ detail: "Non authentifié." });
         return;
       }
-      req.user = {
-        id: session.user.id,
-        username: (session.user as unknown as { username?: string }).username ?? session.user.name,
-        role: (session.user as unknown as { role?: string }).role ?? "user",
-      };
-      req.sessionActiveOrgId = session.session?.activeOrganizationId ?? null;
+      req.user = kcUser;
+      req.sessionActiveOrgId = null;
       next();
     })
     .catch(() => {

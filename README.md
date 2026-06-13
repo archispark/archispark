@@ -396,7 +396,7 @@ Write operations (`POST`, `PUT`, `DELETE`) on workspace content require the `own
 
 Default credentials: `admin` / `admin` (`platform_admin`, org `owner`), `user` / `user` (org `member`, read-only), `contrib` / `contrib` (org `admin`), `archi` / `archi` (org `owner`).
 
-### Keycloak (in progress — Stage 2)
+### Keycloak login (Stage 3)
 
 `make dev-infra` also starts a local Keycloak (Phasetwo distribution,
 `http://localhost:8080`, admin console login from `KEYCLOAK_ADMIN`/`KEYCLOAK_ADMIN_PASSWORD`
@@ -405,26 +405,59 @@ in `.env`), pre-loaded from `.docker/keycloak/realm-export.json` with realm
 `archispark-control-api`, the `platform_admin` realm role, and the same demo
 users as above (passwords match usernames).
 
-`apps/control-api` (via `@workspace/auth`, `packages/auth`) additionally
-accepts a Keycloak-issued access token as a Bearer token: `requireAuth` verifies
-it against the realm's JWKS (`KEYCLOAK_URL`/`KEYCLOAK_REALM`). This is additive
-and non-breaking — Better Auth sessions and personal API tokens are unaffected.
-
-**Identity bridge (Stage 2):** the `user` table has a nullable `keycloak_sub`
-column (unique index) linking a Keycloak `sub` claim to an existing control-db
-user. When a Keycloak Bearer token verifies successfully, `requireAuth` looks
-up `users` by `keycloakSub = claims.sub`; if found, `req.user` is populated
-from that row (`id`/`username`/`role`), so org/team resolution and write
-permissions work exactly as they do for a Better Auth session for the same
-person. The demo users (`admin`/`user`/`contrib`/`archi`) are seeded with
-fixed `keycloak_sub` UUIDs matching the `id`s pinned in
+**Stages 1-2 — Bearer token + identity bridge** (unchanged): `apps/control-api`
+(via `@workspace/auth`, `packages/auth`) accepts a Keycloak-issued access token
+as a Bearer token, verified against the realm's JWKS
+(`KEYCLOAK_URL`/`KEYCLOAK_REALM`). This is additive and non-breaking — Better
+Auth sessions and personal API tokens are unaffected. The `user` table has a
+nullable `keycloak_sub` column (unique index) linking a Keycloak `sub` claim to
+an existing control-db user; when a Keycloak token verifies successfully,
+`requireAuth` looks up `users` by `keycloakSub = claims.sub` and, if found,
+populates `req.user` from that row (`id`/`username`/`role`), so org/team
+resolution and write permissions work exactly as they do for a Better Auth
+session for the same person. The demo users (`admin`/`user`/`contrib`/`archi`)
+are seeded with fixed `keycloak_sub` UUIDs matching the `id`s pinned in
 `.docker/keycloak/realm-export.json`. If no matching `keycloakSub` row is
-found, `requireAuth` falls back to the Stage-1 behaviour: `req.user` is derived
-directly from the token claims (`preferred_username`/`realm_access.roles`),
-and since that synthetic user has no organization membership, the request then
-gets `403 Aucune organisation associée à cet utilisateur.` from the workspace
-resolver. Full self-service Keycloak signup (auto-provisioning new control-db
-users on first login) is a later stage.
+found, `req.user` is derived directly from the token claims
+(`preferred_username`/`realm_access.roles`), and since that synthetic user has
+no organization membership, the request then gets `403 Aucune organisation
+associée à cet utilisateur.` from the workspace resolver. Full self-service
+Keycloak signup (auto-provisioning new control-db users on first login) is a
+later stage.
+
+**Stage 3 — Keycloak login for `apps/web` / `apps/admin-web`:** both apps sign
+in via the OIDC authorization-code + PKCE flow against Keycloak instead of
+Better Auth's username/password form. `/login` is a single "Se connecter" link
+to `/api/auth/login`. Each app has its own client (`KEYCLOAK_CLIENT_ID_WEB` /
+`KEYCLOAK_CLIENT_ID_ADMIN_WEB` → `archispark-web` / `archispark-admin-web`).
+
+| Route | Purpose |
+|-------|---------|
+| `GET /api/auth/login?from=<path>` | Generates a PKCE pair + `state`, stores them in short-lived (5 min) httpOnly cookies (`pkce_verifier`, `oidc_state`, `auth_redirect`), redirects to Keycloak's `/protocol/openid-connect/auth` |
+| `GET /api/auth/callback` | Validates `state`, exchanges the code for tokens, sets httpOnly `access_token` / `refresh_token` / `id_token` cookies (`SameSite=lax`, max-age from the token response), redirects to `auth_redirect` |
+| `GET /api/auth/logout` | Clears the three token cookies and redirects through Keycloak's RP-initiated end-session back to `/login` |
+| `POST /api/auth/refresh` | Exchanges `refresh_token` for a new token set — `204` + new cookies on success, `401` + cleared cookies on failure |
+| `GET /api/auth/me` | Verifies `access_token` and returns `{id, username, name, email, role}` (`role` is `platform_admin` when `realm_access.roles` contains it, else `user`) |
+
+`proxy.ts` (Next middleware) decodes the `access_token`'s `exp` locally on
+every navigation; if it's expired (or missing) it calls `/api/auth/refresh`
+using the `refresh_token` cookie and forwards the resulting `Set-Cookie`s
+before continuing, and only redirects to `/api/auth/login?from=<path>` if the
+refresh also fails.
+
+`apps/control-api`'s `requireAuth` additionally accepts the `access_token`
+cookie — verified and bridged the same way as the Stage 1/2 Bearer path —
+checked after any Better Auth session. A cookie-authenticated request to a
+proxied route (e.g. `apps/web`'s `/api/*` → control-api) therefore resolves to
+the same `req.user` as a Bearer token or session for the same person.
+
+**Known limitations:** `apps/web`'s `/profile` page and the organization
+settings "Membres/Équipes" tab still use the Better Auth React client
+(`authClient`), which depends on a `better-auth.session_token` cookie that
+Keycloak login does not set — `authClient.useSession()` resolves to `null` and
+these views show no data. `auth-client.ts` is kept in both apps so they keep
+typechecking, but it is dead code for Keycloak-based logins. This is fixed by a
+later Organizations/Phasetwo stage that migrates these views off `authClient`.
 
 ### Cross-subdomain sessions (SaaS topology)
 
@@ -457,7 +490,7 @@ Org owners/admins (and platform super admins) see an **Organization** entry in t
 
 | Route | Purpose |
 |-------|---------|
-| `/login` | Sign in (shares the Better Auth session with the main API) |
+| `/login` | Sign in via Keycloak (see [Keycloak login (Stage 3)](#keycloak-login-stage-3)) |
 | `/organizations` | List, create, rename, and delete organizations across every tenant (default landing page); also shows a read-only **tenant monitoring** table (tenant database status + enabled/suspended state per organization) with suspend/reactivate actions |
 | `/users` | Manage platform users — create/update/delete, assign the `platform_admin` role |
 | `/authentication` | Manage OAuth/SSO providers |

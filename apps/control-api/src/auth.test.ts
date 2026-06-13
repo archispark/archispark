@@ -138,6 +138,60 @@ describe("requireAuth — Keycloak bearer token", () => {
   });
 });
 
+describe("requireAuth — access_token cookie (Stage 3)", () => {
+  it("authenticates via access_token cookie, mapped to the demo admin user — same identity as the Better Auth session", async () => {
+    vi.mocked(verifyAccessToken).mockResolvedValueOnce({
+      sub: "c8a1f6c0-0000-4000-8000-000000000001",
+      preferred_username: "admin",
+      realm_access: { roles: ["platform_admin"] },
+    });
+    const sessionRes = await request(app).get("/me");
+    const cookieRes = await _request(app).get("/me").set("Cookie", "access_token=fake-jwt");
+
+    expect(cookieRes.status).toBe(200);
+    expect(cookieRes.body).toEqual(sessionRes.body);
+  });
+
+  it("authenticates via access_token cookie, mapped to the demo member user, and blocks write routes", async () => {
+    vi.mocked(verifyAccessToken).mockResolvedValueOnce({
+      sub: "c8a1f6c0-0000-4000-8000-000000000002",
+      preferred_username: "user",
+    });
+    const sessionRes = await request(app, userCookie).get("/me");
+    const cookieRes = await _request(app).get("/me").set("Cookie", "access_token=fake-jwt");
+
+    expect(cookieRes.status).toBe(200);
+    expect(cookieRes.body).toEqual(sessionRes.body);
+
+    vi.mocked(verifyAccessToken).mockResolvedValueOnce({
+      sub: "c8a1f6c0-0000-4000-8000-000000000002",
+      preferred_username: "user",
+    });
+    const writeRes = await _request(app)
+      .post("/workspaces")
+      .set("Cookie", "access_token=fake-jwt")
+      .send({ name: "Demo" });
+    expect(writeRes.status).toBe(403);
+  });
+
+  it("returns 401 when the access_token cookie is invalid and there is no session", async () => {
+    vi.mocked(verifyAccessToken).mockResolvedValueOnce(null);
+    const res = await _request(app).get("/me").set("Cookie", "access_token=garbage");
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 401 when there is no access_token cookie and no session", async () => {
+    const res = await _request(app).get("/me").set("Cookie", "other_cookie=1");
+    expect(res.status).toBe(401);
+  });
+
+  it("prefers a valid Better Auth session over an access_token cookie", async () => {
+    const res = await _request(app).get("/me").set("Cookie", `${adminCookie}; access_token=should-not-be-used`);
+    expect(res.status).toBe(200);
+    expect(res.body.username).toBe("admin");
+  });
+});
+
 describe("requireSuperAdmin middleware", () => {
   it("returns 403 when user role is not admin", async () => {
     const res = await request(app, userCookie).get("/users");

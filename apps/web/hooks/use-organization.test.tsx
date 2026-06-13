@@ -26,11 +26,18 @@ import {
 // Mock @/lib/auth-client
 // ---------------------------------------------------------------------------
 
+const mockState = vi.hoisted(() => ({
+  user: null as { id: string; name: string; username?: string; role?: string } | null,
+}));
+
+vi.mock("./use-current-user", () => ({
+  useIsAdmin: () => mockState.user?.role === "platform_admin",
+}));
+
 vi.mock("@/lib/auth-client", () => {
   let mockActiveOrg: unknown = null;
   let mockOrgList: unknown[] | null = null;
   let mockMemberRole: { role: string } | null = null;
-  let mockUser: { id: string; name: string; username?: string; role?: string } | null = null;
 
   const organization = {
     listTeams: vi.fn(),
@@ -55,7 +62,7 @@ vi.mock("@/lib/auth-client", () => {
       organization,
     },
     useSession: () => ({
-      data: mockUser ? { user: mockUser, session: {} } : null,
+      data: mockState.user ? { user: mockState.user, session: {} } : null,
     }),
     signIn: { username: vi.fn() },
     signOut: vi.fn(),
@@ -64,7 +71,7 @@ vi.mock("@/lib/auth-client", () => {
     _setMockActiveOrg: (o: unknown) => { mockActiveOrg = o; },
     _setMockOrgList: (l: unknown[] | null) => { mockOrgList = l; },
     _setMockMemberRole: (r: { role: string } | null) => { mockMemberRole = r; },
-    _setMockUser: (u: typeof mockUser) => { mockUser = u; },
+    _setMockUser: (u: typeof mockState.user) => { mockState.user = u; },
     _organization: organization,
   };
 });

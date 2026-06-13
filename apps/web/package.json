@@ -19,6 +19,7 @@
     "@tanstack/react-table": "^8.21.3",
     "@vercel/analytics": "^2.0.1",
     "@vercel/speed-insights": "^2.0.0",
+    "@workspace/auth": "workspace:*",
     "@workspace/ui": "workspace:*",
     "@xyflow/react": "^12.11.0",
     "better-auth": "^1.6.15",

@@ -205,7 +205,7 @@
   "settings.auth.new_btn": "Nuovo provider",
   "settings.auth.oidc_required": "L'URL dell'emittente è obbligatoria per OIDC.",
   "login.title": "Accesso",
-  "login.subtitle": "Inserire le credenziali per accedere al modello.",
+  "login.subtitle": "Accedi con il tuo account per accedere alla piattaforma.",
   "login.username": "Nome utente",
   "login.password": "Password",
   "login.submit": "Accedi",

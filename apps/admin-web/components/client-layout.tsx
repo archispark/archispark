@@ -3,7 +3,6 @@
 import { ThemeProvider } from "@/components/theme-provider";
 import { Nav } from "@/components/nav";
 import { AdminSidebar } from "@/components/admin-sidebar";
-import { QueryProvider } from "@/components/query-provider";
 import { useState, useEffect, useCallback } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Toaster } from "sonner";
@@ -91,32 +90,30 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
   }, []);
 
   const content = (
-    <QueryProvider>
-      <ThemeProvider>
-        {!isLogin && <Nav onToggleSidebar={() => setSidebarOpen((v) => !v)} />}
-        {!isLogin && (
-          <AdminSidebar
-            open={sidebarOpen}
-            onClose={() => setSidebarOpen(false)}
-            collapsed={sidebarCollapsed}
-            onToggleCollapse={toggleSidebarCollapsed}
-          />
-        )}
-        <main
-          className={
-            isLogin
-              ? ""
-              : `mt-[var(--nav-h)] min-h-[calc(100vh-var(--nav-h))] transition-[margin-left] duration-200 ${
-                  sidebarCollapsed ? "md:ml-[var(--sidebar-w-collapsed,56px)]" : "md:ml-[var(--sidebar-w)]"
-                }`
-          }
-        >
-          {!isLogin && <SiteBanner />}
-          {children}
-        </main>
-        <Toaster richColors position="bottom-right" />
-      </ThemeProvider>
-    </QueryProvider>
+    <ThemeProvider>
+      {!isLogin && <Nav onToggleSidebar={() => setSidebarOpen((v) => !v)} />}
+      {!isLogin && (
+        <AdminSidebar
+          open={sidebarOpen}
+          onClose={() => setSidebarOpen(false)}
+          collapsed={sidebarCollapsed}
+          onToggleCollapse={toggleSidebarCollapsed}
+        />
+      )}
+      <main
+        className={
+          isLogin
+            ? ""
+            : `mt-[var(--nav-h)] min-h-[calc(100vh-var(--nav-h))] transition-[margin-left] duration-200 ${
+                sidebarCollapsed ? "md:ml-[var(--sidebar-w-collapsed,56px)]" : "md:ml-[var(--sidebar-w)]"
+              }`
+        }
+      >
+        {!isLogin && <SiteBanner />}
+        {children}
+      </main>
+      <Toaster richColors position="bottom-right" />
+    </ThemeProvider>
   );
 
   if (isLogin) return content;

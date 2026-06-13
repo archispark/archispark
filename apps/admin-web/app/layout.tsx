@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter, Geist_Mono } from "next/font/google";
 import "@workspace/ui/globals.css";
 import { ClientLayout } from "@/components/client-layout";
+import { QueryProvider } from "@/components/query-provider";
 import { I18nProvider } from "@/lib/i18n";
 import { cn } from "@workspace/ui/lib/utils";
 import { Analytics } from "@vercel/analytics/next";
@@ -26,9 +27,11 @@ export default function RootLayout({
       className={cn("antialiased", fontMono.variable, "font-sans", inter.variable)}
     >
       <body>
-        <I18nProvider>
-          <ClientLayout>{children}</ClientLayout>
-        </I18nProvider>
+        <QueryProvider>
+          <I18nProvider>
+            <ClientLayout>{children}</ClientLayout>
+          </I18nProvider>
+        </QueryProvider>
         <Analytics />
         <SpeedInsights />
       </body>
