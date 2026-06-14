@@ -44,7 +44,7 @@ import { PropertiesEditor } from "@/components/properties-editor";
 import { Plus, ChevronDown, ChevronRight, Trash2 } from "lucide-react";
 import type { Property } from "@/lib/api";
 import { allowedRelationships } from "@/lib/archimate-rules";
-import { useIsAdmin } from "@/hooks/use-current-user";
+import { useIsOrgAdmin } from "@/hooks/use-organization";
 import { useFormModal } from "@/hooks/use-form-modal";
 import { useKeyboardShortcut } from "@/hooks/use-keyboard-shortcut";
 import { useT } from "@/lib/i18n";
@@ -60,7 +60,7 @@ export default function ElementsPage() {
 
 function ElementsPageInner() {
   const { t } = useT();
-  const isAdmin = useIsAdmin();
+  const isAdmin = useIsOrgAdmin();
   const searchParams = useSearchParams();
   const layerFilter = searchParams.get("layer");
 

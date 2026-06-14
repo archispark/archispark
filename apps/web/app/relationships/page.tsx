@@ -24,14 +24,14 @@ import {
 import { DataTable } from "@/components/data-table";
 import { PropertiesEditor } from "@/components/properties-editor";
 import { Plus, Trash2, ChevronDown, ChevronRight } from "lucide-react";
-import { useIsAdmin } from "@/hooks/use-current-user";
+import { useIsOrgAdmin } from "@/hooks/use-organization";
 import { useKeyboardShortcut } from "@/hooks/use-keyboard-shortcut";
 import { useT } from "@/lib/i18n";
 import { allowedRelationships } from "@/lib/archimate-rules";
 
 export default function RelationshipsPage() {
   const { t } = useT();
-  const isAdmin = useIsAdmin();
+  const isAdmin = useIsOrgAdmin();
   const [search, setSearch] = useState("");
   const [debouncedSearch] = useDebounce(search, 300);
   const [typeFilter, setTypeFilter] = useState<string | null>(null);

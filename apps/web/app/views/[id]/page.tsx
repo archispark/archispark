@@ -19,7 +19,7 @@ import {
   DialogFooter, DialogClose,
 } from "@workspace/ui/components/dialog";
 import { ChevronLeft, Trash2 } from "lucide-react";
-import { useIsAdmin } from "@/hooks/use-current-user";
+import { useIsOrgAdmin } from "@/hooks/use-organization";
 import { useT } from "@/lib/i18n";
 
 // ── Inline editable text ──────────────────────────────────────────────────────
@@ -77,7 +77,7 @@ function InlineText({
 
 export default function ViewDetailPage() {
   const { t } = useT();
-  const isAdmin = useIsAdmin();
+  const isAdmin = useIsOrgAdmin();
   const router = useRouter();
   const params = useParams<{ id: string }>();
   const id = decodeURIComponent(params.id);

@@ -26,7 +26,7 @@ import {
   DialogFooter, DialogClose,
 } from "@workspace/ui/components/dialog";
 import { ChevronLeft, ChevronDown, ChevronRight, Trash2, Plus, Pencil } from "lucide-react";
-import { useIsAdmin } from "@/hooks/use-current-user";
+import { useIsOrgAdmin } from "@/hooks/use-organization";
 import { useFormModal } from "@/hooks/use-form-modal";
 import { useT } from "@/lib/i18n";
 import type { ElementOut } from "@/lib/api";
@@ -278,7 +278,7 @@ export default function ElementDetailPage() {
   const { t } = useT();
   const params = useParams<{ id: string }>();
   const id = decodeURIComponent(params.id);
-  const isAdmin = useIsAdmin();
+  const isAdmin = useIsOrgAdmin();
   const router = useRouter();
 
   const { data: element, isLoading: elLoading, error: elError } = useElement(id);
