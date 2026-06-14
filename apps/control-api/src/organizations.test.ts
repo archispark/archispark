@@ -13,7 +13,7 @@ import { randomUUID } from "node:crypto";
 import { describe, it, expect, beforeAll, afterEach, vi } from "vitest";
 import _request from "supertest";
 import { provisionTenantDatabase } from "@workspace/db";
-import { verifyAccessToken, addOrgMember, setOrgMemberRoles } from "@workspace/auth";
+import { verifyAccessToken, addOrgMember, setOrgMemberRoles, createOrganization, ensureDefaultOrgRoles } from "@workspace/auth";
 import { app } from "../src/app.js";
 import { createUser } from "../src/auth.js";
 import { getAdminCookie, getUserCookie, getAdminWorkspaceContext } from "../src/test-helper.js";
@@ -64,9 +64,41 @@ describe("GET /organizations/members", () => {
     const res = await request(app).get("/organizations/members");
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body)).toBe(true);
-    const admin = (res.body as Array<{ username: string; role: string | null }>).find((m) => m.username === "admin");
-    expect(admin).toBeDefined();
-    expect(admin?.role).toBe("owner");
+    const archi = (res.body as Array<{ username: string; role: string | null }>).find((m) => m.username === "archi");
+    expect(archi).toBeDefined();
+    expect(archi?.role).toBe("owner");
+  });
+
+  it("excludes users holding the platform_admin realm role", async () => {
+    const res = await request(app).get("/organizations/members");
+    expect(res.status).toBe(200);
+    const admin = (res.body as Array<{ username: string }>).find((m) => m.username === "admin");
+    expect(admin).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// GET /organizations/members — cross-tenant isolation
+// ---------------------------------------------------------------------------
+
+describe("GET /organizations/members — cross-tenant isolation", () => {
+  it("never returns members of an organization the requester does not belong to", async () => {
+    // Create a second, unrelated organization with its own owner.
+    const otherOrgId = await createOrganization({ name: "Other Org", attributes: { slug: ["other-org"] } });
+    await ensureDefaultOrgRoles(otherOrgId);
+    const otherOwnerId = randomUUID();
+    await addOrgMember(otherOrgId, otherOwnerId);
+    await setOrgMemberRoles(otherOrgId, otherOwnerId, "owner");
+
+    // "admin"'s JWT `organizations` claim only carries the default org —
+    // resolveWorkspaceContext ignores an X-Org-Id that isn't one of its keys
+    // and falls back to the requester's own org instead.
+    const res = await request(app).get("/organizations/members").set("X-Org-Id", otherOrgId);
+
+    expect(res.status).toBe(200);
+    const ids = (res.body as Array<{ user_id: string }>).map((m) => m.user_id);
+    expect(ids).not.toContain(otherOwnerId);
+    expect(ids).toContain(DEMO_KEYCLOAK_SUBS.archi);
   });
 });
 

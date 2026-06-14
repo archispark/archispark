@@ -446,7 +446,7 @@ the control database, keyed by the member's Keycloak `sub`.
 
 - **Roles**: `owner`, `admin`, `member` (`ORG_ROLES` in `@workspace/auth`) — scoped per organization and carried in the access token's `organizations` claim (`{ "<orgId>": { name, roles: [...] } }`). `owner`/`admin` can manage members, invitations, teams, and workspace content; `member` has read-only access.
 - **Platform super admin**: a user with the global `role: "platform_admin"` (set via the [admin web](#admin-web) `/users` page, or `POST`/`PUT /users`) bypasses organization role checks everywhere. Creating new organizations is **admin-only** (`POST /admin/organizations` from [admin web](#admin-web)) — there is no self-service organization creation.
-- `apps/web` (the workspace UI) blocks `platform_admin` sessions: instead of the normal nav/sidebar/workspace content, it shows a notice screen with a sign-out button. Platform admins manage organizations from [admin web](#admin-web) and have no need for tenant workspace access; `admin`/`admin` still holds an `owner` membership in a default organization (required by `control-api` so admin web itself stays functional), but that membership is now inert from `apps/web`'s perspective.
+- `apps/web` (the workspace UI) blocks `platform_admin` sessions: instead of the normal nav/sidebar/workspace content, it shows a notice screen with a sign-out button. Platform admins manage organizations from [admin web](#admin-web) and have no need for tenant workspace access; `admin`/`admin` still holds an `owner` membership in a default organization (required by `control-api` so admin web itself stays functional), but that membership is now inert from `apps/web`'s perspective — `GET /organizations/members` (and team member lists) filter out any user holding the `platform_admin` realm role, so `admin`/`admin` never appears to tenant owners/admins managing members.
 - **Org switcher**: a user belonging to more than one organization sees a switcher in `apps/web`'s sidebar. The selected organization is stored in a non-httpOnly `active_org` cookie (`useActiveOrganization()` reads it, `useSetActiveOrganization()` writes it) and sent as an `X-Org-Id` header on every `/organizations/*` and `/workspaces*` request; `useAutoActivateOrganization()` sets the cookie to the user's first organization if it's missing or stale.
 - **Teams** group members within an organization (`teams`/`team_members` tables; `team_members.user_id` is a Keycloak `sub`). A workspace with one or more `team_ids` is only visible to members of those teams (plus org owners/admins); a workspace with no teams is visible to the whole organization.
 - Each user has one **active workspace per organization**, switched via `POST /workspaces/:id/activate`.
@@ -464,7 +464,7 @@ All routes below act on the request's **active organization** (see
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/organizations/members` | List members of the active organization with their role and team memberships |
+| `GET` | `/organizations/members` | List members of the active organization with their role and team memberships — users holding the global `platform_admin` realm role are excluded |
 | `PUT` | `/organizations/members/:userId` | Change a member's role — body: `{ role: "owner" \| "admin" \| "member" }` |
 | `DELETE` | `/organizations/members/:userId` | Remove a member from the organization |
 | `GET` | `/organizations/invitations` | List pending invitations |

@@ -122,6 +122,12 @@ export async function initOrganizations(): Promise<void> {
 
 const PLATFORM_ADMIN_ROLE = "platform_admin";
 
+/** Ids of users holding the global `platform_admin` realm role — used to keep them out of tenant-scoped member lists. */
+async function getPlatformAdminUserIds(): Promise<Set<string>> {
+  const admins = await listRealmRoleUsers(PLATFORM_ADMIN_ROLE);
+  return new Set(admins.map((u) => u.id!));
+}
+
 function userOut(u: KeycloakUserRepresentation, isPlatformAdmin: boolean): UserOut {
   return {
     id: u.id!,
@@ -132,8 +138,7 @@ function userOut(u: KeycloakUserRepresentation, isPlatformAdmin: boolean): UserO
 }
 
 export async function listUsers(): Promise<UserOut[]> {
-  const [users, admins] = await Promise.all([listRealmUsers(), listRealmRoleUsers(PLATFORM_ADMIN_ROLE)]);
-  const adminIds = new Set(admins.map((u) => u.id));
+  const [users, adminIds] = await Promise.all([listRealmUsers(), getPlatformAdminUserIds()]);
   return users
     .filter((u) => !u.username.startsWith("service-account-"))
     .map((u) => userOut(u, adminIds.has(u.id)));
@@ -329,20 +334,23 @@ export interface OrgMemberOut {
 }
 
 export async function listOrgMembersOut(organizationId: string): Promise<OrgMemberOut[]> {
-  const [members, ...roleUserLists] = await Promise.all([
+  const [members, platformAdminIds, ...roleUserLists] = await Promise.all([
     listOrgMembers(organizationId),
+    getPlatformAdminUserIds(),
     ...ORG_ROLES.map((role) => listOrgRoleUsers(organizationId, role)),
   ]);
   const roleByUserId = new Map<string, OrgRoleName>();
   ORG_ROLES.forEach((role, i) => {
     for (const u of roleUserLists[i]!) if (!roleByUserId.has(u.id)) roleByUserId.set(u.id, role);
   });
-  return members!.map((m) => ({
-    user_id: m.id,
-    username: m.username,
-    email: m.email ?? null,
-    role: roleByUserId.get(m.id) ?? null,
-  }));
+  return members!
+    .filter((m) => !platformAdminIds.has(m.id))
+    .map((m) => ({
+      user_id: m.id,
+      username: m.username,
+      email: m.email ?? null,
+      role: roleByUserId.get(m.id) ?? null,
+    }));
 }
 
 export async function updateOrgMemberRole(organizationId: string, userId: string, role: OrgRoleName): Promise<void> {
@@ -423,15 +431,18 @@ export interface TeamMemberOut {
 
 export async function listTeamMembersOut(organizationId: string, teamId: string): Promise<TeamMemberOut[]> {
   await requireTeam(organizationId, teamId);
-  const [rows, orgMembers] = await Promise.all([
+  const [rows, orgMembers, platformAdminIds] = await Promise.all([
     controlDb.select({ userId: teamMembersTable.userId }).from(teamMembersTable).where(eq(teamMembersTable.teamId, teamId)),
     listOrgMembers(organizationId),
+    getPlatformAdminUserIds(),
   ]);
   const byId = new Map(orgMembers.map((m) => [m.id, m]));
-  return rows.map((r) => {
-    const m = byId.get(r.userId);
-    return { user_id: r.userId, username: m?.username ?? r.userId, email: m?.email ?? null };
-  });
+  return rows
+    .filter((r) => !platformAdminIds.has(r.userId))
+    .map((r) => {
+      const m = byId.get(r.userId);
+      return { user_id: r.userId, username: m?.username ?? r.userId, email: m?.email ?? null };
+    });
 }
 
 export async function addTeamMember(organizationId: string, teamId: string, userId: string): Promise<void> {
