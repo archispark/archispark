@@ -143,6 +143,7 @@
           "manage-users",
           "view-users",
           "query-users",
+          "view-realm",
           "view-organizations",
           "manage-organizations"
         ]

@@ -616,6 +616,13 @@ export async function resolveWorkspaceContext(req: AuthRequest, res: Response, n
   }
 
   if (!organizationId) {
+    // Platform admins aren't necessarily members of any Phasetwo organization
+    // (e.g. freshly provisioned via POST /users) — admin-only routes
+    // (/users, /admin/*, /me, /settings/*) don't read req.workspace, so let
+    // them through with no workspace context. Routes that do need
+    // req.workspace (the tenant-api proxy, POST /settings/api-tokens) guard
+    // for it explicitly and return this same 403.
+    if (req.user.role === "platform_admin") { next(); return; }
     res.status(403).json({ detail: "Aucune organisation associée à cet utilisateur." });
     return;
   }

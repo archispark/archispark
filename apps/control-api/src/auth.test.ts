@@ -53,15 +53,39 @@ describe("requireAuth middleware", () => {
 });
 
 describe("requireAuth — Keycloak bearer token", () => {
-  it("authenticates a valid Keycloak token without an organizations claim (then fails workspace resolution)", async () => {
+  it("a platform_admin token without an organizations claim still resolves /me (no workspace required)", async () => {
     vi.mocked(verifyAccessToken).mockResolvedValueOnce({
       sub: "kc-user-1",
       preferred_username: "kcuser",
       realm_access: { roles: ["platform_admin"] },
     });
     const res = await _request(app).get("/me").set("Authorization", "Bearer kc-fake-jwt-token");
-    // requireAuth succeeded (no longer 401) — blocked at resolveWorkspaceContext
-    // because the Keycloak sub isn't re-keyed to an organization yet.
+    // requireAuth succeeds and resolveWorkspaceContext lets platform_admin
+    // through with no workspace — /me doesn't read req.workspace.
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ id: "kc-user-1", username: "kcuser", role: "platform_admin" });
+  });
+
+  it("a non-admin token without an organizations claim fails workspace resolution on /me", async () => {
+    vi.mocked(verifyAccessToken).mockResolvedValueOnce({
+      sub: "kc-user-1b",
+      preferred_username: "kcuser1b",
+      realm_access: { roles: ["member"] },
+    });
+    const res = await _request(app).get("/me").set("Authorization", "Bearer kc-fake-jwt-token");
+    expect(res.status).toBe(403);
+    expect(res.body.detail).toBe("Aucune organisation associée à cet utilisateur.");
+  });
+
+  it("a platform_admin token without an organizations claim gets a clear 403 (not a 500) from a route that needs workspace context", async () => {
+    const claims = {
+      sub: "kc-user-1c",
+      preferred_username: "kcuser1c",
+      realm_access: { roles: ["platform_admin"] },
+    };
+    // /settings/api-tokens runs requireAuth twice (global + per-route middleware).
+    vi.mocked(verifyAccessToken).mockResolvedValueOnce(claims).mockResolvedValueOnce(claims);
+    const res = await _request(app).post("/settings/api-tokens").set("Authorization", "Bearer kc-fake-jwt-token").send({ name: "x" });
     expect(res.status).toBe(403);
     expect(res.body.detail).toBe("Aucune organisation associée à cet utilisateur.");
   });

@@ -383,6 +383,7 @@ app.get("/settings/api-tokens", requireAuth as express.RequestHandler, async (re
 });
 
 app.post("/settings/api-tokens", requireAuth as express.RequestHandler, async (req: AuthRequest, res: Response) => {
+  if (!req.workspace) { res.status(403).json({ detail: "Aucune organisation associée à cet utilisateur." }); return; }
   const { name, expires_at } = req.body as { name?: unknown; expires_at?: unknown };
   if (!name || typeof name !== "string" || !name.trim()) {
     res.status(422).json({ detail: "Le champ 'name' est requis." });
@@ -459,6 +460,11 @@ const NON_FORWARDED_RESPONSE_HEADERS = new Set(["content-encoding", "transfer-en
 app.use(async (req: AuthRequest, res: Response, next: NextFunction) => {
   const base = process.env["TENANT_API_URL"];
   if (!base) { next(new AppError("TENANT_API_URL non configuré.", 500)); return; }
+
+  if (req.user && !req.workspace) {
+    res.status(403).json({ detail: "Aucune organisation associée à cet utilisateur." });
+    return;
+  }
 
   const headers = new Headers();
   // req.user/req.workspace are set together by requireAuth + resolveWorkspaceContext
