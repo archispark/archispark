@@ -4,10 +4,33 @@
 
 1. **Update the documentation**: keep `README.md` in sync with any API, MCP tool, or behaviour change.
 
-## Release notes
+## Release Process
 
-1. **Run tests, lint & typecheck**: use the `vitest-coverage-enforcer` sub-agent — it runs tests with coverage, adds missing tests until line/branch/function coverage stays at or above **80%**, then runs `pnpm turbo run lint typecheck` and fixes any errors before considering the change done.
-2. **When tagging a release** (e.g. `git tag 0.4.0`), bump `package.json` `"version"` to match, commit the bump, then create the tag and push both: `git push origin main --tags`.
+### Pre-release validation (ONLY before creating a tag)
+
+Before creating a release tag, run the `vitest-coverage-enforcer` sub-agent.
+
+The sub-agent is responsible for all release validation checks and must complete successfully before a release can be created.
+
+**Important:**
+
+* Do **not** run the `vitest-coverage-enforcer` during normal incremental development.
+* Run it **only** immediately before creating a release tag.
+
+### Creating a release
+
+After the validation step succeeds:
+
+1. Update `package.json` `"version"` so it exactly matches the release tag.
+2. Commit the version bump.
+3. Create the git tag using the same version.
+4. Push commits and tags:
+
+```bash
+git push origin main --tags
+```
+
+The git tag and the `package.json` version must always remain identical.
 
 ## Project conventions
 

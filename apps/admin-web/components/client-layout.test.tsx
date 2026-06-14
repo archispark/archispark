@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { ClientLayout } from "./client-layout";
 import { I18nProvider } from "@/lib/i18n";
 
@@ -105,5 +105,134 @@ describe("ClientLayout", () => {
 
     expect(screen.getByText("login page content")).toBeInTheDocument();
     expect(replace).not.toHaveBeenCalled();
+  });
+
+  describe("SiteBanner", () => {
+    it("shows a banner fetched from the settings API and allows dismissing it", async () => {
+      mockPathname.current = "/organizations";
+      mockCurrentUser.current = {
+        data: { id: "u1", username: "admin", name: "Admin", email: null, role: "platform_admin" },
+        isPending: false,
+      };
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          login_message: null, login_message_enabled: false,
+          banner_message: "Maintenance tonight", banner_message_enabled: true,
+        }),
+      }));
+
+      renderWithI18n(
+        <ClientLayout>
+          <div>page content</div>
+        </ClientLayout>,
+      );
+
+      expect(await screen.findByText("Maintenance tonight")).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: "Fermer" }));
+
+      expect(screen.queryByText("Maintenance tonight")).not.toBeInTheDocument();
+      expect(sessionStorage.getItem("banner-dismissed:Maintenance tonight")).toBe("1");
+    });
+
+    it("does not show a banner that was previously dismissed", async () => {
+      mockPathname.current = "/organizations";
+      mockCurrentUser.current = {
+        data: { id: "u1", username: "admin", name: "Admin", email: null, role: "platform_admin" },
+        isPending: false,
+      };
+      sessionStorage.setItem("banner-dismissed:Already seen", "1");
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          login_message: null, login_message_enabled: false,
+          banner_message: "Already seen", banner_message_enabled: true,
+        }),
+      }));
+
+      renderWithI18n(
+        <ClientLayout>
+          <div>page content</div>
+        </ClientLayout>,
+      );
+
+      await waitFor(() => expect(screen.getByText("page content")).toBeInTheDocument());
+      expect(screen.queryByText("Already seen")).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Fermer" })).not.toBeInTheDocument();
+    });
+  });
+
+  describe("sidebar interactions", () => {
+    it("toggles the mobile sidebar open and closes it via the overlay", async () => {
+      mockPathname.current = "/organizations";
+      mockCurrentUser.current = {
+        data: { id: "u1", username: "admin", name: "Admin", email: null, role: "platform_admin" },
+        isPending: false,
+      };
+
+      const { container } = renderWithI18n(
+        <ClientLayout>
+          <div>page content</div>
+        </ClientLayout>,
+      );
+
+      await waitFor(() => expect(screen.getByText("page content")).toBeInTheDocument());
+
+      // No overlay until the sidebar is opened
+      expect(container.querySelector(".fixed.inset-0.bg-foreground\\/40")).toBeNull();
+
+      fireEvent.click(screen.getByRole("button", { name: "Toggle menu" }));
+
+      const overlay = container.querySelector(".fixed.inset-0.bg-foreground\\/40");
+      expect(overlay).not.toBeNull();
+
+      fireEvent.click(overlay!);
+
+      expect(container.querySelector(".fixed.inset-0.bg-foreground\\/40")).toBeNull();
+    });
+
+    it("toggles and persists the collapsed sidebar state in localStorage", async () => {
+      mockPathname.current = "/organizations";
+      mockCurrentUser.current = {
+        data: { id: "u1", username: "admin", name: "Admin", email: null, role: "platform_admin" },
+        isPending: false,
+      };
+
+      renderWithI18n(
+        <ClientLayout>
+          <div>page content</div>
+        </ClientLayout>,
+      );
+
+      await waitFor(() => expect(screen.getByText("page content")).toBeInTheDocument());
+
+      const collapseButton = screen.getByRole("button", { name: "Réduire la barre latérale" });
+      fireEvent.click(collapseButton);
+
+      expect(localStorage.getItem("sidebar-collapsed")).toBe("1");
+      expect(await screen.findByRole("button", { name: "Agrandir la barre latérale" })).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: "Agrandir la barre latérale" }));
+
+      expect(localStorage.getItem("sidebar-collapsed")).toBe("0");
+    });
+
+    it("restores the collapsed sidebar state from localStorage on mount", async () => {
+      localStorage.setItem("sidebar-collapsed", "1");
+      mockPathname.current = "/organizations";
+      mockCurrentUser.current = {
+        data: { id: "u1", username: "admin", name: "Admin", email: null, role: "platform_admin" },
+        isPending: false,
+      };
+
+      renderWithI18n(
+        <ClientLayout>
+          <div>page content</div>
+        </ClientLayout>,
+      );
+
+      expect(await screen.findByRole("button", { name: "Agrandir la barre latérale" })).toBeInTheDocument();
+    });
   });
 });
