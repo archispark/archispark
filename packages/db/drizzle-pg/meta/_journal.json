@@ -113,6 +113,13 @@
       "when": 1780710000000,
       "tag": "0015_phasetwo_organizations",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1780720000000,
+      "tag": "0016_drop_better_auth_tables",
+      "breakpoints": true
     }
   ]
 }

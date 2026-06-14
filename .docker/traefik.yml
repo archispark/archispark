@@ -3,7 +3,7 @@
 #
 #  Routage centralisé via labels Docker :
 #    /api/*   → Express API   :3000  (préfixe /api retiré)
-#    /auth/*  → Express API   :3000  (Better Auth)
+#    /auth/*  → Express API   :3000  (préfixe complet conservé)
 #    /mcp/*   → MCP Server    :3001  (Streamable HTTP / SSE)
 #    /*       → Next.js Web   :8000
 #

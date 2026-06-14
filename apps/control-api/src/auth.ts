@@ -1,18 +1,14 @@
-import { randomUUID, randomBytes, scrypt } from "crypto";
+import { randomUUID, randomBytes } from "crypto";
 import type { Request, Response, NextFunction } from "express";
 import { and, eq } from "drizzle-orm";
 import {
   controlDb,
-  users as usersTable,
-  accounts,
   apiTokens,
   organizationSettings,
   teams as teamsTable,
   teamMembers as teamMembersTable,
   tenantDatabases as tenantDatabasesTable,
 } from "@workspace/db";
-import { getAuth } from "./better-auth.js";
-import { fromNodeHeaders } from "better-auth/node";
 import {
   verifyAccessToken,
   type KeycloakClaims,
@@ -47,16 +43,6 @@ import {
 } from "@workspace/auth";
 import { NotFoundError, ValidationError } from "./errors.js";
 
-// Same scrypt parameters as @better-auth/utils/password
-function hashPassword(password: string): Promise<string> {
-  const salt = randomBytes(16).toString("hex");
-  return new Promise((resolve, reject) => {
-    scrypt(password.normalize("NFKC"), salt, 64, { N: 16384, r: 16, p: 1, maxmem: 128 * 16384 * 16 * 2 }, (err, key) => {
-      if (err) reject(err); else resolve(`${salt}:${key.toString("hex")}`);
-    });
-  });
-}
-
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -79,8 +65,6 @@ export interface AuthRequest extends Request {
   user?: { id: string; username: string; role: string };
   /** Set by requireAuth for Bearer-token requests (api_tokens row). */
   tokenContext?: { organizationId: string; workspaceId: number | null };
-  /** Set by requireAuth for session requests (Better Auth session's active org). */
-  sessionActiveOrgId?: string | null;
   /** Set by requireAuth from a verified Keycloak token's `organizations` claim. */
   orgClaims?: Record<string, { name: string; roles: string[] }> | null;
   /** Set by resolveWorkspaceContext. */
@@ -88,13 +72,11 @@ export interface AuthRequest extends Request {
 }
 
 // ---------------------------------------------------------------------------
-// Bootstrap: seed default users + a default Phasetwo organization
+// Bootstrap: seed a default Phasetwo organization with the demo users
 // ---------------------------------------------------------------------------
 
 // Fixed Keycloak `sub` UUIDs for the demo accounts, matching the `id` fields
-// pinned in .docker/keycloak/realm-export.json. Bridges Keycloak-issued JWTs
-// to these existing control-db users (Stage 2 of the Better Auth -> Keycloak
-// migration), and identifies them as Phasetwo organization members.
+// pinned in .docker/keycloak/realm-export.json.
 const DEMO_KEYCLOAK_SUBS: Record<string, string> = {
   admin:   "c8a1f6c0-0000-4000-8000-000000000001",
   user:    "c8a1f6c0-0000-4000-8000-000000000002",
@@ -110,45 +92,10 @@ const DEMO_ORG_ROLES: Record<string, OrgRoleName> = {
   user:    "member",
 };
 
-export async function initUsers(): Promise<void> {
-  // All tables (model + Better Auth) are created by runMigrations()
-  // from the drizzle-pg/ folder before this runs.
-  const seedUser = async (username: string, password: string, role: "platform_admin" | "user") => {
-    const [existing] = await controlDb.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.username, username));
-    let userId: string | null = existing?.id ?? null;
-    if (!userId) {
-      const res = await getAuth().api.signUpEmail({
-        body: { email: `${username}@archispark.internal`, password, name: username, username } as never,
-      }).catch((err: unknown) => { console.error(`[auth] signUpEmail failed for '${username}':`, err); return null; });
-      if (!res?.user) return;
-      userId = res.user.id;
-    } else {
-      // Always sync the password so SEED_*_PASSWORD changes take effect on restart
-      const hash = await hashPassword(password);
-      await controlDb.update(accounts).set({ password: hash }).where(and(eq(accounts.userId, userId), eq(accounts.providerId, "credential")));
-    }
-    await controlDb.update(usersTable).set({ username, role, keycloakSub: DEMO_KEYCLOAK_SUBS[username] ?? null }).where(eq(usersTable.id, userId!));
-  };
-
-  const adminPwd   = process.env["SEED_ADMIN_PASSWORD"]   || "admin";
-  const userPwd    = process.env["SEED_USER_PASSWORD"]    || "user";
-  const contribPwd = process.env["SEED_CONTRIB_PASSWORD"] || "contrib";
-  const archiPwd   = process.env["SEED_ARCHI_PASSWORD"]   || "archi";
-  await seedUser("admin",   adminPwd,   "platform_admin");
-  await seedUser("user",    userPwd,    "user");
-  await seedUser("contrib", contribPwd, "user");
-  await seedUser("archi",   archiPwd,   "user");
-  if (!process.env["SEED_ADMIN_PASSWORD"]) {
-    console.warn("[auth] SEED_ADMIN_PASSWORD not set — using default 'admin'. Set it in production!");
-  }
-
-  console.log("[auth] Better Auth users ready.");
-}
-
 /**
  * Ensures at least one Phasetwo organization exists (creating a "Default" one
  * for fresh installs) and that the demo users belong to it with their usual
- * roles. Called once at startup, after `initUsers()`.
+ * roles. Called once at startup.
  */
 export async function initOrganizations(): Promise<void> {
   const orgs = await listOrganizations();
@@ -171,8 +118,6 @@ export async function initOrganizations(): Promise<void> {
 
 // ---------------------------------------------------------------------------
 // User helpers — platform users are provisioned via the Keycloak Admin API.
-// (The demo accounts seeded by initUsers() above keep their bridged
-// usersTable rows for Better Auth sign-in; that is unrelated to this CRUD.)
 // ---------------------------------------------------------------------------
 
 const PLATFORM_ADMIN_ROLE = "platform_admin";
@@ -525,19 +470,11 @@ export async function lookupApiToken(token: string): Promise<TokenUser | null> {
   if (!row) return null;
   if (row.expiresAt !== null && row.expiresAt < Math.floor(Date.now() / 1000)) return null;
 
-  let result: TokenUser;
-  const [dbUser] = await controlDb.select().from(usersTable).where(eq(usersTable.id, row.userId));
-  if (dbUser) {
-    result = { id: dbUser.id, username: dbUser.username, role: dbUser.role, organizationId: row.organizationId, workspaceId: row.workspaceId };
-  } else {
-    // No bridged control-db row — the token belongs to a Keycloak-native user
-    // (created via the Keycloak Admin API, Phase 5).
-    const kcUser = await getKeycloakUser(row.userId);
-    if (!kcUser) return null;
-    const roles = await getUserRealmRoles(row.userId);
-    const role = roles.some((r) => r.name === PLATFORM_ADMIN_ROLE) ? "platform_admin" : "user";
-    result = { id: kcUser.id!, username: kcUser.username, role, organizationId: row.organizationId, workspaceId: row.workspaceId };
-  }
+  const kcUser = await getKeycloakUser(row.userId);
+  if (!kcUser) return null;
+  const roles = await getUserRealmRoles(row.userId);
+  const role = roles.some((r) => r.name === PLATFORM_ADMIN_ROLE) ? "platform_admin" : "user";
+  const result: TokenUser = { id: kcUser.id!, username: kcUser.username, role, organizationId: row.organizationId, workspaceId: row.workspaceId };
 
   controlDb.update(apiTokens).set({ lastUsedAt: Math.floor(Date.now() / 1000) })
     .where(eq(apiTokens.id, row.id)).catch(() => {});
@@ -553,61 +490,37 @@ export async function lookupApiToken(token: string): Promise<TokenUser | null> {
  * if not a member. `orgClaims` (the JWT `organizations` claim, when available)
  * is used as a fast path to avoid a Phasetwo API round trip; otherwise the
  * role is resolved via `@workspace/auth`'s `getOrgMemberRole` using the user's
- * Keycloak `sub` (falling back to `userId` itself if it isn't a known
- * control-db user — i.e. already a raw Keycloak `sub`).
+ * Keycloak `sub` (== `userId`).
  */
 export async function getMembershipContext(
   userId: string,
   organizationId: string,
   orgClaims?: Record<string, { name: string; roles: string[] }> | null,
 ): Promise<WorkspaceContext | null> {
-  const [user] = await controlDb.select({ keycloakSub: usersTable.keycloakSub }).from(usersTable).where(eq(usersTable.id, userId));
-  const keycloakSub = user?.keycloakSub ?? userId;
-
   let orgRole: OrgRoleName | null;
   const claimRoles = orgClaims?.[organizationId]?.roles;
   if (claimRoles) {
     orgRole = ORG_ROLES.find((r) => claimRoles.includes(r)) ?? null;
   } else {
-    orgRole = await getOrgMemberRole(organizationId, keycloakSub);
+    orgRole = await getOrgMemberRole(organizationId, userId);
   }
   if (!orgRole) return null;
 
   const teamRows = await controlDb.select({ teamId: teamMembersTable.teamId })
     .from(teamMembersTable)
     .innerJoin(teamsTable, eq(teamsTable.id, teamMembersTable.teamId))
-    .where(and(eq(teamMembersTable.userId, keycloakSub), eq(teamsTable.organizationId, organizationId)));
+    .where(and(eq(teamMembersTable.userId, userId), eq(teamsTable.organizationId, organizationId)));
 
   return { organizationId, orgRole, teamIds: teamRows.map((r) => r.teamId) };
 }
 
-/** Returns the id of the first known Phasetwo organization, or null if none exist. */
-async function resolveDefaultOrganizationId(): Promise<string | null> {
-  const [first] = await listOrganizations();
-  return first?.id ?? null;
-}
-
 // ---------------------------------------------------------------------------
-// Middleware — uses Better Auth session (httpOnly cookie) or API Bearer token
+// Middleware — verifies a Keycloak access token (Bearer or `access_token`
+// cookie) via JWKS, or an `apiTokens` Bearer token.
 // ---------------------------------------------------------------------------
 
-interface SessionResult {
-  user: { id: string; name: string; email?: string | null; [k: string]: unknown };
-  session: { activeOrganizationId?: string | null; [k: string]: unknown };
-}
-
-/**
- * Bridges `claims.sub` to an existing control-db user (Stage 2 of the Better
- * Auth -> Keycloak migration), so downstream org/role resolution works
- * exactly as it does for Better Auth sessions.
- */
-async function resolveKeycloakUser(claims: KeycloakClaims): Promise<{ id: string; username: string; role: string }> {
-  const [dbUser] = await controlDb
-    .select({ id: usersTable.id, username: usersTable.username, role: usersTable.role })
-    .from(usersTable)
-    .where(eq(usersTable.keycloakSub, claims.sub))
-    .limit(1);
-  if (dbUser) return dbUser;
+/** Builds `req.user` from a verified Keycloak access token's claims. */
+function resolveKeycloakUser(claims: KeycloakClaims): { id: string; username: string; role: string } {
   return {
     id: claims.sub,
     username: claims.preferred_username ?? claims.sub,
@@ -641,37 +554,27 @@ export function requireAuth(req: AuthRequest, res: Response, next: NextFunction)
         // Not a personal API token — try a Keycloak-issued access token.
         const claims = await verifyAccessToken(token);
         if (!claims) { res.status(401).json({ detail: "Token invalide." }); return; }
-        req.user = await resolveKeycloakUser(claims);
+        req.user = resolveKeycloakUser(claims);
         req.orgClaims = claims.organizations ?? null;
-        req.sessionActiveOrgId = null;
         next();
       })
       .catch(() => { res.status(401).json({ detail: "Erreur d'authentification." }); });
     return;
   }
-  getAuth().api.getSession({ headers: fromNodeHeaders(req.headers) })
-    .then(async (session: SessionResult | null) => {
-      if (session?.user) {
-        req.user = {
-          id: session.user.id,
-          username: (session.user as unknown as { username?: string }).username ?? session.user.name,
-          role: (session.user as unknown as { role?: string }).role ?? "user",
-        };
-        req.sessionActiveOrgId = session.session?.activeOrganizationId ?? null;
-        next();
-        return;
-      }
-      // No Better Auth session — fall back to a Keycloak access_token cookie
-      // (Stage 3 of the Better Auth -> Keycloak migration).
-      const cookieToken = getCookieValue(req.headers["cookie"], "access_token");
-      const claims = cookieToken ? await verifyAccessToken(cookieToken) : null;
+
+  const cookieToken = getCookieValue(req.headers["cookie"], "access_token");
+  if (!cookieToken) {
+    res.status(401).json({ detail: "Non authentifié." });
+    return;
+  }
+  verifyAccessToken(cookieToken)
+    .then((claims) => {
       if (!claims) {
-        res.status(401).json({ detail: "Non authentifié." });
+        res.status(401).json({ detail: "Session invalide." });
         return;
       }
-      req.user = await resolveKeycloakUser(claims);
+      req.user = resolveKeycloakUser(claims);
       req.orgClaims = claims.organizations ?? null;
-      req.sessionActiveOrgId = null;
       next();
     })
     .catch(() => {
@@ -693,10 +596,8 @@ export function requireSuperAdmin(req: AuthRequest, res: Response, next: NextFun
  * Resolves the organization (and team memberships) the current request
  * operates in, attaching it to `req.workspace`. The organization id comes
  * from the API token, an `X-Org-Id` header (org switcher; must be one of the
- * JWT's `organizations` claim keys), the active-org session cookie, or — for
- * recognized local platform users with none of those (Better Auth sessions,
- * or a Keycloak token with no organization membership claim) — the first
- * Phasetwo organization.
+ * JWT's `organizations` claim keys), or — if neither is present — the first
+ * organization in the JWT's `organizations` claim.
  */
 export async function resolveWorkspaceContext(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   if (!req.user) { res.status(401).json({ detail: "Non authentifié." }); return; }
@@ -710,14 +611,8 @@ export async function resolveWorkspaceContext(req: AuthRequest, res: Response, n
     }
   }
 
-  organizationId ??= req.sessionActiveOrgId ?? null;
-
   if (!organizationId && req.orgClaims) {
     organizationId = Object.keys(req.orgClaims)[0] ?? null;
-  }
-  if (!organizationId) {
-    const [dbUser] = await controlDb.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.id, req.user.id)).limit(1);
-    if (dbUser) organizationId = await resolveDefaultOrganizationId();
   }
 
   if (!organizationId) {

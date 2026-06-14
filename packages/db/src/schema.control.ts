@@ -1,9 +1,9 @@
 /**
  * Drizzle ORM schema — control-plane tables.
  *
- * Holds platform-wide identity & tenancy metadata: Better Auth tables (users,
- * sessions, accounts, verifications), teams, platform settings (OAuth
- * providers, site messages), API tokens, and the tenant database registry.
+ * Holds platform-wide tenancy metadata: teams, platform settings (site
+ * messages), API tokens, and the tenant database registry. User identities
+ * live in Keycloak (Phasetwo) — see `@workspace/auth`.
  *
  * Organizations, their members/roles and invitations live in Keycloak
  * (Phasetwo Organizations extension, see `@workspace/auth`'s `orgs.ts`) —
@@ -54,77 +54,8 @@ export const teams = pgTable("team", {
 ]);
 
 // ---------------------------------------------------------------------------
-// Better Auth tables
-// ---------------------------------------------------------------------------
-
-export const users = pgTable("user", {
-  id:            text("id").primaryKey(),
-  name:          text("name").notNull(),
-  email:         text("email"),
-  emailVerified: boolean("email_verified").notNull().default(false),
-  image:         text("image"),
-  createdAt:     timestamp("created_at").notNull(),
-  updatedAt:     timestamp("updated_at").notNull(),
-  username:        text("username").notNull(),
-  displayUsername: text("display_username"),
-  // Platform-wide role: "user" | "platform_admin". Distinct from the
-  // per-organization `members.role` ("owner" | "admin" | "member").
-  role:            text("role").notNull().default("user"),
-  banned:          boolean("banned"),
-  banReason:       text("ban_reason"),
-  banExpires:      integer("ban_expires"),
-  // Bridges Keycloak `sub` claims to this row during the Better Auth ->
-  // Keycloak migration (Stage 2). NULL for users not yet provisioned in
-  // Keycloak.
-  keycloakSub:     text("keycloak_sub"),
-}, (t) => [
-  uniqueIndex("user_username_uniq").on(t.username),
-  uniqueIndex("user_keycloak_sub_uniq").on(t.keycloakSub),
-]);
-
-export const sessions = pgTable("session", {
-  id:                   text("id").primaryKey(),
-  userId:               text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  token:                text("token").notNull(),
-  expiresAt:            timestamp("expires_at").notNull(),
-  ipAddress:            text("ip_address"),
-  userAgent:            text("user_agent"),
-  activeOrganizationId: text("active_organization_id"),
-  activeTeamId:         text("active_team_id"),
-  createdAt:            timestamp("created_at").notNull(),
-  updatedAt:            timestamp("updated_at").notNull(),
-}, (t) => [
-  uniqueIndex("session_token_uniq").on(t.token),
-]);
-
-export const accounts = pgTable("account", {
-  id:                  text("id").primaryKey(),
-  userId:              text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  accountId:           text("account_id").notNull(),
-  providerId:          text("provider_id").notNull(),
-  accessToken:         text("access_token"),
-  refreshToken:        text("refresh_token"),
-  idToken:             text("id_token"),
-  accessTokenExpiresAt:  timestamp("access_token_expires_at"),
-  refreshTokenExpiresAt: timestamp("refresh_token_expires_at"),
-  scope:               text("scope"),
-  password:            text("password"),
-  createdAt:           timestamp("created_at").notNull(),
-  updatedAt:           timestamp("updated_at").notNull(),
-});
-
-export const verifications = pgTable("verification", {
-  id:         text("id").primaryKey(),
-  identifier: text("identifier").notNull(),
-  value:      text("value").notNull(),
-  expiresAt:  timestamp("expires_at").notNull(),
-  createdAt:  timestamp("created_at"),
-  updatedAt:  timestamp("updated_at"),
-});
-
-// ---------------------------------------------------------------------------
 // Team membership — userId is a Keycloak `sub` (no FK: identities live in
-// Keycloak, not in the `user` table, once Phase 5 provisioning lands).
+// Keycloak, not in this database).
 // ---------------------------------------------------------------------------
 
 export const teamMembers = pgTable("team_member", {
@@ -160,25 +91,6 @@ export const apiTokens = pgTable("api_tokens", {
   uniqueIndex("api_tokens_token_uniq").on(t.token),
   index("api_tokens_user_idx").on(t.userId),
   index("api_tokens_organization_idx").on(t.organizationId),
-]);
-
-// ---------------------------------------------------------------------------
-// OAuth / OIDC provider configurations (managed via admin UI)
-// ---------------------------------------------------------------------------
-
-export const oauthProviders = pgTable("oauth_providers", {
-  id:          text("id").primaryKey(),
-  providerId:  text("provider_id").notNull(),         // slug used in OAuth flow
-  type:        text("type", { enum: ["oidc", "google", "github", "microsoft-entra-id"] }).notNull(),
-  name:        text("name").notNull(),                // display name
-  clientId:    text("client_id").notNull(),
-  clientSecret: text("client_secret").notNull(),
-  issuerUrl:   text("issuer_url"),                   // OIDC only
-  tenantId:    text("tenant_id"),                    // Microsoft Entra only
-  enabled:     boolean("enabled").notNull().default(true),
-  createdAt:   integer("created_at").notNull().default(sql`extract(epoch from now())::int`),
-}, (t) => [
-  uniqueIndex("oauth_providers_provider_id_uniq").on(t.providerId),
 ]);
 
 // ---------------------------------------------------------------------------

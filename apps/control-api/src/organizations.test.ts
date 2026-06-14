@@ -17,13 +17,15 @@ import { verifyAccessToken, addOrgMember, setOrgMemberRoles } from "@workspace/a
 import { app } from "../src/app.js";
 import { createUser } from "../src/auth.js";
 import { getAdminCookie, getUserCookie, getAdminWorkspaceContext } from "../src/test-helper.js";
+import { DEMO_KEYCLOAK_SUBS } from "./test/keycloak-token-fake.js";
 
 vi.mock("@workspace/auth", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@workspace/auth")>();
   const { fakeOrgsApi } = await import("./test/keycloak-orgs-fake.js");
   const { fakeUsersApi, seedDemoKeycloakUsers } = await import("./test/keycloak-users-fake.js");
+  const { fakeVerifyAccessToken } = await import("./test/keycloak-token-fake.js");
   seedDemoKeycloakUsers();
-  return { ...actual, ...fakeOrgsApi, ...fakeUsersApi, verifyAccessToken: vi.fn() };
+  return { ...actual, ...fakeOrgsApi, ...fakeUsersApi, verifyAccessToken: vi.fn().mockImplementation(fakeVerifyAccessToken) };
 });
 
 vi.mock("@workspace/db", async (importOriginal) => {
@@ -396,7 +398,7 @@ describe("/organizations/teams/:teamId/members", () => {
 describe("resolveWorkspaceContext — X-Org-Id header and orgClaims fast path", () => {
   it("uses the role from the JWT's organizations claim without a Phasetwo round trip when X-Org-Id matches", async () => {
     vi.mocked(verifyAccessToken).mockResolvedValueOnce({
-      sub: "c8a1f6c0-0000-4000-8000-000000000001",
+      sub: DEMO_KEYCLOAK_SUBS.admin,
       preferred_username: "admin",
       realm_access: { roles: ["platform_admin"] },
       organizations: { [defaultOrgId]: { name: "Default", roles: ["owner"] } },
@@ -411,7 +413,7 @@ describe("resolveWorkspaceContext — X-Org-Id header and orgClaims fast path", 
 
   it("ignores X-Org-Id when it is not one of the JWT's organization claim keys", async () => {
     vi.mocked(verifyAccessToken).mockResolvedValueOnce({
-      sub: "c8a1f6c0-0000-4000-8000-000000000001",
+      sub: DEMO_KEYCLOAK_SUBS.admin,
       preferred_username: "admin",
       realm_access: { roles: ["platform_admin"] },
       organizations: { [defaultOrgId]: { name: "Default", roles: ["owner"] } },
@@ -426,7 +428,7 @@ describe("resolveWorkspaceContext — X-Org-Id header and orgClaims fast path", 
 
   it("returns 403 when the user's organizations claim doesn't include any role known to ArchiSpark", async () => {
     vi.mocked(verifyAccessToken).mockResolvedValueOnce({
-      sub: "c8a1f6c0-0000-4000-8000-000000000001",
+      sub: DEMO_KEYCLOAK_SUBS.admin,
       preferred_username: "admin",
       realm_access: { roles: ["platform_admin"] },
       organizations: { [defaultOrgId]: { name: "Default", roles: ["not-an-archispark-role"] } },

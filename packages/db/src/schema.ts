@@ -2,8 +2,8 @@
  * Aggregated Drizzle ORM schema.
  *
  * The schema is split into two physical-database concerns:
- *   - schema.control.ts — platform identity & tenancy metadata (Better Auth
- *     tables, organizations/teams/members, API tokens, tenant registry).
+ *   - schema.control.ts — platform identity & tenancy metadata (users,
+ *     organizations/teams/members, API tokens, tenant registry).
  *   - schema.tenant.ts  — one organization's ArchiMate content (workspaces,
  *     elements, relationships, views, …).
  *

@@ -3,10 +3,8 @@
 #
 #  Usage minimal :
 #    helm install archispark .k8s/helm/archispark \
-#      --set config.webUrl=https://archispark.example.com \
 #      --set ingress.host=archispark.example.com \
-#      --set secrets.dbPassword=<motdepasse> \
-#      --set secrets.betterAuthSecret=<secret32chars>
+#      --set secrets.dbPassword=<motdepasse>
 #
 #  Voir NOTES.txt après l'installation pour les instructions de démarrage.
 # ─────────────────────────────────────────────────────────────────────────────
@@ -98,13 +96,6 @@ ingress:
     # secretName: archispark-tls  # Secret TLS à créer manuellement ou via cert-manager
   annotations: {}
 
-# ── Configuration applicative ────────────────────────────────────────────────
-config:
-  # URL publique de l'application (redirections OAuth, emails)
-  webUrl: "http://archispark.example.com"
-  # Origines CORS supplémentaires (séparées par des virgules)
-  trustedOrigins: ""
-
 # ── Secrets ───────────────────────────────────────────────────────────────────
 # En production, préférez un gestionnaire de secrets externe
 # (Sealed Secrets, External Secrets Operator, Vault…) et pointez
@@ -114,7 +105,4 @@ secrets:
   existingSecret: ""
   # Clés attendues dans le Secret (ou valeurs inline si existingSecret est vide)
   dbPassword: ""         # Requis — mot de passe PostgreSQL
-  betterAuthSecret: ""   # Requis — clé HMAC 32+ chars pour Better Auth
-  seedAdminPassword: ""  # Optionnel — mot de passe admin initial
-  seedUserPassword: ""   # Optionnel — mot de passe utilisateur démo initial
   redisPassword: ""      # Optionnel — laisser vide pour désactiver l'auth Redis

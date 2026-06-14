@@ -21,8 +21,6 @@ const nextConfig: NextConfig = {
   output: "standalone",
   transpilePackages: ["@workspace/ui"],
   allowedDevOrigins: lanDevOrigins(),
-  // Better Auth produces complex inferred types (TS2883) that TypeScript
-  // can't name without referencing internal better-auth .mjs paths.
   // TypeScript checking is done separately via pnpm --filter web typecheck.
   typescript: { ignoreBuildErrors: true },
 

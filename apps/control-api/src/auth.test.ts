@@ -1,5 +1,6 @@
 /**
- * Tests for auth middleware and users routes with Better Auth sessions.
+ * Tests for the requireAuth/requireSuperAdmin/resolveWorkspaceContext
+ * middleware and the /users routes, backed by Keycloak access tokens.
  */
 
 import { describe, it, expect, beforeAll, vi } from "vitest";
@@ -7,23 +8,27 @@ import _request from "supertest";
 import type { Response, NextFunction } from "express";
 import { app } from "../src/app.js";
 import { createUser, requireAuth, type AuthRequest } from "../src/auth.js";
-import { getAdminCookie, getUserCookie, getAdminWorkspaceContext } from "../src/test-helper.js";
+import { getAdminCookie, getUserCookie, getAdminWorkspaceContext, getDefaultOrgId } from "../src/test-helper.js";
 import { verifyAccessToken, addOrgMember, setOrgMemberRoles } from "@workspace/auth";
+import { DEMO_KEYCLOAK_SUBS } from "./test/keycloak-token-fake.js";
 
 vi.mock("@workspace/auth", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@workspace/auth")>();
   const { fakeOrgsApi } = await import("./test/keycloak-orgs-fake.js");
   const { fakeUsersApi, seedDemoKeycloakUsers } = await import("./test/keycloak-users-fake.js");
+  const { fakeVerifyAccessToken } = await import("./test/keycloak-token-fake.js");
   seedDemoKeycloakUsers();
-  return { ...actual, ...fakeOrgsApi, ...fakeUsersApi, verifyAccessToken: vi.fn() };
+  return { ...actual, ...fakeOrgsApi, ...fakeUsersApi, verifyAccessToken: vi.fn().mockImplementation(fakeVerifyAccessToken) };
 });
 
 let adminCookie: string;
 let userCookie: string;
+let defaultOrgId: string;
 
 beforeAll(async () => {
   adminCookie = await getAdminCookie();
   userCookie = await getUserCookie();
+  defaultOrgId = await getDefaultOrgId();
 });
 
 function request(appArg: Parameters<typeof _request>[0], cookie = adminCookie) {
@@ -48,7 +53,7 @@ describe("requireAuth middleware", () => {
 });
 
 describe("requireAuth — Keycloak bearer token", () => {
-  it("authenticates a valid Keycloak token (then fails workspace resolution — Stage 4)", async () => {
+  it("authenticates a valid Keycloak token without an organizations claim (then fails workspace resolution)", async () => {
     vi.mocked(verifyAccessToken).mockResolvedValueOnce({
       sub: "kc-user-1",
       preferred_username: "kcuser",
@@ -86,7 +91,6 @@ describe("requireAuth — Keycloak bearer token", () => {
     await vi.waitFor(() => expect(next).toHaveBeenCalled());
 
     expect(req.user).toEqual({ id: "kc-user-2", username: "kc-user-2", role: "user" });
-    expect(req.sessionActiveOrgId).toBeNull();
   });
 
   it("falls back to role 'user' when realm_access is absent entirely", async () => {
@@ -104,13 +108,15 @@ describe("requireAuth — Keycloak bearer token", () => {
     expect(req.user).toEqual({ id: "kc-user-3", username: "kcuser3", role: "user" });
   });
 
-  it("bridges the demo admin's pinned Keycloak sub to the existing control-db user — same identity as the Better Auth session", async () => {
+  it("bridges the demo admin's pinned Keycloak sub to the existing control-db user — same identity as the access_token cookie session", async () => {
+    const sessionRes = await request(app).get("/me");
+
     vi.mocked(verifyAccessToken).mockResolvedValueOnce({
-      sub: "c8a1f6c0-0000-4000-8000-000000000001",
+      sub: DEMO_KEYCLOAK_SUBS.admin,
       preferred_username: "admin",
       realm_access: { roles: ["platform_admin"] },
+      organizations: { [defaultOrgId]: { name: "Default", roles: ["owner"] } },
     });
-    const sessionRes = await request(app).get("/me");
     const kcRes = await _request(app).get("/me").set("Authorization", "Bearer kc-fake-jwt-token");
 
     expect(kcRes.status).toBe(200);
@@ -118,19 +124,22 @@ describe("requireAuth — Keycloak bearer token", () => {
   });
 
   it("bridges the demo member's pinned Keycloak sub: /me resolves the org role and write routes stay read-only", async () => {
-    vi.mocked(verifyAccessToken).mockResolvedValueOnce({
-      sub: "c8a1f6c0-0000-4000-8000-000000000002",
-      preferred_username: "user",
-    });
     const sessionRes = await request(app, userCookie).get("/me");
+
+    vi.mocked(verifyAccessToken).mockResolvedValueOnce({
+      sub: DEMO_KEYCLOAK_SUBS.user,
+      preferred_username: "user",
+      organizations: { [defaultOrgId]: { name: "Default", roles: ["member"] } },
+    });
     const kcRes = await _request(app).get("/me").set("Authorization", "Bearer kc-fake-jwt-token");
 
     expect(kcRes.status).toBe(200);
     expect(kcRes.body).toEqual(sessionRes.body);
 
     vi.mocked(verifyAccessToken).mockResolvedValueOnce({
-      sub: "c8a1f6c0-0000-4000-8000-000000000002",
+      sub: DEMO_KEYCLOAK_SUBS.user,
       preferred_username: "user",
+      organizations: { [defaultOrgId]: { name: "Default", roles: ["member"] } },
     });
     const writeRes = await _request(app)
       .post("/workspaces")
@@ -140,14 +149,16 @@ describe("requireAuth — Keycloak bearer token", () => {
   });
 });
 
-describe("requireAuth — access_token cookie (Stage 3)", () => {
-  it("authenticates via access_token cookie, mapped to the demo admin user — same identity as the Better Auth session", async () => {
+describe("requireAuth — access_token cookie", () => {
+  it("authenticates via access_token cookie, mapped to the demo admin user — same identity as the Bearer session", async () => {
+    const sessionRes = await request(app).get("/me");
+
     vi.mocked(verifyAccessToken).mockResolvedValueOnce({
-      sub: "c8a1f6c0-0000-4000-8000-000000000001",
+      sub: DEMO_KEYCLOAK_SUBS.admin,
       preferred_username: "admin",
       realm_access: { roles: ["platform_admin"] },
+      organizations: { [defaultOrgId]: { name: "Default", roles: ["owner"] } },
     });
-    const sessionRes = await request(app).get("/me");
     const cookieRes = await _request(app).get("/me").set("Cookie", "access_token=fake-jwt");
 
     expect(cookieRes.status).toBe(200);
@@ -155,19 +166,22 @@ describe("requireAuth — access_token cookie (Stage 3)", () => {
   });
 
   it("authenticates via access_token cookie, mapped to the demo member user, and blocks write routes", async () => {
-    vi.mocked(verifyAccessToken).mockResolvedValueOnce({
-      sub: "c8a1f6c0-0000-4000-8000-000000000002",
-      preferred_username: "user",
-    });
     const sessionRes = await request(app, userCookie).get("/me");
+
+    vi.mocked(verifyAccessToken).mockResolvedValueOnce({
+      sub: DEMO_KEYCLOAK_SUBS.user,
+      preferred_username: "user",
+      organizations: { [defaultOrgId]: { name: "Default", roles: ["member"] } },
+    });
     const cookieRes = await _request(app).get("/me").set("Cookie", "access_token=fake-jwt");
 
     expect(cookieRes.status).toBe(200);
     expect(cookieRes.body).toEqual(sessionRes.body);
 
     vi.mocked(verifyAccessToken).mockResolvedValueOnce({
-      sub: "c8a1f6c0-0000-4000-8000-000000000002",
+      sub: DEMO_KEYCLOAK_SUBS.user,
       preferred_username: "user",
+      organizations: { [defaultOrgId]: { name: "Default", roles: ["member"] } },
     });
     const writeRes = await _request(app)
       .post("/workspaces")
@@ -176,21 +190,22 @@ describe("requireAuth — access_token cookie (Stage 3)", () => {
     expect(writeRes.status).toBe(403);
   });
 
-  it("returns 401 when the access_token cookie is invalid and there is no session", async () => {
+  it("returns 401 when the access_token cookie does not decode to valid Keycloak claims", async () => {
     vi.mocked(verifyAccessToken).mockResolvedValueOnce(null);
     const res = await _request(app).get("/me").set("Cookie", "access_token=garbage");
     expect(res.status).toBe(401);
   });
 
-  it("returns 401 when there is no access_token cookie and no session", async () => {
+  it("returns 401 when there is no access_token cookie", async () => {
     const res = await _request(app).get("/me").set("Cookie", "other_cookie=1");
     expect(res.status).toBe(401);
   });
 
-  it("prefers a valid Better Auth session over an access_token cookie", async () => {
-    const res = await _request(app).get("/me").set("Cookie", `${adminCookie}; access_token=should-not-be-used`);
-    expect(res.status).toBe(200);
-    expect(res.body.username).toBe("admin");
+  it("returns 401 with 'Session invalide' when access-token verification throws", async () => {
+    vi.mocked(verifyAccessToken).mockRejectedValueOnce(new Error("jwks unreachable"));
+    const res = await _request(app).get("/me").set("Cookie", "access_token=bad-token");
+    expect(res.status).toBe(401);
+    expect(res.body.detail).toBe("Session invalide.");
   });
 });
 
@@ -395,21 +410,6 @@ describe("lookupApiToken — Keycloak-native user", () => {
     expect(result).toBeNull();
 
     await controlDb.delete(apiTokens).where(eq(apiTokens.token, token));
-  });
-});
-
-// ---------------------------------------------------------------------------
-// requireAuth — catch path (line 283): getSession throws
-// ---------------------------------------------------------------------------
-
-describe("requireAuth catch path", () => {
-  it("returns 401 with 'Session invalide' when getSession throws", async () => {
-    const { getAuth } = await import("../src/better-auth.js");
-    vi.spyOn(getAuth().api, "getSession").mockRejectedValueOnce(new Error("db error"));
-    const res = await _request(app)
-      .get("/me")
-      .set("Cookie", "better-auth.session_token=bad-token");
-    expect(res.status).toBe(401);
   });
 });
 

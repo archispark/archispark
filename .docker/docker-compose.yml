@@ -63,16 +63,6 @@ services:
       # Connexion Redis — si REDIS_PASSWORD est défini dans .env, remplacer par
       # redis://:${REDIS_PASSWORD}@redis:6379
       REDIS_URL:           ${REDIS_URL:-redis://redis:6379}
-      # Clé secrète pour Better Auth (JWT/sessions) — obligatoire
-      BETTER_AUTH_SECRET:  ${BETTER_AUTH_SECRET:?Set BETTER_AUTH_SECRET in .env}
-      # URL publique de l'application web (utilisée pour les redirections OAuth)
-      WEB_URL:             ${ARCHISPARK_URL:-http://localhost}
-      # Origines autorisées pour les requêtes CORS (séparées par des virgules)
-      TRUSTED_ORIGINS:     ${TRUSTED_ORIGINS:-}
-      # Mot de passe du compte admin créé au premier démarrage (seed)
-      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-}
-      # Mot de passe du compte utilisateur de démonstration (seed)
-      SEED_USER_PASSWORD:  ${SEED_USER_PASSWORD:-}
       # URL interne du service tenant-api (réseau Docker) — requêtes de
       # modélisation (elements, relationships, views, workspaces, import/export)
       TENANT_API_URL:      "http://tenant-api:3002"
@@ -107,7 +97,7 @@ services:
       - "traefik.http.routers.api.middlewares=strip-api,security-headers"
       - "traefik.http.routers.api.service=api"
       - "traefik.http.services.api.loadbalancer.server.port=3000"
-      # Routeur /auth → pas de strip (Better Auth gère le chemin complet)
+      # Routeur /auth → pas de strip (chemin complet transmis à control-api)
       - "traefik.http.routers.auth.rule=PathPrefix(`/auth`)"
       - "traefik.http.routers.auth.entrypoints=web"
       - "traefik.http.routers.auth.middlewares=security-headers"
@@ -116,7 +106,7 @@ services:
   # ── REST API (tenant data-plane) ────────────────────────────────────────────
   # Service interne, non exposé via Traefik. Reçoit les requêtes de modélisation
   # proxifiées par control-api, authentifiées par un JWT inter-service de courte
-  # durée (TENANT_JWT_SECRET) plutôt qu'une session Better Auth.
+  # durée (TENANT_JWT_SECRET) plutôt qu'une session utilisateur.
   tenant-api:
     image: archispark/archispark-tenant-api:${ARCHISPARK_OS:-alpine}-${ARCHISPARK_VERSION:-latest}
     restart: unless-stopped

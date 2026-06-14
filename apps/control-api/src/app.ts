@@ -1,17 +1,17 @@
 /**
  * Control-plane REST service: authentication, users, organizations, settings.
  *
- * Every request is authenticated (Better Auth session cookie or personal API
- * token, via `requireAuth`), its organization/team membership resolved
- * (`resolveWorkspaceContext`), and write operations are gated to org
- * owners/admins (`requireWorkspaceWrite`) — all before anything reaches
- * `apps/tenant-api`. Any request that doesn't match a control-plane route
- * below is reverse-proxied to `TENANT_API_URL` with a short-lived
- * inter-service JWT (`signTenantToken`, see `@workspace/db`'s tenant-jwt.ts)
- * carrying the resolved identity, workspace, and — if the organization has an
- * active dedicated database — the encrypted tenant connection string.
- * control-api never holds `TENANT_DB_ENCRYPTION_KEY`; it only passes the
- * ciphertext through.
+ * Every request is authenticated (Keycloak `access_token` cookie/Bearer JWT,
+ * verified via JWKS, or a personal API token, via `requireAuth`), its
+ * organization/team membership resolved (`resolveWorkspaceContext`), and
+ * write operations are gated to org owners/admins (`requireWorkspaceWrite`)
+ * — all before anything reaches `apps/tenant-api`. Any request that doesn't
+ * match a control-plane route below is reverse-proxied to `TENANT_API_URL`
+ * with a short-lived inter-service JWT (`signTenantToken`, see
+ * `@workspace/db`'s tenant-jwt.ts) carrying the resolved identity, workspace,
+ * and — if the organization has an active dedicated database — the encrypted
+ * tenant connection string. control-api never holds
+ * `TENANT_DB_ENCRYPTION_KEY`; it only passes the ciphertext through.
  *
  * Routes:
  *   GET /me
@@ -23,7 +23,6 @@
  *   GET /admin/organizations, POST /admin/organizations, PUT /admin/organizations/:id
  *   POST /admin/organizations/:id/verify-db, POST /admin/organizations/:id/reprovision
  *   GET /admin/neon/status
- *   GET|POST /settings/providers, PUT|DELETE /settings/providers/:id
  *   GET /settings/redis
  *   GET /settings/postgres
  *   GET|POST /settings/api-tokens, DELETE /settings/api-tokens/:id
@@ -46,7 +45,7 @@ import { rateLimit } from "express-rate-limit";
 import { RedisStore } from "rate-limit-redis";
 import { getRedis } from "./redis.js";
 import { AppError } from "./errors.js";
-import { controlDb, oauthProviders, apiTokens, siteSettings, getTenantConnectionStringEncrypted, signTenantToken, getNeonApiConfig, getDefaultBranchId, provisionTenantDatabase, verifyTenantDatabaseConnectivity, canProvisionLocally } from "@workspace/db";
+import { controlDb, apiTokens, siteSettings, getTenantConnectionStringEncrypted, signTenantToken, getNeonApiConfig, getDefaultBranchId, provisionTenantDatabase, verifyTenantDatabaseConnectivity, canProvisionLocally } from "@workspace/db";
 import { ORG_ROLES, type OrgRoleName } from "@workspace/auth";
 import { eq, sql } from "drizzle-orm";
 import {
@@ -77,8 +76,6 @@ import {
   requireWorkspaceWrite,
   type AuthRequest,
 } from "./auth.js";
-import { getAuth, getConfiguredProviders, reloadAuth } from "./better-auth.js";
-import { toNodeHandler } from "better-auth/node";
 
 // ---------------------------------------------------------------------------
 // Express app
@@ -106,15 +103,6 @@ function redisStore(prefix: string): RedisStore {
   });
 }
 
-const authRateLimit = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { detail: "Trop de tentatives, réessayez dans 15 minutes." },
-  store: redisStore("rl:auth:"),
-});
-
 const apiRateLimit = rateLimit({
   windowMs: 60 * 1000,
   max: 300,
@@ -124,21 +112,11 @@ const apiRateLimit = rateLimit({
   store: redisStore("rl:api:"),
   skip: (req) =>
     req.path === "/health" ||
-    req.path.startsWith("/auth") ||
     req.path === "/openapi.json" ||
     req.path === "/docs",
 });
 
-// Returns configured OAuth/OIDC providers so the frontend can render SSO buttons
-app.get("/auth/providers", async (_req, res) => {
-  res.json(await getConfiguredProviders());
-});
-
-// Mount Better Auth at /auth — handles sign-in, sign-out, session, user CRUD
-// Must be BEFORE global auth middleware
-app.all("/auth/*path", authRateLimit, (req, res) => toNodeHandler(getAuth())(req, res));
-
-// Rate-limit all non-auth, non-public routes before any DB-hitting middleware
+// Rate-limit all non-public routes before any DB-hitting middleware
 app.use(apiRateLimit);
 
 // Paths that don't require authentication or organization context.
@@ -146,14 +124,13 @@ app.use(apiRateLimit);
 // here unauthenticated — tenant-api registers them before its own JWT check.
 function isPublicPath(req: Request): boolean {
   return (
-    req.path.startsWith("/auth") ||
     req.path === "/openapi.json" ||
     req.path === "/docs" ||
     (req.path === "/settings/messages" && req.method === "GET")
   );
 }
 
-// Global auth — exempt Better Auth routes and public paths
+// Global auth — exempt public paths
 app.use((req: AuthRequest, res, next) => {
   if (isPublicPath(req)) { next(); return; }
   requireAuth(req, res, next);
@@ -169,13 +146,12 @@ app.use(async (req: AuthRequest, res, next) => {
 
 // Write operations (POST/PUT/DELETE) on workspace content are reserved for
 // org owners/admins (platform super admins always pass); org members are
-// read-only. Exempt /auth/*, /users and /settings/api-tokens (users manage
-// their own tokens). This runs BEFORE the tenant-api proxy, so a read-only
-// member's write request never reaches tenant-api.
+// read-only. Exempt /users and /settings/api-tokens (users manage their own
+// tokens). This runs BEFORE the tenant-api proxy, so a read-only member's
+// write request never reaches tenant-api.
 app.use((req: AuthRequest, res, next) => {
   if (
     ["POST", "PUT", "DELETE"].includes(req.method) &&
-    !req.path.startsWith("/auth/") &&
     !req.path.startsWith("/users") &&
     !req.path.startsWith("/settings/api-tokens")
   ) {
@@ -186,7 +162,7 @@ app.use((req: AuthRequest, res, next) => {
 });
 
 // ---------------------------------------------------------------------------
-// User info endpoint — wraps Better Auth session
+// User info endpoint — wraps the verified Keycloak access token's claims
 // ---------------------------------------------------------------------------
 
 app.get("/me", (req: AuthRequest, res: Response) => {
@@ -272,7 +248,7 @@ app.delete("/organizations/teams/:teamId/members/:userId", async (req: AuthReque
 });
 
 // ---------------------------------------------------------------------------
-// Users routes (read via custom query; mutations via Better Auth admin plugin)
+// Users routes (platform admin only — provisioned via the Keycloak Admin API)
 // ---------------------------------------------------------------------------
 
 app.get("/users", requireSuperAdmin as express.RequestHandler, async (_req: Request, res: Response) => {
@@ -394,119 +370,6 @@ app.post("/admin/organizations/:id/reprovision", requireSuperAdmin as express.Re
   const org = all.find(o => o.id === id);
   if (!org) { res.status(404).json({ detail: "Organisation introuvable." }); return; }
   res.json(org);
-});
-
-// ---------------------------------------------------------------------------
-// OAuth provider CRUD (admin only — stored in DB, auth reloads on change)
-// ---------------------------------------------------------------------------
-
-const PROVIDER_TYPES = ["oidc", "google", "github", "microsoft-entra-id"] as const;
-type ProviderType = typeof PROVIDER_TYPES[number];
-
-interface ProviderOut {
-  id: string;
-  provider_id: string;
-  type: ProviderType;
-  name: string;
-  client_id: string;
-  issuer_url: string | null;
-  tenant_id: string | null;
-  enabled: boolean;
-  created_at: number;
-}
-
-function providerOut(row: typeof oauthProviders.$inferSelect): ProviderOut {
-  return {
-    id:          row.id,
-    provider_id: row.providerId,
-    type:        row.type as ProviderType,
-    name:        row.name,
-    client_id:   row.clientId,
-    issuer_url:  row.issuerUrl ?? null,
-    tenant_id:   row.tenantId ?? null,
-    enabled:     Boolean(row.enabled),
-    created_at:  row.createdAt,
-  };
-}
-
-app.get("/settings/providers", requireSuperAdmin as express.RequestHandler, async (_req: Request, res: Response) => {
-  const rows = await controlDb.select().from(oauthProviders);
-  res.json(rows.map(providerOut));
-});
-
-app.post("/settings/providers", requireSuperAdmin as express.RequestHandler, async (req: Request, res: Response) => {
-  const { type, name, client_id, client_secret, issuer_url, tenant_id, enabled } =
-    req.body as Record<string, unknown>;
-  if (!type || !PROVIDER_TYPES.includes(type as ProviderType)) {
-    res.status(422).json({ detail: `type must be one of: ${PROVIDER_TYPES.join(", ")}` });
-    return;
-  }
-  if (!name || typeof name !== "string") {
-    res.status(422).json({ detail: "name is required" });
-    return;
-  }
-  if (!client_id || typeof client_id !== "string") {
-    res.status(422).json({ detail: "client_id is required" });
-    return;
-  }
-  if (!client_secret || typeof client_secret !== "string") {
-    res.status(422).json({ detail: "client_secret is required" });
-    return;
-  }
-  if ((type === "oidc") && (!issuer_url || typeof issuer_url !== "string")) {
-    res.status(422).json({ detail: "issuer_url is required for oidc type" });
-    return;
-  }
-  const providerId = (name as string).toLowerCase().replace(/[^a-z0-9]+/g, "-");
-  const [existing] = await controlDb.select({ id: oauthProviders.id })
-    .from(oauthProviders).where(eq(oauthProviders.providerId, providerId));
-  if (existing) {
-    res.status(422).json({ detail: `Provider ID '${providerId}' already exists.` });
-    return;
-  }
-  const [row] = await controlDb.insert(oauthProviders).values({
-    id:           randomUUID(),
-    providerId,
-    type:         type as ProviderType,
-    name:         name as string,
-    clientId:     client_id,
-    clientSecret: client_secret,
-    issuerUrl:    typeof issuer_url === "string" ? issuer_url : null,
-    tenantId:     typeof tenant_id === "string" ? tenant_id : null,
-    enabled:      enabled !== false,
-    createdAt:    Math.floor(Date.now() / 1000),
-  }).returning();
-  await reloadAuth();
-  res.status(201).json(providerOut(row!));
-});
-
-app.put("/settings/providers/:id", requireSuperAdmin as express.RequestHandler, async (req: Request, res: Response) => {
-  const [existing] = await controlDb.select().from(oauthProviders)
-    .where(eq(oauthProviders.id, req.params["id"] as string));
-  if (!existing) { res.status(404).json({ detail: "Provider not found." }); return; }
-  const { name, client_id, client_secret, issuer_url, tenant_id, enabled } =
-    req.body as Record<string, unknown>;
-  await controlDb.update(oauthProviders).set({
-    ...(typeof name === "string" ? { name } : {}),
-    ...(typeof client_id === "string" ? { clientId: client_id } : {}),
-    ...(typeof client_secret === "string" ? { clientSecret: client_secret } : {}),
-    ...(issuer_url !== undefined ? { issuerUrl: issuer_url as string | null } : {}),
-    ...(tenant_id !== undefined ? { tenantId: tenant_id as string | null } : {}),
-    ...(enabled !== undefined ? { enabled: Boolean(enabled) } : {}),
-  }).where(eq(oauthProviders.id, req.params["id"] as string));
-  const [updated] = await controlDb.select().from(oauthProviders)
-    .where(eq(oauthProviders.id, req.params["id"] as string));
-  await reloadAuth();
-  res.json(providerOut(updated!));
-});
-
-app.delete("/settings/providers/:id", requireSuperAdmin as express.RequestHandler, async (req: Request, res: Response) => {
-  const [existing] = await controlDb.select({ id: oauthProviders.id })
-    .from(oauthProviders).where(eq(oauthProviders.id, req.params["id"] as string));
-  if (!existing) { res.status(404).json({ detail: "Provider not found." }); return; }
-  await controlDb.delete(oauthProviders).where(eq(oauthProviders.id, req.params["id"] as string));
-  await reloadAuth();
-  res.status(204).send();
 });
 
 // ---------------------------------------------------------------------------

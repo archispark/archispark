@@ -24,14 +24,18 @@ async function fetchCurrentUser(): Promise<CurrentUser | null> {
   return (await res.json()) as CurrentUser;
 }
 
-export function useCurrentUser(): CurrentUser | null {
-  const { data } = useQuery({
+export function useCurrentUserQuery(): { data: CurrentUser | null; isPending: boolean } {
+  const { data, isPending } = useQuery({
     queryKey: ["auth", "me"],
     queryFn: fetchCurrentUser,
     retry: false,
     staleTime: 60_000,
   });
-  return data ?? null;
+  return { data: data ?? null, isPending };
+}
+
+export function useCurrentUser(): CurrentUser | null {
+  return useCurrentUserQuery().data;
 }
 
 export function useIsAdmin(): boolean {

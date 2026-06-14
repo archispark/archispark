@@ -11,8 +11,7 @@
 
 import { describe, it, expect, beforeAll, afterEach, vi } from "vitest";
 import _request from "supertest";
-import { eq } from "drizzle-orm";
-import { controlDb, users as usersTable, provisionTenantDatabase, getDefaultBranchId } from "@workspace/db";
+import { provisionTenantDatabase, getDefaultBranchId } from "@workspace/db";
 import { listOrganizations, getOrgMemberRole, findUserByUsername, getKeycloakUser, listRealmUsers } from "@workspace/auth";
 import { app } from "../src/app.js";
 import { createUser } from "../src/auth.js";
@@ -91,8 +90,7 @@ describe("POST /admin/organizations — initial owner assignment", () => {
 
     // The calling admin is never added as a member of the new org.
     const { userId: adminUserId } = await getAdminWorkspaceContext();
-    const [adminRow] = await controlDb.select({ keycloakSub: usersTable.keycloakSub }).from(usersTable).where(eq(usersTable.id, adminUserId));
-    expect(await getOrgMemberRole(res.body.id, adminRow!.keycloakSub!)).toBeNull();
+    expect(await getOrgMemberRole(res.body.id, adminUserId)).toBeNull();
   });
 
   it("uses an existing user as owner when initial_owner_user_id is given, with no generated credentials", async () => {

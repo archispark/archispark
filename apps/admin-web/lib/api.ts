@@ -59,41 +59,6 @@ export const createUser = (body: UserCreateIn) => post<UserOut>("/users", body);
 export const updateUserApi = (id: string, body: UserUpdateIn) => put<UserOut>(`/users/${encodeURIComponent(id)}`, body);
 export const deleteUserApi = (id: string) => del(`/users/${encodeURIComponent(id)}`);
 
-// --- OAuth Providers ---
-
-export type OAuthProviderType = "oidc" | "google" | "github" | "microsoft-entra-id";
-
-export interface OAuthProviderOut {
-  id: string;
-  provider_id: string;
-  type: OAuthProviderType;
-  name: string;
-  client_id: string;
-  issuer_url: string | null;
-  tenant_id: string | null;
-  enabled: boolean;
-  created_at: number;
-}
-
-export interface OAuthProviderCreateIn {
-  type: OAuthProviderType;
-  name: string;
-  client_id: string;
-  client_secret: string;
-  issuer_url?: string;
-  tenant_id?: string;
-  enabled?: boolean;
-}
-
-export interface OAuthProviderUpdateIn {
-  name?: string;
-  client_id?: string;
-  client_secret?: string;
-  issuer_url?: string | null;
-  tenant_id?: string | null;
-  enabled?: boolean;
-}
-
 // --- Admin: organizations (platform-wide, includes tenant DB status) ---
 
 export type TenantStatus = "pending" | "provisioning" | "active" | "error" | null;
@@ -147,12 +112,6 @@ export const verifyOrganizationDb = (id: string) =>
   post<VerifyDbResult>(`/admin/organizations/${encodeURIComponent(id)}/verify-db`, {});
 export const reprovisionOrganization = (id: string) =>
   post<AdminOrganizationOut>(`/admin/organizations/${encodeURIComponent(id)}/reprovision`, {});
-
-export const fetchProviders = () => get<OAuthProviderOut[]>("/settings/providers");
-export const createProvider = (body: OAuthProviderCreateIn) => post<OAuthProviderOut>("/settings/providers", body);
-export const updateProvider = (id: string, body: OAuthProviderUpdateIn) =>
-  put<OAuthProviderOut>(`/settings/providers/${encodeURIComponent(id)}`, body);
-export const deleteProvider = (id: string) => del(`/settings/providers/${encodeURIComponent(id)}`);
 
 // --- Redis ---
 

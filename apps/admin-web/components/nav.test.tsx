@@ -39,12 +39,6 @@ describe("Nav", () => {
     expect(screen.getByText("Utilisateurs")).toBeInTheDocument();
   });
 
-  it("shows the breadcrumb for the authentication section", () => {
-    mockPathname.current = "/authentication";
-    renderWithI18n(<Nav onToggleSidebar={noop} />);
-    expect(screen.getByText("Authentification")).toBeInTheDocument();
-  });
-
   it("does not show a breadcrumb section label on the root path", () => {
     mockPathname.current = "/";
     renderWithI18n(<Nav onToggleSidebar={noop} />);

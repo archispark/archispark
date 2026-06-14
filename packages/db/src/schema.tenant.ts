@@ -17,13 +17,13 @@
  *   - Node nesting via parent_node_uuid (self-reference by UUID, not FK int).
  *   - Bendpoints for connection routing stored in a child table.
  *
- * `organizations`, `teams` and `users` are control-plane tables — a different
- * physical database once a tenant database is provisioned (Phase 3). The
- * organization_id / team_id / user_id columns below are therefore plain,
- * unconstrained TEXT columns (no `.references()`): a real FK would only work
- * while both schemas share one physical database, and cross-database FKs are
- * impossible once a tenant gets its own database. Referential integrity for
- * these columns is enforced at the application layer.
+ * Organizations and users live in Keycloak (Phasetwo); `teams` is a
+ * control-plane table — a different physical database once a tenant database
+ * is provisioned (Phase 3). The organization_id / team_id / user_id columns
+ * below are therefore plain, unconstrained TEXT columns (no `.references()`):
+ * a real FK would only work while both schemas share one physical database,
+ * and cross-database FKs are impossible once a tenant gets its own database.
+ * Referential integrity for these columns is enforced at the application layer.
  */
 
 import {

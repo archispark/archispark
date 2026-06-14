@@ -1,6 +1,5 @@
 import { runMigrations, ensureTenantRole } from "@workspace/db";
-import { initUsers, initOrganizations } from "./auth.js";
-import { reloadAuth } from "./better-auth.js";
+import { initOrganizations } from "./auth.js";
 import { initRedis } from "./redis.js";
 
 const PORT = process.env["PORT"] ? parseInt(process.env["PORT"]) : 3000;
@@ -9,9 +8,7 @@ const HOST = process.env["HOST"] ?? "0.0.0.0";
 initRedis()
   .then(() => runMigrations())
   .then(() => ensureTenantRole(process.env["TENANT_DB_PASSWORD"] ?? ""))
-  .then(() => initUsers())
   .then(() => initOrganizations())
-  .then(() => reloadAuth())
   .then(async () => {
     // Dynamic import so app.ts (and its rateLimit/RedisStore) is loaded only
     // after initRedis() has connected, avoiding the "Non initialisé" error.

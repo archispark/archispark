@@ -12,19 +12,14 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace, push, refresh }),
 }));
 
-const mockSession: { current: { data: { user: { id: string; role?: string } } | null; isPending: boolean } } = {
+const mockCurrentUser: {
+  current: { data: { id: string; username: string; name: string; email: string | null; role: string } | null; isPending: boolean };
+} = {
   current: { data: null, isPending: false },
 };
-vi.mock("@/lib/auth-client", () => ({
-  useSession: () => mockSession.current,
-  signOut: vi.fn(),
-}));
-
-const mockCurrentUser: { current: { id: string; username: string; name: string; email: string | null; role: string } | null } = {
-  current: null,
-};
 vi.mock("@/hooks/use-current-user", () => ({
-  useCurrentUser: () => mockCurrentUser.current,
+  useCurrentUserQuery: () => mockCurrentUser.current,
+  useCurrentUser: () => mockCurrentUser.current.data,
 }));
 
 function renderWithI18n(ui: React.ReactElement) {
@@ -53,8 +48,10 @@ describe("ClientLayout", () => {
 
   it("renders children when the user is platform_admin", async () => {
     mockPathname.current = "/organizations";
-    mockSession.current = { data: { user: { id: "u1" } }, isPending: false };
-    mockCurrentUser.current = { id: "u1", username: "admin", name: "Admin", email: null, role: "platform_admin" };
+    mockCurrentUser.current = {
+      data: { id: "u1", username: "admin", name: "Admin", email: null, role: "platform_admin" },
+      isPending: false,
+    };
 
     renderWithI18n(
       <ClientLayout>
@@ -65,10 +62,9 @@ describe("ClientLayout", () => {
     await waitFor(() => expect(screen.getByText("page content")).toBeInTheDocument());
   });
 
-  it("redirects to /login when there is no session", async () => {
+  it("redirects to /login when there is no user", async () => {
     mockPathname.current = "/organizations";
-    mockSession.current = { data: null, isPending: false };
-    mockCurrentUser.current = null;
+    mockCurrentUser.current = { data: null, isPending: false };
 
     renderWithI18n(
       <ClientLayout>
@@ -82,8 +78,10 @@ describe("ClientLayout", () => {
 
   it("redirects to /login when the user role is not platform_admin", async () => {
     mockPathname.current = "/organizations";
-    mockSession.current = { data: { user: { id: "u1" } }, isPending: false };
-    mockCurrentUser.current = { id: "u1", username: "bob", name: "Bob", email: null, role: "user" };
+    mockCurrentUser.current = {
+      data: { id: "u1", username: "bob", name: "Bob", email: null, role: "user" },
+      isPending: false,
+    };
 
     renderWithI18n(
       <ClientLayout>
@@ -97,8 +95,7 @@ describe("ClientLayout", () => {
 
   it("renders children directly without the guard on the /login path", () => {
     mockPathname.current = "/login";
-    mockSession.current = { data: null, isPending: false };
-    mockCurrentUser.current = null;
+    mockCurrentUser.current = { data: null, isPending: false };
 
     renderWithI18n(
       <ClientLayout>

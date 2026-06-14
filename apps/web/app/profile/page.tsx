@@ -6,8 +6,6 @@ import { Button } from "@workspace/ui/components/button";
 import { Input } from "@workspace/ui/components/input";
 import { Label } from "@workspace/ui/components/label";
 import { useCurrentUser } from "@/hooks/use-current-user";
-import { useSession } from "@/lib/auth-client";
-import { authClient } from "@/lib/auth-client";
 import {
   fetchApiTokens,
   createApiToken,
@@ -17,182 +15,47 @@ import {
 } from "@/lib/api";
 
 // ---------------------------------------------------------------------------
-// Tab: Informations personnelles + Mot de passe
+// Tab: Informations personnelles
 // ---------------------------------------------------------------------------
 
 function InfoTab() {
   const user = useCurrentUser();
-  const { data: session, refetch } = useSession();
-  const [name, setName] = useState("");
-  const [savingName, setSavingName] = useState(false);
-  const [nameError, setNameError] = useState<string | null>(null);
-  const [nameSuccess, setNameSuccess] = useState<string | null>(null);
-
-  const [currentPassword, setCurrentPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [savingPw, setSavingPw] = useState(false);
-  const [pwError, setPwError] = useState<string | null>(null);
-  const [pwSuccess, setPwSuccess] = useState<string | null>(null);
-
-  useEffect(() => {
-    setName(user?.name ?? "");
-  }, [user?.name]);
-
-  async function handleSaveName() {
-    setSavingName(true);
-    setNameError(null);
-    setNameSuccess(null);
-    try {
-      const { error: err } = await authClient.updateUser({ name });
-      if (err) throw new Error(err.message ?? "Erreur inconnue");
-      await refetch();
-      setNameSuccess("Nom mis à jour.");
-    } catch (e) {
-      setNameError((e as Error).message);
-    } finally {
-      setSavingName(false);
-    }
-  }
-
-  async function handleSavePassword() {
-    setPwError(null);
-    setPwSuccess(null);
-    if (newPassword !== confirmPassword) {
-      setPwError("Les mots de passe ne correspondent pas.");
-      return;
-    }
-    setSavingPw(true);
-    try {
-      const { error: err } = await authClient.changePassword({
-        currentPassword,
-        newPassword,
-        revokeOtherSessions: false,
-      });
-      if (err) throw new Error(err.message ?? "Erreur inconnue");
-      setPwSuccess("Mot de passe mis à jour.");
-      setCurrentPassword("");
-      setNewPassword("");
-      setConfirmPassword("");
-    } catch (e) {
-      setPwError((e as Error).message);
-    } finally {
-      setSavingPw(false);
-    }
-  }
-
-  const email = (session?.user as unknown as { email?: string | null })?.email ?? null;
 
   return (
-    <div className="space-y-8">
-      {/* Informations */}
-      <div className="space-y-4">
-        <h2 className="text-[13px] font-semibold text-muted-foreground uppercase tracking-wide">
-          Informations
-        </h2>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <Label htmlFor="profile-username">Nom d&apos;utilisateur</Label>
+    <div className="space-y-4">
+      <h2 className="text-[13px] font-semibold text-muted-foreground uppercase tracking-wide">
+        Informations
+      </h2>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <Label htmlFor="profile-username">Nom d&apos;utilisateur</Label>
+          <Input
+            id="profile-username"
+            value={user?.username ?? ""}
+            readOnly
+            className="mt-1 bg-muted/40 cursor-default"
+          />
+        </div>
+        <div>
+          <Label htmlFor="profile-name">Nom d&apos;affichage</Label>
+          <Input
+            id="profile-name"
+            value={user?.name ?? ""}
+            readOnly
+            className="mt-1 bg-muted/40 cursor-default"
+          />
+        </div>
+        {user?.email && (
+          <div className="sm:col-span-2">
+            <Label htmlFor="profile-email">Adresse e-mail</Label>
             <Input
-              id="profile-username"
-              value={user?.username ?? ""}
+              id="profile-email"
+              value={user.email}
               readOnly
               className="mt-1 bg-muted/40 cursor-default"
             />
           </div>
-          <div>
-            <Label htmlFor="profile-name">Nom d&apos;affichage</Label>
-            <Input
-              id="profile-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Votre nom"
-              className="mt-1"
-            />
-          </div>
-          {email && (
-            <div className="sm:col-span-2">
-              <Label htmlFor="profile-email">Adresse e-mail</Label>
-              <Input
-                id="profile-email"
-                value={email}
-                readOnly
-                className="mt-1 bg-muted/40 cursor-default"
-              />
-            </div>
-          )}
-        </div>
-        {nameError && (
-          <p className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">
-            {nameError}
-          </p>
         )}
-        {nameSuccess && (
-          <p className="text-sm text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-md px-3 py-2">
-            {nameSuccess}
-          </p>
-        )}
-        <Button onClick={handleSaveName} disabled={savingName || !name.trim()} size="sm">
-          {savingName ? "Enregistrement…" : "Enregistrer"}
-        </Button>
-      </div>
-
-      <div className="border-t border-border" />
-
-      {/* Mot de passe */}
-      <div className="space-y-4">
-        <h2 className="text-[13px] font-semibold text-muted-foreground uppercase tracking-wide">
-          Mot de passe
-        </h2>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="sm:col-span-2">
-            <Label htmlFor="current-pw">Mot de passe actuel</Label>
-            <Input
-              id="current-pw"
-              type="password"
-              value={currentPassword}
-              onChange={(e) => setCurrentPassword(e.target.value)}
-              className="mt-1"
-            />
-          </div>
-          <div>
-            <Label htmlFor="new-pw">Nouveau mot de passe</Label>
-            <Input
-              id="new-pw"
-              type="password"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              className="mt-1"
-            />
-          </div>
-          <div>
-            <Label htmlFor="confirm-pw">Confirmer</Label>
-            <Input
-              id="confirm-pw"
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              className="mt-1"
-            />
-          </div>
-        </div>
-        {pwError && (
-          <p className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">
-            {pwError}
-          </p>
-        )}
-        {pwSuccess && (
-          <p className="text-sm text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-md px-3 py-2">
-            {pwSuccess}
-          </p>
-        )}
-        <Button
-          onClick={handleSavePassword}
-          disabled={savingPw || !currentPassword || !newPassword || !confirmPassword}
-          size="sm"
-        >
-          {savingPw ? "Enregistrement…" : "Changer le mot de passe"}
-        </Button>
       </div>
     </div>
   );

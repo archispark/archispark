@@ -1,9 +1,7 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { ShieldAlert, LogOut } from "lucide-react";
 import { useT } from "@/lib/i18n";
-import { signOut } from "@/lib/auth-client";
 
 /**
  * Platform admins manage organizations from admin-web and have no access to
@@ -11,13 +9,10 @@ import { signOut } from "@/lib/auth-client";
  * session reaches apps/web.
  */
 export function PlatformAdminBlock() {
-  const router = useRouter();
   const { t } = useT();
 
-  async function logout() {
-    await signOut();
-    router.push("/login");
-    router.refresh();
+  function logout() {
+    window.location.href = "/api/auth/logout";
   }
 
   return (

@@ -75,7 +75,6 @@
   "settings.org.owner_credentials_password": "Password",
   "settings.org.owner_credentials_title": "Organization owner created",
   "settings.org.owner_credentials_username": "Username",
-  "settings.tab_authentication": "Authentication",
   "settings.tab_messages": "Messages",
   "settings.tab_postgres": "PostgreSQL",
   "settings.tab_redis": "Redis",

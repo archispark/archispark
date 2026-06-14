@@ -7,8 +7,7 @@ import { useState, useEffect, useCallback } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Toaster } from "sonner";
 import { X } from "lucide-react";
-import { useSession } from "@/lib/auth-client";
-import { useCurrentUser } from "@/hooks/use-current-user";
+import { useCurrentUserQuery } from "@/hooks/use-current-user";
 
 function SiteBanner() {
   const [message, setMessage] = useState<string | null>(null);
@@ -53,20 +52,19 @@ const SIDEBAR_COLLAPSED_KEY = "sidebar-collapsed";
 /** Redirects to /login unless the current user has the platform_admin role. */
 function RequireAdmin({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const { data, isPending } = useSession();
-  const user = useCurrentUser();
+  const { data: user, isPending } = useCurrentUserQuery();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     if (!mounted || isPending) return;
-    if (!data?.user || user?.role !== "platform_admin") {
+    if (user?.role !== "platform_admin") {
       router.replace("/login");
     }
-  }, [mounted, isPending, data, user, router]);
+  }, [mounted, isPending, user, router]);
 
-  if (!mounted || isPending || !data?.user || user?.role !== "platform_admin") return null;
+  if (!mounted || isPending || user?.role !== "platform_admin") return null;
 
   return <>{children}</>;
 }

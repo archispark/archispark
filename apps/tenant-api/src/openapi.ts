@@ -698,7 +698,7 @@ const _doc: Record<string, any> = generator.generateDocument({
     version,
     description:
       "API REST pour interroger et modifier un modèle ArchiMate 3.1. " +
-      "Authentification via cookie de session (Better Auth) ou Bearer token (token API personnel). " +
+      "Authentification via cookie de session (access_token Keycloak) ou Bearer token (token API personnel). " +
       "Accès aux workspaces selon l'organisation et les équipes de l'utilisateur (rôles owner/admin/member).",
     contact: { name: "GitHub", url: "https://github.com/archispark/archispark" },
   },
@@ -707,7 +707,7 @@ const _doc: Record<string, any> = generator.generateDocument({
     { url: "http://localhost:3000", description: "Serveur local" },
   ],
   tags: [
-    { name: "Auth",                description: "Authentification (Better Auth)" },
+    { name: "Auth",                description: "Authentification (Keycloak)" },
     { name: "Model",               description: "Informations et persistance du modèle" },
     { name: "Workspaces",          description: "Gestion des workspaces" },
     { name: "Elements",            description: "Éléments ArchiMate 3.1" },
@@ -729,8 +729,8 @@ export const openApiSpec: Record<string, any> = {
       cookieAuth: {
         type: "apiKey",
         in: "cookie",
-        name: "better-auth.session_token",
-        description: "Cookie de session httpOnly défini par Better Auth après /auth/sign-in/username",
+        name: "access_token",
+        description: "Cookie de session httpOnly contenant le token d'accès Keycloak, défini après /api/auth/callback",
       },
       bearerAuth: {
         type: "http",

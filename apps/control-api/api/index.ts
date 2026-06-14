@@ -10,16 +10,10 @@
  * TypeScript / workspace-resolution surprises at bundle time.
  */
 import { app } from "../dist/app.js";
-import { reloadAuth } from "../dist/better-auth.js";
 import { initRedis } from "../dist/redis.js";
 import { runMigrations } from "@workspace/db";
-import { initUsers } from "../dist/auth.js";
 
-// Initialization order matters: Redis must be ready before initUsers() because
-// Better Auth's signUpEmail writes to secondaryStorage (Redis) during user creation.
 await initRedis().catch((err: Error) => console.error("[redis] init failed:", err.message));
 await runMigrations().catch((err: Error) => console.error("[db] migrations failed:", err.message));
-await reloadAuth();
-await initUsers().catch((err: Error) => console.error("[auth] initUsers failed:", err.message));
 
 export default app;

@@ -5,7 +5,6 @@ overrides:
   esbuild: ">=0.24.3"
   postcss: ">=8.5.10"
 allowBuilds:
-  bcryptjs: true
   better-sqlite3: true
   esbuild: true
   msw: true
@@ -14,14 +13,6 @@ minimumReleaseAgeExclude:
   - shadcn@4.8.1
   - eslint-plugin-turbo@2.9.16
   - lucide-react@1.17.0
-  - '@better-auth/core@1.6.14'
-  - '@better-auth/drizzle-adapter@1.6.14'
-  - '@better-auth/kysely-adapter@1.6.14'
-  - '@better-auth/memory-adapter@1.6.14'
-  - '@better-auth/mongo-adapter@1.6.14'
-  - '@better-auth/prisma-adapter@1.6.14'
-  - '@better-auth/telemetry@1.6.14'
-  - better-auth@1.6.14
   - '@typescript-eslint/eslint-plugin@8.61.0'
   - '@typescript-eslint/parser@8.61.0'
   - '@typescript-eslint/project-service@8.61.0'

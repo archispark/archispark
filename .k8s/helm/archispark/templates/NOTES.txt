@@ -19,8 +19,9 @@ Logs :
   kubectl logs -n {{ .Release.Namespace }} -l app=archispark-api --tail=50
   kubectl logs -n {{ .Release.Namespace }} -l app=archispark-web --tail=50
 
-Premier démarrage — l'API seed la base automatiquement.
-Compte admin : admin / valeur de secrets.seedAdminPassword (ou "admin" par défaut).
+Authentification gérée par Keycloak (KEYCLOAK_URL / KEYCLOAK_REALM).
+Créez le premier compte administrateur depuis la console Keycloak ou via
+l'API Admin Keycloak (voir packages/db/scripts/seed-demo.ts pour un exemple).
 
 MCP Server :
   URL  : {{ if .Values.ingress.tls.enabled }}https{{ else }}http{{ end }}://{{ .Values.ingress.host }}/mcp/

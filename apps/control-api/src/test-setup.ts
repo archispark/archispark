@@ -2,17 +2,21 @@ import { vi } from "vitest";
 import { runMigrations } from "@workspace/db";
 
 // There is no real Keycloak instance in the test environment — replace
-// @workspace/auth's Phasetwo Organizations API client with an in-memory fake
-// (keeping every other export, e.g. ORG_ROLES/verifyAccessToken, as the real
-// implementation). Test files that need to mock verifyAccessToken too
+// @workspace/auth's Phasetwo Organizations/Users API and verifyAccessToken
+// with in-memory fakes (keeping every other export, e.g. ORG_ROLES, as the
+// real implementation). verifyAccessToken decodes a deterministic fake token
+// (see ./test/keycloak-token-fake.ts) instead of verifying a real JWT against
+// JWKS. Test files that need per-test verifyAccessToken behaviour
 // (auth.test.ts) provide their own vi.mock("@workspace/auth", ...) which must
-// also spread fakeOrgsApi to keep this behaviour.
+// also spread fakeOrgsApi/fakeUsersApi and the fake verifyAccessToken to keep
+// this behaviour.
 vi.mock("@workspace/auth", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@workspace/auth")>();
   const { fakeOrgsApi } = await import("./test/keycloak-orgs-fake.js");
   const { fakeUsersApi, seedDemoKeycloakUsers } = await import("./test/keycloak-users-fake.js");
+  const { fakeVerifyAccessToken } = await import("./test/keycloak-token-fake.js");
   seedDemoKeycloakUsers();
-  return { ...actual, ...fakeOrgsApi, ...fakeUsersApi };
+  return { ...actual, ...fakeOrgsApi, ...fakeUsersApi, verifyAccessToken: vi.fn().mockImplementation(fakeVerifyAccessToken) };
 });
 
 // Shared with the proxy middleware in app.ts (signs) and tenant-api's
@@ -21,12 +25,12 @@ vi.mock("@workspace/auth", async (importOriginal) => {
 process.env["TENANT_JWT_SECRET"] ??= "test-tenant-jwt-secret";
 
 // Redis n'est pas disponible dans l'environnement de test. Ce mock est appliqué
-// globalement (avant le chargement de tout module) afin que app.ts et
-// better-auth.ts reçoivent un faux client Redis au lieu de throw.
+// globalement (avant le chargement de tout module) afin que app.ts reçoive un
+// faux client Redis au lieu de throw.
 // redis.test.ts utilise vi.unmock("./redis.js") pour tester l'implémentation réelle.
 vi.mock("./redis.js", () => {
-  // Mini store in-memory — nécessaire car Better Auth utilise secondaryStorage
-  // comme stockage primaire des sessions (pas juste un cache).
+  // Mini store in-memory — utilisé par rate-limit-redis (compteurs de
+  // rate-limiting), pas par l'authentification (JWT Keycloak sans état).
   const store = new Map<string, string>();
   const mockRedis = {
     get: vi.fn().mockImplementation((key: string) => Promise.resolve(store.get(key) ?? null)),
@@ -55,7 +59,8 @@ vi.mock("./redis.js", () => {
 });
 
 // Tests run against PGlite (in-memory Postgres). Apply the drizzle-pg migrations
-// once before the suite so every table (model, RBAC, Better Auth, OAuth
-// providers) exists. runMigrations() is idempotent — registry's startup also
-// calls it, and drizzle tracks applied migrations.
+// once before the suite so every table (teams, API tokens, organization
+// settings, tenant databases, site settings) exists. runMigrations() is
+// idempotent — registry's startup also calls it, and drizzle tracks applied
+// migrations.
 await runMigrations();

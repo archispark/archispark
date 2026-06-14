@@ -15,13 +15,12 @@ function renderWithI18n(ui: React.ReactElement) {
 const noop = () => {};
 
 describe("AdminSidebar", () => {
-  it("renders all 6 section labels", () => {
+  it("renders all 5 section labels", () => {
     mockPathname.current = "/organizations";
     renderWithI18n(<AdminSidebar open={false} onClose={noop} collapsed={false} onToggleCollapse={noop} />);
 
     expect(screen.getAllByText(/Organisations|Organizations/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Utilisateurs|Users/i).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/Authentification|Authentication/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Redis/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/PostgreSQL|Postgres/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Messages/i).length).toBeGreaterThan(0);

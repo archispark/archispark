@@ -1,7 +1,6 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import {
   fetchUsers, createUser, updateUserApi, deleteUserApi,
-  fetchProviders, createProvider, updateProvider, deleteProvider,
   fetchRedisStatus,
   fetchPostgresStatus,
   fetchSiteMessages, updateSiteMessages,
@@ -140,72 +139,6 @@ describe("Users", () => {
       json: async () => ({}),
     }));
     await expect(deleteUserApi("u2")).rejects.toThrow("API error: 409");
-  });
-});
-
-// ---------------------------------------------------------------------------
-// OAuth Providers
-// ---------------------------------------------------------------------------
-
-describe("OAuth Providers", () => {
-  it("fetchProviders returns provider list", async () => {
-    mockFetchOk([{
-      id: "p1", provider_id: "google", type: "google", name: "Google",
-      client_id: "cid", issuer_url: null, tenant_id: null, enabled: true, created_at: 1700000000,
-    }]);
-    const providers = await fetchProviders();
-    expect(providers[0]!.name).toBe("Google");
-    expect(vi.mocked(fetch)).toHaveBeenCalledWith(
-      expect.stringContaining("/settings/providers"),
-      expect.any(Object),
-    );
-  });
-
-  it("fetchProviders throws on non-ok response", async () => {
-    mockFetchError(500);
-    await expect(fetchProviders()).rejects.toThrow("API error: 500");
-  });
-
-  it("createProvider posts and returns provider", async () => {
-    mockFetchOk({
-      id: "p2", provider_id: "oidc", type: "oidc", name: "Keycloak",
-      client_id: "cid", issuer_url: "https://issuer", tenant_id: null, enabled: true, created_at: 1700000000,
-    });
-    const p = await createProvider({
-      type: "oidc", name: "Keycloak", client_id: "cid", client_secret: "secret", issuer_url: "https://issuer",
-    });
-    expect(p.name).toBe("Keycloak");
-    expect(vi.mocked(fetch)).toHaveBeenCalledWith(
-      expect.stringContaining("/settings/providers"),
-      expect.objectContaining({ method: "POST" }),
-    );
-  });
-
-  it("updateProvider puts and returns provider", async () => {
-    mockFetchOk({
-      id: "p1", provider_id: "google", type: "google", name: "Google Updated",
-      client_id: "cid", issuer_url: null, tenant_id: null, enabled: false, created_at: 1700000000,
-    });
-    const p = await updateProvider("p1", { enabled: false });
-    expect(p.enabled).toBe(false);
-    expect(vi.mocked(fetch)).toHaveBeenCalledWith(
-      expect.stringContaining("/settings/providers/p1"),
-      expect.objectContaining({ method: "PUT" }),
-    );
-  });
-
-  it("deleteProvider sends DELETE", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true }));
-    await deleteProvider("p1");
-    expect(vi.mocked(fetch)).toHaveBeenCalledWith(
-      expect.stringContaining("/settings/providers/p1"),
-      expect.objectContaining({ method: "DELETE" }),
-    );
-  });
-
-  it("deleteProvider throws on error", async () => {
-    mockFetchError(404);
-    await expect(deleteProvider("missing")).rejects.toThrow("HTTP 404");
   });
 });
 

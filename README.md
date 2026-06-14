@@ -6,7 +6,7 @@ ArchiMate 3.1 modeling tool — REST API, MCP server, and web UI.
 
 | Layer | Tech |
 |-------|------|
-| API | Express + TypeScript ESM, PostgreSQL (Drizzle ORM), Better Auth (sessions) |
+| API | Express + TypeScript ESM, PostgreSQL (Drizzle ORM), Keycloak (auth) |
 | MCP | `@modelcontextprotocol/sdk` — Streamable HTTP transport, Bearer token auth |
 | Web | Next.js 16, React, shadcn/ui, Vercel Analytics + Speed Insights |
 | Admin web | Next.js 16 — platform admin console (`apps/admin-web`), `platform_admin` only |
@@ -50,7 +50,7 @@ The `Makefile` wraps the most common operations. Run `make` or `make help` for t
 
 ```bash
 # First-time setup
-make env            # copy .env.example → .env (edit DB_PASSWORD, BETTER_AUTH_SECRET)
+make env            # copy .env.example → .env (edit DB_PASSWORD, TENANT_JWT_SECRET, TENANT_DB_PASSWORD, TENANT_DB_ENCRYPTION_KEY)
 
 # Production (Hub images)
 make up             # docker compose up -d
@@ -104,11 +104,8 @@ minikube start --driver=docker --cpus=4 --memory=6g --addons=ingress
 # Minimal install (replace values with your own)
 helm install archispark .k8s/helm/archispark \
   --namespace archispark --create-namespace \
-  --set config.webUrl=http://archispark.local \
   --set ingress.host=archispark.local \
-  --set secrets.dbPassword=<motdepasse> \
-  --set secrets.betterAuthSecret=$(openssl rand -hex 32) \
-  --set secrets.seedAdminPassword=admin
+  --set secrets.dbPassword=<motdepasse>
 ```
 
 With TLS (cert-manager or manual secret):
@@ -116,12 +113,10 @@ With TLS (cert-manager or manual secret):
 ```bash
 helm install archispark .k8s/helm/archispark \
   --namespace archispark --create-namespace \
-  --set config.webUrl=https://archispark.example.com \
   --set ingress.host=archispark.example.com \
   --set ingress.tls.enabled=true \
   --set ingress.tls.secretName=archispark-tls \
-  --set secrets.dbPassword=<motdepasse> \
-  --set secrets.betterAuthSecret=$(openssl rand -hex 32)
+  --set secrets.dbPassword=<motdepasse>
 ```
 
 **minikube local DNS** (add Ingress IP to `/etc/hosts`):
@@ -140,8 +135,6 @@ echo "$(minikube ip) archispark.local" | sudo tee -a /etc/hosts
 | `ingress.className` | `nginx` | Ingress class |
 | `ingress.tls.enabled` | `false` | Enable TLS |
 | `secrets.dbPassword` | — | **Required** — PostgreSQL password |
-| `secrets.betterAuthSecret` | — | **Required** — HMAC secret ≥ 32 chars for Better Auth |
-| `secrets.seedAdminPassword` | `admin` | Initial admin password |
 | `secrets.existingSecret` | `""` | Name of a pre-existing K8s Secret (Sealed Secrets, ESO…) |
 | `postgres.storage` | `5Gi` | PostgreSQL PVC size |
 | `redis.storage` | `1Gi` | Redis PVC size |
@@ -167,7 +160,6 @@ kubectl delete pvc -n archispark --all
 | Path | Backend | Notes |
 |------|---------|-------|
 | `/api/*` | `archispark-api:3000` | `/api` prefix stripped before forwarding |
-| `/auth/*` | `archispark-api:3000` | Better Auth handles the full path |
 | `/mcp/*` | `archispark-mcp:3001` | MCP Streamable HTTP (Bearer token required) |
 | `/` | `archispark-web:8000` | Next.js catch-all |
 
@@ -320,10 +312,10 @@ PGlite in tests).
 
 ### Control-api / tenant-api split
 
-`apps/control-api` is the single public entry point — it owns Better Auth,
+`apps/control-api` is the single public entry point — it owns authentication,
 sessions, API tokens, organizations/teams, settings, and the platform admin
-routes (`/me`, `/users*`, `/admin/organizations*`, `/settings/*`,
-`/auth/*`). Everything else (workspaces, elements, relationships, views,
+routes (`/me`, `/users*`, `/admin/organizations*`, `/settings/*`).
+Everything else (workspaces, elements, relationships, views,
 property definitions, model import/export, `/openapi.json`, `/docs`) is
 implemented by `apps/tenant-api`, an internal data-plane service that
 control-api reverse-proxies to.
@@ -351,7 +343,6 @@ Credential separation:
 |---|---|---|---|
 | `DATABASE_URL` | ✅ (control DB — `archispark`) | — | ✅ (control DB) |
 | `TENANT_DATABASE_URL` | — | ✅ (fallback DB — `archispark_tenant`) | ✅ (fallback DB) |
-| `JWT_SECRET` | ✅ (Better Auth) | — | — |
 | `NEON_API_KEY` / `NEON_PROJECT_ID` / `NEON_BRANCH_ID` | ✅ | — | — |
 | `TENANT_API_URL` | ✅ (where to proxy) | — | — |
 | `TENANT_JWT_SECRET` | ✅ (sign) | ✅ (verify) | — |
@@ -387,16 +378,14 @@ default `*.vercel.app` deployment URL (no custom domain needed) — see
 
 ## Authentication
 
-All routes except `/auth/*`, `GET /openapi.json`, `GET /docs`, and `GET /settings/messages` require a valid session (cookie set by Better Auth sign-in) or an `Authorization: Bearer <token>` API token.
+All routes except `GET /openapi.json`, `GET /docs`, and `GET /settings/messages` require a Keycloak access token — either as an `access_token` cookie (see [Keycloak login](#keycloak-login-stage-3)) or an `Authorization: Bearer <token>` header — or a personal API token.
 
 Every authenticated request resolves an **active organization** — from the API token's organization, the `X-Org-Id` header (validated against the user's `organizations` claim, see [Keycloak login](#keycloak-login-stage-3)), the session's active organization, or (failing that) the user's first organization membership — and attaches the user's role (`owner`/`admin`/`member`) and team memberships in that organization to the request.
 
-Write operations (`POST`, `PUT`, `DELETE`) on workspace content require the `owner` or `admin` role in the active organization (or the platform super admin role, see below); plain `member`s are read-only. `/auth/*`, `/users*`, and `/settings/api-tokens*` are exempt from this check.
+Write operations (`POST`, `PUT`, `DELETE`) on workspace content require the `owner` or `admin` role in the active organization (or the platform super admin role, see below); plain `member`s are read-only. `/users*` and `/settings/api-tokens*` are exempt from this check.
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| `POST` | `/auth/sign-in/username` | public | Sign in (`{ username, password }`) — sets session cookie |
-| `POST` | `/auth/sign-out` | user | Sign out |
 | `GET` | `/me` | user | Returns current user |
 
 Organization membership, roles, invitations, and teams are managed via the
@@ -414,17 +403,15 @@ in `.env`), pre-loaded from `.docker/keycloak/realm-export.json` with realm
 `archispark-control-api`, the `platform_admin` realm role, and the same demo
 users as above (passwords match usernames).
 
-**Stages 1-2 — Bearer token + identity bridge** (unchanged): `apps/control-api`
-(via `@workspace/auth`, `packages/auth`) accepts a Keycloak-issued access token
-as a Bearer token, verified against the realm's JWKS
-(`KEYCLOAK_URL`/`KEYCLOAK_REALM`). This is additive and non-breaking — Better
-Auth sessions and personal API tokens are unaffected. The `user` table has a
-nullable `keycloak_sub` column (unique index) linking a Keycloak `sub` claim to
-an existing control-db user; when a Keycloak token verifies successfully,
-`requireAuth` looks up `users` by `keycloakSub = claims.sub` and, if found,
-populates `req.user` from that row (`id`/`username`/`role`), so org/team
-resolution and write permissions work exactly as they do for a Better Auth
-session for the same person. The demo users (`admin`/`user`/`contrib`/`archi`)
+**Bearer token + identity bridge:** `apps/control-api` (via `@workspace/auth`,
+`packages/auth`) accepts a Keycloak-issued access token as a Bearer token,
+verified against the realm's JWKS (`KEYCLOAK_URL`/`KEYCLOAK_REALM`). The `user`
+table has a nullable `keycloak_sub` column (unique index) linking a Keycloak
+`sub` claim to an existing control-db user; when a Keycloak token verifies
+successfully, `requireAuth` looks up `users` by `keycloakSub = claims.sub` and,
+if found, populates `req.user` from that row (`id`/`username`/`role`), so
+org/team resolution and write permissions work exactly as they do for any
+other authenticated user. The demo users (`admin`/`user`/`contrib`/`archi`)
 are seeded with fixed `keycloak_sub` UUIDs matching the `id`s pinned in
 `.docker/keycloak/realm-export.json`. If no matching `keycloakSub` row is
 found, `req.user` is derived directly from the token claims
@@ -434,10 +421,10 @@ associée à cet utilisateur.` from the workspace resolver. Full self-service
 Keycloak signup (auto-provisioning new control-db users on first login) is a
 later stage.
 
-**Stage 3 — Keycloak login for `apps/web` / `apps/admin-web`:** both apps sign
-in via the OIDC authorization-code + PKCE flow against Keycloak instead of
-Better Auth's username/password form. `/login` is a single "Se connecter" link
-to `/api/auth/login`. Each app has its own client (`KEYCLOAK_CLIENT_ID_WEB` /
+**Browser login for `apps/web` / `apps/admin-web`:** both apps sign in via the
+OIDC authorization-code + PKCE flow against Keycloak. `/login` is a single "Se
+connecter" link to `/api/auth/login`. Each app has its own client
+(`KEYCLOAK_CLIENT_ID_WEB` /
 `KEYCLOAK_CLIENT_ID_ADMIN_WEB` → `archispark-web` / `archispark-admin-web`).
 
 | Route | Purpose |
@@ -454,33 +441,11 @@ using the `refresh_token` cookie and forwards the resulting `Set-Cookie`s
 before continuing, and only redirects to `/api/auth/login?from=<path>` if the
 refresh also fails.
 
-`apps/control-api`'s `requireAuth` additionally accepts the `access_token`
-cookie — verified and bridged the same way as the Stage 1/2 Bearer path —
-checked after any Better Auth session. A cookie-authenticated request to a
-proxied route (e.g. `apps/web`'s `/api/*` → control-api) therefore resolves to
-the same `req.user` as a Bearer token or session for the same person.
-
-**Known limitations:** `apps/web`'s `/profile` page (update display name,
-change password) still uses the Better Auth React client
-(`authClient.updateUser`/`authClient.changePassword`), which depends on a
-`better-auth.session_token` cookie that Keycloak login does not set — these
-actions fail for Keycloak-authenticated users. `auth-client.ts` is kept in
-both apps so they keep typechecking, but it is otherwise dead code for
-Keycloak-based logins. Migrating profile/password management onto Keycloak
-(account console or Admin API) is a later stage. The organization
-"Membres/Équipes" tab no longer depends on `authClient` — it's served by the
-[`/organizations/*`](#organization-scoped-api-control-api) control-api routes
-(Phasetwo Organizations).
-
-### Cross-subdomain sessions (SaaS topology)
-
-By default the session cookie is scoped to whichever origin served the
-request (works for self-hosted single-domain deployments). When `apps/web`
-and `apps/admin-web` are deployed on subdomains of the same root domain (e.g.
-`app.example.com` / `admin.example.com`), set `COOKIE_DOMAIN=.example.com` on
-`apps/control-api` — Better Auth then issues the session cookie for that root domain,
-so signing in on either subdomain authenticates both. Also list every
-subdomain origin in `TRUSTED_ORIGINS` (comma-separated).
+`apps/control-api`'s `requireAuth` also accepts the `access_token` cookie —
+verified and bridged the same way as the Bearer path above. A
+cookie-authenticated request to a proxied route (e.g. `apps/web`'s `/api/*` →
+control-api) therefore resolves to the same `req.user` as a Bearer token for
+the same person.
 
 ## Organizations & teams
 
@@ -570,7 +535,7 @@ membership, team membership, API token ownership).
 
 The demo accounts (`admin`/`user`/`contrib`/`archi`) are unaffected — they
 keep their bridged `users.keycloak_sub` rows from [Keycloak login
-(Stage 3)](#keycloak-login-stage-3) for Better Auth sign-in.
+(Stage 3)](#keycloak-login-stage-3).
 
 ### Organization monitoring API (platform admin only)
 
@@ -736,8 +701,6 @@ DATABASE_URL="<neon-tenant-pooled>" pnpm --filter @workspace/db exec drizzle-kit
 
 ```bash
 VERCEL_TOKEN=xxx \
-SEED_ADMIN_PASSWORD=<strong-password> \
-SEED_USER_PASSWORD=<another-password> \
 bash apps/control-api/scripts/setup-vercel-env.sh
 ```
 
@@ -745,42 +708,28 @@ The script configures:
 
 | Variable | Project | Value |
 |---|---|---|
-| `BETTER_AUTH_SECRET` | api | (auto-generated) |
-| `WEB_URL` | api | your public URL |
-| `TRUSTED_ORIGINS` | api | your public URL |
-| `SEED_ADMIN_PASSWORD` | api | your choice |
-| `SEED_USER_PASSWORD` | api | your choice |
 | `TENANT_API_URL` | api | `archispark-tenant-api`'s deployment URL |
 | `TENANT_JWT_SECRET` | api, tenant-api | shared (auto-generated) |
 | `TENANT_DB_ENCRYPTION_KEY` | tenant-api | auto-generated |
-| `ARCHIMATE_API_URL` | web | API Vercel deployment URL |
+| `ARCHIMATE_API_URL` | web, admin-web | API Vercel deployment URL |
 
-5. **Redeploy** `archispark-control-api` and `archispark-tenant-api`.
+Authentication itself (Keycloak realm, client ids/secrets) is configured
+separately via each project's Vercel dashboard — see
+[Keycloak login](#keycloak-login-stage-3).
 
-### Subdomain topology (`app.<domain>` / `admin.<domain>`)
+5. **Redeploy** `archispark-control-api`, `archispark-tenant-api`, `archispark-web`, and `archispark-admin-web`.
+
+### Admin web project (`apps/admin-web`)
 
 `apps/admin-web` deploys as its own Vercel project (root directory
-`apps/admin-web`, same build/output settings as `archispark-web`). To run it
-on a subdomain of the same root domain as the main app, with a single shared
-login:
+`apps/admin-web`, same build/output settings as `archispark-web`):
 
 1. Create the `archispark-admin-web` Vercel project (root directory
    `apps/admin-web`, same team).
-2. Attach `app.<domain>` to `archispark-web` and `admin.<domain>` to
-   `archispark-admin-web`.
-3. Re-run the script with the extra variables set:
-
-```bash
-VERCEL_TOKEN=xxx \
-ADMIN_URL="https://admin.<domain>" \
-COOKIE_DOMAIN=".<domain>" \
-SEED_ADMIN_PASSWORD=<strong-password> \
-SEED_USER_PASSWORD=<another-password> \
-bash apps/control-api/scripts/setup-vercel-env.sh
-```
-
-This sets `archispark-admin-web`'s `ARCHIMATE_API_URL`, adds `ADMIN_URL` to
-the api's `TRUSTED_ORIGINS`, and sets `COOKIE_DOMAIN` on the api so Better
-Auth issues one session cookie shared by both subdomains (see
-[Cross-subdomain sessions](#cross-subdomain-sessions-saas-topology)).
-Redeploy all three projects afterwards.
+2. Attach its domain (or subdomain, e.g. `admin.<domain>`) in the Vercel
+   dashboard.
+3. Set `KEYCLOAK_CLIENT_ID_ADMIN_WEB` (defaults to `archispark-admin-web`) and
+   the shared `KEYCLOAK_URL`/`KEYCLOAK_REALM` — see
+   [Keycloak login](#keycloak-login-stage-3). Each app signs in against
+   Keycloak independently via its own OIDC client, so no shared-cookie
+   configuration between `apps/web` and `apps/admin-web` is required.

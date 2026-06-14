@@ -1,58 +1,59 @@
-import request from "supertest";
-import { db, users as usersTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
 import { listOrganizations } from "@workspace/auth";
-import { app } from "./app.js";
-import { initUsers, initOrganizations, getMembershipContext } from "./auth.js";
+import { initOrganizations, getMembershipContext } from "./auth.js";
 import type { WorkspaceContext } from "./auth.js";
+import { DEMO_KEYCLOAK_SUBS, makeFakeAccessToken } from "./test/keycloak-token-fake.js";
 
 let initPromise: Promise<void> | null = null;
 let adminCookie: string | null = null;
 let userCookie: string | null = null;
+let defaultOrgId: string | null = null;
 
-async function ensureInit() {
-  if (!initPromise) initPromise = initUsers().then(() => initOrganizations());
+async function ensureInit(): Promise<void> {
+  if (!initPromise) initPromise = initOrganizations();
   return initPromise;
 }
 
+/** The id of the default Phasetwo organization seeded by initOrganizations(). */
+export async function getDefaultOrgId(): Promise<string> {
+  if (defaultOrgId) return defaultOrgId;
+  await ensureInit();
+  const [org] = await listOrganizations();
+  if (!org?.id) throw new Error("No organization found.");
+  defaultOrgId = org.id;
+  return defaultOrgId;
+}
+
+/** A `Cookie` header value carrying a fake Keycloak access_token for the demo "admin" user (org owner, platform_admin). */
 export async function getAdminCookie(): Promise<string> {
   if (adminCookie) return adminCookie;
-  await ensureInit();
-  const res = await request(app)
-    .post("/auth/sign-in/username")
-    .send({ username: "admin", password: "admin" });
-  const setCookie = res.headers["set-cookie"];
-  if (!setCookie || res.status !== 200) {
-    throw new Error(`Admin sign-in failed: ${res.status} ${JSON.stringify(res.body)}`);
-  }
-  const cookies = Array.isArray(setCookie) ? setCookie : [setCookie];
-  adminCookie = cookies.map((c: string) => c.split(";")[0]).join("; ");
+  const orgId = await getDefaultOrgId();
+  const token = makeFakeAccessToken({
+    sub: DEMO_KEYCLOAK_SUBS.admin,
+    preferred_username: "admin",
+    realm_access: { roles: ["platform_admin"] },
+    organizations: { [orgId]: { name: "Default", roles: ["owner"] } },
+  });
+  adminCookie = `access_token=${token}`;
   return adminCookie;
 }
 
+/** A `Cookie` header value carrying a fake Keycloak access_token for the demo "user" user (org member, no platform role). */
 export async function getUserCookie(): Promise<string> {
   if (userCookie) return userCookie;
-  await ensureInit();
-  const res = await request(app)
-    .post("/auth/sign-in/username")
-    .send({ username: "user", password: "user" });
-  const setCookie = res.headers["set-cookie"];
-  if (!setCookie || res.status !== 200) {
-    throw new Error(`User sign-in failed: ${res.status} ${JSON.stringify(res.body)}`);
-  }
-  const cookies = Array.isArray(setCookie) ? setCookie : [setCookie];
-  userCookie = cookies.map((c: string) => c.split(";")[0]).join("; ");
+  const orgId = await getDefaultOrgId();
+  const token = makeFakeAccessToken({
+    sub: DEMO_KEYCLOAK_SUBS.user,
+    preferred_username: "user",
+    organizations: { [orgId]: { name: "Default", roles: ["member"] } },
+  });
+  userCookie = `access_token=${token}`;
   return userCookie;
 }
 
 /** The admin user's id and organization membership context (org owner). */
 export async function getAdminWorkspaceContext(): Promise<{ userId: string; ctx: WorkspaceContext }> {
-  await ensureInit();
-  const [admin] = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.username, "admin"));
-  if (!admin) throw new Error("Admin user not found.");
-  const [org] = await listOrganizations();
-  if (!org?.id) throw new Error("No organization found.");
-  const ctx = await getMembershipContext(admin.id, org.id);
+  const orgId = await getDefaultOrgId();
+  const ctx = await getMembershipContext(DEMO_KEYCLOAK_SUBS.admin, orgId);
   if (!ctx) throw new Error("Admin membership context not found.");
-  return { userId: admin.id, ctx };
+  return { userId: DEMO_KEYCLOAK_SUBS.admin, ctx };
 }

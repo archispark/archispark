@@ -1,30 +1,24 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { PlatformAdminBlock } from "./platform-admin-block";
 import { I18nProvider } from "@/lib/i18n";
-
-const { mockPush, mockRefresh, mockSignOut } = vi.hoisted(() => ({
-  mockPush: vi.fn(),
-  mockRefresh: vi.fn(),
-  mockSignOut: vi.fn(),
-}));
-
-vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: mockPush, refresh: mockRefresh }),
-}));
-
-vi.mock("@/lib/auth-client", () => ({
-  signOut: mockSignOut,
-}));
 
 function renderWithI18n(ui: React.ReactElement) {
   return render(<I18nProvider>{ui}</I18nProvider>);
 }
 
 describe("PlatformAdminBlock", () => {
+  const originalLocation = window.location;
+
   beforeEach(() => {
-    vi.clearAllMocks();
-    mockSignOut.mockResolvedValue(undefined);
+    Object.defineProperty(window, "location", {
+      value: { ...originalLocation, href: "" },
+      writable: true,
+    });
+  });
+
+  afterEach(() => {
+    Object.defineProperty(window, "location", { value: originalLocation, writable: true });
   });
 
   it("renders the title, description and logout button using real i18n translations", () => {
@@ -43,7 +37,7 @@ describe("PlatformAdminBlock", () => {
     expect(screen.getByRole("button", { name: /Déconnexion/i })).toBeInTheDocument();
   });
 
-  it("signs out and redirects to /login when the logout button is clicked", async () => {
+  it("navigates to /api/auth/logout when the logout button is clicked", () => {
     // Arrange
     renderWithI18n(<PlatformAdminBlock />);
     const logoutButton = screen.getByRole("button", { name: /Déconnexion/i });
@@ -52,8 +46,6 @@ describe("PlatformAdminBlock", () => {
     fireEvent.click(logoutButton);
 
     // Assert
-    await waitFor(() => expect(mockSignOut).toHaveBeenCalledTimes(1));
-    expect(mockPush).toHaveBeenCalledWith("/login");
-    expect(mockRefresh).toHaveBeenCalledTimes(1);
+    expect(window.location.href).toBe("/api/auth/logout");
   });
 });

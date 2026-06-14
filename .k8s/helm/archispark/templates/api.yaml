@@ -50,25 +50,6 @@ spec:
                   key: REDIS_PASSWORD
             - name: REDIS_URL
               value: {{ include "archispark.redisUrl" . | quote }}
-            - name: BETTER_AUTH_SECRET
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "archispark.secretName" . }}
-                  key: BETTER_AUTH_SECRET
-            - name: WEB_URL
-              value: {{ .Values.config.webUrl | quote }}
-            - name: TRUSTED_ORIGINS
-              value: {{ .Values.config.trustedOrigins | quote }}
-            - name: SEED_ADMIN_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "archispark.secretName" . }}
-                  key: SEED_ADMIN_PASSWORD
-            - name: SEED_USER_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "archispark.secretName" . }}
-                  key: SEED_USER_PASSWORD
           livenessProbe:
             httpGet:
               path: /health
