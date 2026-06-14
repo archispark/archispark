@@ -20,10 +20,8 @@ afterEach(() => {
   process.env = { ...ORIGINAL_ENV };
 });
 
-async function makeOrg(): Promise<string> {
-  const id = `org-local-prov-${randomUUID()}`;
-  await controlDb.insert(schema.organizations).values({ id, name: id, slug: id, createdAt: new Date() });
-  return id;
+function makeOrg(): string {
+  return `org-local-prov-${randomUUID()}`;
 }
 
 function makePgliteTenantDb(): NodePgDatabase<typeof schema> {

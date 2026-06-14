@@ -191,7 +191,9 @@ Each model is seeded into its own demo organization (`ArchiMetal` / `ArchiSuranc
 The seed is **idempotent** — re-running it upserts the demo organizations/memberships and replaces the matching workspace's content.
 
 ```bash
-# Requires DATABASE_URL (control DB) and TENANT_DATABASE_URL (tenant DB).
+# Requires TENANT_DATABASE_URL (tenant DB) and KEYCLOAK_URL / KEYCLOAK_REALM /
+# KEYCLOAK_ADMIN_CLIENT_ID / KEYCLOAK_ADMIN_CLIENT_SECRET (looks up the first
+# organization via the Phasetwo Orgs API).
 pnpm seed:demo
 
 # Equivalent alternatives:
@@ -203,7 +205,7 @@ psql $DATABASE_URL -f packages/db/seeds/demo.sql
 
 The workflow **Actions → Restore demo data** can be triggered manually from GitHub to reset the Vercel Postgres database to the demo state.
 
-**Required GitHub secrets** — add `DATABASE_URL_UNPOOLED` (Neon control DB direct URL) and `TENANT_DATABASE_URL_UNPOOLED` (Neon tenant fallback DB direct URL) to the repository secrets (Settings → Secrets and variables → Actions). Copy the values from the Vercel project environment variables.
+**Required GitHub secrets** — add `TENANT_DATABASE_URL_UNPOOLED` (Neon tenant fallback DB direct URL), and `KEYCLOAK_URL`, `KEYCLOAK_REALM`, `KEYCLOAK_ADMIN_CLIENT_ID`, `KEYCLOAK_ADMIN_CLIENT_SECRET` (Keycloak Phasetwo Orgs API access) to the repository secrets (Settings → Secrets and variables → Actions). Copy the values from the Vercel project environment variables.
 
 The workflow offers a **reset** checkbox (on by default): when checked it deletes the existing ArchiMetal and ArchiSurance workspaces (all child data is removed via CASCADE) before re-seeding. Uncheck it to seed only if those workspaces do not yet exist.
 
@@ -269,9 +271,8 @@ generated from `schema.tenant.ts` — no control-plane FKs), seeds an empty
 
 - **New organizations**: super-admins create them via
   `POST /admin/organizations` in admin-web ("Nouvelle organisation"), which
-  provisions the dedicated database immediately. The Better Auth
-  `afterCreateOrganization` hook is a no-op — normal signups always land on
-  the shared database until explicitly provisioned.
+  provisions the dedicated database immediately. There is no self-service
+  organization creation — every organization is created this way.
 - **Existing/errored organizations**: `POST /admin/organizations/:id/reprovision`
   (admin-web) or `pnpm --filter control-api migrate-tenant <organizationId>`
   retries provisioning. The CLI also copies all of the organization's
@@ -300,6 +301,11 @@ The new organization needs an initial `owner`:
 - **Existing user**: pass `initial_owner_user_id` (an existing platform
   user's id) to make that user `owner` instead — no account is generated and
   `initial_owner` is absent from the response.
+
+The owner — generated or existing — is added as a member of the new Keycloak
+organization with the `owner` role using its Keycloak `sub` (a generated
+account's `sub` is its Keycloak Admin API id, see
+[User provisioning](#user-provisioning-keycloak-admin-api)).
 
 If tenant database provisioning then fails, the organization (and any
 generated owner account) is rolled back and the request returns `503`.
@@ -383,7 +389,7 @@ default `*.vercel.app` deployment URL (no custom domain needed) — see
 
 All routes except `/auth/*`, `GET /openapi.json`, `GET /docs`, and `GET /settings/messages` require a valid session (cookie set by Better Auth sign-in) or an `Authorization: Bearer <token>` API token.
 
-Every authenticated request resolves an **active organization** — from the API token, the session's active organization, or (failing that) the user's first organization membership — and attaches the user's role and team memberships in that organization to the request.
+Every authenticated request resolves an **active organization** — from the API token's organization, the `X-Org-Id` header (validated against the user's `organizations` claim, see [Keycloak login](#keycloak-login-stage-3)), the session's active organization, or (failing that) the user's first organization membership — and attaches the user's role (`owner`/`admin`/`member`) and team memberships in that organization to the request.
 
 Write operations (`POST`, `PUT`, `DELETE`) on workspace content require the `owner` or `admin` role in the active organization (or the platform super admin role, see below); plain `member`s are read-only. `/auth/*`, `/users*`, and `/settings/api-tokens*` are exempt from this check.
 
@@ -392,7 +398,10 @@ Write operations (`POST`, `PUT`, `DELETE`) on workspace content require the `own
 | `POST` | `/auth/sign-in/username` | public | Sign in (`{ username, password }`) — sets session cookie |
 | `POST` | `/auth/sign-out` | user | Sign out |
 | `GET` | `/me` | user | Returns current user |
-| `/auth/organization/*` | — | user | Better Auth organization plugin: list/create organizations, invite/remove members, manage teams, switch active organization, etc. |
+
+Organization membership, roles, invitations, and teams are managed via the
+[`/organizations/*`](#organization-scoped-api-control-api) routes — see
+[Organizations & teams](#organizations--teams).
 
 Default credentials: `admin` / `admin` (`platform_admin`, org `owner`), `user` / `user` (org `member`, read-only), `contrib` / `contrib` (org `admin`), `archi` / `archi` (org `owner`).
 
@@ -451,13 +460,17 @@ checked after any Better Auth session. A cookie-authenticated request to a
 proxied route (e.g. `apps/web`'s `/api/*` → control-api) therefore resolves to
 the same `req.user` as a Bearer token or session for the same person.
 
-**Known limitations:** `apps/web`'s `/profile` page and the organization
-settings "Membres/Équipes" tab still use the Better Auth React client
-(`authClient`), which depends on a `better-auth.session_token` cookie that
-Keycloak login does not set — `authClient.useSession()` resolves to `null` and
-these views show no data. `auth-client.ts` is kept in both apps so they keep
-typechecking, but it is dead code for Keycloak-based logins. This is fixed by a
-later Organizations/Phasetwo stage that migrates these views off `authClient`.
+**Known limitations:** `apps/web`'s `/profile` page (update display name,
+change password) still uses the Better Auth React client
+(`authClient.updateUser`/`authClient.changePassword`), which depends on a
+`better-auth.session_token` cookie that Keycloak login does not set — these
+actions fail for Keycloak-authenticated users. `auth-client.ts` is kept in
+both apps so they keep typechecking, but it is otherwise dead code for
+Keycloak-based logins. Migrating profile/password management onto Keycloak
+(account console or Admin API) is a later stage. The organization
+"Membres/Équipes" tab no longer depends on `authClient` — it's served by the
+[`/organizations/*`](#organization-scoped-api-control-api) control-api routes
+(Phasetwo Organizations).
 
 ### Cross-subdomain sessions (SaaS topology)
 
@@ -471,18 +484,45 @@ subdomain origin in `TRUSTED_ORIGINS` (comma-separated).
 
 ## Organizations & teams
 
-ArchiSpark is multi-tenant: each **organization** ("entreprise") has its own members, teams, and workspaces.
+ArchiSpark is multi-tenant: each **organization** ("entreprise") has its own
+members, teams, and workspaces. Organizations, membership, and roles live in
+**Keycloak** (Phasetwo's Organizations extension, see
+[Keycloak login](#keycloak-login-stage-3)); `teams`/`team_members` remain in
+the control database, keyed by the member's Keycloak `sub`.
 
-- **Roles** (Better Auth organization plugin): `owner`, `admin`, `member` — scoped per organization. `owner`/`admin` can manage members, invitations, teams, and workspace content; `member` has read-only access.
-- **Platform super admin**: a user with the global `role: "platform_admin"` (set via the [admin web](#admin-web) `/users` page, or `POST`/`PUT /users`) bypasses organization role checks everywhere and can create new organizations (`allowUserToCreateOrganization`).
+- **Roles**: `owner`, `admin`, `member` (`ORG_ROLES` in `@workspace/auth`) — scoped per organization and carried in the access token's `organizations` claim (`{ "<orgId>": { name, roles: [...] } }`). `owner`/`admin` can manage members, invitations, teams, and workspace content; `member` has read-only access.
+- **Platform super admin**: a user with the global `role: "platform_admin"` (set via the [admin web](#admin-web) `/users` page, or `POST`/`PUT /users`) bypasses organization role checks everywhere. Creating new organizations is **admin-only** (`POST /admin/organizations` from [admin web](#admin-web)) — there is no self-service organization creation.
 - `apps/web` (the workspace UI) blocks `platform_admin` sessions: instead of the normal nav/sidebar/workspace content, it shows a notice screen with a sign-out button. Platform admins manage organizations from [admin web](#admin-web) and have no need for tenant workspace access; `admin`/`admin` still holds an `owner` membership in a default organization (required by `control-api` so admin web itself stays functional), but that membership is now inert from `apps/web`'s perspective.
-- **Teams** group members within an organization. A workspace with one or more `team_ids` is only visible to members of those teams (plus org owners/admins); a workspace with no teams is visible to the whole organization.
+- **Org switcher**: a user belonging to more than one organization sees a switcher in `apps/web`'s sidebar. The selected organization is stored in a non-httpOnly `active_org` cookie (`useActiveOrganization()` reads it, `useSetActiveOrganization()` writes it) and sent as an `X-Org-Id` header on every `/organizations/*` and `/workspaces*` request; `useAutoActivateOrganization()` sets the cookie to the user's first organization if it's missing or stale.
+- **Teams** group members within an organization (`teams`/`team_members` tables; `team_members.user_id` is a Keycloak `sub`). A workspace with one or more `team_ids` is only visible to members of those teams (plus org owners/admins); a workspace with no teams is visible to the whole organization.
 - Each user has one **active workspace per organization**, switched via `POST /workspaces/:id/activate`.
-- A platform super admin can **suspend** an organization (`organizations.enabled = false`). Members of a suspended organization (other than platform super admins) get `403 Forbidden` on every request while it's resolved as their active organization; their data is left intact and access resumes once the organization is reactivated.
+- A platform super admin can **suspend** an organization (`organization_settings.enabled = false`, control-db; defaults to `true` if no row exists). Members of a suspended organization (other than platform super admins) get `403 Forbidden` on every request while it's resolved as their active organization; their data is left intact and access resumes once the organization is reactivated.
 
-Org owners/admins (and platform super admins) see an **Organization** entry in the sidebar, opening a dedicated section (`/organization`) with its own sidebar and two tabs: **Workspace** (list every workspace in the organization — create, activate, rename, assign teams, or delete each one) and **Membres** (manage members, invitations, and teams). The platform-wide list of organizations across every tenant is managed separately from the [admin web](#admin-web) console (`/organizations`, platform super admins only).
+Org owners/admins (and platform super admins) see an **Organization** entry in the sidebar, opening a dedicated section (`/organization`) with its own sidebar and two tabs: **Workspace** (list every workspace in the organization — create, activate, rename, assign teams, or delete each one) and **Membres** (manage members, invitations, and teams, via the routes below). The platform-wide list of organizations across every tenant is managed separately from the [admin web](#admin-web) console (`/organizations`, platform super admins only).
 
 **Settings** (`/settings`, visible to all users) is for importing/exporting the active workspace's model.
+
+### Organization-scoped API (control-api)
+
+All routes below act on the request's **active organization** (see
+[Authentication](#authentication)). Mutations require `owner`/`admin`
+(`requireWorkspaceWrite`); `member`s can read.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/organizations/members` | List members of the active organization with their role and team memberships |
+| `PUT` | `/organizations/members/:userId` | Change a member's role — body: `{ role: "owner" \| "admin" \| "member" }` |
+| `DELETE` | `/organizations/members/:userId` | Remove a member from the organization |
+| `GET` | `/organizations/invitations` | List pending invitations |
+| `POST` | `/organizations/invitations` | Invite a new member by email — body: `{ email, role }`, creates a Phasetwo invitation |
+| `DELETE` | `/organizations/invitations/:invitationId` | Cancel a pending invitation |
+| `GET` | `/organizations/teams` | List teams in the active organization |
+| `POST` | `/organizations/teams` | Create a team — body: `{ name }` |
+| `PUT` | `/organizations/teams/:teamId` | Rename a team — body: `{ name }` |
+| `DELETE` | `/organizations/teams/:teamId` | Delete a team |
+| `GET` | `/organizations/teams/:teamId/members` | List a team's members |
+| `POST` | `/organizations/teams/:teamId/members` | Add a member to a team — body: `{ user_id }` |
+| `DELETE` | `/organizations/teams/:teamId/members/:userId` | Remove a member from a team |
 
 ## Admin web
 
@@ -502,18 +542,48 @@ Org owners/admins (and platform super admins) see an **Organization** entry in t
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/users` | List all users |
-| `POST` | `/users` | Create user — body: `{ username, password, role? }`. The new user is added as a member of the requester's active organization (`owner` if `role === "platform_admin"`, otherwise `member`) |
+| `GET` | `/users` | List all platform users |
+| `POST` | `/users` | Create user — body: `{ username, password, role? }`. The new user is **not** added to any organization — add it via [`/organizations/*`](#organization-scoped-api-control-api) or as an [initial organization owner](#initial-organization-owner) |
 | `PUT` | `/users/:id` | Update password and/or role |
-| `DELETE` | `/users/:id` | Delete user (last user protected) |
+| `DELETE` | `/users/:id` | Delete user |
+
+### User provisioning (Keycloak Admin API)
+
+Platform users (`/users*` above) are provisioned directly in Keycloak via its
+Admin REST API (`packages/auth/src/admin-users.ts`), using the
+`KEYCLOAK_ADMIN_CLIENT_ID`/`KEYCLOAK_ADMIN_CLIENT_SECRET` service-account
+credentials (`client_credentials` grant, see `.env.example`) — there is no
+local `users` table row for users created this way. `UserOut.id` is the
+Keycloak `sub`, used directly wherever a Keycloak `sub` is expected (org
+membership, team membership, API token ownership).
+
+- `GET /users` lists every realm user except service accounts
+  (`listRealmUsers`), flagging `role: "platform_admin"` for users holding that
+  realm role (`listRealmRoleUsers`).
+- `POST /users` creates the Keycloak user (`username`, `email:
+  <username>@archispark.internal`, enabled + email-verified), sets its
+  password, and assigns the `platform_admin` realm role when `role ===
+  "platform_admin"`.
+- `PUT /users/:id` updates the password and/or grants/revokes the
+  `platform_admin` realm role.
+- `DELETE /users/:id` deletes the Keycloak user.
+
+The demo accounts (`admin`/`user`/`contrib`/`archi`) are unaffected — they
+keep their bridged `users.keycloak_sub` rows from [Keycloak login
+(Stage 3)](#keycloak-login-stage-3) for Better Auth sign-in.
 
 ### Organization monitoring API (platform admin only)
 
+Organizations themselves live in Keycloak (Phasetwo). `slug` is read from the
+organization's `attributes.slug` (falls back to its Keycloak id if absent),
+and `enabled` comes from the control-db `organization_settings` table
+(`true` if no row exists).
+
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/admin/organizations` | List every organization with `enabled` flag and `tenant_status` (`tenant_databases.status`, or `null` if it shares the control-plane database) |
-| `POST` | `/admin/organizations` | Create an organization and provision its tenant database — body: `{ name, slug?, initial_owner_user_id? }`. See [Initial organization owner](#initial-organization-owner) below |
-| `PUT` | `/admin/organizations/:id` | Suspend or reactivate an organization — body: `{ enabled: boolean }` |
+| `GET` | `/admin/organizations` | List every Keycloak organization with `enabled` flag and `tenant_status` (`tenant_databases.status`, or `null` if it shares the control-plane database) |
+| `POST` | `/admin/organizations` | Create a Keycloak organization and provision its tenant database — body: `{ name, slug?, initial_owner_user_id? }`, see [Initial organization owner](#initial-organization-owner) below |
+| `PUT` | `/admin/organizations/:id` | Suspend or reactivate an organization — body: `{ enabled: boolean }` (upserts `organization_settings`) |
 
 ## Workspace management
 

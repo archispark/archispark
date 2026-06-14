@@ -489,6 +489,9 @@ importers:
       '@neondatabase/serverless':
         specifier: ^0.10.4
         version: 0.10.4
+      '@workspace/auth':
+        specifier: workspace:*
+        version: link:../auth
       drizzle-orm:
         specifier: ^0.45.2
         version: 0.45.2(@electric-sql/pglite@0.5.1)(@neondatabase/serverless@0.10.4)(@types/pg@8.20.0)(kysely@0.28.17)(pg@8.21.0)

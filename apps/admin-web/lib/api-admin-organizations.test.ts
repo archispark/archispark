@@ -1,5 +1,6 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import {
+  fetchAdminOrganizations, fetchNeonStatus,
   setOrganizationEnabledApi, createAdminOrganization, verifyOrganizationDb, reprovisionOrganization,
 } from "./api";
 
@@ -101,5 +102,35 @@ describe("Admin organizations", () => {
   it("reprovisionOrganization throws on error", async () => {
     mockFetchError(503);
     await expect(reprovisionOrganization("org-1")).rejects.toThrow("HTTP 503");
+  });
+
+  it("fetchAdminOrganizations returns the organization list", async () => {
+    mockFetchOk([org]);
+    const result = await fetchAdminOrganizations();
+    expect(result).toEqual([org]);
+    expect(vi.mocked(fetch)).toHaveBeenCalledWith(
+      expect.stringContaining("/admin/organizations"),
+      expect.any(Object),
+    );
+  });
+
+  it("fetchAdminOrganizations throws on non-ok response", async () => {
+    mockFetchError(500);
+    await expect(fetchAdminOrganizations()).rejects.toThrow("API error: 500");
+  });
+
+  it("fetchNeonStatus returns Neon configuration status", async () => {
+    mockFetchOk({ configured: true, reachable: true, provider: "neon" });
+    const result = await fetchNeonStatus();
+    expect(result).toEqual({ configured: true, reachable: true, provider: "neon" });
+    expect(vi.mocked(fetch)).toHaveBeenCalledWith(
+      expect.stringContaining("/admin/neon/status"),
+      expect.any(Object),
+    );
+  });
+
+  it("fetchNeonStatus throws on non-ok response", async () => {
+    mockFetchError(500);
+    await expect(fetchNeonStatus()).rejects.toThrow("API error: 500");
   });
 });

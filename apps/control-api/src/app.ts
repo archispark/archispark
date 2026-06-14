@@ -15,8 +15,14 @@
  *
  * Routes:
  *   GET /me
+ *   GET /organizations/members, PUT|DELETE /organizations/members/:userId
+ *   GET|POST /organizations/invitations, DELETE /organizations/invitations/:invitationId
+ *   GET|POST /organizations/teams, PUT|DELETE /organizations/teams/:teamId
+ *   GET|POST /organizations/teams/:teamId/members, DELETE /organizations/teams/:teamId/members/:userId
  *   GET|POST /users, PUT|DELETE /users/:id
- *   GET /admin/organizations, PUT /admin/organizations/:id
+ *   GET /admin/organizations, POST /admin/organizations, PUT /admin/organizations/:id
+ *   POST /admin/organizations/:id/verify-db, POST /admin/organizations/:id/reprovision
+ *   GET /admin/neon/status
  *   GET|POST /settings/providers, PUT|DELETE /settings/providers/:id
  *   GET /settings/redis
  *   GET /settings/postgres
@@ -24,6 +30,11 @@
  *   GET|PUT /settings/messages
  *   *  -> proxied to TENANT_API_URL (workspaces, elements, relationships,
  *         views, property-definitions, export/import, openapi/docs, ...)
+ *
+ * Organization membership/roles (owner|admin|member) and invitations live in
+ * Keycloak (Phasetwo Organizations extension, see @workspace/auth's orgs.ts);
+ * teams/team members stay local, scoped to a Keycloak organization id.
+ * Members with role "member" get read-only access (requireWorkspaceWrite).
  */
 
 import express, { Request, Response, NextFunction } from "express";
@@ -36,6 +47,7 @@ import { RedisStore } from "rate-limit-redis";
 import { getRedis } from "./redis.js";
 import { AppError } from "./errors.js";
 import { controlDb, oauthProviders, apiTokens, siteSettings, getTenantConnectionStringEncrypted, signTenantToken, getNeonApiConfig, getDefaultBranchId, provisionTenantDatabase, verifyTenantDatabaseConnectivity, canProvisionLocally } from "@workspace/db";
+import { ORG_ROLES, type OrgRoleName } from "@workspace/auth";
 import { eq, sql } from "drizzle-orm";
 import {
   listUsers,
@@ -46,6 +58,19 @@ import {
   setOrganizationEnabled,
   createOrganizationWithOwner,
   deleteOrganization,
+  listOrgMembersOut,
+  updateOrgMemberRole,
+  removeOrgMemberById,
+  listOrgInvitationsOut,
+  createInvitation,
+  cancelInvitation,
+  listTeams,
+  createTeam,
+  updateTeam,
+  removeTeam,
+  listTeamMembersOut,
+  addTeamMember,
+  removeTeamMember,
   requireAuth,
   requireSuperAdmin,
   resolveWorkspaceContext,
@@ -169,6 +194,84 @@ app.get("/me", (req: AuthRequest, res: Response) => {
 });
 
 // ---------------------------------------------------------------------------
+// Organization routes (current workspace) — members, invitations, teams
+// ---------------------------------------------------------------------------
+
+function parseOrgRole(value: unknown): OrgRoleName | null {
+  return typeof value === "string" && (ORG_ROLES as readonly string[]).includes(value) ? (value as OrgRoleName) : null;
+}
+
+app.get("/organizations/members", async (req: AuthRequest, res: Response) => {
+  res.json(await listOrgMembersOut(req.workspace!.organizationId));
+});
+
+app.put("/organizations/members/:userId", async (req: AuthRequest, res: Response) => {
+  const role = parseOrgRole((req.body as { role?: unknown }).role);
+  if (!role) { res.status(422).json({ detail: `Le champ 'role' doit être l'un de : ${ORG_ROLES.join(", ")}.` }); return; }
+  await updateOrgMemberRole(req.workspace!.organizationId, req.params["userId"] as string, role);
+  res.json({ ok: true });
+});
+
+app.delete("/organizations/members/:userId", async (req: AuthRequest, res: Response) => {
+  await removeOrgMemberById(req.workspace!.organizationId, req.params["userId"] as string);
+  res.status(204).send();
+});
+
+app.get("/organizations/invitations", async (req: AuthRequest, res: Response) => {
+  res.json(await listOrgInvitationsOut(req.workspace!.organizationId));
+});
+
+app.post("/organizations/invitations", async (req: AuthRequest, res: Response) => {
+  const { email, role: roleInput } = req.body as { email?: unknown; role?: unknown };
+  if (!email || typeof email !== "string" || !email.trim()) { res.status(422).json({ detail: "Le champ 'email' est requis." }); return; }
+  const role = parseOrgRole(roleInput);
+  if (!role) { res.status(422).json({ detail: `Le champ 'role' doit être l'un de : ${ORG_ROLES.join(", ")}.` }); return; }
+  res.status(201).json(await createInvitation(req.workspace!.organizationId, email.trim(), role));
+});
+
+app.delete("/organizations/invitations/:invitationId", async (req: AuthRequest, res: Response) => {
+  await cancelInvitation(req.workspace!.organizationId, req.params["invitationId"] as string);
+  res.status(204).send();
+});
+
+app.get("/organizations/teams", async (req: AuthRequest, res: Response) => {
+  res.json(await listTeams(req.workspace!.organizationId));
+});
+
+app.post("/organizations/teams", async (req: AuthRequest, res: Response) => {
+  const { name } = req.body as { name?: unknown };
+  if (!name || typeof name !== "string" || !name.trim()) { res.status(422).json({ detail: "Le champ 'name' est requis." }); return; }
+  res.status(201).json(await createTeam(req.workspace!.organizationId, name.trim()));
+});
+
+app.put("/organizations/teams/:teamId", async (req: AuthRequest, res: Response) => {
+  const { name } = req.body as { name?: unknown };
+  if (!name || typeof name !== "string" || !name.trim()) { res.status(422).json({ detail: "Le champ 'name' est requis." }); return; }
+  res.json(await updateTeam(req.workspace!.organizationId, req.params["teamId"] as string, name.trim()));
+});
+
+app.delete("/organizations/teams/:teamId", async (req: AuthRequest, res: Response) => {
+  await removeTeam(req.workspace!.organizationId, req.params["teamId"] as string);
+  res.status(204).send();
+});
+
+app.get("/organizations/teams/:teamId/members", async (req: AuthRequest, res: Response) => {
+  res.json(await listTeamMembersOut(req.workspace!.organizationId, req.params["teamId"] as string));
+});
+
+app.post("/organizations/teams/:teamId/members", async (req: AuthRequest, res: Response) => {
+  const { user_id } = req.body as { user_id?: unknown };
+  if (!user_id || typeof user_id !== "string") { res.status(422).json({ detail: "Le champ 'user_id' est requis." }); return; }
+  await addTeamMember(req.workspace!.organizationId, req.params["teamId"] as string, user_id);
+  res.status(204).send();
+});
+
+app.delete("/organizations/teams/:teamId/members/:userId", async (req: AuthRequest, res: Response) => {
+  await removeTeamMember(req.workspace!.organizationId, req.params["teamId"] as string, req.params["userId"] as string);
+  res.status(204).send();
+});
+
+// ---------------------------------------------------------------------------
 // Users routes (read via custom query; mutations via Better Auth admin plugin)
 // ---------------------------------------------------------------------------
 
@@ -182,7 +285,7 @@ app.post("/users", requireSuperAdmin as express.RequestHandler, async (req: Auth
     res.status(422).json({ detail: "Les champs 'username' et 'password' sont requis." });
     return;
   }
-  res.status(201).json(await createUserFn(username, password, typeof role === "string" ? role : "user", req.workspace!.organizationId));
+  res.status(201).json(await createUserFn(username, password, typeof role === "string" ? role : "user"));
 });
 
 app.put("/users/:id", requireSuperAdmin as express.RequestHandler, async (req: Request, res: Response) => {

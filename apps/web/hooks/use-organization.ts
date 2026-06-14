@@ -1,216 +1,231 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { authClient } from "@/lib/auth-client";
-import { useIsAdmin } from "./use-current-user";
+import type { OrgRoleName } from "@workspace/auth";
+import {
+  fetchOrgMembers,
+  updateOrgMemberRole,
+  removeOrgMember,
+  fetchOrgInvitations,
+  createOrgInvitation,
+  cancelOrgInvitation,
+  fetchOrgTeams,
+  createOrgTeam,
+  updateOrgTeam,
+  removeOrgTeam,
+  fetchOrgTeamMembers,
+  addOrgTeamMember,
+  removeOrgTeamMember,
+  type OrgMemberOut,
+  type OrgInvitationOut,
+  type OrgTeamOut,
+  type OrgTeamMemberOut,
+} from "@/lib/api";
+import { useCurrentUser, useIsAdmin, type CurrentUserOrganization } from "./use-current-user";
 
-export type OrgRoleName = "owner" | "admin" | "member";
+export type { OrgRoleName };
+export type OrgMember = OrgMemberOut;
+export type OrgInvitation = OrgInvitationOut;
+export type OrgTeam = OrgTeamOut;
+export type OrgTeamMember = OrgTeamMemberOut;
+export type ActiveOrganization = CurrentUserOrganization;
 
-export interface OrgMember {
-  id: string;
-  organizationId: string;
-  role: string;
-  createdAt: string | Date;
-  userId: string;
-  teamId?: string;
-  user: { id: string; email: string; name: string; image?: string | null };
+const ACTIVE_ORG_COOKIE = "active_org";
+
+function readActiveOrgCookie(): string | null {
+  if (typeof document === "undefined") return null;
+  const match = document.cookie.match(/(?:^|; )active_org=([^;]*)/);
+  return match ? decodeURIComponent(match[1]!) : null;
 }
 
-export interface OrgInvitation {
-  id: string;
-  organizationId: string;
-  email: string;
-  role: string;
-  status: "pending" | "accepted" | "rejected" | "canceled";
-  inviterId: string;
-  expiresAt: string | Date;
-  teamId?: string;
+function writeActiveOrgCookie(id: string): void {
+  document.cookie = `${ACTIVE_ORG_COOKIE}=${encodeURIComponent(id)}; path=/; max-age=${60 * 60 * 24 * 365}; samesite=lax`;
 }
 
-export interface OrgTeam {
-  id: string;
-  name: string;
-  organizationId: string;
-  createdAt: string | Date;
-  updatedAt?: string | Date | null;
+/** All organizations the current user belongs to (from `/api/auth/me`). */
+export function useOrganizations(): CurrentUserOrganization[] {
+  const user = useCurrentUser();
+  return user?.organizations ?? [];
 }
 
-export interface OrgTeamMember {
-  id: string;
-  teamId: string;
-  userId: string;
-  createdAt: string | Date;
-}
-
-export interface OrgMetadata {
-  description?: string;
-  [key: string]: unknown;
-}
-
-export interface ActiveOrganization {
-  id: string;
-  name: string;
-  createdAt: string | Date;
-  logo?: string | null;
-  metadata?: OrgMetadata | null;
-  members: OrgMember[];
-  invitations: OrgInvitation[];
-}
-
-export interface OrganizationListItem {
-  id: string;
-  name: string;
-  createdAt: string | Date;
-  logo?: string | null;
-  metadata?: OrgMetadata | null;
-}
-
-async function unwrap<T>(
-  promise: Promise<{ data: T | null; error: { message?: string } | null }>,
-): Promise<T> {
-  const { data, error } = await promise;
-  if (error) throw new Error(error.message ?? "Request failed");
-  return data as T;
-}
-
+/**
+ * The organization the current request should operate in: the one matching
+ * the non-httpOnly `active_org` cookie (org switcher), or the user's first
+ * organization if none is set yet.
+ */
 export function useActiveOrganization(): ActiveOrganization | null {
-  const { data } = authClient.useActiveOrganization();
-  return (data as unknown as ActiveOrganization | null) ?? null;
+  const organizations = useOrganizations();
+  if (organizations.length === 0) return null;
+  const activeId = readActiveOrgCookie();
+  return organizations.find((o) => o.id === activeId) ?? organizations[0]!;
 }
 
-export function useOrganizations(): OrganizationListItem[] {
-  const { data } = authClient.useListOrganizations();
-  return (data as unknown as OrganizationListItem[] | null) ?? [];
-}
-
-export function useOrgRole(): string | null {
-  const { data } = authClient.useActiveMemberRole();
-  return data?.role ?? null;
+export function useOrgRole(): OrgRoleName | null {
+  return useActiveOrganization()?.role ?? null;
 }
 
 export function useIsOrgAdmin(): boolean {
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
   const isSuperAdmin = useIsAdmin();
   const role = useOrgRole();
-  return mounted && (isSuperAdmin || role === "owner" || role === "admin");
+  return isSuperAdmin || role === "owner" || role === "admin";
 }
 
+/** Switches the active organization by writing the `active_org` cookie and refreshing queries. */
+export function useSetActiveOrganization(): (organizationId: string) => void {
+  const qc = useQueryClient();
+  return useCallback(
+    (organizationId: string) => {
+      writeActiveOrgCookie(organizationId);
+      qc.invalidateQueries();
+    },
+    [qc],
+  );
+}
+
+/**
+ * Ensures the `active_org` cookie is set once the user's organizations are
+ * known, so the org-scoped UI (and `X-Org-Id` requests) has a workspace to
+ * operate in even before the user ever opens the org switcher.
+ */
+export function useAutoActivateOrganization(): void {
+  const organizations = useOrganizations();
+  const setActiveOrg = useSetActiveOrganization();
+  const triedRef = useRef(false);
+
+  useEffect(() => {
+    if (triedRef.current || organizations.length === 0) return;
+    if (readActiveOrgCookie()) return;
+    triedRef.current = true;
+    setActiveOrg(organizations[0]!.id);
+  }, [organizations, setActiveOrg]);
+}
+
+// ---------------------------------------------------------------------------
+// Members
+// ---------------------------------------------------------------------------
+
+export function useOrgMembers() {
+  const orgId = useActiveOrganization()?.id ?? null;
+  return useQuery({
+    queryKey: ["org-members", orgId],
+    queryFn: () => fetchOrgMembers(orgId!),
+    enabled: !!orgId,
+  });
+}
+
+export function useUpdateMemberRole() {
+  const orgId = useActiveOrganization()?.id ?? null;
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ userId, role }: { userId: string; role: OrgRoleName }) => updateOrgMemberRole(orgId!, userId, role),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["org-members", orgId] }),
+  });
+}
+
+export function useRemoveMember() {
+  const orgId = useActiveOrganization()?.id ?? null;
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (userId: string) => removeOrgMember(orgId!, userId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["org-members", orgId] }),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Invitations
+// ---------------------------------------------------------------------------
+
+export function useOrgInvitations() {
+  const orgId = useActiveOrganization()?.id ?? null;
+  return useQuery({
+    queryKey: ["org-invitations", orgId],
+    queryFn: () => fetchOrgInvitations(orgId!),
+    enabled: !!orgId,
+  });
+}
+
+export function useInviteMember() {
+  const orgId = useActiveOrganization()?.id ?? null;
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ email, role }: { email: string; role: OrgRoleName }) => createOrgInvitation(orgId!, email, role),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["org-invitations", orgId] }),
+  });
+}
+
+export function useCancelInvitation() {
+  const orgId = useActiveOrganization()?.id ?? null;
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (invitationId: string) => cancelOrgInvitation(orgId!, invitationId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["org-invitations", orgId] }),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Teams
+// ---------------------------------------------------------------------------
+
 export function useTeams() {
-  const activeOrg = useActiveOrganization();
-  const orgId = activeOrg?.id;
+  const orgId = useActiveOrganization()?.id ?? null;
   return useQuery({
     queryKey: ["org-teams", orgId],
-    queryFn: () => unwrap<OrgTeam[]>(authClient.organization.listTeams()),
+    queryFn: () => fetchOrgTeams(orgId!),
     enabled: !!orgId,
   });
 }
 
 export function useTeamMembers(teamId: string | null) {
+  const orgId = useActiveOrganization()?.id ?? null;
   return useQuery({
-    queryKey: ["org-team-members", teamId],
-    queryFn: () => unwrap<OrgTeamMember[]>(authClient.organization.listTeamMembers({ query: { teamId: teamId! } })),
-    enabled: !!teamId,
-  });
-}
-
-export function useSetActiveOrganization() {
-  return useMutation({
-    mutationFn: (organizationId: string) => unwrap(authClient.organization.setActive({ organizationId })),
-  });
-}
-
-/**
- * Better Auth's org-scoped hooks (`useActiveOrganization`, `useActiveMemberRole`,
- * and therefore `useIsOrgAdmin`) all key off `session.activeOrganizationId`,
- * which stays unset until `organization.setActive` is called at least once.
- * `OrgSwitcher` only renders (and calls it) when a user belongs to 2+ orgs, so
- * single-org members/admins/owners never get an active org and silently fall
- * back to "no role" — e.g. an org admin/owner sees the read-only UI. Activate
- * the user's first organization automatically once, the first time none is set.
- */
-export function useAutoActivateOrganization(): void {
-  const organizations = useOrganizations();
-  const activeOrg = useActiveOrganization();
-  const setActiveOrg = useSetActiveOrganization();
-  const qc = useQueryClient();
-  const triedRef = useRef(false);
-
-  useEffect(() => {
-    if (triedRef.current || activeOrg || organizations.length === 0) return;
-    triedRef.current = true;
-    setActiveOrg.mutate(organizations[0]!.id, {
-      onSuccess: () => qc.invalidateQueries(),
-    });
-  }, [activeOrg, organizations, setActiveOrg, qc]);
-}
-
-export function useInviteMember() {
-  return useMutation({
-    mutationFn: (body: { email: string; role: OrgRoleName; teamId?: string }) =>
-      unwrap(authClient.organization.inviteMember(body)),
-  });
-}
-
-export function useCancelInvitation() {
-  return useMutation({
-    mutationFn: (invitationId: string) => unwrap(authClient.organization.cancelInvitation({ invitationId })),
-  });
-}
-
-export function useUpdateMemberRole() {
-  return useMutation({
-    mutationFn: ({ memberId, role }: { memberId: string; role: OrgRoleName }) =>
-      unwrap(authClient.organization.updateMemberRole({ memberId, role })),
-  });
-}
-
-export function useRemoveMember() {
-  return useMutation({
-    mutationFn: (memberIdOrEmail: string) => unwrap(authClient.organization.removeMember({ memberIdOrEmail })),
+    queryKey: ["org-team-members", orgId, teamId],
+    queryFn: () => fetchOrgTeamMembers(orgId!, teamId!),
+    enabled: !!orgId && !!teamId,
   });
 }
 
 export function useCreateTeam() {
+  const orgId = useActiveOrganization()?.id ?? null;
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (name: string) => unwrap(authClient.organization.createTeam({ name })),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["org-teams"] }),
+    mutationFn: (name: string) => createOrgTeam(orgId!, name),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["org-teams", orgId] }),
   });
 }
 
 export function useUpdateTeam() {
+  const orgId = useActiveOrganization()?.id ?? null;
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ teamId, name }: { teamId: string; name: string }) =>
-      unwrap(authClient.organization.updateTeam({ teamId, data: { name } })),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["org-teams"] }),
+    mutationFn: ({ teamId, name }: { teamId: string; name: string }) => updateOrgTeam(orgId!, teamId, name),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["org-teams", orgId] }),
   });
 }
 
 export function useRemoveTeam() {
+  const orgId = useActiveOrganization()?.id ?? null;
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (teamId: string) => unwrap(authClient.organization.removeTeam({ teamId })),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["org-teams"] }),
+    mutationFn: (teamId: string) => removeOrgTeam(orgId!, teamId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["org-teams", orgId] }),
   });
 }
 
 export function useAddTeamMember() {
+  const orgId = useActiveOrganization()?.id ?? null;
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ teamId, userId }: { teamId: string; userId: string }) =>
-      unwrap(authClient.organization.addTeamMember({ teamId, userId })),
-    onSuccess: (_data, { teamId }) => qc.invalidateQueries({ queryKey: ["org-team-members", teamId] }),
+    mutationFn: ({ teamId, userId }: { teamId: string; userId: string }) => addOrgTeamMember(orgId!, teamId, userId),
+    onSuccess: (_data, { teamId }) => qc.invalidateQueries({ queryKey: ["org-team-members", orgId, teamId] }),
   });
 }
 
 export function useRemoveTeamMember() {
+  const orgId = useActiveOrganization()?.id ?? null;
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ teamId, userId }: { teamId: string; userId: string }) =>
-      unwrap(authClient.organization.removeTeamMember({ teamId, userId })),
-    onSuccess: (_data, { teamId }) => qc.invalidateQueries({ queryKey: ["org-team-members", teamId] }),
+    mutationFn: ({ teamId, userId }: { teamId: string; userId: string }) => removeOrgTeamMember(orgId!, teamId, userId),
+    onSuccess: (_data, { teamId }) => qc.invalidateQueries({ queryKey: ["org-team-members", orgId, teamId] }),
   });
 }

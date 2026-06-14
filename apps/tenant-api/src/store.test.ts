@@ -1,18 +1,16 @@
-import { describe, it, expect, beforeAll, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import { randomUUID } from "crypto";
-import { db, organizations, seedWorkspace } from "@workspace/db";
+import { seedWorkspace } from "@workspace/db";
 import * as store from "./store.js";
 
 // Each test runs against a fresh, isolated workspace seeded in the (PGlite) DB.
+// organizationId is a plain Keycloak/Phasetwo organization id — no local
+// "organizations" table to insert into (organizations live in Keycloak).
 let wsId: number;
 let orgId: string;
 
-beforeAll(async () => {
-  orgId = `org-store-test-${randomUUID()}`;
-  await db.insert(organizations).values({ id: orgId, name: orgId, slug: orgId, createdAt: new Date() });
-});
-
 beforeEach(async () => {
+  orgId = `org-store-test-${randomUUID()}`;
   wsId = await seedWorkspace(`store-test-${randomUUID()}`, {
     uuid: `id-${randomUUID()}`, name: "Store Test", desc: null, version: null,
     elements: [], relationships: [], propertyDefinitions: [], views: [],

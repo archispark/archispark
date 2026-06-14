@@ -1,8 +1,9 @@
 import request from "supertest";
-import { db, users as usersTable, members as membersTable } from "@workspace/db";
+import { db, users as usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
+import { listOrganizations } from "@workspace/auth";
 import { app } from "./app.js";
-import { initUsers, getMembershipContext } from "./auth.js";
+import { initUsers, initOrganizations, getMembershipContext } from "./auth.js";
 import type { WorkspaceContext } from "./auth.js";
 
 let initPromise: Promise<void> | null = null;
@@ -10,7 +11,7 @@ let adminCookie: string | null = null;
 let userCookie: string | null = null;
 
 async function ensureInit() {
-  if (!initPromise) initPromise = initUsers();
+  if (!initPromise) initPromise = initUsers().then(() => initOrganizations());
   return initPromise;
 }
 
@@ -49,10 +50,9 @@ export async function getAdminWorkspaceContext(): Promise<{ userId: string; ctx:
   await ensureInit();
   const [admin] = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.username, "admin"));
   if (!admin) throw new Error("Admin user not found.");
-  const [member] = await db.select({ organizationId: membersTable.organizationId }).from(membersTable)
-    .where(eq(membersTable.userId, admin.id)).limit(1);
-  if (!member) throw new Error("Admin has no organization membership.");
-  const ctx = await getMembershipContext(admin.id, member.organizationId);
+  const [org] = await listOrganizations();
+  if (!org?.id) throw new Error("No organization found.");
+  const ctx = await getMembershipContext(admin.id, org.id);
   if (!ctx) throw new Error("Admin membership context not found.");
   return { userId: admin.id, ctx };
 }

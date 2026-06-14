@@ -1,15 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { renderHook, waitFor } from "@testing-library/react";
+import { renderHook, waitFor, act } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { OrgRoleName } from "@workspace/auth";
 import {
-  useActiveOrganization,
   useOrganizations,
+  useActiveOrganization,
   useOrgRole,
   useIsOrgAdmin,
-  useTeams,
-  useTeamMembers,
   useSetActiveOrganization,
   useAutoActivateOrganization,
+  useOrgMembers,
+  useOrgInvitations,
+  useTeams,
+  useTeamMembers,
   useInviteMember,
   useCancelInvitation,
   useUpdateMemberRole,
@@ -19,84 +22,60 @@ import {
   useRemoveTeam,
   useAddTeamMember,
   useRemoveTeamMember,
-  type ActiveOrganization,
 } from "./use-organization";
 
 // ---------------------------------------------------------------------------
-// Mock @/lib/auth-client
+// Mocks
 // ---------------------------------------------------------------------------
 
+interface MockOrg {
+  id: string;
+  name: string;
+  role: OrgRoleName;
+}
+
 const mockState = vi.hoisted(() => ({
-  user: null as { id: string; name: string; username?: string; role?: string } | null,
+  user: null as { organizations: MockOrg[] } | null,
+  isAdmin: false,
 }));
 
 vi.mock("./use-current-user", () => ({
-  useIsAdmin: () => mockState.user?.role === "platform_admin",
+  useCurrentUser: () => mockState.user,
+  useIsAdmin: () => mockState.isAdmin,
 }));
 
-vi.mock("@/lib/auth-client", () => {
-  let mockActiveOrg: unknown = null;
-  let mockOrgList: unknown[] | null = null;
-  let mockMemberRole: { role: string } | null = null;
+vi.mock("@/lib/api", () => ({
+  fetchOrgMembers: vi.fn(),
+  updateOrgMemberRole: vi.fn(),
+  removeOrgMember: vi.fn(),
+  fetchOrgInvitations: vi.fn(),
+  createOrgInvitation: vi.fn(),
+  cancelOrgInvitation: vi.fn(),
+  fetchOrgTeams: vi.fn(),
+  createOrgTeam: vi.fn(),
+  updateOrgTeam: vi.fn(),
+  removeOrgTeam: vi.fn(),
+  fetchOrgTeamMembers: vi.fn(),
+  addOrgTeamMember: vi.fn(),
+  removeOrgTeamMember: vi.fn(),
+}));
 
-  const organization = {
-    listTeams: vi.fn(),
-    listTeamMembers: vi.fn(),
-    setActive: vi.fn(),
-    inviteMember: vi.fn(),
-    cancelInvitation: vi.fn(),
-    updateMemberRole: vi.fn(),
-    removeMember: vi.fn(),
-    createTeam: vi.fn(),
-    updateTeam: vi.fn(),
-    removeTeam: vi.fn(),
-    addTeamMember: vi.fn(),
-    removeTeamMember: vi.fn(),
-  };
+import * as api from "@/lib/api";
 
-  return {
-    authClient: {
-      useActiveOrganization: () => ({ data: mockActiveOrg }),
-      useListOrganizations: () => ({ data: mockOrgList }),
-      useActiveMemberRole: () => ({ data: mockMemberRole }),
-      organization,
-    },
-    useSession: () => ({
-      data: mockState.user ? { user: mockState.user, session: {} } : null,
-    }),
-    signIn: { username: vi.fn() },
-    signOut: vi.fn(),
-    signUp: vi.fn(),
-    getSession: vi.fn(),
-    _setMockActiveOrg: (o: unknown) => { mockActiveOrg = o; },
-    _setMockOrgList: (l: unknown[] | null) => { mockOrgList = l; },
-    _setMockMemberRole: (r: { role: string } | null) => { mockMemberRole = r; },
-    _setMockUser: (u: typeof mockState.user) => { mockState.user = u; },
-    _organization: organization,
-  };
-});
+const org1: MockOrg = { id: "org1", name: "Acme", role: "owner" };
+const org2: MockOrg = { id: "org2", name: "Globex", role: "member" };
 
-import * as authClient from "@/lib/auth-client";
-const mocks = authClient as unknown as {
-  _setMockActiveOrg: (o: unknown) => void;
-  _setMockOrgList: (l: unknown[] | null) => void;
-  _setMockMemberRole: (r: { role: string } | null) => void;
-  _setMockUser: (u: { id: string; name: string; username?: string; role?: string } | null) => void;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  _organization: Record<string, any>;
-};
+function setOrganizations(orgs: MockOrg[]): void {
+  mockState.user = { organizations: orgs };
+}
 
-const sampleOrg: ActiveOrganization = {
-  id: "org1",
-  name: "Acme",
-  createdAt: new Date("2024-01-01"),
-  members: [],
-  invitations: [],
-};
+function setActiveOrgCookie(id: string): void {
+  document.cookie = `active_org=${id}; path=/`;
+}
 
-// ---------------------------------------------------------------------------
-// Wrapper helper
-// ---------------------------------------------------------------------------
+function clearActiveOrgCookie(): void {
+  document.cookie = "active_org=; path=/; max-age=0";
+}
 
 function createWrapper() {
   const queryClient = new QueryClient({
@@ -112,54 +91,66 @@ function createWrapper() {
 }
 
 beforeEach(() => {
-  mocks._setMockActiveOrg(null);
-  mocks._setMockOrgList(null);
-  mocks._setMockMemberRole(null);
-  mocks._setMockUser(null);
-  for (const fn of Object.values(mocks._organization)) fn.mockReset();
+  mockState.user = null;
+  mockState.isAdmin = false;
+  clearActiveOrgCookie();
+  vi.resetAllMocks();
 });
 
 // ---------------------------------------------------------------------------
 // Simple selector hooks
 // ---------------------------------------------------------------------------
 
+describe("useOrganizations", () => {
+  it("returns an empty array when there is no current user", () => {
+    const { result } = renderHook(() => useOrganizations());
+    expect(result.current).toEqual([]);
+  });
+
+  it("returns the user's organizations", () => {
+    setOrganizations([org1, org2]);
+    const { result } = renderHook(() => useOrganizations());
+    expect(result.current).toEqual([org1, org2]);
+  });
+});
+
 describe("useActiveOrganization", () => {
-  it("returns null when there is no active organization", () => {
+  it("returns null when the user has no organizations", () => {
     const { result } = renderHook(() => useActiveOrganization());
     expect(result.current).toBeNull();
   });
 
-  it("returns the active organization", () => {
-    mocks._setMockActiveOrg(sampleOrg);
+  it("returns the first organization when no active_org cookie is set", () => {
+    setOrganizations([org1, org2]);
+    const { result } = renderHook(() => useActiveOrganization());
+    expect(result.current?.id).toBe("org1");
+  });
+
+  it("returns the organization matching the active_org cookie", () => {
+    setOrganizations([org1, org2]);
+    setActiveOrgCookie("org2");
+    const { result } = renderHook(() => useActiveOrganization());
+    expect(result.current?.id).toBe("org2");
+  });
+
+  it("falls back to the first organization when the cookie matches none", () => {
+    setOrganizations([org1, org2]);
+    setActiveOrgCookie("org-unknown");
     const { result } = renderHook(() => useActiveOrganization());
     expect(result.current?.id).toBe("org1");
   });
 });
 
-describe("useOrganizations", () => {
-  it("returns an empty array when there is no data", () => {
-    const { result } = renderHook(() => useOrganizations());
-    expect(result.current).toEqual([]);
-  });
-
-  it("returns the list of organizations", () => {
-    mocks._setMockOrgList([{ id: "org1", name: "Acme", createdAt: new Date() }]);
-    const { result } = renderHook(() => useOrganizations());
-    expect(result.current).toHaveLength(1);
-    expect(result.current[0]!.id).toBe("org1");
-  });
-});
-
 describe("useOrgRole", () => {
-  it("returns null when there is no active member role", () => {
+  it("returns null when there is no active organization", () => {
     const { result } = renderHook(() => useOrgRole());
     expect(result.current).toBeNull();
   });
 
-  it("returns the active member role", () => {
-    mocks._setMockMemberRole({ role: "admin" });
+  it("returns the active organization's role", () => {
+    setOrganizations([org1]);
     const { result } = renderHook(() => useOrgRole());
-    expect(result.current).toBe("admin");
+    expect(result.current).toBe("owner");
   });
 });
 
@@ -170,28 +161,70 @@ describe("useIsOrgAdmin", () => {
   });
 
   it("returns false for a plain member", () => {
-    mocks._setMockMemberRole({ role: "member" });
+    setOrganizations([org2]);
     const { result } = renderHook(() => useIsOrgAdmin());
     expect(result.current).toBe(false);
   });
 
   it("returns true for an org owner", () => {
-    mocks._setMockMemberRole({ role: "owner" });
+    setOrganizations([org1]);
     const { result } = renderHook(() => useIsOrgAdmin());
     expect(result.current).toBe(true);
   });
 
   it("returns true for an org admin", () => {
-    mocks._setMockMemberRole({ role: "admin" });
+    setOrganizations([{ id: "org3", name: "Initech", role: "admin" }]);
     const { result } = renderHook(() => useIsOrgAdmin());
     expect(result.current).toBe(true);
   });
 
   it("returns true for a platform super admin regardless of org role", () => {
-    mocks._setMockUser({ id: "u1", name: "alice", username: "alice", role: "platform_admin" });
-    mocks._setMockMemberRole({ role: "member" });
+    mockState.isAdmin = true;
+    setOrganizations([org2]);
     const { result } = renderHook(() => useIsOrgAdmin());
     expect(result.current).toBe(true);
+  });
+});
+
+describe("useSetActiveOrganization", () => {
+  it("writes the active_org cookie and invalidates queries", () => {
+    const { wrapper, queryClient } = createWrapper();
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+    const { result } = renderHook(() => useSetActiveOrganization(), { wrapper });
+    act(() => {
+      result.current("org2");
+    });
+    expect(document.cookie).toContain("active_org=org2");
+    expect(invalidateSpy).toHaveBeenCalled();
+  });
+});
+
+describe("useAutoActivateOrganization", () => {
+  it("activates the user's first organization when no cookie is set", async () => {
+    setOrganizations([org1, org2]);
+    const { wrapper, queryClient } = createWrapper();
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+    renderHook(() => useAutoActivateOrganization(), { wrapper });
+    await waitFor(() => expect(document.cookie).toContain("active_org=org1"));
+    expect(invalidateSpy).toHaveBeenCalled();
+  });
+
+  it("does nothing when the active_org cookie is already set", () => {
+    setOrganizations([org1, org2]);
+    setActiveOrgCookie("org2");
+    const { wrapper, queryClient } = createWrapper();
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+    renderHook(() => useAutoActivateOrganization(), { wrapper });
+    expect(document.cookie).toContain("active_org=org2");
+    expect(invalidateSpy).not.toHaveBeenCalled();
+  });
+
+  it("does nothing when the user has no organizations", () => {
+    const { wrapper, queryClient } = createWrapper();
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+    renderHook(() => useAutoActivateOrganization(), { wrapper });
+    expect(invalidateSpy).not.toHaveBeenCalled();
+    expect(document.cookie).not.toContain("active_org=");
   });
 });
 
@@ -199,54 +232,93 @@ describe("useIsOrgAdmin", () => {
 // Query hooks
 // ---------------------------------------------------------------------------
 
+describe("useOrgMembers", () => {
+  it("is disabled when there is no active organization", () => {
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useOrgMembers(), { wrapper });
+    expect(result.current.fetchStatus).toBe("idle");
+    expect(api.fetchOrgMembers).not.toHaveBeenCalled();
+  });
+
+  it("fetches members for the active organization", async () => {
+    setOrganizations([org1]);
+    vi.mocked(api.fetchOrgMembers).mockResolvedValue([
+      { user_id: "u1", username: "alice", email: "alice@example.com", role: "owner" },
+    ]);
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useOrgMembers(), { wrapper });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data?.[0]!.username).toBe("alice");
+    expect(api.fetchOrgMembers).toHaveBeenCalledWith("org1");
+  });
+});
+
+describe("useOrgInvitations", () => {
+  it("is disabled when there is no active organization", () => {
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useOrgInvitations(), { wrapper });
+    expect(result.current.fetchStatus).toBe("idle");
+    expect(api.fetchOrgInvitations).not.toHaveBeenCalled();
+  });
+
+  it("fetches invitations for the active organization", async () => {
+    setOrganizations([org1]);
+    vi.mocked(api.fetchOrgInvitations).mockResolvedValue([
+      { id: "inv1", email: "bob@example.com", roles: ["member"], created_at: null },
+    ]);
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useOrgInvitations(), { wrapper });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data?.[0]!.email).toBe("bob@example.com");
+    expect(api.fetchOrgInvitations).toHaveBeenCalledWith("org1");
+  });
+});
+
 describe("useTeams", () => {
   it("is disabled when there is no active organization", () => {
     const { wrapper } = createWrapper();
     const { result } = renderHook(() => useTeams(), { wrapper });
     expect(result.current.fetchStatus).toBe("idle");
-    expect(mocks._organization.listTeams).not.toHaveBeenCalled();
+    expect(api.fetchOrgTeams).not.toHaveBeenCalled();
   });
 
   it("fetches teams for the active organization", async () => {
-    mocks._setMockActiveOrg(sampleOrg);
-    mocks._organization.listTeams.mockResolvedValue({
-      data: [{ id: "t1", name: "Team 1", organizationId: "org1", createdAt: new Date() }],
-      error: null,
-    });
+    setOrganizations([org1]);
+    vi.mocked(api.fetchOrgTeams).mockResolvedValue([
+      { id: "t1", name: "Team 1", organization_id: "org1", created_at: "2024-01-01T00:00:00Z" },
+    ]);
     const { wrapper } = createWrapper();
     const { result } = renderHook(() => useTeams(), { wrapper });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data?.[0]!.name).toBe("Team 1");
-  });
-
-  it("propagates errors from the API", async () => {
-    mocks._setMockActiveOrg(sampleOrg);
-    mocks._organization.listTeams.mockResolvedValue({ data: null, error: { message: "boom" } });
-    const { wrapper } = createWrapper();
-    const { result } = renderHook(() => useTeams(), { wrapper });
-    await waitFor(() => expect(result.current.isError).toBe(true));
-    expect(result.current.error?.message).toBe("boom");
+    expect(api.fetchOrgTeams).toHaveBeenCalledWith("org1");
   });
 });
 
 describe("useTeamMembers", () => {
   it("is disabled when teamId is null", () => {
+    setOrganizations([org1]);
     const { wrapper } = createWrapper();
     const { result } = renderHook(() => useTeamMembers(null), { wrapper });
     expect(result.current.fetchStatus).toBe("idle");
-    expect(mocks._organization.listTeamMembers).not.toHaveBeenCalled();
+    expect(api.fetchOrgTeamMembers).not.toHaveBeenCalled();
   });
 
-  it("fetches members for a team", async () => {
-    mocks._organization.listTeamMembers.mockResolvedValue({
-      data: [{ id: "m1", teamId: "team1", userId: "u1", createdAt: new Date() }],
-      error: null,
-    });
+  it("is disabled when there is no active organization", () => {
     const { wrapper } = createWrapper();
-    const { result } = renderHook(() => useTeamMembers("team1"), { wrapper });
+    const { result } = renderHook(() => useTeamMembers("t1"), { wrapper });
+    expect(result.current.fetchStatus).toBe("idle");
+    expect(api.fetchOrgTeamMembers).not.toHaveBeenCalled();
+  });
+
+  it("fetches members for a team in the active organization", async () => {
+    setOrganizations([org1]);
+    vi.mocked(api.fetchOrgTeamMembers).mockResolvedValue([{ user_id: "u1", username: "alice", email: "alice@example.com" }]);
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useTeamMembers("t1"), { wrapper });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(result.current.data?.[0]!.userId).toBe("u1");
-    expect(mocks._organization.listTeamMembers).toHaveBeenCalledWith({ query: { teamId: "team1" } });
+    expect(result.current.data?.[0]!.username).toBe("alice");
+    expect(api.fetchOrgTeamMembers).toHaveBeenCalledWith("org1", "t1");
   });
 });
 
@@ -254,148 +326,198 @@ describe("useTeamMembers", () => {
 // Mutation hooks
 // ---------------------------------------------------------------------------
 
-describe("useSetActiveOrganization", () => {
-  it("calls organization.setActive", async () => {
-    mocks._organization.setActive.mockResolvedValue({ data: { id: "org1" }, error: null });
-    const { wrapper } = createWrapper();
-    const { result } = renderHook(() => useSetActiveOrganization(), { wrapper });
-    const data = await result.current.mutateAsync("org1");
-    expect(data).toEqual({ id: "org1" });
-    expect(mocks._organization.setActive).toHaveBeenCalledWith({ organizationId: "org1" });
-  });
-
-  it("throws when the API returns an error", async () => {
-    mocks._organization.setActive.mockResolvedValue({ data: null, error: { message: "nope" } });
-    const { wrapper } = createWrapper();
-    const { result } = renderHook(() => useSetActiveOrganization(), { wrapper });
-    await expect(result.current.mutateAsync("org1")).rejects.toThrow("nope");
-  });
-});
-
-describe("useAutoActivateOrganization", () => {
-  it("activates the user's first organization when none is active", async () => {
-    mocks._setMockOrgList([{ id: "org1", name: "Acme", createdAt: new Date() }]);
-    mocks._organization.setActive.mockResolvedValue({ data: { id: "org1" }, error: null });
+describe("useInviteMember", () => {
+  it("creates an invitation and invalidates org-invitations", async () => {
+    setOrganizations([org1]);
+    vi.mocked(api.createOrgInvitation).mockResolvedValue({ id: "inv1", email: "bob@example.com", roles: ["member"], created_at: null });
     const { wrapper, queryClient } = createWrapper();
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
-    renderHook(() => useAutoActivateOrganization(), { wrapper });
-    await waitFor(() => expect(mocks._organization.setActive).toHaveBeenCalledWith({ organizationId: "org1" }));
-    await waitFor(() => expect(invalidateSpy).toHaveBeenCalled());
-  });
-
-  it("does nothing when an organization is already active", () => {
-    mocks._setMockActiveOrg(sampleOrg);
-    mocks._setMockOrgList([{ id: "org1", name: "Acme", createdAt: new Date() }]);
-    const { wrapper } = createWrapper();
-    renderHook(() => useAutoActivateOrganization(), { wrapper });
-    expect(mocks._organization.setActive).not.toHaveBeenCalled();
-  });
-
-  it("does nothing when the user has no organizations", () => {
-    const { wrapper } = createWrapper();
-    renderHook(() => useAutoActivateOrganization(), { wrapper });
-    expect(mocks._organization.setActive).not.toHaveBeenCalled();
-  });
-});
-
-describe("useInviteMember", () => {
-  it("calls organization.inviteMember", async () => {
-    mocks._organization.inviteMember.mockResolvedValue({ data: { id: "inv1" }, error: null });
-    const { wrapper } = createWrapper();
     const { result } = renderHook(() => useInviteMember(), { wrapper });
-    const body = { email: "a@b.com", role: "member" as const };
-    const data = await result.current.mutateAsync(body);
-    expect(data).toEqual({ id: "inv1" });
-    expect(mocks._organization.inviteMember).toHaveBeenCalledWith(body);
+    await result.current.mutateAsync({ email: "bob@example.com", role: "member" });
+    expect(api.createOrgInvitation).toHaveBeenCalledWith("org1", "bob@example.com", "member");
+    await waitFor(() => expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["org-invitations", "org1"] }));
   });
 });
 
 describe("useCancelInvitation", () => {
-  it("calls organization.cancelInvitation", async () => {
-    mocks._organization.cancelInvitation.mockResolvedValue({ data: {}, error: null });
-    const { wrapper } = createWrapper();
+  it("cancels an invitation and invalidates org-invitations", async () => {
+    setOrganizations([org1]);
+    vi.mocked(api.cancelOrgInvitation).mockResolvedValue(undefined);
+    const { wrapper, queryClient } = createWrapper();
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
     const { result } = renderHook(() => useCancelInvitation(), { wrapper });
     await result.current.mutateAsync("inv1");
-    expect(mocks._organization.cancelInvitation).toHaveBeenCalledWith({ invitationId: "inv1" });
+    expect(api.cancelOrgInvitation).toHaveBeenCalledWith("org1", "inv1");
+    await waitFor(() => expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["org-invitations", "org1"] }));
   });
 });
 
 describe("useUpdateMemberRole", () => {
-  it("calls organization.updateMemberRole", async () => {
-    mocks._organization.updateMemberRole.mockResolvedValue({ data: {}, error: null });
-    const { wrapper } = createWrapper();
+  it("updates a member's role and invalidates org-members", async () => {
+    setOrganizations([org1]);
+    vi.mocked(api.updateOrgMemberRole).mockResolvedValue({ ok: true });
+    const { wrapper, queryClient } = createWrapper();
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
     const { result } = renderHook(() => useUpdateMemberRole(), { wrapper });
-    await result.current.mutateAsync({ memberId: "m1", role: "admin" });
-    expect(mocks._organization.updateMemberRole).toHaveBeenCalledWith({ memberId: "m1", role: "admin" });
+    await result.current.mutateAsync({ userId: "u1", role: "admin" });
+    expect(api.updateOrgMemberRole).toHaveBeenCalledWith("org1", "u1", "admin");
+    await waitFor(() => expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["org-members", "org1"] }));
   });
 });
 
 describe("useRemoveMember", () => {
-  it("calls organization.removeMember", async () => {
-    mocks._organization.removeMember.mockResolvedValue({ data: {}, error: null });
-    const { wrapper } = createWrapper();
+  it("removes a member and invalidates org-members", async () => {
+    setOrganizations([org1]);
+    vi.mocked(api.removeOrgMember).mockResolvedValue(undefined);
+    const { wrapper, queryClient } = createWrapper();
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
     const { result } = renderHook(() => useRemoveMember(), { wrapper });
-    await result.current.mutateAsync("m1");
-    expect(mocks._organization.removeMember).toHaveBeenCalledWith({ memberIdOrEmail: "m1" });
+    await result.current.mutateAsync("u1");
+    expect(api.removeOrgMember).toHaveBeenCalledWith("org1", "u1");
+    await waitFor(() => expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["org-members", "org1"] }));
   });
 });
 
 describe("useCreateTeam", () => {
   it("creates a team and invalidates org-teams", async () => {
-    mocks._organization.createTeam.mockResolvedValue({ data: { id: "t1" }, error: null });
+    setOrganizations([org1]);
+    vi.mocked(api.createOrgTeam).mockResolvedValue({ id: "t1", name: "Team 1", organization_id: "org1", created_at: "2024-01-01T00:00:00Z" });
     const { wrapper, queryClient } = createWrapper();
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
     const { result } = renderHook(() => useCreateTeam(), { wrapper });
     await result.current.mutateAsync("Team 1");
-    expect(mocks._organization.createTeam).toHaveBeenCalledWith({ name: "Team 1" });
-    await waitFor(() => expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["org-teams"] }));
+    expect(api.createOrgTeam).toHaveBeenCalledWith("org1", "Team 1");
+    await waitFor(() => expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["org-teams", "org1"] }));
   });
 });
 
 describe("useUpdateTeam", () => {
   it("updates a team and invalidates org-teams", async () => {
-    mocks._organization.updateTeam.mockResolvedValue({ data: { id: "t1" }, error: null });
+    setOrganizations([org1]);
+    vi.mocked(api.updateOrgTeam).mockResolvedValue({ id: "t1", name: "New Name", organization_id: "org1", created_at: "2024-01-01T00:00:00Z" });
     const { wrapper, queryClient } = createWrapper();
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
     const { result } = renderHook(() => useUpdateTeam(), { wrapper });
     await result.current.mutateAsync({ teamId: "t1", name: "New Name" });
-    expect(mocks._organization.updateTeam).toHaveBeenCalledWith({ teamId: "t1", data: { name: "New Name" } });
-    await waitFor(() => expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["org-teams"] }));
+    expect(api.updateOrgTeam).toHaveBeenCalledWith("org1", "t1", "New Name");
+    await waitFor(() => expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["org-teams", "org1"] }));
   });
 });
 
 describe("useRemoveTeam", () => {
   it("removes a team and invalidates org-teams", async () => {
-    mocks._organization.removeTeam.mockResolvedValue({ data: {}, error: null });
+    setOrganizations([org1]);
+    vi.mocked(api.removeOrgTeam).mockResolvedValue(undefined);
     const { wrapper, queryClient } = createWrapper();
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
     const { result } = renderHook(() => useRemoveTeam(), { wrapper });
     await result.current.mutateAsync("t1");
-    expect(mocks._organization.removeTeam).toHaveBeenCalledWith({ teamId: "t1" });
-    await waitFor(() => expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["org-teams"] }));
+    expect(api.removeOrgTeam).toHaveBeenCalledWith("org1", "t1");
+    await waitFor(() => expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["org-teams", "org1"] }));
   });
 });
 
 describe("useAddTeamMember", () => {
   it("adds a team member and invalidates that team's members", async () => {
-    mocks._organization.addTeamMember.mockResolvedValue({ data: {}, error: null });
+    setOrganizations([org1]);
+    vi.mocked(api.addOrgTeamMember).mockResolvedValue(undefined);
     const { wrapper, queryClient } = createWrapper();
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
     const { result } = renderHook(() => useAddTeamMember(), { wrapper });
     await result.current.mutateAsync({ teamId: "t1", userId: "u1" });
-    expect(mocks._organization.addTeamMember).toHaveBeenCalledWith({ teamId: "t1", userId: "u1" });
-    await waitFor(() => expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["org-team-members", "t1"] }));
+    expect(api.addOrgTeamMember).toHaveBeenCalledWith("org1", "t1", "u1");
+    await waitFor(() => expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["org-team-members", "org1", "t1"] }));
   });
 });
 
 describe("useRemoveTeamMember", () => {
   it("removes a team member and invalidates that team's members", async () => {
-    mocks._organization.removeTeamMember.mockResolvedValue({ data: {}, error: null });
+    setOrganizations([org1]);
+    vi.mocked(api.removeOrgTeamMember).mockResolvedValue(undefined);
     const { wrapper, queryClient } = createWrapper();
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
     const { result } = renderHook(() => useRemoveTeamMember(), { wrapper });
     await result.current.mutateAsync({ teamId: "t1", userId: "u1" });
-    expect(mocks._organization.removeTeamMember).toHaveBeenCalledWith({ teamId: "t1", userId: "u1" });
-    await waitFor(() => expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["org-team-members", "t1"] }));
+    expect(api.removeOrgTeamMember).toHaveBeenCalledWith("org1", "t1", "u1");
+    await waitFor(() => expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["org-team-members", "org1", "t1"] }));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Mutation hooks — no active organization (covers the `?? null` fallback
+// branch of `useActiveOrganization()?.id` shared by every mutation hook)
+// ---------------------------------------------------------------------------
+
+describe("mutation hooks with no active organization", () => {
+  it("useUpdateMemberRole passes null as the organization id", async () => {
+    vi.mocked(api.updateOrgMemberRole).mockResolvedValue({ ok: true });
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useUpdateMemberRole(), { wrapper });
+    await result.current.mutateAsync({ userId: "u1", role: "admin" });
+    expect(api.updateOrgMemberRole).toHaveBeenCalledWith(null, "u1", "admin");
+  });
+
+  it("useRemoveMember passes null as the organization id", async () => {
+    vi.mocked(api.removeOrgMember).mockResolvedValue(undefined);
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useRemoveMember(), { wrapper });
+    await result.current.mutateAsync("u1");
+    expect(api.removeOrgMember).toHaveBeenCalledWith(null, "u1");
+  });
+
+  it("useInviteMember passes null as the organization id", async () => {
+    vi.mocked(api.createOrgInvitation).mockResolvedValue({ id: "inv1", email: "bob@example.com", roles: ["member"], created_at: null });
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useInviteMember(), { wrapper });
+    await result.current.mutateAsync({ email: "bob@example.com", role: "member" });
+    expect(api.createOrgInvitation).toHaveBeenCalledWith(null, "bob@example.com", "member");
+  });
+
+  it("useCancelInvitation passes null as the organization id", async () => {
+    vi.mocked(api.cancelOrgInvitation).mockResolvedValue(undefined);
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useCancelInvitation(), { wrapper });
+    await result.current.mutateAsync("inv1");
+    expect(api.cancelOrgInvitation).toHaveBeenCalledWith(null, "inv1");
+  });
+
+  it("useCreateTeam passes null as the organization id", async () => {
+    vi.mocked(api.createOrgTeam).mockResolvedValue({ id: "t1", name: "Team 1", organization_id: "org1", created_at: "2024-01-01T00:00:00Z" });
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useCreateTeam(), { wrapper });
+    await result.current.mutateAsync("Team 1");
+    expect(api.createOrgTeam).toHaveBeenCalledWith(null, "Team 1");
+  });
+
+  it("useUpdateTeam passes null as the organization id", async () => {
+    vi.mocked(api.updateOrgTeam).mockResolvedValue({ id: "t1", name: "New Name", organization_id: "org1", created_at: "2024-01-01T00:00:00Z" });
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useUpdateTeam(), { wrapper });
+    await result.current.mutateAsync({ teamId: "t1", name: "New Name" });
+    expect(api.updateOrgTeam).toHaveBeenCalledWith(null, "t1", "New Name");
+  });
+
+  it("useRemoveTeam passes null as the organization id", async () => {
+    vi.mocked(api.removeOrgTeam).mockResolvedValue(undefined);
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useRemoveTeam(), { wrapper });
+    await result.current.mutateAsync("t1");
+    expect(api.removeOrgTeam).toHaveBeenCalledWith(null, "t1");
+  });
+
+  it("useAddTeamMember passes null as the organization id", async () => {
+    vi.mocked(api.addOrgTeamMember).mockResolvedValue(undefined);
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useAddTeamMember(), { wrapper });
+    await result.current.mutateAsync({ teamId: "t1", userId: "u1" });
+    expect(api.addOrgTeamMember).toHaveBeenCalledWith(null, "t1", "u1");
+  });
+
+  it("useRemoveTeamMember passes null as the organization id", async () => {
+    vi.mocked(api.removeOrgTeamMember).mockResolvedValue(undefined);
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useRemoveTeamMember(), { wrapper });
+    await result.current.mutateAsync({ teamId: "t1", userId: "u1" });
+    expect(api.removeOrgTeamMember).toHaveBeenCalledWith(null, "t1", "u1");
   });
 });

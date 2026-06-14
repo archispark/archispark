@@ -2,9 +2,13 @@
  * Drizzle ORM schema — control-plane tables.
  *
  * Holds platform-wide identity & tenancy metadata: Better Auth tables (users,
- * sessions, organizations, members, teams, invitations), platform settings
- * (OAuth providers, site messages), API tokens, and the tenant database
- * registry.
+ * sessions, accounts, verifications), teams, platform settings (OAuth
+ * providers, site messages), API tokens, and the tenant database registry.
+ *
+ * Organizations, their members/roles and invitations live in Keycloak
+ * (Phasetwo Organizations extension, see `@workspace/auth`'s `orgs.ts`) —
+ * `organizationSettings` only stores the platform-admin "enabled" flag per
+ * organization id.
  *
  * This lives in a single shared "control-plane" Postgres database. Each
  * tenant's ArchiMate content (workspaces, elements, relationships, views, …)
@@ -19,27 +23,30 @@ import {
 import { sql } from "drizzle-orm";
 
 // ---------------------------------------------------------------------------
-// Organizations & teams (Better Auth organization plugin)
+// Organizations (Keycloak/Phasetwo) — platform-admin "enabled" flag only
 // ---------------------------------------------------------------------------
 
-export const organizations = pgTable("organization", {
-  id:        text("id").primaryKey(),
-  name:      text("name").notNull(),
-  slug:      text("slug").notNull(),
-  logo:      text("logo"),
-  metadata:  text("metadata"),
-  createdAt: timestamp("created_at").notNull(),
+export const organizationSettings = pgTable("organization_settings", {
+  organizationId: text("organization_id").primaryKey(),
   // Platform admins can suspend an organization (blocks non-platform_admin
-  // members in resolveWorkspaceContext) without deleting its data.
-  enabled:   boolean("enabled").notNull().default(true),
-}, (t) => [
-  uniqueIndex("organization_slug_uniq").on(t.slug),
-]);
+  // members in resolveWorkspaceContext) without deleting its data. Absence of
+  // a row means "enabled" (default true).
+  enabled:        boolean("enabled").notNull().default(true),
+  // Phasetwo organizations have no creation timestamp of their own — recorded
+  // here (lazily backfilled for orgs that already existed in Keycloak) so the
+  // admin organizations list can be sorted/displayed by creation date.
+  createdAt:      timestamp("created_at").notNull().defaultNow(),
+});
+
+// ---------------------------------------------------------------------------
+// Teams — local to control-db, scoped to a Keycloak/Phasetwo organization id
+// (no FK: organizations live in Keycloak, not in this database).
+// ---------------------------------------------------------------------------
 
 export const teams = pgTable("team", {
   id:             text("id").primaryKey(),
   name:           text("name").notNull(),
-  organizationId: text("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  organizationId: text("organization_id").notNull(),
   createdAt:      timestamp("created_at").notNull(),
   updatedAt:      timestamp("updated_at"),
 }, (t) => [
@@ -116,44 +123,18 @@ export const verifications = pgTable("verification", {
 });
 
 // ---------------------------------------------------------------------------
-// Organization membership, teams & invitations (Better Auth organization plugin)
+// Team membership — userId is a Keycloak `sub` (no FK: identities live in
+// Keycloak, not in the `user` table, once Phase 5 provisioning lands).
 // ---------------------------------------------------------------------------
-
-export const members = pgTable("member", {
-  id:             text("id").primaryKey(),
-  organizationId: text("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
-  userId:         text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  role:           text("role").notNull().default("member"),
-  createdAt:      timestamp("created_at").notNull(),
-}, (t) => [
-  index("member_organization_idx").on(t.organizationId),
-  index("member_user_idx").on(t.userId),
-  uniqueIndex("member_org_user_uniq").on(t.organizationId, t.userId),
-]);
 
 export const teamMembers = pgTable("team_member", {
   id:        text("id").primaryKey(),
   teamId:    text("team_id").notNull().references(() => teams.id, { onDelete: "cascade" }),
-  userId:    text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  userId:    text("user_id").notNull(),
   createdAt: timestamp("created_at"),
 }, (t) => [
   index("team_member_team_idx").on(t.teamId),
   index("team_member_user_idx").on(t.userId),
-]);
-
-export const invitations = pgTable("invitation", {
-  id:             text("id").primaryKey(),
-  organizationId: text("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
-  email:          text("email").notNull(),
-  role:           text("role"),
-  teamId:         text("team_id"),
-  status:         text("status").notNull().default("pending"),
-  expiresAt:      timestamp("expires_at").notNull(),
-  createdAt:      timestamp("created_at").notNull(),
-  inviterId:      text("inviter_id").notNull().references(() => users.id),
-}, (t) => [
-  index("invitation_organization_idx").on(t.organizationId),
-  index("invitation_email_idx").on(t.email),
 ]);
 
 // ---------------------------------------------------------------------------
@@ -164,8 +145,10 @@ export const apiTokens = pgTable("api_tokens", {
   id:             serial("id").primaryKey(),
   token:          text("token").notNull(),
   name:           text("name").notNull(),
-  userId:         text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  organizationId: text("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  // Keycloak `sub` of the token's owner (no FK).
+  userId:         text("user_id").notNull(),
+  // Keycloak/Phasetwo organization id (no FK).
+  organizationId: text("organization_id").notNull(),
   // References `workspaces.id` in the tenant database for that organization.
   // Not a real FK: workspaces live in a separate physical database, so
   // referential integrity is enforced at the application layer instead.
@@ -212,14 +195,14 @@ export const siteSettings = pgTable("site_settings", {
 });
 
 // ---------------------------------------------------------------------------
-// Tenant database registry — maps each organization to its dedicated
-// ArchiMate-content database (schema.tenant.ts). Until provisioned (Phase 3),
-// an organization has no row here and its content lives alongside the
-// control-plane tables in the same physical database.
+// Tenant database registry — maps each Keycloak/Phasetwo organization id to
+// its dedicated ArchiMate-content database (schema.tenant.ts). Until
+// provisioned (Phase 3), an organization has no row here and its content
+// lives alongside the control-plane tables in the same physical database.
 // ---------------------------------------------------------------------------
 
 export const tenantDatabases = pgTable("tenant_databases", {
-  organizationId:    text("organization_id").primaryKey().references(() => organizations.id, { onDelete: "cascade" }),
+  organizationId:    text("organization_id").primaryKey(),
   neonProjectId:     text("neon_project_id"),
   neonDatabaseName:  text("neon_database_name").notNull(),
   neonRoleName:      text("neon_role_name").notNull(),

@@ -2,8 +2,6 @@ import { describe, it, expect, beforeAll } from "vitest";
 import { randomUUID } from "node:crypto";
 import { seedWorkspace, modelFromDb, modelToDb } from "./model-io.js";
 import { runMigrations } from "./migrate.js";
-import { db } from "./connection.js";
-import { organizations } from "./schema.js";
 import type { ArchiModel } from "./model.js";
 
 let orgId: string;
@@ -11,7 +9,6 @@ let orgId: string;
 beforeAll(async () => {
   await runMigrations();
   orgId = `org-model-io-test-${randomUUID()}`;
-  await db.insert(organizations).values({ id: orgId, name: orgId, slug: orgId, createdAt: new Date() });
 });
 
 function emptyModel(uuid: string, name = "Empty"): ArchiModel {

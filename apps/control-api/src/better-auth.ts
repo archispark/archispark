@@ -1,8 +1,8 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { username, admin, organization, genericOAuth, microsoftEntraId } from "better-auth/plugins";
+import { username, admin, genericOAuth, microsoftEntraId } from "better-auth/plugins";
 import { eq } from "drizzle-orm";
-import { controlDb, users, sessions, accounts, verifications, organizations, members, invitations, teams, teamMembers, oauthProviders } from "@workspace/db";
+import { controlDb, users, sessions, accounts, verifications, oauthProviders } from "@workspace/db";
 import { getRedis } from "./redis.js";
 
 export interface OAuthProvider {
@@ -151,11 +151,6 @@ function createAuthInstance(oauthConfig: unknown[]) {
         session: sessions,
         account: accounts,
         verification: verifications,
-        organization: organizations,
-        member: members,
-        invitation: invitations,
-        team: teams,
-        teamMember: teamMembers,
       },
     }),
 
@@ -181,15 +176,6 @@ function createAuthInstance(oauthConfig: unknown[]) {
       admin({
         defaultRole: "user",
         adminRole: "platform_admin",
-      }),
-      organization({
-        teams: { enabled: true },
-        // Only the platform super admin can create new organizations.
-        allowUserToCreateOrganization: async (user) => user.role === "platform_admin",
-        organizationHooks: {
-          // Provisioning now triggered synchronously via POST /admin/organizations.
-          afterCreateOrganization: async () => {},
-        },
       }),
       ...(oauthConfig.length > 0 ? [genericOAuth({ config: oauthConfig as Parameters<typeof genericOAuth>[0]["config"] })] : []),
     ],

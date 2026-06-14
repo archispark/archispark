@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll } from "vitest";
 import { randomUUID } from "node:crypto";
 import { runMigrations } from "./migrate.js";
 import { controlDb, db, getTenantDb, getTenantConnectionStringEncrypted, runWithTenantDb } from "./connection.js";
-import { organizations, tenantDatabases } from "./schema.js";
+import { tenantDatabases } from "./schema.js";
 import { eq } from "drizzle-orm";
 import { encryptConnectionString } from "./tenant-crypto.js";
 
@@ -10,10 +10,8 @@ beforeAll(async () => {
   await runMigrations();
 });
 
-async function makeOrg(): Promise<string> {
-  const id = `org-conn-test-${randomUUID()}`;
-  await controlDb.insert(organizations).values({ id, name: id, slug: id, createdAt: new Date() });
-  return id;
+function makeOrg(): string {
+  return `org-conn-test-${randomUUID()}`;
 }
 
 describe("getTenantDb", () => {
@@ -102,7 +100,7 @@ describe("getTenantConnectionStringEncrypted", () => {
 
 describe("db proxy + runWithTenantDb", () => {
   it("resolves to controlDb outside of any tenant context", async () => {
-    const rows = await db.select().from(organizations).where(eq(organizations.id, "__no-such-org__"));
+    const rows = await db.select().from(tenantDatabases).where(eq(tenantDatabases.organizationId, "__no-such-org__"));
     expect(rows).toEqual([]);
   });
 

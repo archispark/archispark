@@ -32,10 +32,8 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-async function makeOrg(): Promise<string> {
-  const id = `org-prov-test-${randomUUID()}`;
-  await controlDb.insert(schema.organizations).values({ id, name: id, slug: id, createdAt: new Date() });
-  return id;
+function makeOrg(): string {
+  return `org-prov-test-${randomUUID()}`;
 }
 
 function jsonResponse(body: unknown, ok = true, status = 200) {

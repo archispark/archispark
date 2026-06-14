@@ -5,11 +5,13 @@
  *   pnpm --filter @workspace/db seed:demo
  *
  * Requires:
- *   DATABASE_URL        — control DB (reads first organization id)
  *   TENANT_DATABASE_URL — tenant fallback DB (workspaces, elements, …)
- *                         Falls back to DATABASE_URL for unified local dev.
+ *   KEYCLOAK_URL, KEYCLOAK_REALM, KEYCLOAK_ADMIN_CLIENT_ID,
+ *   KEYCLOAK_ADMIN_CLIENT_SECRET — used to look up the first Keycloak
+ *                                  organization via the Phasetwo Orgs API
  *
- * Both workspaces are created inside the first existing organization.
+ * Both workspaces are created inside the first organization returned by
+ * Keycloak.
  * Destructive reset: deletes existing ArchiSurance/ArchiMetal workspaces (CASCADE)
  * then reimports from the generated SQL. Safe to run multiple times.
  */
@@ -17,17 +19,16 @@
 import { readFileSync } from "fs";
 import { resolve } from "path";
 import pg from "pg";
+import { listOrganizations } from "@workspace/auth";
 
 const TENANT_SQL_PATH = resolve(import.meta.dirname, "../seeds/demo.sql");
 const tenantSqlTemplate = readFileSync(TENANT_SQL_PATH, "utf-8");
 
-const controlUrl = process.env["DATABASE_URL"];
-if (!controlUrl) {
-  console.error("Error: DATABASE_URL is required.");
+const tenantUrl = process.env["TENANT_DATABASE_URL"];
+if (!tenantUrl) {
+  console.error("Error: TENANT_DATABASE_URL is required.");
   process.exit(1);
 }
-
-const tenantUrl = process.env["TENANT_DATABASE_URL"] ?? controlUrl;
 
 const isLocal = (url: string) =>
   /@(localhost|127\.0\.0\.1|\[::1\]|postgres)[:/]/.test(url);
@@ -50,19 +51,14 @@ function makeClient(url: string): pg.Client {
   });
 }
 
-const controlClient = makeClient(controlUrl);
-await controlClient.connect();
-const { rows } = await controlClient.query<{ id: string }>(
-  "SELECT id FROM organization ORDER BY created_at LIMIT 1"
-);
-await controlClient.end();
-
-if (!rows[0]) {
-  console.error("Error: no organization found in control DB. Create one first.");
+const orgs = await listOrganizations();
+const org = orgs[0];
+if (!org?.id) {
+  console.error("Error: no organization found in Keycloak. Create one first.");
   process.exit(1);
 }
-const orgId = rows[0].id;
-console.log(`Using organization: ${orgId}`);
+const orgId = org.id;
+console.log(`Using organization: ${orgId} (${org.name})`);
 
 const tenantSql = tenantSqlTemplate.replaceAll("'__ORG_ID__'", `'${orgId}'`);
 

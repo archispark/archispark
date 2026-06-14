@@ -3,14 +3,17 @@
  *
  * Platform admins have no access to tenant data, so the admin creating an
  * organization must never become one of its members. Either a fresh
- * "admin-<slug>" account is generated and returned once as `initial_owner`,
- * or an existing platform user (`initial_owner_user_id`) becomes owner.
+ * "admin-<slug>" Keycloak account is generated and returned once as
+ * `initial_owner`, or an existing platform user (`initial_owner_user_id`)
+ * becomes owner — in both cases the owner is assigned the new org's
+ * Phasetwo `owner` role via its Keycloak `sub` (Phase 5).
  */
 
 import { describe, it, expect, beforeAll, afterEach, vi } from "vitest";
 import _request from "supertest";
-import { eq, and } from "drizzle-orm";
-import { controlDb, organizations as organizationsTable, members as membersTable, users as usersTable, provisionTenantDatabase, getDefaultBranchId } from "@workspace/db";
+import { eq } from "drizzle-orm";
+import { controlDb, users as usersTable, provisionTenantDatabase, getDefaultBranchId } from "@workspace/db";
+import { listOrganizations, getOrgMemberRole, findUserByUsername, getKeycloakUser, listRealmUsers } from "@workspace/auth";
 import { app } from "../src/app.js";
 import { createUser } from "../src/auth.js";
 import { getAdminCookie, getAdminWorkspaceContext } from "../src/test-helper.js";
@@ -41,6 +44,11 @@ function request(appArg: Parameters<typeof _request>[0]) {
   return _request.agent(appArg).set("Cookie", adminCookie);
 }
 
+async function findOrgBySlug(slug: string) {
+  const orgs = await listOrganizations();
+  return orgs.find((o) => o.attributes?.["slug"]?.[0] === slug);
+}
+
 describe("POST /admin/organizations — validation", () => {
   it("returns 422 when 'name' is missing", async () => {
     const res = await request(app).post("/admin/organizations").send({ slug: "no-name-test" });
@@ -61,33 +69,30 @@ describe("POST /admin/organizations — validation", () => {
     const res = await request(app).post("/admin/organizations").send({ name: "Zeta Org", slug: "zeta-org-test" });
     expect(res.status).toBe(503);
 
-    const [org] = await controlDb.select().from(organizationsTable).where(eq(organizationsTable.slug, "zeta-org-test"));
-    expect(org).toBeUndefined();
+    expect(await findOrgBySlug("zeta-org-test")).toBeUndefined();
 
-    const [generatedUser] = await controlDb.select().from(usersTable).where(eq(usersTable.username, "admin-zeta-org-test"));
-    expect(generatedUser).toBeUndefined();
+    expect(await findUserByUsername("admin-zeta-org-test")).toBeNull();
   });
 });
 
 describe("POST /admin/organizations — initial owner assignment", () => {
-  it("generates an admin-<slug> account as owner, returned once, and never adds the calling admin", async () => {
+  it("generates an admin-<slug> Keycloak account, returned once, and assigns it as the new org's owner", async () => {
     const res = await request(app).post("/admin/organizations").send({ name: "Acme Corp", slug: "acme-corp-test" });
     expect(res.status).toBe(201);
 
     expect(res.body.initial_owner).toEqual({ username: "admin-acme-corp-test", password: expect.any(String) });
     expect((res.body.initial_owner.password as string).length).toBeGreaterThan(0);
 
-    const [member] = await controlDb.select().from(membersTable)
-      .where(and(eq(membersTable.organizationId, res.body.id), eq(membersTable.role, "owner")));
-    expect(member).toBeDefined();
+    const generatedOwner = await findUserByUsername("admin-acme-corp-test");
+    expect(generatedOwner).toBeDefined();
 
-    const [ownerUser] = await controlDb.select().from(usersTable).where(eq(usersTable.id, member!.userId));
-    expect(ownerUser?.username).toBe("admin-acme-corp-test");
+    expect(await findOrgBySlug("acme-corp-test")).toBeDefined();
+    expect(await getOrgMemberRole(res.body.id, generatedOwner!.id!)).toBe("owner");
 
+    // The calling admin is never added as a member of the new org.
     const { userId: adminUserId } = await getAdminWorkspaceContext();
-    const [adminMember] = await controlDb.select().from(membersTable)
-      .where(and(eq(membersTable.organizationId, res.body.id), eq(membersTable.userId, adminUserId)));
-    expect(adminMember).toBeUndefined();
+    const [adminRow] = await controlDb.select({ keycloakSub: usersTable.keycloakSub }).from(usersTable).where(eq(usersTable.id, adminUserId));
+    expect(await getOrgMemberRole(res.body.id, adminRow!.keycloakSub!)).toBeNull();
   });
 
   it("uses an existing user as owner when initial_owner_user_id is given, with no generated credentials", async () => {
@@ -99,12 +104,9 @@ describe("POST /admin/organizations — initial owner assignment", () => {
     expect(res.status).toBe(201);
     expect(res.body.initial_owner).toBeUndefined();
 
-    const [member] = await controlDb.select().from(membersTable)
-      .where(and(eq(membersTable.organizationId, res.body.id), eq(membersTable.userId, existing.id)));
-    expect(member?.role).toBe("owner");
+    expect(await getOrgMemberRole(res.body.id, existing.id)).toBe("owner");
 
-    const [generated] = await controlDb.select().from(usersTable).where(eq(usersTable.username, "admin-beta-inc-test"));
-    expect(generated).toBeUndefined();
+    expect(await findUserByUsername("admin-beta-inc-test")).toBeNull();
   });
 
   it("returns 422 for an unknown initial_owner_user_id and creates nothing", async () => {
@@ -113,8 +115,7 @@ describe("POST /admin/organizations — initial owner assignment", () => {
     });
     expect(res.status).toBe(422);
 
-    const [org] = await controlDb.select().from(organizationsTable).where(eq(organizationsTable.slug, "gamma-llc-test"));
-    expect(org).toBeUndefined();
+    expect(await findOrgBySlug("gamma-llc-test")).toBeUndefined();
   });
 
   it("returns 422 when the slug is already used by another organization", async () => {
@@ -126,7 +127,7 @@ describe("POST /admin/organizations — initial owner assignment", () => {
     expect(res.body.detail).toMatch(/déjà utilisé/);
 
     // No second generated owner account should have been created for the duplicate.
-    const owners = await controlDb.select().from(usersTable).where(eq(usersTable.username, "admin-epsilon-org-test"));
+    const owners = (await listRealmUsers()).filter((u) => u.username === "admin-epsilon-org-test");
     expect(owners.length).toBe(1);
   });
 
@@ -136,11 +137,9 @@ describe("POST /admin/organizations — initial owner assignment", () => {
     const res = await request(app).post("/admin/organizations").send({ name: "Delta Co", slug: "delta-co-test" });
     expect(res.status).toBe(503);
 
-    const [org] = await controlDb.select().from(organizationsTable).where(eq(organizationsTable.slug, "delta-co-test"));
-    expect(org).toBeUndefined();
+    expect(await findOrgBySlug("delta-co-test")).toBeUndefined();
 
-    const [generatedUser] = await controlDb.select().from(usersTable).where(eq(usersTable.username, "admin-delta-co-test"));
-    expect(generatedUser).toBeUndefined();
+    expect(await findUserByUsername("admin-delta-co-test")).toBeNull();
   });
 
   it("does not delete an existing initial_owner_user_id account when provisioning fails", async () => {
@@ -152,10 +151,8 @@ describe("POST /admin/organizations — initial owner assignment", () => {
     });
     expect(res.status).toBe(503);
 
-    const [org] = await controlDb.select().from(organizationsTable).where(eq(organizationsTable.slug, "theta-co-test"));
-    expect(org).toBeUndefined();
+    expect(await findOrgBySlug("theta-co-test")).toBeUndefined();
 
-    const [stillExists] = await controlDb.select().from(usersTable).where(eq(usersTable.id, existing.id));
-    expect(stillExists).toBeDefined();
+    expect(await getKeycloakUser(existing.id)).toBeDefined();
   });
 });

@@ -1,6 +1,20 @@
 import { vi } from "vitest";
 import { runMigrations } from "@workspace/db";
 
+// There is no real Keycloak instance in the test environment — replace
+// @workspace/auth's Phasetwo Organizations API client with an in-memory fake
+// (keeping every other export, e.g. ORG_ROLES/verifyAccessToken, as the real
+// implementation). Test files that need to mock verifyAccessToken too
+// (auth.test.ts) provide their own vi.mock("@workspace/auth", ...) which must
+// also spread fakeOrgsApi to keep this behaviour.
+vi.mock("@workspace/auth", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@workspace/auth")>();
+  const { fakeOrgsApi } = await import("./test/keycloak-orgs-fake.js");
+  const { fakeUsersApi, seedDemoKeycloakUsers } = await import("./test/keycloak-users-fake.js");
+  seedDemoKeycloakUsers();
+  return { ...actual, ...fakeOrgsApi, ...fakeUsersApi };
+});
+
 // Shared with the proxy middleware in app.ts (signs) and tenant-api's
 // requireTenantToken (verifies) — set here so app.test.ts can mint/verify
 // inter-service tokens without TENANT_JWT_SECRET being unset.

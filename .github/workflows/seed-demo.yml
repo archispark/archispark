@@ -30,6 +30,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Build @workspace/auth
+        run: pnpm --filter @workspace/auth build
+
       - name: Delete existing demo workspaces
         if: inputs.reset == true
         # CASCADE on workspaces.id removes all child rows (elements, relationships,
@@ -43,5 +46,8 @@ jobs:
       - name: Seed demo data
         run: pnpm --filter @workspace/db seed:demo
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL_UNPOOLED }}
           TENANT_DATABASE_URL: ${{ secrets.TENANT_DATABASE_URL_UNPOOLED }}
+          KEYCLOAK_URL: ${{ secrets.KEYCLOAK_URL }}
+          KEYCLOAK_REALM: ${{ secrets.KEYCLOAK_REALM }}
+          KEYCLOAK_ADMIN_CLIENT_ID: ${{ secrets.KEYCLOAK_ADMIN_CLIENT_ID }}
+          KEYCLOAK_ADMIN_CLIENT_SECRET: ${{ secrets.KEYCLOAK_ADMIN_CLIENT_SECRET }}

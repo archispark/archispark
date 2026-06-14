@@ -20,6 +20,7 @@
   },
   "dependencies": {
     "@neondatabase/serverless": "^0.10.4",
+    "@workspace/auth": "workspace:*",
     "drizzle-orm": "^0.45.2",
     "jsonwebtoken": "^9.0.3",
     "pg": "^8.13.3"

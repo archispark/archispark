@@ -1,7 +1,6 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useQueryClient } from "@tanstack/react-query";
 import { Building2, Check, ChevronDown } from "lucide-react";
 import { useActiveOrganization, useOrganizations, useSetActiveOrganization } from "@/hooks/use-organization";
 import { useT } from "@/lib/i18n";
@@ -9,17 +8,15 @@ import { useT } from "@/lib/i18n";
 export function OrgSwitcher() {
   const { t } = useT();
   const router = useRouter();
-  const qc = useQueryClient();
   const organizations = useOrganizations();
   const activeOrg = useActiveOrganization();
   const setActiveOrg = useSetActiveOrganization();
 
   if (organizations.length <= 1) return null;
 
-  async function handleSwitch(id: string) {
+  function handleSwitch(id: string) {
     if (id === activeOrg?.id) return;
-    await setActiveOrg.mutateAsync(id);
-    qc.invalidateQueries();
+    setActiveOrg(id);
     router.push("/workspaces");
   }
 

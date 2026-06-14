@@ -12,7 +12,6 @@ beforeAll(async () => {
 
 async function makeOrgWithTenantDatabaseRow(): Promise<string> {
   const id = `org-helpers-test-${randomUUID()}`;
-  await controlDb.insert(schema.organizations).values({ id, name: id, slug: id, createdAt: new Date() });
   await controlDb.insert(schema.tenantDatabases).values({
     organizationId: id,
     neonDatabaseName: `tenant_${id}`,

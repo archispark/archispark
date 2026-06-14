@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createContext, useContext } from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { toast } from "sonner";
 import OrganizationsPage from "./page";
 import { I18nProvider } from "@/lib/i18n";
 import type { AdminOrganizationOut, UserOut } from "@/lib/api";
@@ -28,7 +29,7 @@ vi.mock("@/lib/queries", () => ({
 }));
 
 vi.mock("sonner", () => ({
-  toast: { success: vi.fn(), error: vi.fn() },
+  toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
 }));
 
 vi.mock("@workspace/ui/components/dialog", () => {

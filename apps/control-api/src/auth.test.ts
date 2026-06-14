@@ -5,16 +5,18 @@
 import { describe, it, expect, beforeAll, vi } from "vitest";
 import _request from "supertest";
 import type { Response, NextFunction } from "express";
-import { eq } from "drizzle-orm";
-import { controlDb, organizations as organizationsTable } from "@workspace/db";
 import { app } from "../src/app.js";
 import { createUser, requireAuth, type AuthRequest } from "../src/auth.js";
 import { getAdminCookie, getUserCookie, getAdminWorkspaceContext } from "../src/test-helper.js";
-import { verifyAccessToken } from "@workspace/auth";
+import { verifyAccessToken, addOrgMember, setOrgMemberRoles } from "@workspace/auth";
 
-vi.mock("@workspace/auth", () => ({
-  verifyAccessToken: vi.fn(),
-}));
+vi.mock("@workspace/auth", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@workspace/auth")>();
+  const { fakeOrgsApi } = await import("./test/keycloak-orgs-fake.js");
+  const { fakeUsersApi, seedDemoKeycloakUsers } = await import("./test/keycloak-users-fake.js");
+  seedDemoKeycloakUsers();
+  return { ...actual, ...fakeOrgsApi, ...fakeUsersApi, verifyAccessToken: vi.fn() };
+});
 
 let adminCookie: string;
 let userCookie: string;
@@ -259,6 +261,17 @@ describe("POST /users validation", () => {
     expect(res.body.role).toBe("user");
     await request(app).delete(`/users/${(res.body as { id: string }).id}`);
   });
+
+  it("returns 422 when the username is already taken (covers createUser duplicate-username branch)", async () => {
+    const first = await request(app).post("/users").send({ username: "testuser_dup", password: "password123" });
+    expect(first.status).toBe(201);
+
+    const second = await request(app).post("/users").send({ username: "testuser_dup", password: "password456" });
+    expect(second.status).toBe(422);
+    expect(second.body.detail).toContain("testuser_dup");
+
+    await request(app).delete(`/users/${(first.body as { id: string }).id}`);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -282,6 +295,106 @@ describe("PUT /users/:id password update", () => {
   it("cleans up test user", async () => {
     const res = await request(app).delete(`/users/${userId}`);
     expect(res.status).toBe(204);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// updateUserById / deleteUserById — not-found and role-toggle branches
+// ---------------------------------------------------------------------------
+
+describe("PUT /users/:id and DELETE /users/:id — not found", () => {
+  it("returns 404 when updating a non-existent user", async () => {
+    const res = await request(app).put("/users/does-not-exist").send({ role: "user" });
+    expect(res.status).toBe(404);
+  });
+
+  it("returns 404 when deleting a non-existent user", async () => {
+    const res = await request(app).delete("/users/does-not-exist");
+    expect(res.status).toBe(404);
+  });
+});
+
+describe("PUT /users/:id — role toggle (covers both branches of updateUserById)", () => {
+  let userId: string;
+
+  beforeAll(async () => {
+    const res = await request(app).post("/users").send({ username: "testrole_user", password: "initial123", role: "user" });
+    userId = (res.body as { id: string }).id;
+  });
+
+  it("promotes a regular user to platform_admin", async () => {
+    const res = await request(app).put(`/users/${userId}`).send({ role: "platform_admin" });
+    expect(res.status).toBe(200);
+    expect(res.body.role).toBe("platform_admin");
+  });
+
+  it("demotes a platform_admin back to user (covers the unassign-role branch)", async () => {
+    const res = await request(app).put(`/users/${userId}`).send({ role: "user" });
+    expect(res.status).toBe(200);
+    expect(res.body.role).toBe("user");
+  });
+
+  it("cleans up test user", async () => {
+    const res = await request(app).delete(`/users/${userId}`);
+    expect(res.status).toBe(204);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// lookupApiToken — Keycloak-native user fallback (no bridged usersTable row)
+// ---------------------------------------------------------------------------
+
+describe("lookupApiToken — Keycloak-native user", () => {
+  it("resolves a personal token whose owner has no bridged control-db row, using getKeycloakUser/getUserRealmRoles", async () => {
+    const { lookupApiToken } = await import("../src/auth.js");
+    const { controlDb, apiTokens } = await import("@workspace/db");
+
+    // A Keycloak-native user (created via the Admin API — its id IS the Keycloak sub,
+    // with no corresponding usersTable row).
+    const created = await createUser("kc_native_user", "password123", "platform_admin");
+
+    const token = "test-kc-native-token";
+    await controlDb.insert(apiTokens).values({
+      token,
+      name: "kc-native",
+      userId: created.id,
+      organizationId: "default",
+      workspaceId: null,
+    });
+
+    const result = await lookupApiToken(token);
+    expect(result).toEqual({
+      id: created.id,
+      username: "kc_native_user",
+      role: "platform_admin",
+      organizationId: "default",
+      workspaceId: null,
+    });
+
+    // Cleanup
+    const { eq } = await import("drizzle-orm");
+    await controlDb.delete(apiTokens).where(eq(apiTokens.token, token));
+    await request(app).delete(`/users/${created.id}`);
+  });
+
+  it("returns null when the token's owner no longer exists in Keycloak", async () => {
+    const { lookupApiToken } = await import("../src/auth.js");
+    const { controlDb, apiTokens } = await import("@workspace/db");
+    const { eq } = await import("drizzle-orm");
+
+    const token = "test-kc-missing-token";
+    await controlDb.insert(apiTokens).values({
+      token,
+      name: "kc-missing",
+      userId: "kc-sub-does-not-exist",
+      organizationId: "default",
+      workspaceId: null,
+    });
+
+    const result = await lookupApiToken(token);
+    expect(result).toBeNull();
+
+    await controlDb.delete(apiTokens).where(eq(apiTokens.token, token));
   });
 });
 
@@ -521,61 +634,64 @@ describe("PUT /admin/organizations/:id", () => {
 // ---------------------------------------------------------------------------
 
 describe("Disabled organization blocks non-admin members", () => {
-  const orgId = "test-disabled-org";
-  let memberCookie: string;
+  let defaultOrgId: string;
   let memberUserId: string;
 
   beforeAll(async () => {
-    await controlDb.insert(organizationsTable).values({
-      id: orgId, name: "Test Disabled Org", slug: "test-disabled-org", createdAt: new Date(),
-    }).onConflictDoNothing();
-    const created = await createUser("member_disabled_org", "password123", "user", orgId);
+    const { ctx } = await getAdminWorkspaceContext();
+    defaultOrgId = ctx.organizationId;
+
+    const created = await createUser("member_disabled_org", "password123", "user");
     memberUserId = created.id;
-    const signin = await _request(app).post("/auth/sign-in/username").send({ username: "member_disabled_org", password: "password123" });
-    const setCookie = signin.headers["set-cookie"];
-    if (!setCookie) throw new Error("Sign-in failed for member_disabled_org");
-    const cookies = Array.isArray(setCookie) ? setCookie : [setCookie];
-    memberCookie = cookies.map((c: string) => c.split(";")[0]).join("; ");
+    await addOrgMember(defaultOrgId, memberUserId);
+    await setOrgMemberRoles(defaultOrgId, memberUserId, "member");
   });
 
+  /** Keycloak-native member: Bearer JWT carrying the org membership claim. */
+  function memberMe() {
+    vi.mocked(verifyAccessToken).mockResolvedValueOnce({
+      sub: memberUserId,
+      preferred_username: "member_disabled_org",
+      organizations: { [defaultOrgId]: { name: "Default", roles: ["member"] } },
+    });
+    return _request(app).get("/me").set("Authorization", "Bearer fake-jwt");
+  }
+
   it("member can access /me while the organization is enabled", async () => {
-    const res = await request(app, memberCookie).get("/me");
+    const res = await memberMe();
     expect(res.status).toBe(200);
   });
 
   it("admin disables the organization", async () => {
-    const res = await request(app).put(`/admin/organizations/${orgId}`).send({ enabled: false });
+    const res = await request(app).put(`/admin/organizations/${defaultOrgId}`).send({ enabled: false });
     expect(res.status).toBe(200);
     expect(res.body.enabled).toBe(false);
   });
 
   it("member is blocked once the organization is disabled", async () => {
-    const res = await request(app, memberCookie).get("/me");
+    const res = await memberMe();
     expect(res.status).toBe(403);
     expect(res.body.detail).toMatch(/désactivée/);
   });
 
   it("platform admin bypasses the disabled-organization check on their own org", async () => {
-    const { ctx } = await getAdminWorkspaceContext();
-    await controlDb.update(organizationsTable).set({ enabled: false }).where(eq(organizationsTable.id, ctx.organizationId));
     const res = await request(app).get("/admin/organizations");
     expect(res.status).toBe(200);
-    await controlDb.update(organizationsTable).set({ enabled: true }).where(eq(organizationsTable.id, ctx.organizationId));
   });
 
   it("admin re-enables the organization", async () => {
-    const res = await request(app).put(`/admin/organizations/${orgId}`).send({ enabled: true });
+    const res = await request(app).put(`/admin/organizations/${defaultOrgId}`).send({ enabled: true });
     expect(res.status).toBe(200);
     expect(res.body.enabled).toBe(true);
   });
 
   it("member regains access once re-enabled", async () => {
-    const res = await request(app, memberCookie).get("/me");
+    const res = await memberMe();
     expect(res.status).toBe(200);
   });
 
-  it("cleans up test organization and user", async () => {
-    await request(app).delete(`/users/${memberUserId}`);
-    await controlDb.delete(organizationsTable).where(eq(organizationsTable.id, orgId));
+  it("cleans up test user", async () => {
+    const res = await request(app).delete(`/users/${memberUserId}`);
+    expect(res.status).toBe(204);
   });
 });

@@ -4,6 +4,9 @@
   "sslRequired": "none",
   "registrationAllowed": false,
   "loginWithEmailAllowed": true,
+  "attributes": {
+    "_providerConfig.orgs.config.createAdminUser": "false"
+  },
   "roles": {
     "realm": [
       {
@@ -28,7 +31,22 @@
       "webOrigins": ["http://localhost:8000"],
       "attributes": {
         "pkce.code.challenge.method": "S256"
-      }
+      },
+      "protocolMappers": [
+        {
+          "name": "organizations",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-organization-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "claim.name": "organizations",
+            "jsonType.label": "JSON",
+            "access.token.claim": "true",
+            "id.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        }
+      ]
     },
     {
       "clientId": "archispark-admin-web",
@@ -43,7 +61,22 @@
       "webOrigins": ["http://localhost:8001"],
       "attributes": {
         "pkce.code.challenge.method": "S256"
-      }
+      },
+      "protocolMappers": [
+        {
+          "name": "organizations",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-organization-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "claim.name": "organizations",
+            "jsonType.label": "JSON",
+            "access.token.claim": "true",
+            "id.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        }
+      ]
     },
     {
       "clientId": "archispark-control-api",
@@ -106,7 +139,13 @@
       "enabled": true,
       "serviceAccountClientId": "archispark-control-api",
       "clientRoles": {
-        "realm-management": ["manage-users", "view-users", "query-users"]
+        "realm-management": [
+          "manage-users",
+          "view-users",
+          "query-users",
+          "view-organizations",
+          "manage-organizations"
+        ]
       }
     }
   ]

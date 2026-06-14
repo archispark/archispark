@@ -6,15 +6,45 @@ import {
   users as usersTable,
   accounts,
   apiTokens,
-  organizations as organizationsTable,
-  members as membersTable,
+  organizationSettings,
   teams as teamsTable,
   teamMembers as teamMembersTable,
   tenantDatabases as tenantDatabasesTable,
 } from "@workspace/db";
 import { getAuth } from "./better-auth.js";
 import { fromNodeHeaders } from "better-auth/node";
-import { verifyAccessToken } from "@workspace/auth";
+import {
+  verifyAccessToken,
+  type KeycloakClaims,
+  ORG_ROLES,
+  type OrgRoleName,
+  type OrganizationRepresentation,
+  listOrganizations,
+  getOrganization,
+  createOrganization,
+  deleteOrganization as deleteKeycloakOrganization,
+  listOrgMembers,
+  addOrgMember,
+  removeOrgMember,
+  listOrgRoleUsers,
+  ensureDefaultOrgRoles,
+  setOrgMemberRoles,
+  getOrgMemberRole,
+  createOrgInvitation,
+  listOrgInvitations,
+  cancelOrgInvitation,
+  listRealmUsers,
+  findUserByUsername,
+  getKeycloakUser,
+  createKeycloakUser,
+  deleteKeycloakUser,
+  setUserPassword,
+  getUserRealmRoles,
+  assignRealmRole,
+  unassignRealmRole,
+  listRealmRoleUsers,
+  type KeycloakUserRepresentation,
+} from "@workspace/auth";
 import { NotFoundError, ValidationError } from "./errors.js";
 
 // Same scrypt parameters as @better-auth/utils/password
@@ -41,7 +71,7 @@ export interface UserOut {
 /** Resolved organization membership for the current request (attached by resolveWorkspaceContext). */
 export interface WorkspaceContext {
   organizationId: string;
-  orgRole: string; // "owner" | "admin" | "member"
+  orgRole: OrgRoleName;
   teamIds: string[];
 }
 
@@ -49,20 +79,22 @@ export interface AuthRequest extends Request {
   user?: { id: string; username: string; role: string };
   /** Set by requireAuth for Bearer-token requests (api_tokens row). */
   tokenContext?: { organizationId: string; workspaceId: number | null };
-  /** Set by requireAuth for session requests (Better Auth org plugin). */
+  /** Set by requireAuth for session requests (Better Auth session's active org). */
   sessionActiveOrgId?: string | null;
+  /** Set by requireAuth from a verified Keycloak token's `organizations` claim. */
+  orgClaims?: Record<string, { name: string; roles: string[] }> | null;
   /** Set by resolveWorkspaceContext. */
   workspace?: WorkspaceContext;
 }
 
 // ---------------------------------------------------------------------------
-// Bootstrap: seed default users + a default organization for fresh installs
+// Bootstrap: seed default users + a default Phasetwo organization
 // ---------------------------------------------------------------------------
 
 // Fixed Keycloak `sub` UUIDs for the demo accounts, matching the `id` fields
 // pinned in .docker/keycloak/realm-export.json. Bridges Keycloak-issued JWTs
 // to these existing control-db users (Stage 2 of the Better Auth -> Keycloak
-// migration).
+// migration), and identifies them as Phasetwo organization members.
 const DEMO_KEYCLOAK_SUBS: Record<string, string> = {
   admin:   "c8a1f6c0-0000-4000-8000-000000000001",
   user:    "c8a1f6c0-0000-4000-8000-000000000002",
@@ -70,12 +102,17 @@ const DEMO_KEYCLOAK_SUBS: Record<string, string> = {
   archi:   "c8a1f6c0-0000-4000-8000-000000000004",
 };
 
+/** Demo org roles for each seed user, mirroring the pre-migration `members` seed. */
+const DEMO_ORG_ROLES: Record<string, OrgRoleName> = {
+  admin:   "owner",
+  archi:   "owner",
+  contrib: "admin",
+  user:    "member",
+};
+
 export async function initUsers(): Promise<void> {
   // All tables (model + Better Auth) are created by runMigrations()
   // from the drizzle-pg/ folder before this runs.
-  const now = new Date();
-
-  // Seed default users
   const seedUser = async (username: string, password: string, role: "platform_admin" | "user") => {
     const [existing] = await controlDb.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.username, username));
     let userId: string | null = existing?.id ?? null;
@@ -91,111 +128,119 @@ export async function initUsers(): Promise<void> {
       await controlDb.update(accounts).set({ password: hash }).where(and(eq(accounts.userId, userId), eq(accounts.providerId, "credential")));
     }
     await controlDb.update(usersTable).set({ username, role, keycloakSub: DEMO_KEYCLOAK_SUBS[username] ?? null }).where(eq(usersTable.id, userId!));
-    return userId!;
   };
 
   const adminPwd   = process.env["SEED_ADMIN_PASSWORD"]   || "admin";
   const userPwd    = process.env["SEED_USER_PASSWORD"]    || "user";
   const contribPwd = process.env["SEED_CONTRIB_PASSWORD"] || "contrib";
   const archiPwd   = process.env["SEED_ARCHI_PASSWORD"]   || "archi";
-  const adminId   = await seedUser("admin",   adminPwd,   "platform_admin");
-  const userId    = await seedUser("user",    userPwd,    "user");
-  const contribId = await seedUser("contrib", contribPwd, "user");
-  const archiId   = await seedUser("archi",   archiPwd,   "user");
+  await seedUser("admin",   adminPwd,   "platform_admin");
+  await seedUser("user",    userPwd,    "user");
+  await seedUser("contrib", contribPwd, "user");
+  await seedUser("archi",   archiPwd,   "user");
   if (!process.env["SEED_ADMIN_PASSWORD"]) {
     console.warn("[auth] SEED_ADMIN_PASSWORD not set — using default 'admin'. Set it in production!");
-  }
-
-  // Ensure at least one organization exists, and that the seed users belong to it.
-  const [anyOrg] = await controlDb.select({ id: organizationsTable.id }).from(organizationsTable).orderBy(organizationsTable.createdAt).limit(1);
-  let orgId = anyOrg?.id;
-  if (!orgId) {
-    orgId = "default-org";
-    await controlDb.insert(organizationsTable).values({ id: orgId, name: "Default", slug: "default", createdAt: now }).onConflictDoNothing();
-  }
-  if (adminId) {
-    await controlDb.insert(membersTable).values({ id: randomUUID(), organizationId: orgId, userId: adminId, role: "owner", createdAt: now }).onConflictDoNothing();
-  }
-  if (userId) {
-    await controlDb.insert(membersTable).values({ id: randomUUID(), organizationId: orgId, userId, role: "member", createdAt: now }).onConflictDoNothing();
-  }
-  if (contribId) {
-    await controlDb.insert(membersTable).values({ id: randomUUID(), organizationId: orgId, userId: contribId, role: "admin", createdAt: now }).onConflictDoNothing();
-  }
-  if (archiId) {
-    await controlDb.insert(membersTable).values({ id: randomUUID(), organizationId: orgId, userId: archiId, role: "owner", createdAt: now }).onConflictDoNothing();
   }
 
   console.log("[auth] Better Auth users ready.");
 }
 
+/**
+ * Ensures at least one Phasetwo organization exists (creating a "Default" one
+ * for fresh installs) and that the demo users belong to it with their usual
+ * roles. Called once at startup, after `initUsers()`.
+ */
+export async function initOrganizations(): Promise<void> {
+  const orgs = await listOrganizations();
+  let orgId: string;
+  if (orgs.length === 0) {
+    orgId = await createOrganization({ name: "Default", attributes: { slug: ["default"] } });
+  } else {
+    orgId = orgs[0]!.id!;
+  }
+  await ensureDefaultOrgRoles(orgId);
+  await ensureOrgSettings(orgId);
+
+  for (const [username, sub] of Object.entries(DEMO_KEYCLOAK_SUBS)) {
+    await addOrgMember(orgId, sub).catch(() => {});
+    await setOrgMemberRoles(orgId, sub, DEMO_ORG_ROLES[username]!);
+  }
+
+  console.log("[auth] Organizations ready.");
+}
+
 // ---------------------------------------------------------------------------
-// User helpers
+// User helpers — platform users are provisioned via the Keycloak Admin API.
+// (The demo accounts seeded by initUsers() above keep their bridged
+// usersTable rows for Better Auth sign-in; that is unrelated to this CRUD.)
 // ---------------------------------------------------------------------------
 
-function rowToOut(r: typeof usersTable.$inferSelect): UserOut {
+const PLATFORM_ADMIN_ROLE = "platform_admin";
+
+function userOut(u: KeycloakUserRepresentation, isPlatformAdmin: boolean): UserOut {
   return {
-    id: r.id,
-    username: r.username,
-    role: r.role,
-    created_at: (r.createdAt instanceof Date ? r.createdAt : new Date((r.createdAt as number) * 1000)).toISOString(),
+    id: u.id!,
+    username: u.username,
+    role: isPlatformAdmin ? "platform_admin" : "user",
+    created_at: new Date(u.createdTimestamp ?? Date.now()).toISOString(),
   };
 }
 
 export async function listUsers(): Promise<UserOut[]> {
-  const rows = await controlDb.select().from(usersTable);
-  return rows.map(rowToOut);
+  const [users, admins] = await Promise.all([listRealmUsers(), listRealmRoleUsers(PLATFORM_ADMIN_ROLE)]);
+  const adminIds = new Set(admins.map((u) => u.id));
+  return users
+    .filter((u) => !u.username.startsWith("service-account-"))
+    .map((u) => userOut(u, adminIds.has(u.id)));
 }
 
-/**
- * Create a platform user. When `organizationId` is given, the new user is
- * also added as a member of that organization (owner if `role === "platform_admin"`,
- * member otherwise) so they can immediately access its workspaces.
- */
-export async function createUser(username: string, password: string, role: string = "user", organizationId?: string): Promise<UserOut> {
-  const [existing] = await controlDb.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.username, username));
+export async function createUser(username: string, password: string, role: string = "user"): Promise<UserOut> {
+  const existing = await findUserByUsername(username);
   if (existing) throw new ValidationError(`Le nom d'utilisateur '${username}' est déjà pris.`);
-  const res = await getAuth().api.signUpEmail({
-    body: { email: `${username}@archispark.internal`, password, name: username, username } as never,
-  /* v8 ignore next */ }).catch(() => null);
-  if (!res?.user) throw new ValidationError("Impossible de créer l'utilisateur.");
-  const validRole: "platform_admin" | "user" = role === "platform_admin" ? "platform_admin" : "user";
-  await controlDb.update(usersTable).set({ username, role: validRole }).where(eq(usersTable.id, res.user.id));
-  if (organizationId) {
-    await controlDb.insert(membersTable).values({
-      id: randomUUID(),
-      organizationId,
-      userId: res.user.id,
-      role: validRole === "platform_admin" ? "owner" : "member",
-      createdAt: new Date(),
-    }).onConflictDoNothing();
-  }
-  const [user] = await controlDb.select().from(usersTable).where(eq(usersTable.id, res.user.id));
+
+  const userId = await createKeycloakUser({
+    username,
+    email: `${username}@archispark.internal`,
+    enabled: true,
+    emailVerified: true,
+  });
+  await setUserPassword(userId, password, false);
+
+  const isPlatformAdmin = role === "platform_admin";
+  if (isPlatformAdmin) await assignRealmRole(userId, PLATFORM_ADMIN_ROLE);
+
+  const user = await getKeycloakUser(userId);
   if (!user) throw new ValidationError("Utilisateur introuvable après création.");
-  return rowToOut(user);
+  return userOut(user, isPlatformAdmin);
 }
 
 export async function updateUserById(id: string, updates: { password?: string; role?: string }): Promise<UserOut> {
-  const [existing] = await controlDb.select().from(usersTable).where(eq(usersTable.id, id));
+  const existing = await getKeycloakUser(id);
   if (!existing) throw new NotFoundError(`Utilisateur '${id}' introuvable.`);
-  const now = new Date();
-  if (updates.role !== undefined) {
-    const validRole: "platform_admin" | "user" = updates.role === "platform_admin" ? "platform_admin" : "user";
-    await controlDb.update(usersTable).set({ role: validRole, updatedAt: now }).where(eq(usersTable.id, id));
-  }
+
   if (updates.password) {
-    const hash = await hashPassword(updates.password);
-    await controlDb.update(accounts).set({ password: hash, updatedAt: now })
-      .where(and(eq(accounts.userId, id), eq(accounts.providerId, "credential")));
+    await setUserPassword(id, updates.password, false);
   }
-  const [user] = await controlDb.select().from(usersTable).where(eq(usersTable.id, id));
-  return rowToOut(user!);
+
+  let isPlatformAdmin = (await getUserRealmRoles(id)).some((r) => r.name === PLATFORM_ADMIN_ROLE);
+  if (updates.role !== undefined) {
+    const wantsAdmin = updates.role === "platform_admin";
+    if (wantsAdmin && !isPlatformAdmin) {
+      await assignRealmRole(id, PLATFORM_ADMIN_ROLE);
+      isPlatformAdmin = true;
+    } else if (!wantsAdmin && isPlatformAdmin) {
+      await unassignRealmRole(id, PLATFORM_ADMIN_ROLE);
+      isPlatformAdmin = false;
+    }
+  }
+
+  const user = await getKeycloakUser(id);
+  return userOut(user!, isPlatformAdmin);
 }
 
 export async function deleteUserById(id: string): Promise<void> {
-  const [existing] = await controlDb.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.id, id));
-  if (!existing) throw new NotFoundError(`Utilisateur '${id}' introuvable.`);
-  await controlDb.delete(usersTable).where(eq(usersTable.id, id));
+  const deleted = await deleteKeycloakUser(id);
+  if (!deleted) throw new NotFoundError(`Utilisateur '${id}' introuvable.`);
 }
 
 // ---------------------------------------------------------------------------
@@ -214,71 +259,68 @@ export interface AdminOrganizationOut {
   initial_owner?: { username: string; password: string };
 }
 
-type AdminOrgRow = {
-  id: string;
-  name: string;
-  slug: string;
-  enabled: boolean;
-  createdAt: Date;
-  tenantStatus: "pending" | "provisioning" | "active" | "error" | null;
-  lastError: string | null;
-};
+function orgSlug(org: OrganizationRepresentation): string {
+  return org.attributes?.["slug"]?.[0] ?? org.id!;
+}
 
-function mapAdminOrgRow(r: AdminOrgRow): AdminOrganizationOut {
+/** Inserts a default `organizationSettings` row if missing (lazy backfill for orgs created before Phase 4 or directly in Keycloak), then returns it. */
+async function ensureOrgSettings(orgId: string): Promise<typeof organizationSettings.$inferSelect> {
+  await controlDb.insert(organizationSettings).values({ organizationId: orgId }).onConflictDoNothing();
+  const [row] = await controlDb.select().from(organizationSettings).where(eq(organizationSettings.organizationId, orgId));
+  return row!;
+}
+
+async function toAdminOrganizationOut(org: OrganizationRepresentation): Promise<AdminOrganizationOut> {
+  const settings = await ensureOrgSettings(org.id!);
+  const [tenant] = await controlDb.select({ status: tenantDatabasesTable.status, lastError: tenantDatabasesTable.lastError })
+    .from(tenantDatabasesTable).where(eq(tenantDatabasesTable.organizationId, org.id!));
   return {
-    id: r.id,
-    name: r.name,
-    slug: r.slug,
-    enabled: r.enabled,
-    created_at: r.createdAt.toISOString(),
-    tenant_status: r.tenantStatus,
-    last_error: r.lastError ?? null,
+    id: org.id!,
+    name: org.name,
+    slug: orgSlug(org),
+    enabled: settings.enabled,
+    created_at: settings.createdAt.toISOString(),
+    tenant_status: tenant?.status ?? null,
+    last_error: tenant?.lastError ?? null,
   };
 }
 
-const adminOrgSelection = {
-  id: organizationsTable.id,
-  name: organizationsTable.name,
-  slug: organizationsTable.slug,
-  enabled: organizationsTable.enabled,
-  createdAt: organizationsTable.createdAt,
-  tenantStatus: tenantDatabasesTable.status,
-  lastError: tenantDatabasesTable.lastError,
-};
+async function checkSlugAvailable(slug: string): Promise<void> {
+  const orgs = await listOrganizations();
+  if (orgs.some((o) => orgSlug(o) === slug)) throw new ValidationError(`Le slug '${slug}' est déjà utilisé.`);
+}
 
 export async function listAdminOrganizations(): Promise<AdminOrganizationOut[]> {
-  const rows = await controlDb.select(adminOrgSelection).from(organizationsTable)
-    .leftJoin(tenantDatabasesTable, eq(tenantDatabasesTable.organizationId, organizationsTable.id))
-    .orderBy(organizationsTable.createdAt);
-  return rows.map(mapAdminOrgRow);
+  const orgs = await listOrganizations();
+  const result = await Promise.all(orgs.map(toAdminOrganizationOut));
+  result.sort((a, b) => a.created_at.localeCompare(b.created_at));
+  return result;
 }
 
 export async function setOrganizationEnabled(id: string, enabled: boolean): Promise<AdminOrganizationOut> {
-  const [existing] = await controlDb.select({ id: organizationsTable.id }).from(organizationsTable).where(eq(organizationsTable.id, id));
-  if (!existing) throw new NotFoundError(`Organisation '${id}' introuvable.`);
-  await controlDb.update(organizationsTable).set({ enabled }).where(eq(organizationsTable.id, id));
-  const [row] = await controlDb.select(adminOrgSelection).from(organizationsTable)
-    .leftJoin(tenantDatabasesTable, eq(tenantDatabasesTable.organizationId, organizationsTable.id))
-    .where(eq(organizationsTable.id, id));
-  if (!row) throw new NotFoundError(`Organisation '${id}' introuvable.`);
-  return mapAdminOrgRow(row);
+  let org: OrganizationRepresentation;
+  try {
+    org = await getOrganization(id);
+  } catch {
+    throw new NotFoundError(`Organisation '${id}' introuvable.`);
+  }
+  await ensureOrgSettings(id);
+  await controlDb.update(organizationSettings).set({ enabled }).where(eq(organizationSettings.organizationId, id));
+  return toAdminOrganizationOut(org);
 }
 
 export async function createAdminOrganization(name: string, slug: string, ownerUserId: string): Promise<AdminOrganizationOut> {
-  const [slugConflict] = await controlDb.select({ id: organizationsTable.id }).from(organizationsTable)
-    .where(eq(organizationsTable.slug, slug));
-  if (slugConflict) throw new ValidationError(`Le slug '${slug}' est déjà utilisé.`);
+  await checkSlugAvailable(slug);
 
-  const now = new Date();
-  const orgId = randomUUID();
-  await controlDb.insert(organizationsTable).values({ id: orgId, name, slug, createdAt: now });
-  await controlDb.insert(membersTable).values({ id: randomUUID(), organizationId: orgId, userId: ownerUserId, role: "owner", createdAt: now });
+  const orgId = await createOrganization({ name, attributes: { slug: [slug] } });
+  await ensureDefaultOrgRoles(orgId);
+  await ensureOrgSettings(orgId);
 
-  const [row] = await controlDb.select(adminOrgSelection).from(organizationsTable)
-    .leftJoin(tenantDatabasesTable, eq(tenantDatabasesTable.organizationId, organizationsTable.id))
-    .where(eq(organizationsTable.id, orgId));
-  if (!row) throw new ValidationError("Organisation introuvable après création.");
-  return mapAdminOrgRow(row);
+  await addOrgMember(orgId, ownerUserId);
+  await setOrgMemberRoles(orgId, ownerUserId, "owner");
+
+  const org = await getOrganization(orgId);
+  return toAdminOrganizationOut(org);
 }
 
 export interface CreateOrganizationResult {
@@ -300,17 +342,15 @@ export async function createOrganizationWithOwner(
   slug: string,
   initialOwnerUserId?: string,
 ): Promise<CreateOrganizationResult> {
-  const [slugConflict] = await controlDb.select({ id: organizationsTable.id }).from(organizationsTable)
-    .where(eq(organizationsTable.slug, slug));
-  if (slugConflict) throw new ValidationError(`Le slug '${slug}' est déjà utilisé.`);
+  await checkSlugAvailable(slug);
 
   let ownerUserId: string;
   let generatedOwner: { userId: string; username: string; password: string } | undefined;
 
   if (initialOwnerUserId) {
-    const [owner] = await controlDb.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.id, initialOwnerUserId));
+    const owner = await getKeycloakUser(initialOwnerUserId);
     if (!owner) throw new ValidationError(`Utilisateur '${initialOwnerUserId}' introuvable.`);
-    ownerUserId = owner.id;
+    ownerUserId = owner.id!;
   } else {
     const username = `admin-${slug}`;
     const password = randomBytes(9).toString("base64url");
@@ -324,8 +364,142 @@ export async function createOrganizationWithOwner(
 }
 
 export async function deleteOrganization(id: string): Promise<void> {
-  // cascade handles members, teams, invitations, tenantDatabases, apiTokens
-  await controlDb.delete(organizationsTable).where(eq(organizationsTable.id, id));
+  await deleteKeycloakOrganization(id);
+  await controlDb.delete(organizationSettings).where(eq(organizationSettings.organizationId, id));
+  await controlDb.delete(tenantDatabasesTable).where(eq(tenantDatabasesTable.organizationId, id));
+  await controlDb.delete(apiTokens).where(eq(apiTokens.organizationId, id));
+  // teamMembers rows cascade via the team table's FK.
+  await controlDb.delete(teamsTable).where(eq(teamsTable.organizationId, id));
+}
+
+// ---------------------------------------------------------------------------
+// Organization-scoped: members, invitations, teams (current workspace)
+// ---------------------------------------------------------------------------
+
+export interface OrgMemberOut {
+  user_id: string;
+  username: string;
+  email: string | null;
+  role: OrgRoleName | null;
+}
+
+export async function listOrgMembersOut(organizationId: string): Promise<OrgMemberOut[]> {
+  const [members, ...roleUserLists] = await Promise.all([
+    listOrgMembers(organizationId),
+    ...ORG_ROLES.map((role) => listOrgRoleUsers(organizationId, role)),
+  ]);
+  const roleByUserId = new Map<string, OrgRoleName>();
+  ORG_ROLES.forEach((role, i) => {
+    for (const u of roleUserLists[i]!) if (!roleByUserId.has(u.id)) roleByUserId.set(u.id, role);
+  });
+  return members!.map((m) => ({
+    user_id: m.id,
+    username: m.username,
+    email: m.email ?? null,
+    role: roleByUserId.get(m.id) ?? null,
+  }));
+}
+
+export async function updateOrgMemberRole(organizationId: string, userId: string, role: OrgRoleName): Promise<void> {
+  if (!ORG_ROLES.includes(role)) throw new ValidationError(`Rôle invalide : '${role}'.`);
+  await setOrgMemberRoles(organizationId, userId, role);
+}
+
+export async function removeOrgMemberById(organizationId: string, userId: string): Promise<void> {
+  await removeOrgMember(organizationId, userId);
+}
+
+export interface OrgInvitationOut {
+  id: string;
+  email: string;
+  roles: string[];
+  created_at: string | null;
+}
+
+export async function listOrgInvitationsOut(organizationId: string): Promise<OrgInvitationOut[]> {
+  const invitations = await listOrgInvitations(organizationId);
+  return invitations.map((i) => ({ id: i.id, email: i.email, roles: i.roles ?? [], created_at: i.createdAt ?? null }));
+}
+
+export async function createInvitation(organizationId: string, email: string, role: OrgRoleName): Promise<OrgInvitationOut> {
+  if (!ORG_ROLES.includes(role)) throw new ValidationError(`Rôle invalide : '${role}'.`);
+  const id = await createOrgInvitation(organizationId, { email, roles: [role] });
+  return { id, email, roles: [role], created_at: new Date().toISOString() };
+}
+
+export async function cancelInvitation(organizationId: string, invitationId: string): Promise<void> {
+  await cancelOrgInvitation(organizationId, invitationId);
+}
+
+export interface TeamOut {
+  id: string;
+  name: string;
+  organization_id: string;
+  created_at: string;
+}
+
+function teamOut(r: typeof teamsTable.$inferSelect): TeamOut {
+  return { id: r.id, name: r.name, organization_id: r.organizationId, created_at: r.createdAt.toISOString() };
+}
+
+export async function listTeams(organizationId: string): Promise<TeamOut[]> {
+  const rows = await controlDb.select().from(teamsTable).where(eq(teamsTable.organizationId, organizationId));
+  return rows.map(teamOut);
+}
+
+export async function createTeam(organizationId: string, name: string): Promise<TeamOut> {
+  const [row] = await controlDb.insert(teamsTable).values({ id: randomUUID(), name, organizationId, createdAt: new Date() }).returning();
+  return teamOut(row!);
+}
+
+async function requireTeam(organizationId: string, teamId: string): Promise<typeof teamsTable.$inferSelect> {
+  const [team] = await controlDb.select().from(teamsTable).where(and(eq(teamsTable.id, teamId), eq(teamsTable.organizationId, organizationId)));
+  if (!team) throw new NotFoundError(`Équipe '${teamId}' introuvable.`);
+  return team;
+}
+
+export async function updateTeam(organizationId: string, teamId: string, name: string): Promise<TeamOut> {
+  await requireTeam(organizationId, teamId);
+  await controlDb.update(teamsTable).set({ name, updatedAt: new Date() }).where(eq(teamsTable.id, teamId));
+  const [row] = await controlDb.select().from(teamsTable).where(eq(teamsTable.id, teamId));
+  return teamOut(row!);
+}
+
+export async function removeTeam(organizationId: string, teamId: string): Promise<void> {
+  await requireTeam(organizationId, teamId);
+  await controlDb.delete(teamsTable).where(eq(teamsTable.id, teamId));
+}
+
+export interface TeamMemberOut {
+  user_id: string;
+  username: string;
+  email: string | null;
+}
+
+export async function listTeamMembersOut(organizationId: string, teamId: string): Promise<TeamMemberOut[]> {
+  await requireTeam(organizationId, teamId);
+  const [rows, orgMembers] = await Promise.all([
+    controlDb.select({ userId: teamMembersTable.userId }).from(teamMembersTable).where(eq(teamMembersTable.teamId, teamId)),
+    listOrgMembers(organizationId),
+  ]);
+  const byId = new Map(orgMembers.map((m) => [m.id, m]));
+  return rows.map((r) => {
+    const m = byId.get(r.userId);
+    return { user_id: r.userId, username: m?.username ?? r.userId, email: m?.email ?? null };
+  });
+}
+
+export async function addTeamMember(organizationId: string, teamId: string, userId: string): Promise<void> {
+  await requireTeam(organizationId, teamId);
+  const [existing] = await controlDb.select({ id: teamMembersTable.id }).from(teamMembersTable)
+    .where(and(eq(teamMembersTable.teamId, teamId), eq(teamMembersTable.userId, userId)));
+  if (existing) return;
+  await controlDb.insert(teamMembersTable).values({ id: randomUUID(), teamId, userId, createdAt: new Date() });
+}
+
+export async function removeTeamMember(organizationId: string, teamId: string, userId: string): Promise<void> {
+  await requireTeam(organizationId, teamId);
+  await controlDb.delete(teamMembersTable).where(and(eq(teamMembersTable.teamId, teamId), eq(teamMembersTable.userId, userId)));
 }
 
 // ---------------------------------------------------------------------------
@@ -350,27 +524,67 @@ export async function lookupApiToken(token: string): Promise<TokenUser | null> {
   }).from(apiTokens).where(eq(apiTokens.token, token));
   if (!row) return null;
   if (row.expiresAt !== null && row.expiresAt < Math.floor(Date.now() / 1000)) return null;
-  const [user] = await controlDb.select().from(usersTable).where(eq(usersTable.id, row.userId));
-  if (!user) return null;
+
+  let result: TokenUser;
+  const [dbUser] = await controlDb.select().from(usersTable).where(eq(usersTable.id, row.userId));
+  if (dbUser) {
+    result = { id: dbUser.id, username: dbUser.username, role: dbUser.role, organizationId: row.organizationId, workspaceId: row.workspaceId };
+  } else {
+    // No bridged control-db row — the token belongs to a Keycloak-native user
+    // (created via the Keycloak Admin API, Phase 5).
+    const kcUser = await getKeycloakUser(row.userId);
+    if (!kcUser) return null;
+    const roles = await getUserRealmRoles(row.userId);
+    const role = roles.some((r) => r.name === PLATFORM_ADMIN_ROLE) ? "platform_admin" : "user";
+    result = { id: kcUser.id!, username: kcUser.username, role, organizationId: row.organizationId, workspaceId: row.workspaceId };
+  }
+
   controlDb.update(apiTokens).set({ lastUsedAt: Math.floor(Date.now() / 1000) })
     .where(eq(apiTokens.id, row.id)).catch(() => {});
-  return { id: user.id, username: user.username, role: user.role, organizationId: row.organizationId, workspaceId: row.workspaceId };
+  return result;
 }
 
 // ---------------------------------------------------------------------------
 // Membership helpers
 // ---------------------------------------------------------------------------
 
-/** Org role + team memberships for a user within a given organization, or null if not a member. */
-export async function getMembershipContext(userId: string, organizationId: string): Promise<WorkspaceContext | null> {
-  const [member] = await controlDb.select({ role: membersTable.role }).from(membersTable)
-    .where(and(eq(membersTable.organizationId, organizationId), eq(membersTable.userId, userId)));
-  if (!member) return null;
+/**
+ * Org role + team memberships for a user within a given organization, or null
+ * if not a member. `orgClaims` (the JWT `organizations` claim, when available)
+ * is used as a fast path to avoid a Phasetwo API round trip; otherwise the
+ * role is resolved via `@workspace/auth`'s `getOrgMemberRole` using the user's
+ * Keycloak `sub` (falling back to `userId` itself if it isn't a known
+ * control-db user — i.e. already a raw Keycloak `sub`).
+ */
+export async function getMembershipContext(
+  userId: string,
+  organizationId: string,
+  orgClaims?: Record<string, { name: string; roles: string[] }> | null,
+): Promise<WorkspaceContext | null> {
+  const [user] = await controlDb.select({ keycloakSub: usersTable.keycloakSub }).from(usersTable).where(eq(usersTable.id, userId));
+  const keycloakSub = user?.keycloakSub ?? userId;
+
+  let orgRole: OrgRoleName | null;
+  const claimRoles = orgClaims?.[organizationId]?.roles;
+  if (claimRoles) {
+    orgRole = ORG_ROLES.find((r) => claimRoles.includes(r)) ?? null;
+  } else {
+    orgRole = await getOrgMemberRole(organizationId, keycloakSub);
+  }
+  if (!orgRole) return null;
+
   const teamRows = await controlDb.select({ teamId: teamMembersTable.teamId })
     .from(teamMembersTable)
     .innerJoin(teamsTable, eq(teamsTable.id, teamMembersTable.teamId))
-    .where(and(eq(teamMembersTable.userId, userId), eq(teamsTable.organizationId, organizationId)));
-  return { organizationId, orgRole: member.role, teamIds: teamRows.map((r) => r.teamId) };
+    .where(and(eq(teamMembersTable.userId, keycloakSub), eq(teamsTable.organizationId, organizationId)));
+
+  return { organizationId, orgRole, teamIds: teamRows.map((r) => r.teamId) };
+}
+
+/** Returns the id of the first known Phasetwo organization, or null if none exist. */
+async function resolveDefaultOrganizationId(): Promise<string | null> {
+  const [first] = await listOrganizations();
+  return first?.id ?? null;
 }
 
 // ---------------------------------------------------------------------------
@@ -383,14 +597,11 @@ interface SessionResult {
 }
 
 /**
- * Verifies a Keycloak-issued access token and bridges `claims.sub` to an
- * existing control-db user (Stage 2 of the Better Auth -> Keycloak
- * migration), so downstream org/role resolution works exactly as it does for
- * Better Auth sessions. Returns `null` if the token is missing or invalid.
+ * Bridges `claims.sub` to an existing control-db user (Stage 2 of the Better
+ * Auth -> Keycloak migration), so downstream org/role resolution works
+ * exactly as it does for Better Auth sessions.
  */
-async function resolveKeycloakUser(token: string): Promise<{ id: string; username: string; role: string } | null> {
-  const claims = await verifyAccessToken(token);
-  if (!claims) return null;
+async function resolveKeycloakUser(claims: KeycloakClaims): Promise<{ id: string; username: string; role: string }> {
   const [dbUser] = await controlDb
     .select({ id: usersTable.id, username: usersTable.username, role: usersTable.role })
     .from(usersTable)
@@ -428,9 +639,10 @@ export function requireAuth(req: AuthRequest, res: Response, next: NextFunction)
           return;
         }
         // Not a personal API token — try a Keycloak-issued access token.
-        const kcUser = await resolveKeycloakUser(token);
-        if (!kcUser) { res.status(401).json({ detail: "Token invalide." }); return; }
-        req.user = kcUser;
+        const claims = await verifyAccessToken(token);
+        if (!claims) { res.status(401).json({ detail: "Token invalide." }); return; }
+        req.user = await resolveKeycloakUser(claims);
+        req.orgClaims = claims.organizations ?? null;
         req.sessionActiveOrgId = null;
         next();
       })
@@ -452,12 +664,13 @@ export function requireAuth(req: AuthRequest, res: Response, next: NextFunction)
       // No Better Auth session — fall back to a Keycloak access_token cookie
       // (Stage 3 of the Better Auth -> Keycloak migration).
       const cookieToken = getCookieValue(req.headers["cookie"], "access_token");
-      const kcUser = cookieToken ? await resolveKeycloakUser(cookieToken) : null;
-      if (!kcUser) {
+      const claims = cookieToken ? await verifyAccessToken(cookieToken) : null;
+      if (!claims) {
         res.status(401).json({ detail: "Non authentifié." });
         return;
       }
-      req.user = kcUser;
+      req.user = await resolveKeycloakUser(claims);
+      req.orgClaims = claims.organizations ?? null;
       req.sessionActiveOrgId = null;
       next();
     })
@@ -478,19 +691,33 @@ export function requireSuperAdmin(req: AuthRequest, res: Response, next: NextFun
 
 /**
  * Resolves the organization (and team memberships) the current request
- * operates in, attaching it to `req.workspace`. The active organization comes
- * from the API token, the session's active organization, or — failing that —
- * the user's first organization membership.
+ * operates in, attaching it to `req.workspace`. The organization id comes
+ * from the API token, an `X-Org-Id` header (org switcher; must be one of the
+ * JWT's `organizations` claim keys), the active-org session cookie, or — for
+ * recognized local platform users with none of those (Better Auth sessions,
+ * or a Keycloak token with no organization membership claim) — the first
+ * Phasetwo organization.
  */
 export async function resolveWorkspaceContext(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   if (!req.user) { res.status(401).json({ detail: "Non authentifié." }); return; }
 
-  let organizationId = req.tokenContext?.organizationId ?? req.sessionActiveOrgId ?? null;
+  let organizationId = req.tokenContext?.organizationId ?? null;
 
   if (!organizationId) {
-    const [m] = await controlDb.select({ organizationId: membersTable.organizationId }).from(membersTable)
-      .where(eq(membersTable.userId, req.user.id)).limit(1);
-    organizationId = m?.organizationId ?? null;
+    const headerOrgId = req.headers["x-org-id"];
+    if (typeof headerOrgId === "string" && req.orgClaims && headerOrgId in req.orgClaims) {
+      organizationId = headerOrgId;
+    }
+  }
+
+  organizationId ??= req.sessionActiveOrgId ?? null;
+
+  if (!organizationId && req.orgClaims) {
+    organizationId = Object.keys(req.orgClaims)[0] ?? null;
+  }
+  if (!organizationId) {
+    const [dbUser] = await controlDb.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.id, req.user.id)).limit(1);
+    if (dbUser) organizationId = await resolveDefaultOrganizationId();
   }
 
   if (!organizationId) {
@@ -498,16 +725,16 @@ export async function resolveWorkspaceContext(req: AuthRequest, res: Response, n
     return;
   }
 
-  const ctx = await getMembershipContext(req.user.id, organizationId);
+  const ctx = await getMembershipContext(req.user.id, organizationId, req.orgClaims);
   if (!ctx) {
     res.status(403).json({ detail: "Accès à cette organisation refusé." });
     return;
   }
 
   if (req.user.role !== "platform_admin") {
-    const [org] = await controlDb.select({ enabled: organizationsTable.enabled }).from(organizationsTable)
-      .where(eq(organizationsTable.id, organizationId));
-    if (org && !org.enabled) {
+    const [settings] = await controlDb.select({ enabled: organizationSettings.enabled })
+      .from(organizationSettings).where(eq(organizationSettings.organizationId, organizationId));
+    if (settings && !settings.enabled) {
       res.status(403).json({ detail: "Cette organisation a été désactivée par un administrateur de la plateforme." });
       return;
     }

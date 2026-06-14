@@ -96,6 +96,51 @@ describe("Users", () => {
     mockFetchError(404);
     await expect(deleteUserApi("missing")).rejects.toThrow("HTTP 404");
   });
+
+  it("createUser falls back to the parsed HTTP status when the error body cannot be parsed", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: false,
+      status: 500,
+      json: async () => { throw new Error("invalid json"); },
+    }));
+    await expect(createUser({ username: "dup", password: "pass123" })).rejects.toThrow("HTTP 500");
+  });
+
+  it("createUser falls back to a generic message when the error body has no detail", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: false,
+      status: 400,
+      json: async () => ({}),
+    }));
+    await expect(createUser({ username: "dup", password: "pass123" })).rejects.toThrow("API error: 400");
+  });
+
+  it("updateUserApi falls back to a generic message when the error body has no detail", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: false,
+      status: 422,
+      json: async () => ({}),
+    }));
+    await expect(updateUserApi("u2", { role: "user" })).rejects.toThrow("API error: 422");
+  });
+
+  it("deleteUserApi falls back to the parsed HTTP status when the error body cannot be parsed", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: false,
+      status: 503,
+      json: async () => { throw new Error("invalid json"); },
+    }));
+    await expect(deleteUserApi("u2")).rejects.toThrow("HTTP 503");
+  });
+
+  it("deleteUserApi falls back to a generic message when the error body has no detail", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: false,
+      status: 409,
+      json: async () => ({}),
+    }));
+    await expect(deleteUserApi("u2")).rejects.toThrow("API error: 409");
+  });
 });
 
 // ---------------------------------------------------------------------------

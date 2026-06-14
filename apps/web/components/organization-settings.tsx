@@ -7,6 +7,8 @@ import { useT } from "@/lib/i18n";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import {
   useActiveOrganization,
+  useOrgMembers,
+  useOrgInvitations,
   useTeams,
   useTeamMembers,
   useInviteMember,
@@ -20,7 +22,6 @@ import {
   useRemoveTeamMember,
   type OrgMember,
   type OrgTeam,
-  type ActiveOrganization,
   type OrgRoleName,
 } from "@/hooks/use-organization";
 import { useFormModal } from "@/hooks/use-form-modal";
@@ -50,25 +51,23 @@ export function OrganizationSettings() {
   const { t } = useT();
   const org = useActiveOrganization();
 
+  if (!org) {
+    return <div className="text-muted-foreground text-sm">{t("settings.org.no_org")}</div>;
+  }
+
   return (
     <div className="space-y-8 max-w-3xl">
-      {org ? (
-        <>
-          <MembersSection org={org} />
-          <InvitationsSection org={org} />
-          <TeamsSection orgMembers={org.members} />
-        </>
-      ) : (
-        <div className="text-muted-foreground text-sm">{t("settings.org.no_org")}</div>
-      )}
+      <MembersSection />
+      <InvitationsSection />
+      <TeamsSection />
     </div>
   );
 }
 
-function MembersSection({ org }: { org: ActiveOrganization }) {
+function MembersSection() {
   const { t } = useT();
   const user = useCurrentUser();
-  const teams = useTeams();
+  const members = useOrgMembers();
   const updateRole = useUpdateMemberRole();
   const removeMember = useRemoveMember();
   const inviteMember = useInviteMember();
@@ -78,10 +77,9 @@ function MembersSection({ org }: { org: ActiveOrganization }) {
 
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<OrgRoleName>("member");
-  const [teamId, setTeamId] = useState<string>("");
 
   function openInvite() {
-    setEmail(""); setRole("member"); setTeamId("");
+    setEmail(""); setRole("member");
     inviteActions.openNew();
   }
 
@@ -89,7 +87,7 @@ function MembersSection({ org }: { org: ActiveOrganization }) {
     if (!email.trim()) return;
     const trimmed = email.trim();
     await inviteActions.run(async () => {
-      await inviteMember.mutateAsync({ email: trimmed, role, teamId: teamId || undefined });
+      await inviteMember.mutateAsync({ email: trimmed, role });
       toast.success(t("settings.org.invite_sent", { email: trimmed }));
     });
   }
@@ -97,7 +95,7 @@ function MembersSection({ org }: { org: ActiveOrganization }) {
   async function handleRoleChange(member: OrgMember, newRole: string) {
     if (newRole === member.role) return;
     try {
-      await updateRole.mutateAsync({ memberId: member.id, role: newRole as OrgRoleName });
+      await updateRole.mutateAsync({ userId: member.user_id, role: newRole as OrgRoleName });
     } catch (err) {
       toast.error((err as Error).message);
     }
@@ -106,10 +104,12 @@ function MembersSection({ org }: { org: ActiveOrganization }) {
   async function handleRemove() {
     if (!removeModal.target) return;
     await removeActions.run(async () => {
-      await removeMember.mutateAsync(removeModal.target!.id);
+      await removeMember.mutateAsync(removeModal.target!.user_id);
       toast.success(t("settings.org.member_removed"));
     });
   }
+
+  const memberList = members.data ?? [];
 
   return (
     <section className="space-y-3">
@@ -117,7 +117,7 @@ function MembersSection({ org }: { org: ActiveOrganization }) {
         <div>
           <h2 className="text-sm font-semibold">{t("settings.org.members_title")}</h2>
           <p className="text-muted-foreground text-[12px] mt-0.5">
-            {t("settings.org.members_count", { n: org.members.length, s: org.members.length !== 1 ? "s" : "" })}
+            {t("settings.org.members_count", { n: memberList.length, s: memberList.length !== 1 ? "s" : "" })}
           </p>
         </div>
 
@@ -144,25 +144,13 @@ function MembersSection({ org }: { org: ActiveOrganization }) {
               </div>
               <div className="flex flex-col gap-1.5">
                 <Label>{t("settings.org.invite_role")}</Label>
-                <Select value={role} onValueChange={(v) => setRole(v ?? "member")}>
+                <Select value={role} onValueChange={(v) => setRole((v as OrgRoleName) ?? "member")}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {ROLES.map((r) => <SelectItem key={r} value={r}>{roleLabel(t, r)}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
-              {teams.data && teams.data.length > 0 && (
-                <div className="flex flex-col gap-1.5">
-                  <Label>{t("settings.org.invite_team")} <span className="text-muted-foreground font-normal">{t("common.optional")}</span></Label>
-                  <Select value={teamId || "__none__"} onValueChange={(v) => setTeamId(v === "__none__" ? "" : (v ?? ""))}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__none__">{t("common.none")}</SelectItem>
-                      {teams.data.map((tm) => <SelectItem key={tm.id} value={tm.id}>{tm.name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
             </div>
             {inviteModal.error && (
               <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">{inviteModal.error}</div>
@@ -178,14 +166,14 @@ function MembersSection({ org }: { org: ActiveOrganization }) {
       </div>
 
       <div className="border border-border rounded-lg divide-y divide-border overflow-hidden">
-        {org.members.map((member) => (
-          <div key={member.id} className="flex items-center gap-3 px-3 py-2.5">
+        {memberList.map((member) => (
+          <div key={member.user_id} className="flex items-center gap-3 px-3 py-2.5">
             <div className="min-w-0 flex-1">
-              <p className="text-[13px] font-medium truncate">{member.user.name || member.user.email}</p>
-              <p className="text-[11px] text-muted-foreground truncate">{member.user.email}</p>
+              <p className="text-[13px] font-medium truncate">{member.username}</p>
+              {member.email && <p className="text-[11px] text-muted-foreground truncate">{member.email}</p>}
             </div>
-            <Select value={member.role} onValueChange={(v) => v && handleRoleChange(member, v)}>
-              <SelectTrigger size="sm" className="w-36" disabled={member.userId === user?.id}>
+            <Select value={member.role ?? "member"} onValueChange={(v) => v && handleRoleChange(member, v)}>
+              <SelectTrigger size="sm" className="w-36" disabled={member.user_id === user?.id}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -196,7 +184,7 @@ function MembersSection({ org }: { org: ActiveOrganization }) {
               variant="ghost"
               size="icon-xs"
               onClick={() => removeActions.openWith(member)}
-              disabled={member.userId === user?.id}
+              disabled={member.user_id === user?.id}
               aria-label={t("common.delete")}
             >
               <Trash2 className="size-3.5 text-destructive" />
@@ -210,7 +198,7 @@ function MembersSection({ org }: { org: ActiveOrganization }) {
           <DialogHeader>
             <DialogTitle>{t("settings.org.remove_member_title")}</DialogTitle>
             <DialogDescription>
-              {t("settings.org.remove_member_desc", { name: removeModal.target?.user.name || removeModal.target?.user.email || "" })}
+              {t("settings.org.remove_member_desc", { name: removeModal.target?.username || removeModal.target?.email || "" })}
             </DialogDescription>
           </DialogHeader>
           {removeModal.error && (
@@ -228,10 +216,11 @@ function MembersSection({ org }: { org: ActiveOrganization }) {
   );
 }
 
-function InvitationsSection({ org }: { org: ActiveOrganization }) {
+function InvitationsSection() {
   const { t } = useT();
+  const invitations = useOrgInvitations();
   const cancelInvitation = useCancelInvitation();
-  const pending = org.invitations.filter((i) => i.status === "pending");
+  const pending = invitations.data ?? [];
 
   if (pending.length === 0) return null;
 
@@ -252,9 +241,7 @@ function InvitationsSection({ org }: { org: ActiveOrganization }) {
           <div key={inv.id} className="flex items-center gap-3 px-3 py-2.5">
             <div className="min-w-0 flex-1">
               <p className="text-[13px] font-medium truncate">{inv.email}</p>
-              <p className="text-[11px] text-muted-foreground truncate">
-                {roleLabel(t, inv.role)} · {t("settings.org.invitation_expires", { date: new Date(inv.expiresAt).toLocaleDateString() })}
-              </p>
+              <p className="text-[11px] text-muted-foreground truncate">{roleLabel(t, inv.roles[0] ?? "member")}</p>
             </div>
             <Button variant="ghost" size="icon-xs" onClick={() => handleCancel(inv.id)} aria-label={t("settings.org.cancel_invitation")}>
               <X className="size-3.5 text-destructive" />
@@ -266,9 +253,10 @@ function InvitationsSection({ org }: { org: ActiveOrganization }) {
   );
 }
 
-function TeamsSection({ orgMembers }: { orgMembers: OrgMember[] }) {
+function TeamsSection() {
   const { t } = useT();
   const teams = useTeams();
+  const members = useOrgMembers();
   const createTeam = useCreateTeam();
 
   const [createModal, createActions] = useFormModal<null>();
@@ -287,6 +275,8 @@ function TeamsSection({ orgMembers }: { orgMembers: OrgMember[] }) {
       toast.success(t("settings.org.team_created", { name: trimmed }));
     });
   }
+
+  const orgMembers = members.data ?? [];
 
   return (
     <section className="space-y-3">
@@ -364,7 +354,7 @@ function TeamCard({ team, orgMembers }: { team: OrgTeam; orgMembers: OrgMember[]
     });
   }
 
-  const memberIds = new Set((teamMembers.data ?? []).map((m) => m.userId));
+  const memberIds = new Set((teamMembers.data ?? []).map((m) => m.user_id));
 
   async function toggleMember(userId: string, inTeam: boolean) {
     try {
@@ -435,11 +425,11 @@ function TeamCard({ team, orgMembers }: { team: OrgTeam; orgMembers: OrgMember[]
       {expanded && (
         <div className="border-t border-border divide-y divide-border">
           {orgMembers.map((m) => {
-            const inTeam = memberIds.has(m.userId);
+            const inTeam = memberIds.has(m.user_id);
             return (
-              <label key={m.userId} className="flex items-center gap-2.5 px-3 py-2 text-[13px] cursor-pointer hover:bg-muted/50">
-                <input type="checkbox" checked={inTeam} onChange={() => toggleMember(m.userId, inTeam)} className="size-3.5" />
-                <span className="flex-1 min-w-0 truncate">{m.user.name || m.user.email}</span>
+              <label key={m.user_id} className="flex items-center gap-2.5 px-3 py-2 text-[13px] cursor-pointer hover:bg-muted/50">
+                <input type="checkbox" checked={inTeam} onChange={() => toggleMember(m.user_id, inTeam)} className="size-3.5" />
+                <span className="flex-1 min-w-0 truncate">{m.username || m.email}</span>
               </label>
             );
           })}
