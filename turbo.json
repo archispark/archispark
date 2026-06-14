@@ -28,7 +28,6 @@
       "persistent": true,
       "passThroughEnv": [
         "DATABASE_URL",
-        "REDIS_URL",
         "KEYCLOAK_URL",
         "KEYCLOAK_REALM",
         "KEYCLOAK_CLIENT_ID_WEB",

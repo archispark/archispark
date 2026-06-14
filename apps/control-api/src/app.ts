@@ -23,7 +23,6 @@
  *   GET /admin/organizations, POST /admin/organizations, PUT /admin/organizations/:id
  *   POST /admin/organizations/:id/verify-db, POST /admin/organizations/:id/reprovision
  *   GET /admin/neon/status
- *   GET /settings/redis
  *   GET /settings/postgres
  *   GET|POST /settings/api-tokens, DELETE /settings/api-tokens/:id
  *   GET|PUT /settings/messages
@@ -41,9 +40,6 @@ import { randomUUID } from "crypto";
 import { Readable } from "node:stream";
 import cors from "cors";
 import helmet from "helmet";
-import { rateLimit } from "express-rate-limit";
-import { RedisStore } from "rate-limit-redis";
-import { getRedis } from "./redis.js";
 import { AppError } from "./errors.js";
 import { controlDb, apiTokens, siteSettings, getTenantConnectionStringEncrypted, signTenantToken, getNeonApiConfig, getDefaultBranchId, provisionTenantDatabase, verifyTenantDatabaseConnectivity, canProvisionLocally } from "@workspace/db";
 import { ORG_ROLES, type OrgRoleName } from "@workspace/auth";
@@ -84,9 +80,8 @@ import {
 export const app: ReturnType<typeof express> = express();
 
 // Behind a reverse proxy (Vercel, Traefik) the client IP arrives via
-// X-Forwarded-For. Trust one proxy hop so req.ip is correct and express-rate-limit
-// doesn't throw ERR_ERL_UNEXPECTED_X_FORWARDED_FOR. `1` (not `true`) keeps it from
-// blindly trusting a spoofable client-supplied header.
+// X-Forwarded-For. Trust one proxy hop so req.ip is correct. `1` (not `true`)
+// keeps it from blindly trusting a spoofable client-supplied header.
 app.set("trust proxy", 1);
 
 app.use(helmet({ contentSecurityPolicy: false }));
@@ -95,29 +90,6 @@ app.use(express.json());
 
 // Lightweight liveness probe — no auth, no DB, used by Docker healthchecks.
 app.get("/health", (_req, res) => { res.json({ status: "ok" }); });
-
-function redisStore(prefix: string): RedisStore {
-  return new RedisStore({
-    prefix,
-    sendCommand: (...args: string[]) => getRedis().call(args[0]!, ...args.slice(1)) as Promise<number>,
-  });
-}
-
-const apiRateLimit = rateLimit({
-  windowMs: 60 * 1000,
-  max: 300,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { detail: "Trop de requêtes, réessayez dans 1 minute." },
-  store: redisStore("rl:api:"),
-  skip: (req) =>
-    req.path === "/health" ||
-    req.path === "/openapi.json" ||
-    req.path === "/docs",
-});
-
-// Rate-limit all non-public routes before any DB-hitting middleware
-app.use(apiRateLimit);
 
 // Paths that don't require authentication or organization context.
 // /openapi.json and /docs live in apps/tenant-api now but are proxied through
@@ -370,28 +342,6 @@ app.post("/admin/organizations/:id/reprovision", requireSuperAdmin as express.Re
   const org = all.find(o => o.id === id);
   if (!org) { res.status(404).json({ detail: "Organisation introuvable." }); return; }
   res.json(org);
-});
-
-// ---------------------------------------------------------------------------
-// Redis status (admin only — read-only, config via REDIS_URL env var)
-// ---------------------------------------------------------------------------
-
-app.get("/settings/redis", requireSuperAdmin as express.RequestHandler, async (_req: Request, res: Response) => {
-  const url = process.env["REDIS_URL"]!;
-  let host: string | null = null;
-  let port: number | null = null;
-  try {
-    const parsed = new URL(url);
-    host = parsed.hostname;
-    port = parsed.port ? parseInt(parsed.port, 10) : 6379;
-  } catch { /* malformed URL */ }
-
-  try {
-    await getRedis().ping();
-    res.json({ connected: true, host, port });
-  } catch {
-    res.json({ connected: false, host, port });
-  }
 });
 
 // ---------------------------------------------------------------------------

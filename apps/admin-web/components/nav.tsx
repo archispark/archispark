@@ -11,7 +11,6 @@ import { UserMenu } from "@/components/user-menu";
 const SECTION_LABELS: Record<string, Parameters<ReturnType<typeof useT>["t"]>[0]> = {
   organizations: "settings.org.orgs_title",
   users: "users.title",
-  redis: "settings.tab_redis",
   postgres: "settings.tab_postgres",
   messages: "settings.tab_messages",
 };

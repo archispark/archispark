@@ -1,6 +1,6 @@
 apiVersion: v2
 name: archispark
-description: ArchiSpark — ArchiMate modeling platform (web + api + mcp-server + postgres + redis)
+description: ArchiSpark — ArchiMate modeling platform (web + api + mcp-server + postgres)
 type: application
 version: 0.1.0
 appVersion: "latest"

@@ -77,7 +77,6 @@
   "settings.org.owner_credentials_username": "Nombre de usuario",
   "settings.tab_messages": "Mensajes",
   "settings.tab_postgres": "PostgreSQL",
-  "settings.tab_redis": "Redis",
   "sidebar.collapse": "Contraer la barra lateral",
   "sidebar.expand": "Expandir la barra lateral",
   "users.count": "{n} usuario{s}",

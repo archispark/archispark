@@ -1,10 +1,10 @@
 # ─────────────────────────────────────────────────────────────────────────────
 #  ArchiSpark — Docker Compose (dev local / pnpm)
 #
-#  Lance uniquement l'infrastructure (Postgres + Redis).
+#  Lance uniquement l'infrastructure (Postgres + Keycloak).
 #  L'application tourne en local via pnpm :
 #
-#    make dev-infra   # démarre Postgres + Redis
+#    make dev-infra   # démarre Postgres + Keycloak
 #    pnpm dev         # démarre api, web et mcp-server avec hot-reload
 #
 #  Arrêt (en conservant les données) :
@@ -32,23 +32,6 @@ services:
       - ./initdb:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test:     ["CMD-SHELL", "pg_isready -U archispark -d archispark"]
-      interval: 5s
-      timeout:  5s
-      retries:  10
-
-  # ── Cache / pub-sub ───────────────────────────────────────────────────────
-  redis:
-    image: redis:7-alpine
-    restart: unless-stopped
-    command: >-
-      redis-server --appendonly yes
-      ${REDIS_PASSWORD:+--requirepass ${REDIS_PASSWORD}}
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_dev_data:/data
-    healthcheck:
-      test:     ["CMD-SHELL", "redis-cli ${REDIS_PASSWORD:+-a $REDIS_PASSWORD} ping | grep -q PONG"]
       interval: 5s
       timeout:  5s
       retries:  10
@@ -86,4 +69,3 @@ services:
 
 volumes:
   postgres_dev_data:
-  redis_dev_data:

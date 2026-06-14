@@ -43,13 +43,6 @@ spec:
                   key: DB_PASSWORD
             - name: DATABASE_URL
               value: "postgresql://archispark:$(DB_PASSWORD)@{{ include "archispark.fullname" . }}-postgres:5432/archispark?sslmode=disable"
-            - name: REDIS_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "archispark.secretName" . }}
-                  key: REDIS_PASSWORD
-            - name: REDIS_URL
-              value: {{ include "archispark.redisUrl" . | quote }}
           livenessProbe:
             httpGet:
               path: /health

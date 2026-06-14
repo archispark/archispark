@@ -1,7 +1,6 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import {
   fetchUsers, createUser, updateUserApi, deleteUserApi,
-  fetchRedisStatus,
   fetchPostgresStatus,
   fetchSiteMessages, updateSiteMessages,
 } from "./api";
@@ -139,28 +138,6 @@ describe("Users", () => {
       json: async () => ({}),
     }));
     await expect(deleteUserApi("u2")).rejects.toThrow("API error: 409");
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Redis
-// ---------------------------------------------------------------------------
-
-describe("Redis", () => {
-  it("fetchRedisStatus returns status", async () => {
-    mockFetchOk({ connected: true, host: "localhost", port: 6379 });
-    const status = await fetchRedisStatus();
-    expect(status.connected).toBe(true);
-    expect(status.host).toBe("localhost");
-    expect(vi.mocked(fetch)).toHaveBeenCalledWith(
-      expect.stringContaining("/settings/redis"),
-      expect.any(Object),
-    );
-  });
-
-  it("fetchRedisStatus throws on non-ok response", async () => {
-    mockFetchError(500);
-    await expect(fetchRedisStatus()).rejects.toThrow("API error: 500");
   });
 });
 

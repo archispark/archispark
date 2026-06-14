@@ -10,10 +10,8 @@
  * TypeScript / workspace-resolution surprises at bundle time.
  */
 import { app } from "../dist/app.js";
-import { initRedis } from "../dist/redis.js";
 import { runMigrations } from "@workspace/db";
 
-await initRedis().catch((err: Error) => console.error("[redis] init failed:", err.message));
 await runMigrations().catch((err: Error) => console.error("[db] migrations failed:", err.message));
 
 export default app;

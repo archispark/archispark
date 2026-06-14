@@ -47,13 +47,10 @@
     "cors": "^2.8.6",
     "drizzle-orm": "^0.45.2",
     "express": "^5.2.1",
-    "express-rate-limit": "^8.5.2",
     "fast-xml-parser": "^5.8.0",
     "helmet": "^8.2.0",
-    "ioredis": "^5.11.1",
     "lru-cache": "^11.5.1",
     "multer": "^2.1.1",
-    "rate-limit-redis": "^5.0.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {

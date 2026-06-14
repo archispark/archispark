@@ -48,8 +48,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      redis:
-        condition: service_healthy
       tenant-api:
         condition: service_healthy
     environment:
@@ -60,9 +58,6 @@ services:
       DATABASE_URL:        "postgresql://archispark:${DB_PASSWORD}@postgres:5432/archispark"
       # Base de données partagée pour les tenants sans Neon dédié
       TENANT_DATABASE_URL: "postgresql://archispark:${DB_PASSWORD}@postgres:5432/archispark_tenant"
-      # Connexion Redis — si REDIS_PASSWORD est défini dans .env, remplacer par
-      # redis://:${REDIS_PASSWORD}@redis:6379
-      REDIS_URL:           ${REDIS_URL:-redis://redis:6379}
       # URL interne du service tenant-api (réseau Docker) — requêtes de
       # modélisation (elements, relationships, views, workspaces, import/export)
       TENANT_API_URL:      "http://tenant-api:3002"
@@ -113,8 +108,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      redis:
-        condition: service_healthy
     environment:
       NODE_ENV:                  production
       PORT:                      "3002"
@@ -123,7 +116,6 @@ services:
       # archispark_tenant (SELECT/INSERT/UPDATE/DELETE sur schema.tenant.ts only)
       DATABASE_URL:              "postgresql://archispark_tenant:${TENANT_DB_PASSWORD}@postgres:5432/archispark_tenant"
       TENANT_DATABASE_URL:       "postgresql://archispark_tenant:${TENANT_DB_PASSWORD}@postgres:5432/archispark_tenant"
-      REDIS_URL:                 ${REDIS_URL:-redis://redis:6379}
       # Secret partagé avec control-api pour vérifier le JWT inter-service
       TENANT_JWT_SECRET:         ${TENANT_JWT_SECRET:?Set TENANT_JWT_SECRET in .env}
       # Clé de déchiffrement des chaînes de connexion Neon par-tenant
@@ -151,7 +143,6 @@ services:
       DATABASE_URL:    "postgresql://archispark:${DB_PASSWORD}@postgres:5432/archispark"
       # Base partagée tenant pour store/registry en mode repli
       TENANT_DATABASE_URL: "postgresql://archispark:${DB_PASSWORD}@postgres:5432/archispark_tenant"
-      REDIS_URL:       ${REDIS_URL:-redis://redis:6379}
       # Clé de déchiffrement des chaînes de connexion Neon par-tenant (registry/store)
       TENANT_DB_ENCRYPTION_KEY: ${TENANT_DB_ENCRYPTION_KEY:?Set TENANT_DB_ENCRYPTION_KEY in .env}
     depends_on:
@@ -227,28 +218,6 @@ services:
     networks:
       - archispark
 
-  # ── Cache / pub-sub ────────────────────────────────────────────────────────
-  # Redis 7 avec persistance AOF activée.
-  # Si REDIS_PASSWORD est défini, l'authentification est requise.
-  redis:
-    image: redis:7-alpine
-    restart: unless-stopped
-    command: >-
-      redis-server --appendonly yes
-      ${REDIS_PASSWORD:+--requirepass ${REDIS_PASSWORD}}
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-    healthcheck:
-      # Utilise le mot de passe si défini, sinon ping simple
-      test:     ["CMD-SHELL", "redis-cli ${REDIS_PASSWORD:+-a $REDIS_PASSWORD} ping | grep -q PONG"]
-      interval: 5s
-      timeout:  5s
-      retries:  10
-    networks:
-      - archispark
-
 # ── Réseau ─────────────────────────────────────────────────────────────────
 # Réseau bridge nommé partagé par tous les services.
 # Le nom explicite "archispark" permet aux stacks externes de s'y attacher.
@@ -258,6 +227,5 @@ networks:
 
 # ── Volumes ────────────────────────────────────────────────────────────────
 volumes:
-  redis_data:      # Persistance Redis (AOF)
   postgres_data:   # Données PostgreSQL
   traefik_certs:   # Certificats TLS Let's Encrypt gérés par Traefik

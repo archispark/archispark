@@ -2,14 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Users as UsersIcon, Database, Server, MessageSquare, Building2, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { Users as UsersIcon, Server, MessageSquare, Building2, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { RailLink } from "@/components/rail-link";
 import { useT } from "@/lib/i18n";
 
 const ADMIN_TABS = [
   { href: "/organizations", icon: Building2, labelKey: "settings.org.orgs_title" },
   { href: "/users", icon: UsersIcon, labelKey: "users.title" },
-  { href: "/redis", icon: Database, labelKey: "settings.tab_redis" },
   { href: "/postgres", icon: Server, labelKey: "settings.tab_postgres" },
   { href: "/messages", icon: MessageSquare, labelKey: "settings.tab_messages" },
 ] as const;

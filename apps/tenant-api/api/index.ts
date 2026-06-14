@@ -10,10 +10,5 @@
  * TypeScript / workspace-resolution surprises at bundle time.
  */
 import { app } from "../dist/app.js";
-import { initRedis } from "../dist/redis.js";
-
-// Catch connection errors here: an unhandled rejection from a transient Redis
-// connect timeout would otherwise crash the whole serverless process.
-await initRedis().catch((err: Error) => console.error("[redis] init failed:", err.message));
 
 export default app;

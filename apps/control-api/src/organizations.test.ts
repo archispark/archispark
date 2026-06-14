@@ -4,7 +4,7 @@
  *   GET/POST/DELETE /organizations/invitations[/:invitationId]
  *   GET/POST/PUT/DELETE /organizations/teams[/:teamId]
  *   GET/POST/DELETE /organizations/teams/:teamId/members[/:userId]
- * plus /settings/redis, /admin/organizations/:id/verify-db and
+ * plus /admin/organizations/:id/verify-db and
  * /admin/organizations/:id/reprovision, and the X-Org-Id / `organizations`
  * JWT claim fast path in resolveWorkspaceContext / getMembershipContext.
  */
@@ -439,25 +439,6 @@ describe("resolveWorkspaceContext — X-Org-Id header and orgClaims fast path", 
       .set("X-Org-Id", defaultOrgId);
     expect(res.status).toBe(403);
     expect(res.body.detail).toBe("Accès à cette organisation refusé.");
-  });
-});
-
-// ---------------------------------------------------------------------------
-// GET /settings/redis
-// ---------------------------------------------------------------------------
-
-describe("GET /settings/redis", () => {
-  it("returns 403 for non-admin", async () => {
-    const res = await request(app, userCookie).get("/settings/redis");
-    expect(res.status).toBe(403);
-  });
-
-  it("returns connected status using the mocked Redis client", async () => {
-    const res = await request(app).get("/settings/redis");
-    expect(res.status).toBe(200);
-    expect(res.body).toHaveProperty("connected");
-    expect(res.body).toHaveProperty("host");
-    expect(res.body).toHaveProperty("port");
   });
 });
 

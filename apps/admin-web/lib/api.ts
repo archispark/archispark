@@ -113,16 +113,6 @@ export const verifyOrganizationDb = (id: string) =>
 export const reprovisionOrganization = (id: string) =>
   post<AdminOrganizationOut>(`/admin/organizations/${encodeURIComponent(id)}/reprovision`, {});
 
-// --- Redis ---
-
-export interface RedisStatus {
-  connected: boolean;
-  host: string | null;
-  port: number | null;
-}
-
-export const fetchRedisStatus = () => get<RedisStatus>("/settings/redis");
-
 // --- PostgreSQL ---
 
 export interface PostgresStatus {

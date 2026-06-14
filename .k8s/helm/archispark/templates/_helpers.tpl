@@ -47,14 +47,3 @@ Secret name (existing or generated)
 {{- printf "%s-secrets" (include "archispark.fullname" .) }}
 {{- end }}
 {{- end }}
-
-{{/*
-Redis URL (with or without password)
-*/}}
-{{- define "archispark.redisUrl" -}}
-{{- if .Values.secrets.redisPassword }}
-{{- printf "redis://:$(REDIS_PASSWORD)@%s-redis:6379" (include "archispark.fullname" .) }}
-{{- else }}
-{{- printf "redis://%s-redis:6379" (include "archispark.fullname" .) }}
-{{- end }}
-{{- end }}

@@ -77,7 +77,6 @@
   "settings.org.owner_credentials_username": "Benutzername",
   "settings.tab_messages": "Nachrichten",
   "settings.tab_postgres": "PostgreSQL",
-  "settings.tab_redis": "Redis",
   "sidebar.collapse": "Seitenleiste einklappen",
   "sidebar.expand": "Seitenleiste ausklappen",
   "users.count": "{n} Benutzer",

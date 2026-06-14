@@ -17,7 +17,7 @@ import {
   fetchWorkspaces, createWorkspaceApi, updateWorkspaceApi, deleteWorkspaceApi, activateWorkspaceApi,
   fetchViewpoints,
   fetchProviders, createProvider, updateProvider, deleteProvider,
-  fetchRedisStatus, fetchPostgresStatus,
+  fetchPostgresStatus,
   fetchApiTokens, createApiToken, deleteApiToken,
   fetchSiteMessages, updateSiteMessages,
   fetchOrgMembers, updateOrgMemberRole, removeOrgMember,
@@ -647,17 +647,11 @@ describe("OAuth provider mutations", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Settings — Redis, Postgres
+// Settings — Postgres
 // ---------------------------------------------------------------------------
 
 describe("settings status helpers", () => {
   afterEach(() => vi.unstubAllGlobals());
-
-  it("fetchRedisStatus returns redis status", async () => {
-    mockFetchOk({ connected: true, host: "localhost", port: 6379 });
-    const status = await fetchRedisStatus();
-    expect(status.connected).toBe(true);
-  });
 
   it("fetchPostgresStatus returns postgres status", async () => {
     mockFetchOk({ connected: true, host: "localhost", port: 5432, database: "app", version: "14" });

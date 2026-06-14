@@ -35,9 +35,6 @@
 import express, { Request, Response, NextFunction } from "express";
 import cors from "cors";
 import helmet from "helmet";
-import { rateLimit } from "express-rate-limit";
-import { RedisStore } from "rate-limit-redis";
-import { getRedis } from "./redis.js";
 import multer from "multer";
 // archiver@8 is a pure-ESM package whose runtime exports a named `ZipArchive`
 // class. A static namespace import is statically analyzable, so the bundler
@@ -115,13 +112,6 @@ app.use(express.json());
 // Lightweight liveness probe — no auth, no DB, used by Docker healthchecks.
 app.get("/health", (_req, res) => { res.json({ status: "ok" }); });
 
-function redisStore(prefix: string): RedisStore {
-  return new RedisStore({
-    prefix,
-    sendCommand: (...args: string[]) => getRedis().call(args[0]!, ...args.slice(1)) as Promise<number>,
-  });
-}
-
 const xmlUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 50 * 1024 * 1024 },
@@ -130,30 +120,6 @@ const xmlUpload = multer({
     cb(null, ok);
   },
 });
-
-const importRateLimit = rateLimit({
-  windowMs: 60 * 1000,
-  max: 10,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { detail: "Trop d'imports, réessayez dans 1 minute." },
-  store: redisStore("rl:import:"),
-});
-
-const apiRateLimit = rateLimit({
-  windowMs: 60 * 1000,
-  max: 300,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { detail: "Trop de requêtes, réessayez dans 1 minute." },
-  store: redisStore("rl:api:"),
-  skip: (req) =>
-    req.path === "/health" ||
-    req.path === "/openapi.json" ||
-    req.path === "/docs",
-});
-
-app.use(apiRateLimit);
 
 // OpenAPI spec and Swagger UI — public, registered before requireTenantToken so
 // apps/control-api can proxy these without an Authorization header.
@@ -279,7 +245,7 @@ app.get("/export/zip", async (req: AuthRequest, res: Response) => {
 });
 
 // Import model from XML — accepts multipart/form-data (file field "file") or raw XML body
-app.post("/import", importRateLimit,
+app.post("/import",
   (req, res, next) => {
     if (req.is("multipart/form-data")) {
       xmlUpload.single("file")(req, res, next);

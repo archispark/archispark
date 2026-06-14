@@ -73,19 +73,6 @@ postgres:
       cpu: 500m
       memory: 512Mi
 
-# ── Redis ─────────────────────────────────────────────────────────────────────
-redis:
-  image: redis:7-alpine
-  storage: 1Gi
-  # storageClass: ""
-  resources:
-    requests:
-      cpu: 50m
-      memory: 32Mi
-    limits:
-      cpu: 200m
-      memory: 128Mi
-
 # ── Ingress (NGINX Ingress Controller) ───────────────────────────────────────
 ingress:
   enabled: true
@@ -105,4 +92,3 @@ secrets:
   existingSecret: ""
   # Clés attendues dans le Secret (ou valeurs inline si existingSecret est vide)
   dbPassword: ""         # Requis — mot de passe PostgreSQL
-  redisPassword: ""      # Optionnel — laisser vide pour désactiver l'auth Redis

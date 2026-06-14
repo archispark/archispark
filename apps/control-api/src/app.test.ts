@@ -5,8 +5,8 @@
  * property-definitions, export/import, openapi/docs, ...) now live in
  * apps/tenant-api and are reverse-proxied here — see the "Reverse proxy to
  * tenant-api" suite below, which mocks global.fetch. Control-plane routes
- * (/me, /users*, /admin/organizations*, /settings/api-tokens*,
- * /settings/redis) are covered in auth.test.ts.
+ * (/me, /users*, /admin/organizations*, /settings/api-tokens*)
+ * are covered in auth.test.ts.
  */
 
 import { describe, it, expect, beforeAll, afterEach, vi } from "vitest";

@@ -10,7 +10,6 @@ ArchiMate 3.1 modeling tool — REST API, MCP server, and web UI.
 | MCP | `@modelcontextprotocol/sdk` — Streamable HTTP transport, Bearer token auth |
 | Web | Next.js 16, React, shadcn/ui, Vercel Analytics + Speed Insights |
 | Admin web | Next.js 16 — platform admin console (`apps/admin-web`), `platform_admin` only |
-| Cache | Redis (required) — session store + distributed rate-limiting |
 
 ## Quick start
 
@@ -29,22 +28,14 @@ default. For local development, `make dev` sources `.env`, which sets
 `DATABASE_URL=postgresql://archispark:${DB_PASSWORD}@localhost:5432/archispark`
 to match the Postgres container started by `make dev-infra`.
 
-Redis is **required** — set `REDIS_URL` (e.g. `redis://localhost:6379`). It is used
-for session storage and distributed rate-limiting. The API will fail to start without it.
-
-Locked out by rate-limiting (`rl:auth:*` 15min/100, `rl:api:*` 1min/300,
-`rl:import:*` 1min/10)? Reset the Redis counters with
-`pnpm --filter control-api reset-rate-limit [ip] [--all --yes]` — works against
-any `REDIS_URL`, local or remote (Vercel).
-
 ## Docker & Makefile
 
 Two Docker Compose files cover every deployment mode:
 
 | File | Purpose |
 |------|---------|
-| `docker-compose.yml` | **Production** — pulls published images from Docker Hub (Traefik, control-api, tenant-api, mcp-server, web, PostgreSQL, Redis) |
-| `docker-compose.dev.yml` | **Development infra** — PostgreSQL + Redis + Keycloak only, used by `make dev-infra` while apps run via `pnpm dev` |
+| `docker-compose.yml` | **Production** — pulls published images from Docker Hub (Traefik, control-api, tenant-api, mcp-server, web, PostgreSQL) |
+| `docker-compose.dev.yml` | **Development infra** — PostgreSQL + Keycloak only, used by `make dev-infra` while apps run via `pnpm dev` |
 
 The `Makefile` wraps the most common operations. Run `make` or `make help` for the full list.
 
@@ -59,7 +50,7 @@ make logs
 
 # Development
 make dev            # full hot-reload stack
-make dev-infra      # postgres + redis + keycloak only, then run pnpm dev on the host
+make dev-infra      # postgres + keycloak only, then run pnpm dev on the host
 # Note: on a Postgres volume that pre-dates Keycloak, .docker/initdb/02-create-keycloak-db.sql
 # won't run (it only fires on first init). Create the DB once manually:
 #   docker exec <postgres-container> psql -U archispark -d postgres -c "CREATE DATABASE archispark_keycloak;"
@@ -82,7 +73,7 @@ make version        # print version from package.json
 
 ## Kubernetes (Helm)
 
-A Helm chart is available in `.k8s/helm/archispark/`. It deploys the full stack (api, web, mcp-server, postgres, redis) with an NGINX Ingress — the same topology as the Docker Compose setup.
+A Helm chart is available in `.k8s/helm/archispark/`. It deploys the full stack (api, web, mcp-server, postgres) with an NGINX Ingress — the same topology as the Docker Compose setup.
 
 ### Prerequisites
 
@@ -137,7 +128,6 @@ echo "$(minikube ip) archispark.local" | sudo tee -a /etc/hosts
 | `secrets.dbPassword` | — | **Required** — PostgreSQL password |
 | `secrets.existingSecret` | `""` | Name of a pre-existing K8s Secret (Sealed Secrets, ESO…) |
 | `postgres.storage` | `5Gi` | PostgreSQL PVC size |
-| `redis.storage` | `1Gi` | Redis PVC size |
 
 See [`.k8s/helm/archispark/values.yaml`](.k8s/helm/archispark/values.yaml) for the full list.
 
@@ -348,7 +338,6 @@ Credential separation:
 | `TENANT_JWT_SECRET` | ✅ (sign) | ✅ (verify) | — |
 | `TENANT_DB_ENCRYPTION_KEY` | — | ✅ (decrypt `tenant_db`) | ✅ |
 | `TENANT_DB_PASSWORD` | ✅ (creates/maintains `archispark_tenant` role) | — | — |
-| `REDIS_URL` | ✅ | ✅ | ✅ |
 
 ### Tenant Postgres role
 
@@ -499,7 +488,6 @@ All routes below act on the request's **active organization** (see
 | `/organizations` | List, create, rename, and delete organizations across every tenant (default landing page); also shows a read-only **tenant monitoring** table (tenant database status + enabled/suspended state per organization) with suspend/reactivate actions |
 | `/users` | Manage platform users — create/update/delete, assign the `platform_admin` role |
 | `/authentication` | Manage OAuth/SSO providers |
-| `/redis` | Redis connection status |
 | `/postgres` | PostgreSQL connection status |
 | `/messages` | Configure the login-page message and the site-wide banner |
 
