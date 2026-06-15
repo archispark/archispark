@@ -29,7 +29,7 @@ coverage
 out/
 build
 dist
-next-env.d.ts
+**/next-env.d.ts
 
 # Debug
 npm-debug.log*
