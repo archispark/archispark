@@ -12,8 +12,8 @@
 ## Quick start
 
 ```bash
-pnpm install
-pnpm dev          # API :3000 · Web :8000 · Admin :8001 · MCP :3001 · all bound to 0.0.0.0
+make install      # pnpm install
+make up           # postgres + keycloak (Docker), then pnpm dev — API :3000 · Web :8000 · Admin :8001 · MCP :3001 · all bound to 0.0.0.0
 ```
 
 On first run the API:
@@ -22,50 +22,51 @@ On first run the API:
 3. Seeds workspaces from `workspaces.json` or `config.json` + XML files if present
 
 `DATABASE_URL` is **required** — there is no hardcoded
-default. For local development, `make dev` sources `.env`, which sets
+default. For local development, `make up` sources `.env.dev`, which sets
 `DATABASE_URL=postgresql://archispark:${DB_PASSWORD}@localhost:5432/archispark`
-to match the Postgres container started by `make dev-infra`.
+to match the Postgres container started by the same command.
 
 ## Docker & Makefile
 
-Two Docker Compose files cover every deployment mode:
+Two Docker Compose files cover every deployment mode, selected via `ENV` (default `dev`, see `make help`):
 
 | File | Purpose |
 |------|---------|
-| `docker-compose.yml` | **Production** — pulls published images from Docker Hub (Traefik, control-api, tenant-api, mcp-server, web, PostgreSQL) |
-| `docker-compose.dev.yml` | **Development infra** — PostgreSQL + Keycloak only, used by `make dev-infra` while apps run via `pnpm dev` |
+| `docker-compose.yml` | **Production** (`ENV=prod`) — pulls published images from Docker Hub (Traefik, control-api, tenant-api, mcp-server, web, PostgreSQL) |
+| `docker-compose.dev.yml` | **Development infra** (`ENV=dev`, default) — PostgreSQL + Keycloak, started by `make up`, which also runs `pnpm dev` for hot-reload |
 
-The `Makefile` wraps the most common operations. Run `make` or `make help` for the full list.
+The `Makefile` wraps the most common operations and loads `.env.$(ENV)` (`.env.dev` or `.env.prod`, via `-include`). Run `make` or `make help` for the full list.
 
 ```bash
 # First-time setup
-make env            # copy .env.example → .env (edit DB_PASSWORD, TENANT_JWT_SECRET, TENANT_DB_PASSWORD, TENANT_DB_ENCRYPTION_KEY)
+make install        # pnpm install
+make env            # copy .env.example → .env.dev (edit DB_PASSWORD, TENANT_JWT_SECRET, TENANT_DB_PASSWORD, TENANT_DB_ENCRYPTION_KEY)
+make env ENV=prod   # ... or → .env.prod, for a production deployment
 
-# Production (Hub images)
-make up             # docker compose up -d
+# Development (ENV=dev, default)
+make up             # postgres + keycloak (Docker), then pnpm dev (hot-reload)
 make down
 make logs
-
-# Development
-make dev            # full hot-reload stack
-make dev-infra      # postgres + keycloak only, then run pnpm dev on the host
 # Note: on a Postgres volume that pre-dates Keycloak, .docker/initdb/02-create-keycloak-db.sql
 # won't run (it only fires on first init). Create the DB once manually:
 #   docker exec <postgres-container> psql -U archispark -d postgres -c "CREATE DATABASE archispark_keycloak;"
 #   docker exec <postgres-container> psql -U archispark -d postgres -c "GRANT ALL PRIVILEGES ON DATABASE archispark_keycloak TO archispark;"
 
-make dev-keycloak-setup # create/update the Keycloak realm (roles, clients, service account) via the Admin API — works on hosted Phasetwo too
-make dev-seed-demo      # create the Keycloak demo accounts + seed demo ArchiMate data (see Demo seed)
+make keycloak-setup  # create/update the Keycloak realm (roles, clients, service account) via the Admin API — works on hosted Phasetwo too
+make seed-demo-users # create/update the 4 Keycloak demo accounts (admin/user/contrib/archi)
+make seed-demo       # seed demo ArchiMate data (ArchiMetal/ArchiSurance, see Demo seed)
+
+# Production (Hub images)
+make up ENV=prod    # docker compose up -d
+make down ENV=prod
+make logs ENV=prod
+make pull ENV=prod  # update images
 
 # Build images from source (OS=alpine|trixie-slim, VERSION auto-read from package.json)
 make build          # build all images for current OS variant
 make build-all      # build both alpine and trixie-slim
 make build-api      # build a single service
 make build OS=trixie-slim VERSION=1.2.3
-
-# Push to Docker Hub
-make push
-make release VERSION=x.y.z   # build-all + push-all in one command
 
 # Utilities
 make clean          # remove local ArchiSpark images

@@ -4,9 +4,12 @@
 #  Variables overridables depuis la ligne de commande :
 #    make build VERSION=1.2.3
 #    make build OS=trixie-slim
-#    make push  REGISTRY=ghcr.io/myorg
+#    make build REGISTRY=ghcr.io/myorg
+#    make up ENV=prod
 #
 #  OS variants : alpine (défaut) | trixie-slim
+#  ENV variants : dev (défaut — infra Docker + pnpm dev) | prod (stack Docker complet)
+#                  charge .env.$(ENV) (créé via `make env`)
 # =============================================================================
 
 SHELL     := /bin/bash
@@ -17,11 +20,22 @@ VERSION   ?= $(shell node -p "require('./package.json').version" 2>/dev/null \
                || grep '"version"' package.json | cut -d'"' -f4)
 OS        ?= alpine
 
+ENV       ?= dev
+ENV_FILE  := .env.$(ENV)
+
+-include $(ENV_FILE)
+
 SERVICES  := api web mcp-server
 
 DC        := docker compose
 DC_PROD   := $(DC) -f .docker/docker-compose.yml
 DC_DEV    := $(DC) -f .docker/docker-compose.dev.yml
+
+ifeq ($(ENV),prod)
+DC_ENV := $(DC_PROD)
+else
+DC_ENV := $(DC_DEV)
+endif
 
 .DEFAULT_GOAL := help
 
@@ -32,96 +46,81 @@ DC_DEV    := $(DC) -f .docker/docker-compose.dev.yml
 .PHONY: help
 help:
 	@printf "\033[1mArchiSpark $(VERSION)\033[0m — cibles disponibles\n\n"
-	@printf "\033[4mProduction\033[0m (images Docker Hub)\n"
-	@printf "  \033[36mup\033[0m              Démarrer le stack complet\n"
-	@printf "  \033[36mdown\033[0m            Arrêter le stack\n"
+	@printf "\033[4mStack\033[0m (ENV=$(ENV) — défaut dev: infra Docker + pnpm dev · prod: stack Docker complet)\n"
+	@printf "  \033[36mup\033[0m              Démarrer (ENV=dev|prod)\n"
+	@printf "  \033[36mdown\033[0m            Arrêter\n"
 	@printf "  \033[36mrestart\033[0m         Redémarrer tous les services\n"
 	@printf "  \033[36mlogs\033[0m            Suivre les logs en temps réel\n"
 	@printf "  \033[36mps\033[0m              État des services\n"
-	@printf "  \033[36mpull\033[0m            Mettre à jour les images Hub\n"
-	@printf "\n\033[4mDéveloppement\033[0m\n"
-	@printf "  \033[36mdev\033[0m                 Postgres + Redis en Docker, puis pnpm dev (hot-reload)\n"
-	@printf "  \033[36mdev-infra\033[0m           Postgres + Redis seulement (background)\n"
-	@printf "  \033[36mdev-down\033[0m            Arrêter l'infrastructure de dev\n"
-	@printf "  \033[36mdev-logs\033[0m            Suivre les logs de dev\n"
-	@printf "  \033[36mdev-ps\033[0m              État des services de dev\n"
-	@printf "  \033[36mdev-keycloak-setup\033[0m  Créer/mettre à jour le realm Keycloak Phase Two (realm-export.json)\n"
-	@printf "  \033[36mdev-seed-demo\033[0m       Créer les utilisateurs Keycloak de démo + charger les données de démo\n"
+	@printf "  \033[36mpull\033[0m            Mettre à jour les images (ENV=prod)\n"
+	@printf "\n\033[4mKeycloak / démo\033[0m\n"
+	@printf "  \033[36mkeycloak-setup\033[0m   Créer/mettre à jour le realm Keycloak Phase Two (realm-export.json)\n"
+	@printf "  \033[36mseed-demo-users\033[0m  Créer/mettre à jour les 4 comptes Keycloak de démo (admin/user/contrib/archi)\n"
+	@printf "  \033[36mseed-demo\033[0m        Charger les workspaces de démo (ArchiMetal/ArchiSurance)\n"
 	@printf "\n\033[4mBuild\033[0m (OS=$(OS) VERSION=$(VERSION))\n"
 	@printf "  \033[36mbuild\033[0m           Builder toutes les images pour l'OS courant\n"
 	@printf "  \033[36mbuild-api\033[0m       Builder l'image API\n"
 	@printf "  \033[36mbuild-web\033[0m       Builder l'image web\n"
 	@printf "  \033[36mbuild-mcp\033[0m       Builder l'image mcp-server\n"
 	@printf "  \033[36mbuild-all\033[0m       Builder toutes les images (alpine + trixie-slim)\n"
-	@printf "\n\033[4mPush\033[0m (REGISTRY=$(REGISTRY))\n"
-	@printf "  \033[36mpush\033[0m            Pousser toutes les images (OS courant)\n"
-	@printf "  \033[36mpush-api\033[0m        Pousser l'image API\n"
-	@printf "  \033[36mpush-web\033[0m        Pousser l'image web\n"
-	@printf "  \033[36mpush-mcp\033[0m        Pousser l'image mcp-server\n"
-	@printf "  \033[36mpush-all\033[0m        Pousser toutes les images (alpine + trixie-slim)\n"
-	@printf "  \033[36mrelease\033[0m         build-all + push-all  (make release VERSION=x.y.z)\n"
 	@printf "\n\033[4mUtilitaires\033[0m\n"
-	@printf "  \033[36menv\033[0m             Créer .env depuis .env.example si absent\n"
+	@printf "  \033[36minstall\033[0m         Installer les dépendances (pnpm install)\n"
+	@printf "  \033[36menv\033[0m             Créer .env.$(ENV) depuis .env.example si absent (ENV=dev|prod)\n"
 	@printf "  \033[36mclean\033[0m           Supprimer les images ArchiSpark locales\n"
 	@printf "  \033[36mprune\033[0m           docker system prune (images non utilisées)\n"
 	@printf "  \033[36mversion\033[0m         Afficher la version du projet\n"
 	@printf "\n"
 
 # =============================================================================
-#  Production
+#  Stack (ENV=dev|prod)
 # =============================================================================
 
 .PHONY: up down restart logs ps pull
 
-up: .env
-	ARCHISPARK_OS=$(OS) ARCHISPARK_VERSION=$(VERSION) $(DC_PROD) up -d
+up: $(ENV_FILE)
+ifeq ($(ENV),prod)
+	ARCHISPARK_OS=$(OS) ARCHISPARK_VERSION=$(VERSION) $(DC_ENV) --env-file $(ENV_FILE) up -d
+else
+	$(DC_ENV) --env-file $(ENV_FILE) up -d --wait
+	. $(NVM_DIR)/nvm.sh && nvm use 24 && set -a && . ./$(ENV_FILE) && set +a && pnpm dev
+endif
 
 down:
-	$(DC_PROD) down
+	$(DC_ENV) --env-file $(ENV_FILE) down
 
 restart:
-	$(DC_PROD) restart
+	$(DC_ENV) --env-file $(ENV_FILE) restart
 
 logs:
-	$(DC_PROD) logs -f
+	$(DC_ENV) --env-file $(ENV_FILE) logs -f
 
 ps:
-	$(DC_PROD) ps
+	$(DC_ENV) --env-file $(ENV_FILE) ps
 
 pull:
-	ARCHISPARK_OS=$(OS) ARCHISPARK_VERSION=$(VERSION) $(DC_PROD) pull
+	ARCHISPARK_OS=$(OS) ARCHISPARK_VERSION=$(VERSION) $(DC_ENV) --env-file $(ENV_FILE) pull
 
 # =============================================================================
-#  Développement
+#  Keycloak / démo (ENV=dev|prod)
 # =============================================================================
 
-.PHONY: dev dev-infra dev-down dev-logs dev-ps dev-keycloak-setup dev-seed-demo
-
-dev: dev-infra
-	. $(NVM_DIR)/nvm.sh && nvm use 24 && set -a && . ./.env && set +a && pnpm dev
-
-dev-infra:
-	$(DC_DEV) up -d --wait
-
-dev-down:
-	$(DC_DEV) down
-
-dev-logs:
-	$(DC_DEV) logs -f
-
-dev-ps:
-	$(DC_DEV) ps
+.PHONY: keycloak-setup seed-demo-users seed-demo
 
 # Crée/mets à jour le realm Keycloak Phase Two (rôles, clients, service
 # account) depuis .docker/keycloak/realm-export.json — idempotent, fonctionne
 # en local et sur un realm Phasetwo hébergé.
-dev-keycloak-setup:
-	. $(NVM_DIR)/nvm.sh && nvm use 24 && set -a && . ./.env && set +a && pnpm setup:realm
+keycloak-setup: $(ENV_FILE)
+	. $(NVM_DIR)/nvm.sh && nvm use 24 && set -a && . ./$(ENV_FILE) && set +a && pnpm setup:realm
 
-# Crée/mets à jour les utilisateurs de démo Keycloak puis charge les données
-# de démo (workspaces, éléments, vues).
-dev-seed-demo:
-	. $(NVM_DIR)/nvm.sh && nvm use 24 && set -a && . ./.env && set +a && pnpm seed:demo
+# Crée/mets à jour les 4 comptes Keycloak de démo (admin/user/contrib/archi)
+# depuis .docker/keycloak/demo-users.json.
+seed-demo-users: $(ENV_FILE)
+	. $(NVM_DIR)/nvm.sh && nvm use 24 && set -a && . ./$(ENV_FILE) && set +a && pnpm seed:demo-users
+
+# Charge les workspaces de démo (ArchiMetal/ArchiSurance) dans l'organisation
+# Keycloak existante — idempotent, réinitialise leur contenu si déjà présents.
+seed-demo: $(ENV_FILE)
+	. $(NVM_DIR)/nvm.sh && nvm use 24 && set -a && . ./$(ENV_FILE) && set +a && pnpm seed:demo
 
 # =============================================================================
 #  Build des images
@@ -157,62 +156,35 @@ build-all:
 	done
 
 # =============================================================================
-#  Push des images
-# =============================================================================
-
-# Usage interne : $(call push-image,<service>,<os>)
-define push-image
-	docker push $(REGISTRY)/archispark-$(1):$(2)-$(VERSION)
-	docker push $(REGISTRY)/archispark-$(1):$(2)-latest
-endef
-
-.PHONY: push push-api push-web push-mcp push-all
-
-push: push-api push-web push-mcp
-
-push-api:
-	$(call push-image,api,$(OS))
-
-push-web:
-	$(call push-image,web,$(OS))
-
-push-mcp:
-	$(call push-image,mcp-server,$(OS))
-
-push-all:
-	@for os in alpine trixie-slim; do \
-		echo ""; \
-		echo "==> Push ($$os) version=$(VERSION)"; \
-		$(MAKE) --no-print-directory push OS=$$os VERSION=$(VERSION) || exit 1; \
-	done
-
-# =============================================================================
-#  Release : build-all + push-all
-# =============================================================================
-
-.PHONY: release
-
-release: build-all push-all
-	@echo ""
-	@echo "Release $(VERSION) poussée (alpine + trixie-slim)."
-
-# =============================================================================
 #  Utilitaires
 # =============================================================================
 
-.PHONY: env clean prune version
+.PHONY: install env clean prune version
 
-# Cible fichier : crée .env depuis .env.example uniquement s'il est absent.
-.env:
+# Installe les dépendances du monorepo (pnpm install).
+install:
+	. $(NVM_DIR)/nvm.sh && nvm use 24 && pnpm install
+
+# Cibles fichier : créent .env.dev / .env.prod depuis .env.example uniquement s'ils sont absents.
+.env.dev:
 	@if [ -f .env.example ]; then \
-		cp .env.example .env; \
-		echo "Fichier .env créé depuis .env.example — modifiez-le avant 'make up'."; \
+		cp .env.example .env.dev; \
+		echo "Fichier .env.dev créé depuis .env.example — modifiez-le avant 'make up'."; \
 	else \
-		echo "Erreur : .env.example introuvable. Créez .env manuellement."; \
+		echo "Erreur : .env.example introuvable. Créez .env.dev manuellement."; \
 		exit 1; \
 	fi
 
-env: .env
+.env.prod:
+	@if [ -f .env.example ]; then \
+		cp .env.example .env.prod; \
+		echo "Fichier .env.prod créé depuis .env.example — modifiez-le avant 'make up ENV=prod'."; \
+	else \
+		echo "Erreur : .env.example introuvable. Créez .env.prod manuellement."; \
+		exit 1; \
+	fi
+
+env: $(ENV_FILE)
 
 clean:
 	@echo "Suppression des images ArchiSpark locales..."

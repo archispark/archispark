@@ -2,15 +2,6 @@
 
 ArchiMate 3.1 modeling tool — REST API, MCP server, and web UI.
 
-## Quick start
-
-```bash
-pnpm install
-pnpm dev          # API :3000 · Web :8000 · Admin :8001 · MCP :3001 · all bound to 0.0.0.0
-```
-
-See [Installation & local development](docs/installation.md) for prerequisites, first-run behaviour, and Docker/Makefile workflows.
-
 ## Documentation
 
 | Topic | Description |

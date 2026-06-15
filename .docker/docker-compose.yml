@@ -62,10 +62,10 @@ services:
       # modélisation (elements, relationships, views, workspaces, import/export)
       TENANT_API_URL:      "http://tenant-api:3002"
       # Secret partagé avec tenant-api pour signer/vérifier le JWT inter-service
-      TENANT_JWT_SECRET:   ${TENANT_JWT_SECRET:?Set TENANT_JWT_SECRET in .env}
+      TENANT_JWT_SECRET:   ${TENANT_JWT_SECRET:?Set TENANT_JWT_SECRET in .env.prod}
       # Mot de passe du rôle Postgres restreint archispark_tenant (créé au
       # premier démarrage de control-api via ensureTenantRole)
-      TENANT_DB_PASSWORD:  ${TENANT_DB_PASSWORD:?Set TENANT_DB_PASSWORD in .env}
+      TENANT_DB_PASSWORD:  ${TENANT_DB_PASSWORD:?Set TENANT_DB_PASSWORD in .env.prod}
     healthcheck:
       test:     ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/health"]
       interval: 10s
@@ -117,9 +117,9 @@ services:
       DATABASE_URL:              "postgresql://archispark_tenant:${TENANT_DB_PASSWORD}@postgres:5432/archispark_tenant"
       TENANT_DATABASE_URL:       "postgresql://archispark_tenant:${TENANT_DB_PASSWORD}@postgres:5432/archispark_tenant"
       # Secret partagé avec control-api pour vérifier le JWT inter-service
-      TENANT_JWT_SECRET:         ${TENANT_JWT_SECRET:?Set TENANT_JWT_SECRET in .env}
+      TENANT_JWT_SECRET:         ${TENANT_JWT_SECRET:?Set TENANT_JWT_SECRET in .env.prod}
       # Clé de déchiffrement des chaînes de connexion Neon par-tenant
-      TENANT_DB_ENCRYPTION_KEY:  ${TENANT_DB_ENCRYPTION_KEY:?Set TENANT_DB_ENCRYPTION_KEY in .env}
+      TENANT_DB_ENCRYPTION_KEY:  ${TENANT_DB_ENCRYPTION_KEY:?Set TENANT_DB_ENCRYPTION_KEY in .env.prod}
     healthcheck:
       test:     ["CMD", "wget", "-qO-", "http://127.0.0.1:3002/health"]
       interval: 10s
@@ -144,7 +144,7 @@ services:
       # Base partagée tenant pour store/registry en mode repli
       TENANT_DATABASE_URL: "postgresql://archispark:${DB_PASSWORD}@postgres:5432/archispark_tenant"
       # Clé de déchiffrement des chaînes de connexion Neon par-tenant (registry/store)
-      TENANT_DB_ENCRYPTION_KEY: ${TENANT_DB_ENCRYPTION_KEY:?Set TENANT_DB_ENCRYPTION_KEY in .env}
+      TENANT_DB_ENCRYPTION_KEY: ${TENANT_DB_ENCRYPTION_KEY:?Set TENANT_DB_ENCRYPTION_KEY in .env.prod}
     depends_on:
       control-api:
         condition: service_healthy
@@ -201,7 +201,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER:     archispark
-      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env.prod}
       POSTGRES_DB:       archispark
     ports:
       - "5432:5432"

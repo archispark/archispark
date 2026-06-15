@@ -7,16 +7,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### Setup
 
 ```bash
-pnpm install
-make env            # copy .env.example → .env (edit DB_PASSWORD, TENANT_JWT_SECRET, TENANT_DB_PASSWORD, TENANT_DB_ENCRYPTION_KEY)
-make dev-infra      # start Postgres + Keycloak (Docker)
-make dev-keycloak-setup   # provision the Keycloak realm
+make install        # pnpm install
+make env            # copy .env.example → .env.dev (edit DB_PASSWORD, TENANT_JWT_SECRET, TENANT_DB_PASSWORD, TENANT_DB_ENCRYPTION_KEY)
+docker compose -f .docker/docker-compose.dev.yml up -d --wait  # start Postgres + Keycloak (Docker)
+make keycloak-setup  # provision the Keycloak realm
 ```
 
 ### Develop
 
 ```bash
-pnpm dev                       # turbo dev — API :3000 · Web :8000 · Admin :8001 · MCP :3001
+make up                        # Postgres + Keycloak (Docker), then turbo dev — API :3000 · Web :8000 · Admin :8001 · MCP :3001
+pnpm dev                       # turbo dev only (infra already running)
 pnpm --filter control-api dev  # run a single app (control-api, tenant-api, mcp-server, web, admin-web)
 ```
 

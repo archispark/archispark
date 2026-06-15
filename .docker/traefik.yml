@@ -34,7 +34,7 @@ providers:
 
 # ── TLS Let's Encrypt (optionnel) ────────────────────────────────────────────
 # 1. Décommenter le bloc ci-dessous
-# 2. Renseigner ACME_EMAIL dans .env
+# 2. Renseigner ACME_EMAIL dans .env.prod
 # 3. Ajouter sur chaque routeur :
 #      traefik.http.routers.<name>.entrypoints=websecure
 #      traefik.http.routers.<name>.tls.certresolver=letsencrypt

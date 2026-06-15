@@ -8,10 +8,7 @@ node_modules
 
 # Local env files
 .env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env.dev
 .env.prod
 
 # Certificats TLS (générés par Traefik/Caddy)
@@ -32,6 +29,7 @@ coverage
 out/
 build
 dist
+next-env.d.ts
 
 # Debug
 npm-debug.log*

@@ -7,23 +7,23 @@ Each model is seeded into its own demo organization (`ArchiMetal` / `ArchiSuranc
 The seed is **idempotent** — re-running it upserts the demo organizations/memberships and replaces the matching workspace's content.
 
 ```bash
-# Runs seed:demo-users then seed:demo (equivalent to `make dev-seed-demo`).
-pnpm seed:demo
+# First-time setup: create the demo Keycloak accounts, then load the demo data.
+pnpm seed:demo-users   # equivalent to `make seed-demo-users`
+pnpm seed:demo         # equivalent to `make seed-demo`
 ```
 
-`pnpm seed:demo` first runs **`pnpm seed:demo-users`**, which creates/updates
-the 4 Keycloak demo accounts (`admin`/`user`/`contrib`/`archi`, passwords
-match usernames, see `.docker/keycloak/demo-users.json`) via the Keycloak
-Admin API — requires `KEYCLOAK_URL`, `KEYCLOAK_REALM`,
-`KEYCLOAK_ADMIN_CLIENT_ID`, `KEYCLOAK_ADMIN_CLIENT_SECRET`. It then runs
-**`pnpm --filter @workspace/db seed:demo`**, which seeds the ArchiMate demo
-data — requires `TENANT_DATABASE_URL` (tenant DB) and looks up the `Default`
-organization via the Phasetwo Orgs API (same Keycloak env vars).
+**`pnpm seed:demo-users`** creates/updates the 4 Keycloak demo accounts
+(`admin`/`user`/`contrib`/`archi`, passwords match usernames, see
+`.docker/keycloak/demo-users.json`) via the Keycloak Admin API — requires
+`KEYCLOAK_URL`, `KEYCLOAK_REALM`, `KEYCLOAK_ADMIN_CLIENT_ID`,
+`KEYCLOAK_ADMIN_CLIENT_SECRET`.
+
+**`pnpm seed:demo`** seeds the ArchiMate demo data (ArchiMetal/ArchiSurance)
+— requires `TENANT_DATABASE_URL` (tenant DB) and looks up the `Default`
+organization via the Phasetwo Orgs API (same Keycloak env vars). Also
+runnable directly via:
 
 ```bash
-# Equivalent alternatives:
-pnpm --filter @workspace/db seed:demo-users   # Keycloak demo accounts only
-pnpm --filter @workspace/db seed:demo         # ArchiMate demo data only
 psql $DATABASE_URL -f packages/db/seeds/demo.sql
 ```
 

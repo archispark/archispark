@@ -4,8 +4,8 @@
 #  Lance uniquement l'infrastructure (Postgres + Keycloak).
 #  L'application tourne en local via pnpm :
 #
-#    make dev-infra   # démarre Postgres + Keycloak
-#    pnpm dev         # démarre api, web et mcp-server avec hot-reload
+#    make up          # démarre Postgres + Keycloak, puis pnpm dev
+#                      # (api, web et mcp-server avec hot-reload)
 #
 #  Arrêt (en conservant les données) :
 #    docker compose -f .docker/docker-compose.dev.yml down

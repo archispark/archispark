@@ -18,9 +18,9 @@ Default credentials: `admin` / `admin` (`platform_admin`, org `owner`), `user` /
 
 ## Keycloak login (Stage 3)
 
-`make dev-infra` also starts a local Keycloak (Phasetwo distribution,
+`docker compose -f .docker/docker-compose.dev.yml up -d --wait` also starts a local Keycloak (Phasetwo distribution,
 `http://localhost:8080`, admin console login from `KEYCLOAK_ADMIN`/`KEYCLOAK_ADMIN_PASSWORD`
-in `.env`), pre-loaded via `--import-realm` from
+in `.env.dev`), pre-loaded via `--import-realm` from
 `.docker/keycloak/realm-export.json` with realm `archispark`, clients
 `archispark-web` / `archispark-admin-web` / `archispark-control-api`, the
 `platform_admin` realm role, and the control-api service account
@@ -29,11 +29,11 @@ in `.env`), pre-loaded via `--import-realm` from
 The 4 demo accounts (`admin`/`user`/`contrib`/`archi`, passwords match
 usernames) are **not** part of `realm-export.json` — they live in
 `.docker/keycloak/demo-users.json` and are created/updated via the Keycloak
-Admin API by `pnpm seed:demo-users` (also run by `pnpm seed:demo`, see
+Admin API by `pnpm seed:demo-users` (`make seed-demo-users`, see
 [Demo seed](demo-data.md#demo-seed)). Unlike `--import-realm`, this works against any
 Keycloak instance, including a hosted Phasetwo realm.
 
-`make dev-keycloak-setup` (`pnpm setup:realm`) creates or updates the realm
+`make keycloak-setup` (`pnpm setup:realm`) creates or updates the realm
 itself (roles, clients, service account) from the same
 `realm-export.json` via the Admin REST API — an alternative to
 `--import-realm` for environments where the Keycloak container isn't
