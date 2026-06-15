@@ -15,6 +15,16 @@ variables**.
 
 ```bash
 set -euo pipefail
+
+# The setup script's working directory is /home/user, not the repo
+# checkout, so `pnpm install` there fails with ERR_PNPM_NO_PKG_MANIFEST.
+# Locate the cloned ArchiSpark repo (its pnpm workspace root) and cd into it.
+# The `|| true` keeps `find`'s exit status from tripping `set -e`/`pipefail`
+# (e.g. if it can't descend into some subdirectory).
+REPO_DIR=$(find /home/user -maxdepth 4 -name pnpm-workspace.yaml \
+  -not -path "*/node_modules/*" 2>/dev/null | head -1 | xargs -r dirname || true)
+cd "${REPO_DIR:?could not locate the ArchiSpark repo checkout under /home/user}"
+
 corepack enable
 corepack prepare pnpm@11.5.1 --activate
 pnpm install --frozen-lockfile
@@ -22,15 +32,12 @@ pnpm install --frozen-lockfile
 
 - `package.json` requires Node `>=22.13` and pins `pnpm@11.5.1` via
   `packageManager` — `corepack` activates the matching pnpm version without a
-  global install.
+  global install. Cloud sessions already provide Node 22 via `nvm`.
 - `pnpm install --frozen-lockfile` is enough to run `pnpm lint`, `pnpm
   typecheck`, `pnpm test`, and `pnpm build`: the test suites run against
   PGlite (in-memory Postgres) and fake Keycloak responses
   (`apps/*/src/test-setup.ts`), so **no `.env`, database, or Docker is needed**
   for the normal dev loop.
-- If the sandbox's default Node is older than 22, install/select Node 22
-  first (e.g. `nvm install 22 && nvm use 22`) before the `corepack enable`
-  line.
 
 ### Environment variables
 
