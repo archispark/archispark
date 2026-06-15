@@ -6,7 +6,10 @@
  * control-api already authenticated the user, resolved their organization/team
  * membership, and enforced the write-permission check (org members are
  * read-only) before proxying here — this app trusts any token signed with the
- * shared TENANT_JWT_SECRET.
+ * shared TENANT_JWT_SECRET. `DELETE /workspaces/:id` additionally re-checks
+ * `org_role === "owner"` itself (control-api also enforces this, but
+ * deleting a workspace entirely is destructive enough to warrant
+ * defense-in-depth).
  *
  * Routes:
  *   GET /workspaces
@@ -191,6 +194,13 @@ app.put("/workspaces/:id", async (req: AuthRequest, res: Response) => {
 });
 
 app.delete("/workspaces/:id", async (req: AuthRequest, res: Response) => {
+  // manage-organization: deleting a workspace entirely is owner-only (admins
+  // keep read/write on its content). control-api's requireOrgOwner already
+  // enforces this — this is defense-in-depth for direct tenant-api access.
+  if (req.user!.role !== "platform_admin" && req.workspace!.orgRole !== "owner") {
+    res.status(403).json({ detail: "Action réservée aux propriétaires de l'organisation." });
+    return;
+  }
   await deleteWorkspace(req.params["id"] as string, req.workspace!.organizationId);
   res.status(204).send();
 });

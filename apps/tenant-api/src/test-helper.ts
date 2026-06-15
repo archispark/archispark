@@ -27,3 +27,16 @@ export function getAdminToken(): string {
     tenant_db: null,
   });
 }
+
+/** Mints a tenant-api access token for the fixed test org, but with the "admin" org role (no dedicated tenant DB). */
+export function getOrgAdminToken(): string {
+  return signTenantToken({
+    sub: TEST_USER_ID,
+    username: "contrib",
+    platform_role: "user",
+    organization_id: TEST_CTX.organizationId,
+    org_role: "admin",
+    team_ids: TEST_CTX.teamIds,
+    tenant_db: null,
+  });
+}

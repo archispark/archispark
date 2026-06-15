@@ -371,7 +371,7 @@ All routes except `GET /openapi.json`, `GET /docs`, and `GET /settings/messages`
 
 Every authenticated request resolves an **active organization** — from the API token's organization, the `X-Org-Id` header (validated against the user's `organizations` claim, see [Keycloak login](#keycloak-login-stage-3)), the session's active organization, or (failing that) the user's first organization membership — and attaches the user's role (`owner`/`admin`/`member`) and team memberships in that organization to the request.
 
-Write operations (`POST`, `PUT`, `DELETE`) on workspace content require the `owner` or `admin` role in the active organization (or the platform super admin role, see below); plain `member`s are read-only. `/users*` and `/settings/api-tokens*` are exempt from this check.
+Write operations (`POST`, `PUT`, `DELETE`) on workspace content require the `owner` or `admin` role in the active organization (or the platform super admin role, see below); plain `member`s are read-only. `/users*` and `/settings/api-tokens*` are exempt from this check. Within that, two actions are further restricted to `owner`: deleting a workspace entirely (`DELETE /workspaces/:id`) and managing the organization itself — changing a member's role, and creating/cancelling invitations (see [Organizations & teams](#organizations--teams)). The entire `/organizations/*` section (members, invitations, teams) is invisible to plain `member`s, regardless of method.
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
@@ -444,7 +444,19 @@ members, teams, and workspaces. Organizations, membership, and roles live in
 [Keycloak login](#keycloak-login-stage-3)); `teams`/`team_members` remain in
 the control database, keyed by the member's Keycloak `sub`.
 
-- **Roles**: `owner`, `admin`, `member` (`ORG_ROLES` in `@workspace/auth`) — scoped per organization and carried in the access token's `organizations` claim (`{ "<orgId>": { name, roles: [...] } }`). `owner`/`admin` can manage members, invitations, teams, and workspace content; `member` has read-only access.
+- **Roles**: `owner`, `admin`, `member` (`ORG_ROLES` in `@workspace/auth`) — scoped per organization and carried in the access token's `organizations` claim (`{ "<orgId>": { name, roles: [...] } }`). `owner`/`admin` can read/write workspace content and manage members/invitations/teams; `member` has read-only access and no visibility into the organization-administration section at all. Within that, a handful of "manage-organization"-level actions (changing a member's role, managing invitations, deleting a workspace entirely) are reserved for `owner` — `admin` keeps the matching read-only "view-*" access. Demo mapping in the "Default" organization: `archi`/`admin` → `owner`, `contrib` → `admin`, `user` → `member`.
+
+  | Phasetwo permission | `owner` | `admin` | `member` | Enforced by |
+  |---|---|---|---|---|
+  | `view-organization` (access to `/organizations/*`) | ✅ | ✅ | ❌ | `requireOrgAccess` |
+  | `view-members` / `manage-members` | ✅ | ✅ | ❌ | `requireOrgAccess` + `requireWorkspaceWrite` |
+  | `view-roles` | ✅ | ✅ | ❌ | `requireOrgAccess` |
+  | `manage-roles` (change a member's role) | ✅ | ❌ | ❌ | `requireOrgOwner` |
+  | `view-invitations` | ✅ | ✅ | ❌ | `requireOrgAccess` |
+  | `manage-invitations` (create/cancel) | ✅ | ❌ | ❌ | `requireOrgOwner` |
+  | `manage-organization` (delete a workspace) | ✅ | ❌ | ❌ | `requireOrgOwner` (control-api) + owner-only check (tenant-api) |
+  | ArchiMate elements/views — read | ✅ | ✅ | ✅ | — |
+  | ArchiMate elements/views — write (create/update/delete) | ✅ | ✅ | ❌ | `requireWorkspaceWrite` |
 - **Platform super admin**: a user with the global `role: "platform_admin"` (set via the [admin web](#admin-web) `/users` page, or `POST`/`PUT /users`) bypasses organization role checks everywhere. Creating new organizations is **admin-only** (`POST /admin/organizations` from [admin web](#admin-web)) — there is no self-service organization creation.
 - `apps/web` (the workspace UI) blocks `platform_admin` sessions: instead of the normal nav/sidebar/workspace content, it shows a notice screen with a sign-out button. Platform admins manage organizations from [admin web](#admin-web) and have no need for tenant workspace access; `admin`/`admin` still holds an `owner` membership in a default organization (required by `control-api` so admin web itself stays functional), but that membership is now inert from `apps/web`'s perspective — `GET /organizations/members` (and team member lists) filter out any user holding the `platform_admin` realm role, so `admin`/`admin` never appears to tenant owners/admins managing members.
 - `apps/web` similarly blocks any non-admin session whose `/api/auth/me` returns no `organizations` (e.g. a Keycloak user created without being invited to an organization): instead of the normal nav/sidebar/workspace content — which would otherwise just show `403 Aucune organisation associée à cet utilisateur.` from every API call — it shows a "no organization" notice screen with a sign-out button.
@@ -460,17 +472,20 @@ Org owners/admins (and platform super admins) see an **Organization** entry in t
 ### Organization-scoped API (control-api)
 
 All routes below act on the request's **active organization** (see
-[Authentication](#authentication)). Mutations require `owner`/`admin`
-(`requireWorkspaceWrite`); `member`s can read.
+[Authentication](#authentication)) and are entirely inaccessible (`403`) to a
+plain `member` — `requireOrgAccess` (Phasetwo `view-organization`). Among the
+remaining routes, mutations require `owner`/`admin` (`requireWorkspaceWrite`),
+except the three marked **owner only**, which require `owner`
+(`requireOrgOwner` — Phasetwo `manage-roles`/`manage-invitations`).
 
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/organizations/members` | List members of the active organization with their role and team memberships — users holding the global `platform_admin` realm role are excluded |
-| `PUT` | `/organizations/members/:userId` | Change a member's role — body: `{ role: "owner" \| "admin" \| "member" }` |
+| `PUT` | `/organizations/members/:userId` | **Owner only.** Change a member's role — body: `{ role: "owner" \| "admin" \| "member" }` |
 | `DELETE` | `/organizations/members/:userId` | Remove a member from the organization |
 | `GET` | `/organizations/invitations` | List pending invitations |
-| `POST` | `/organizations/invitations` | Invite a new member by email — body: `{ email, role }`, creates a Phasetwo invitation |
-| `DELETE` | `/organizations/invitations/:invitationId` | Cancel a pending invitation |
+| `POST` | `/organizations/invitations` | **Owner only.** Invite a new member by email — body: `{ email, role }`, creates a Phasetwo invitation |
+| `DELETE` | `/organizations/invitations/:invitationId` | **Owner only.** Cancel a pending invitation |
 | `GET` | `/organizations/teams` | List teams in the active organization |
 | `POST` | `/organizations/teams` | Create a team — body: `{ name }` |
 | `PUT` | `/organizations/teams/:teamId` | Rename a team — body: `{ name }` |
@@ -550,7 +565,7 @@ Workspaces belong to an organization (`organization_id`) and are listed only if 
 | `GET` | `/workspaces` | List workspaces visible to the current user in the active organization |
 | `POST` | `/workspaces` | Create workspace — body: `{ name, path?, description?, team_ids? }` (`path` = XML file to import; org owner/admin only) |
 | `PUT` | `/workspaces/:id` | Rename workspace and/or update `team_ids` (org owner/admin only) |
-| `DELETE` | `/workspaces/:id` | Delete workspace (org owner/admin only; deleting the active one switches to another in the organization; deleting the last one is allowed and leaves zero — the web UI then redirects to its `/workspaces` page to create a new one) |
+| `DELETE` | `/workspaces/:id` | Delete workspace (org **owner** only — `manage-organization`; deleting the active one switches to another in the organization; deleting the last one is allowed and leaves zero — the web UI then redirects to its `/workspaces` page to create a new one) |
 | `POST` | `/workspaces/:id/activate` | Switch the current user's active workspace within the active organization |
 
 ## Model routes

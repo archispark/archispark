@@ -32,7 +32,11 @@
  * Organization membership/roles (owner|admin|member) and invitations live in
  * Keycloak (Phasetwo Organizations extension, see @workspace/auth's orgs.ts);
  * teams/team members stay local, scoped to a Keycloak organization id.
- * Members with role "member" get read-only access (requireWorkspaceWrite).
+ * Members with role "member" get read-only access (requireWorkspaceWrite) and
+ * cannot access /organizations/* at all (requireOrgAccess); within that
+ * section, changing a member's role, managing invitations, and deleting a
+ * workspace entirely are further restricted to "owner" (requireOrgOwner) —
+ * "admin" can read/write ArchiMate content but not perform those actions.
  */
 
 import express, { Request, Response, NextFunction } from "express";
@@ -70,6 +74,8 @@ import {
   requireSuperAdmin,
   resolveWorkspaceContext,
   requireWorkspaceWrite,
+  requireOrgAccess,
+  requireOrgOwner,
   type AuthRequest,
 } from "./auth.js";
 
@@ -121,17 +127,32 @@ app.use(async (req: AuthRequest, res, next) => {
 // read-only. Exempt /users and /settings/api-tokens (users manage their own
 // tokens). This runs BEFORE the tenant-api proxy, so a read-only member's
 // write request never reaches tenant-api.
+//
+// Deleting a workspace entirely is a "manage-organization"-level action,
+// reserved for owners (admins keep read/write on its ArchiMate content).
+const WORKSPACE_DELETE_RE = /^\/workspaces\/[^/]+$/;
+
 app.use((req: AuthRequest, res, next) => {
   if (
     ["POST", "PUT", "DELETE"].includes(req.method) &&
     !req.path.startsWith("/users") &&
     !req.path.startsWith("/settings/api-tokens")
   ) {
-    requireWorkspaceWrite(req, res, next);
+    requireWorkspaceWrite(req, res, () => {
+      if (req.method === "DELETE" && WORKSPACE_DELETE_RE.test(req.path)) {
+        requireOrgOwner(req, res, next);
+        return;
+      }
+      next();
+    });
     return;
   }
   next();
 });
+
+// The /organizations/* section (members, invitations, teams) is invisible to
+// plain members — Phasetwo "view-organization".
+app.use("/organizations", requireOrgAccess);
 
 // ---------------------------------------------------------------------------
 // User info endpoint — wraps the verified Keycloak access token's claims
@@ -153,7 +174,7 @@ app.get("/organizations/members", async (req: AuthRequest, res: Response) => {
   res.json(await listOrgMembersOut(req.workspace!.organizationId));
 });
 
-app.put("/organizations/members/:userId", async (req: AuthRequest, res: Response) => {
+app.put("/organizations/members/:userId", requireOrgOwner as express.RequestHandler, async (req: AuthRequest, res: Response) => {
   const role = parseOrgRole((req.body as { role?: unknown }).role);
   if (!role) { res.status(422).json({ detail: `Le champ 'role' doit être l'un de : ${ORG_ROLES.join(", ")}.` }); return; }
   await updateOrgMemberRole(req.workspace!.organizationId, req.params["userId"] as string, role);
@@ -169,7 +190,7 @@ app.get("/organizations/invitations", async (req: AuthRequest, res: Response) =>
   res.json(await listOrgInvitationsOut(req.workspace!.organizationId));
 });
 
-app.post("/organizations/invitations", async (req: AuthRequest, res: Response) => {
+app.post("/organizations/invitations", requireOrgOwner as express.RequestHandler, async (req: AuthRequest, res: Response) => {
   const { email, role: roleInput } = req.body as { email?: unknown; role?: unknown };
   if (!email || typeof email !== "string" || !email.trim()) { res.status(422).json({ detail: "Le champ 'email' est requis." }); return; }
   const role = parseOrgRole(roleInput);
@@ -177,7 +198,7 @@ app.post("/organizations/invitations", async (req: AuthRequest, res: Response) =
   res.status(201).json(await createInvitation(req.workspace!.organizationId, email.trim(), role));
 });
 
-app.delete("/organizations/invitations/:invitationId", async (req: AuthRequest, res: Response) => {
+app.delete("/organizations/invitations/:invitationId", requireOrgOwner as express.RequestHandler, async (req: AuthRequest, res: Response) => {
   await cancelInvitation(req.workspace!.organizationId, req.params["invitationId"] as string);
   res.status(204).send();
 });

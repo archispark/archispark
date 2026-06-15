@@ -666,3 +666,31 @@ export function requireWorkspaceWrite(req: AuthRequest, res: Response, next: Nex
   }
   next();
 }
+
+/**
+ * Phasetwo "view-organization": a plain `member` has no visibility into the
+ * organization-administration section at all (members, invitations, teams)
+ * — 403 on every method. Super admins always pass.
+ */
+export function requireOrgAccess(req: AuthRequest, res: Response, next: NextFunction): void {
+  if (req.user?.role === "platform_admin") { next(); return; }
+  if (req.workspace?.orgRole === "member") {
+    res.status(403).json({ detail: "Accès réservé aux propriétaires et administrateurs de l'organisation." });
+    return;
+  }
+  next();
+}
+
+/**
+ * Phasetwo "manage-roles" / "manage-invitations" / "manage-organization":
+ * reserved for `owner` — `admin` only has the matching "view-*" rights.
+ * Super admins always pass.
+ */
+export function requireOrgOwner(req: AuthRequest, res: Response, next: NextFunction): void {
+  if (req.user?.role === "platform_admin") { next(); return; }
+  if (req.workspace?.orgRole !== "owner") {
+    res.status(403).json({ detail: "Action réservée aux propriétaires de l'organisation." });
+    return;
+  }
+  next();
+}

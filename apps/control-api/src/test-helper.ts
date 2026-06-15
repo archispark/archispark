@@ -6,6 +6,7 @@ import { DEMO_KEYCLOAK_SUBS, makeFakeAccessToken } from "./test/keycloak-token-f
 let initPromise: Promise<void> | null = null;
 let adminCookie: string | null = null;
 let userCookie: string | null = null;
+let contribCookie: string | null = null;
 let defaultOrgId: string | null = null;
 
 async function ensureInit(): Promise<void> {
@@ -48,6 +49,19 @@ export async function getUserCookie(): Promise<string> {
   });
   userCookie = `access_token=${token}`;
   return userCookie;
+}
+
+/** A `Cookie` header value carrying a fake Keycloak access_token for the demo "contrib" user (org admin, no platform role). */
+export async function getContribCookie(): Promise<string> {
+  if (contribCookie) return contribCookie;
+  const orgId = await getDefaultOrgId();
+  const token = makeFakeAccessToken({
+    sub: DEMO_KEYCLOAK_SUBS.contrib,
+    preferred_username: "contrib",
+    organizations: { [orgId]: { name: "Default", roles: ["admin"] } },
+  });
+  contribCookie = `access_token=${token}`;
+  return contribCookie;
 }
 
 /** The admin user's id and organization membership context (org owner). */

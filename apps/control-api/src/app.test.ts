@@ -14,16 +14,18 @@ import _request from "supertest";
 import { eq } from "drizzle-orm";
 import { controlDb, siteSettings, verifyTenantToken } from "@workspace/db";
 import { app } from "../src/app.js";
-import { getAdminCookie, getAdminWorkspaceContext } from "../src/test-helper.js";
+import { getAdminCookie, getContribCookie, getAdminWorkspaceContext } from "../src/test-helper.js";
 
 let adminCookie: string;
+let contribCookie: string;
 
 beforeAll(async () => {
   adminCookie = await getAdminCookie();
+  contribCookie = await getContribCookie();
 });
 
-function request(appArg: Parameters<typeof _request>[0]) {
-  return _request.agent(appArg).set("Cookie", adminCookie);
+function request(appArg: Parameters<typeof _request>[0], cookie = adminCookie) {
+  return _request.agent(appArg).set("Cookie", cookie);
 }
 
 // ===========================================================================
@@ -215,5 +217,23 @@ describe("Reverse proxy to tenant-api", () => {
     expect(res.body).toEqual({ id: "ws-1" });
     expect(res.headers["x-test-header"]).toBe("abc");
     expect(res.headers["content-encoding"]).toBeUndefined();
+  });
+
+  it("returns 403 for an org admin on DELETE /workspaces/:id (manage-organization is owner-only) without reaching tenant-api", async () => {
+    vi.stubEnv("TENANT_API_URL", "http://tenant-api.test");
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await request(app, contribCookie).delete("/workspaces/some-id");
+    expect(res.status).toBe(403);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("proxies DELETE /workspaces/:id to tenant-api for an org owner", async () => {
+    vi.stubEnv("TENANT_API_URL", "http://tenant-api.test");
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 204 })));
+
+    const res = await request(app).delete("/workspaces/some-id");
+    expect(res.status).toBe(204);
   });
 });

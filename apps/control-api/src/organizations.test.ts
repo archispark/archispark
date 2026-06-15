@@ -16,7 +16,7 @@ import { provisionTenantDatabase } from "@workspace/db";
 import { verifyAccessToken, addOrgMember, setOrgMemberRoles, createOrganization, ensureDefaultOrgRoles } from "@workspace/auth";
 import { app } from "../src/app.js";
 import { createUser } from "../src/auth.js";
-import { getAdminCookie, getUserCookie, getAdminWorkspaceContext } from "../src/test-helper.js";
+import { getAdminCookie, getUserCookie, getContribCookie, getAdminWorkspaceContext } from "../src/test-helper.js";
 import { DEMO_KEYCLOAK_SUBS } from "./test/keycloak-token-fake.js";
 
 vi.mock("@workspace/auth", async (importOriginal) => {
@@ -38,11 +38,13 @@ vi.mock("@workspace/db", async (importOriginal) => {
 
 let adminCookie: string;
 let userCookie: string;
+let contribCookie: string;
 let defaultOrgId: string;
 
 beforeAll(async () => {
   adminCookie = await getAdminCookie();
   userCookie = await getUserCookie();
+  contribCookie = await getContribCookie();
   const { ctx } = await getAdminWorkspaceContext();
   defaultOrgId = ctx.organizationId;
 });
@@ -103,6 +105,27 @@ describe("GET /organizations/members — cross-tenant isolation", () => {
 });
 
 // ---------------------------------------------------------------------------
+// requireOrgAccess — /organizations/* is invisible to plain members
+// ---------------------------------------------------------------------------
+
+describe("requireOrgAccess — /organizations/* blocked for a read-only member", () => {
+  it("returns 403 for GET /organizations/members", async () => {
+    const res = await request(app, userCookie).get("/organizations/members");
+    expect(res.status).toBe(403);
+  });
+
+  it("returns 403 for GET /organizations/invitations", async () => {
+    const res = await request(app, userCookie).get("/organizations/invitations");
+    expect(res.status).toBe(403);
+  });
+
+  it("returns 403 for GET /organizations/teams", async () => {
+    const res = await request(app, userCookie).get("/organizations/teams");
+    expect(res.status).toBe(403);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // PUT /organizations/members/:userId
 // ---------------------------------------------------------------------------
 
@@ -115,6 +138,11 @@ describe("PUT /organizations/members/:userId", () => {
 
   it("returns 403 for a read-only member", async () => {
     const res = await request(app, userCookie).put("/organizations/members/some-user").send({ role: "admin" });
+    expect(res.status).toBe(403);
+  });
+
+  it("returns 403 for an org admin (manage-roles is owner-only)", async () => {
+    const res = await request(app, contribCookie).put("/organizations/members/some-user").send({ role: "admin" });
     expect(res.status).toBe(403);
   });
 
@@ -193,6 +221,11 @@ describe("POST /organizations/invitations", () => {
     expect(res.status).toBe(403);
   });
 
+  it("returns 403 for an org admin (manage-invitations is owner-only)", async () => {
+    const res = await request(app, contribCookie).post("/organizations/invitations").send({ email: "invitee@example.com", role: "member" });
+    expect(res.status).toBe(403);
+  });
+
   it("creates an invitation and trims the email", async () => {
     const res = await request(app).post("/organizations/invitations").send({ email: "  invitee@example.com  ", role: "member" });
     expect(res.status).toBe(201);
@@ -212,6 +245,11 @@ describe("POST /organizations/invitations", () => {
 describe("DELETE /organizations/invitations/:invitationId", () => {
   it("returns 403 for a read-only member", async () => {
     const res = await request(app, userCookie).delete("/organizations/invitations/whatever");
+    expect(res.status).toBe(403);
+  });
+
+  it("returns 403 for an org admin (manage-invitations is owner-only)", async () => {
+    const res = await request(app, contribCookie).delete("/organizations/invitations/whatever");
     expect(res.status).toBe(403);
   });
 

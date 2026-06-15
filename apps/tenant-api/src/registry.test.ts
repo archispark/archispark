@@ -5,7 +5,7 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import _request from "supertest";
 import { app } from "../src/app.js";
-import { getAdminToken } from "../src/test-helper.js";
+import { getAdminToken, getOrgAdminToken } from "../src/test-helper.js";
 
 let adminToken: string;
 
@@ -117,6 +117,13 @@ describe("POST /workspaces/:id/activate", () => {
 });
 
 describe("DELETE /workspaces/:id", () => {
+  it("returns 403 for an org admin (manage-organization is owner-only)", async () => {
+    const res = await _request(app)
+      .delete("/workspaces/some-id")
+      .set("Authorization", `Bearer ${getOrgAdminToken()}`);
+    expect(res.status).toBe(403);
+  });
+
   it("deletes the active workspace and activates another", async () => {
     await request(app).post("/workspaces").send({ name: "Extra WS for active-delete" });
     const before = (await request(app).get("/workspaces")).body as { id: string; active: boolean }[];
