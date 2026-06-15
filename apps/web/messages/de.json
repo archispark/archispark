@@ -308,5 +308,7 @@
   "settings.general.teams_label": "Teams",
   "settings.general.teams_hint": "Teams mit Zugriff auf diesen Workspace, zusätzlich zu Inhabern/Administratoren der Organisation.",
   "platform_admin_block.title": "Zugriff nicht verfügbar",
-  "platform_admin_block.desc": "Plattform-Administratorkonten verwalten Organisationen über die Admin-Oberfläche und haben keinen Zugriff auf die Arbeitsbereiche der Organisationen."
+  "platform_admin_block.desc": "Plattform-Administratorkonten verwalten Organisationen über die Admin-Oberfläche und haben keinen Zugriff auf die Arbeitsbereiche der Organisationen.",
+  "no_organization_block.title": "Keine Organisation",
+  "no_organization_block.desc": "Ihr Konto ist noch keiner Organisation zugeordnet. Bitten Sie einen Administrator, Sie zu einem Arbeitsbereich einzuladen."
 }

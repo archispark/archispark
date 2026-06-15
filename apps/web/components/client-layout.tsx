@@ -5,7 +5,8 @@ import { Nav } from "@/components/nav";
 import { Sidebar } from "@/components/sidebar";
 import { OrganizationSidebar } from "@/components/organization-sidebar";
 import { PlatformAdminBlock } from "@/components/platform-admin-block";
-import { useIsAdmin } from "@/hooks/use-current-user";
+import { NoOrganizationBlock } from "@/components/no-organization-block";
+import { useIsAdmin, useHasNoOrganization } from "@/hooks/use-current-user";
 import { useState, useEffect, useCallback } from "react";
 import { usePathname } from "next/navigation";
 import { Toaster } from "sonner";
@@ -57,6 +58,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isLogin = pathname === "/login";
   const isPlatformAdmin = useIsAdmin();
+  const hasNoOrganization = useHasNoOrganization();
   const isOrganizationView = pathname === "/organization" || pathname.startsWith("/organization/");
   // The workspaces overview is a full-width chrome-light page (no model context),
   // so it hides the sidebar — only the top nav stays.
@@ -78,6 +80,15 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
     return (
       <ThemeProvider>
         <PlatformAdminBlock />
+        <Toaster richColors position="bottom-right" />
+      </ThemeProvider>
+    );
+  }
+
+  if (!isLogin && hasNoOrganization) {
+    return (
+      <ThemeProvider>
+        <NoOrganizationBlock />
         <Toaster richColors position="bottom-right" />
       </ThemeProvider>
     );

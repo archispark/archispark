@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useCurrentUser, useIsAdmin } from "./use-current-user";
+import { useCurrentUser, useIsAdmin, useHasNoOrganization } from "./use-current-user";
 
 function createWrapper() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -55,6 +55,39 @@ describe("useIsAdmin", () => {
     const user = { id: "u2", username: "bob", name: "Bob", email: null, role: "user" };
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(user), { status: 200, headers: { "content-type": "application/json" } })));
     const { result } = renderHook(() => useIsAdmin(), { wrapper: createWrapper() });
+    await waitFor(() => expect(result.current).toBe(false));
+  });
+});
+
+describe("useHasNoOrganization", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("returns false while loading and when there is no user", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 401 })));
+    const { result } = renderHook(() => useHasNoOrganization(), { wrapper: createWrapper() });
+    expect(result.current).toBe(false);
+  });
+
+  it("returns true for a non-admin user with no organizations", async () => {
+    const user = { id: "u2", username: "bob", name: "Bob", email: null, role: "user", organizations: [] };
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(user), { status: 200, headers: { "content-type": "application/json" } })));
+    const { result } = renderHook(() => useHasNoOrganization(), { wrapper: createWrapper() });
+    await waitFor(() => expect(result.current).toBe(true));
+  });
+
+  it("returns false for a non-admin user with at least one organization", async () => {
+    const user = { id: "u3", username: "alice", name: "Alice", email: null, role: "user", organizations: [{ id: "org1", name: "Acme", role: "member" }] };
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(user), { status: 200, headers: { "content-type": "application/json" } })));
+    const { result } = renderHook(() => useHasNoOrganization(), { wrapper: createWrapper() });
+    await waitFor(() => expect(result.current).toBe(false));
+  });
+
+  it("returns false for a platform_admin with no organizations", async () => {
+    const user = { id: "u1", username: "admin", name: "Admin", email: null, role: "platform_admin", organizations: [] };
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(user), { status: 200, headers: { "content-type": "application/json" } })));
+    const { result } = renderHook(() => useHasNoOrganization(), { wrapper: createWrapper() });
     await waitFor(() => expect(result.current).toBe(false));
   });
 });

@@ -38,3 +38,10 @@ export function useIsAdmin(): boolean {
   const user = useCurrentUser();
   return user?.role === "platform_admin";
 }
+
+/** True once the session is known and belongs to a non-admin user with no organization membership. */
+export function useHasNoOrganization(): boolean {
+  const user = useCurrentUser();
+  if (!user) return false;
+  return user.role !== "platform_admin" && user.organizations.length === 0;
+}

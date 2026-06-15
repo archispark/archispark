@@ -308,5 +308,7 @@
   "settings.general.teams_label": "Equipos",
   "settings.general.teams_hint": "Equipos con acceso a este workspace, además de los propietarios/administradores de la organización.",
   "platform_admin_block.title": "Acceso no disponible",
-  "platform_admin_block.desc": "Las cuentas de administrador de la plataforma gestionan las organizaciones desde la interfaz de administración y no tienen acceso a los espacios de trabajo de las organizaciones."
+  "platform_admin_block.desc": "Las cuentas de administrador de la plataforma gestionan las organizaciones desde la interfaz de administración y no tienen acceso a los espacios de trabajo de las organizaciones.",
+  "no_organization_block.title": "Sin organización",
+  "no_organization_block.desc": "Tu cuenta todavía no es miembro de ninguna organización. Pide a un administrador que te invite a un espacio de trabajo."
 }
