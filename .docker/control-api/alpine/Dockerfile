@@ -12,6 +12,7 @@ RUN --mount=type=cache,id=pnpm-alpine,target=/pnpm/store \
     pnpm install --frozen-lockfile
 
 RUN pnpm --filter @workspace/db build
+RUN pnpm --filter @workspace/auth build
 RUN pnpm --filter control-api build
 
 # ── Stage 2 : runtime ─────────────────────────────────────────────────────────
@@ -28,6 +29,7 @@ COPY --from=build /repo/pnpm-lock.yaml                               ./
 COPY --from=build /repo/package.json                                  ./
 COPY --from=build /repo/apps/control-api/package.json                         apps/control-api/
 COPY --from=build /repo/packages/db/package.json                      packages/db/
+COPY --from=build /repo/packages/auth/package.json                    packages/auth/
 COPY --from=build /repo/packages/types/package.json                   packages/types/
 COPY --from=build /repo/packages/typescript-config/package.json       packages/typescript-config/
 COPY --from=build /repo/packages/eslint-config/package.json           packages/eslint-config/
@@ -38,6 +40,7 @@ RUN --mount=type=cache,id=pnpm-alpine,target=/pnpm/store \
 COPY --from=build /repo/apps/control-api/dist         apps/control-api/dist
 COPY --from=build /repo/packages/db/dist      packages/db/dist
 COPY --from=build /repo/packages/db/drizzle-pg packages/db/drizzle-pg
+COPY --from=build /repo/packages/auth/dist    packages/auth/dist
 
 ENV NODE_ENV=production
 ENV PORT=3000

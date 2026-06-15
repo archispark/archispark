@@ -13,6 +13,7 @@ RUN --mount=type=cache,id=pnpm-debian,target=/pnpm/store \
 
 # Build workspace packages whose dist is referenced by Next.js file tracer
 RUN pnpm --filter @workspace/db build
+RUN pnpm --filter @workspace/auth build
 
 ARG ARCHIMATE_API_URL=
 ENV ARCHIMATE_API_URL=${ARCHIMATE_API_URL}
