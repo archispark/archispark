@@ -76,6 +76,7 @@
   "sidebar.list": "Lista",
   "sidebar.settings": "Configuración",
   "sidebar.import": "Importar un modelo",
+  "sidebar.import_drop_hint": "Haz clic o suelta un archivo para importar un modelo",
   "sidebar.export": "Exportar modelo",
   "sidebar.exporting": "Exportando…",
   "sidebar.import_success": "Modelo «{name}» importado — {n} elementos, {v} vistas.",

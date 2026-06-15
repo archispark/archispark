@@ -3,12 +3,11 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
-import { FolderOpen, Users, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { Users, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { RailLink } from "@/components/sidebar";
 import { useT } from "@/lib/i18n";
 
 const ORGANIZATION_TABS = [
-  { key: "workspace", icon: FolderOpen, labelKey: "sidebar.workspaces" },
   { key: "members", icon: Users, labelKey: "sidebar.members" },
 ] as const;
 

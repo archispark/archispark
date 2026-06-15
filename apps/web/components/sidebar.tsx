@@ -164,6 +164,7 @@ function ImportExportControls({ collapsed, onClose, t }: {
 }) {
   const importModel = useImportModel();
   const [exporting, setExporting] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   async function handleExport() {
@@ -186,10 +187,7 @@ function ImportExportControls({ collapsed, onClose, t }: {
     }
   }
 
-  async function handleImportChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
+  async function importFile(file: File) {
     try {
       const info = await importModel.mutateAsync(file);
       toast.success(t("sidebar.import_success", { name: info.name, n: info.element_count, v: info.view_count }));
@@ -199,8 +197,37 @@ function ImportExportControls({ collapsed, onClose, t }: {
     }
   }
 
+  async function handleImportChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    await importFile(file);
+  }
+
+  function handleDragOver(e: React.DragEvent) {
+    e.preventDefault();
+    if (!importModel.isPending) setDragOver(true);
+  }
+
+  function handleDragLeave(e: React.DragEvent) {
+    e.preventDefault();
+    setDragOver(false);
+  }
+
+  async function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setDragOver(false);
+    if (importModel.isPending) return;
+    const file = e.dataTransfer.files?.[0];
+    if (!file) return;
+    await importFile(file);
+  }
+
   const importLabel = importModel.isPending ? t("common.loading") : t("sidebar.import");
   const exportLabel = exporting ? t("sidebar.exporting") : t("sidebar.export");
+  const importDragClasses = dragOver
+    ? "border-primary bg-primary/5 text-primary"
+    : "border-border text-muted-foreground hover:border-muted-foreground/60 hover:text-foreground";
 
   return (
     <>
@@ -210,12 +237,15 @@ function ImportExportControls({ collapsed, onClose, t }: {
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
             disabled={importModel.isPending}
             title={importLabel}
             aria-label={importLabel}
-            className="flex items-center justify-center size-9 rounded-md transition-colors text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-60 disabled:pointer-events-none"
+            className={`flex items-center justify-center size-9 rounded-md border-2 border-dashed transition-colors disabled:opacity-60 disabled:pointer-events-none ${importDragClasses}`}
           >
-            <Upload className="size-4 shrink-0" />
+            <Upload className="size-4 shrink-0 pointer-events-none" />
           </button>
           <button
             type="button"
@@ -233,11 +263,15 @@ function ImportExportControls({ collapsed, onClose, t }: {
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
             disabled={importModel.isPending}
-            className="flex items-center gap-2.5 px-3 py-2 rounded-md text-sm w-full transition-colors text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-60 disabled:pointer-events-none"
+            className={`flex flex-col items-center justify-center gap-1 text-center rounded-md border-2 border-dashed px-2 py-3 w-full transition-colors disabled:opacity-60 disabled:pointer-events-none ${importDragClasses}`}
           >
-            <Upload className="size-4 shrink-0" />
-            {importLabel}
+            <Upload className="size-5 shrink-0 pointer-events-none" />
+            <span className="text-xs font-medium pointer-events-none">{importLabel}</span>
+            <span className="text-[10px] leading-tight pointer-events-none">{t("sidebar.import_drop_hint")}</span>
           </button>
           <button
             type="button"
