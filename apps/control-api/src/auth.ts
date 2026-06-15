@@ -141,7 +141,7 @@ export async function listUsers(): Promise<UserOut[]> {
   const [users, adminIds] = await Promise.all([listRealmUsers(), getPlatformAdminUserIds()]);
   return users
     .filter((u) => !u.username.startsWith("service-account-"))
-    .map((u) => userOut(u, adminIds.has(u.id)));
+    .map((u) => userOut(u, adminIds.has(u.id!)));
 }
 
 export async function createUser(username: string, password: string, role: string = "user"): Promise<UserOut> {
