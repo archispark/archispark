@@ -433,7 +433,7 @@ export const updateSiteMessages = (body: SiteMessages) => put<{ ok: boolean }>("
 export const fetchWorkspaces = () => get<WorkspaceInfo[]>("/workspaces");
 
 export interface WorkspaceCreateIn { name: string; path?: string; description?: string | null; team_ids?: string[]; }
-export interface WorkspaceUpdateIn { name: string; team_ids?: string[]; }
+export interface WorkspaceUpdateIn { name: string; description?: string | null; team_ids?: string[]; }
 
 export const createWorkspaceApi = (body: WorkspaceCreateIn) => post<WorkspaceInfo>("/workspaces", body);
 export const updateWorkspaceApi = (id: string, body: WorkspaceUpdateIn) => put<WorkspaceInfo>(`/workspaces/${encodeURIComponent(id)}`, body);

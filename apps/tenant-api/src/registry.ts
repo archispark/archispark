@@ -185,14 +185,16 @@ export async function createWorkspace(
   return { id: dbIdToStrId(dbId), name: name.trim(), description: model.desc ?? null, active: dbId === activeId, organization_id: organizationId, team_ids: teamIds };
 }
 
-export async function updateWorkspace(id: string, name: string, ctx: WorkspaceContext, userId: string, teamIds?: string[]): Promise<WorkspaceOut> {
+export async function updateWorkspace(id: string, name: string, ctx: WorkspaceContext, userId: string, teamIds?: string[], description?: string | null): Promise<WorkspaceOut> {
   const organizationId = ctx.organizationId;
   const dbId = strIdToDbId(id);
   if (!name?.trim()) throw new ValidationError("Le nom du workspace est requis.");
   const [dup] = await db.select({ id: wsTable.id }).from(wsTable)
     .where(and(eq(wsTable.organizationId, organizationId), eq(wsTable.name, name)));
   if (dup && dup.id !== dbId) throw new ValidationError(`Un workspace nommé '${name}' existe déjà.`);
-  const [row] = await db.update(wsTable).set({ name: name.trim(), updatedAt: Math.floor(Date.now() / 1000) })
+  const updates: Partial<typeof wsTable.$inferInsert> = { name: name.trim(), updatedAt: Math.floor(Date.now() / 1000) };
+  if (description !== undefined) updates.description = description?.trim() || null;
+  const [row] = await db.update(wsTable).set(updates)
     .where(and(eq(wsTable.id, dbId), eq(wsTable.organizationId, organizationId))).returning();
   if (!row) throw new NotFoundError(`Workspace '${id}' introuvable.`);
 

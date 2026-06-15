@@ -3,12 +3,12 @@
 import { useState, useRef, useEffect } from "react";
 import { LogOut, User, Settings } from "lucide-react";
 import { useCurrentUser } from "@/hooks/use-current-user";
-import { useIsOrgAdmin } from "@/hooks/use-organization";
+import { useIsOrgOwner } from "@/hooks/use-organization";
 import Link from "next/link";
 
 export function UserMenu() {
   const user = useCurrentUser();
-  const isOrgAdmin = useIsOrgAdmin();
+  const isOrgOwner = useIsOrgOwner();
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -56,7 +56,7 @@ export function UserMenu() {
             Mon profil
           </Link>
 
-          {isOrgAdmin && (
+          {isOrgOwner && (
             <Link
               href="/organization"
               onClick={() => setOpen(false)}

@@ -7,6 +7,7 @@ import {
   useActiveOrganization,
   useOrgRole,
   useIsOrgAdmin,
+  useIsOrgOwner,
   useSetActiveOrganization,
   useAutoActivateOrganization,
   useOrgMembers,
@@ -182,6 +183,38 @@ describe("useIsOrgAdmin", () => {
     mockState.isAdmin = true;
     setOrganizations([org2]);
     const { result } = renderHook(() => useIsOrgAdmin());
+    expect(result.current).toBe(true);
+  });
+});
+
+describe("useIsOrgOwner", () => {
+  it("returns false when there is no user and no org role", () => {
+    const { result } = renderHook(() => useIsOrgOwner());
+    expect(result.current).toBe(false);
+  });
+
+  it("returns false for a plain member", () => {
+    setOrganizations([org2]);
+    const { result } = renderHook(() => useIsOrgOwner());
+    expect(result.current).toBe(false);
+  });
+
+  it("returns true for an org owner", () => {
+    setOrganizations([org1]);
+    const { result } = renderHook(() => useIsOrgOwner());
+    expect(result.current).toBe(true);
+  });
+
+  it("returns false for an org admin (organization administration is owner-only)", () => {
+    setOrganizations([{ id: "org3", name: "Initech", role: "admin" }]);
+    const { result } = renderHook(() => useIsOrgOwner());
+    expect(result.current).toBe(false);
+  });
+
+  it("returns true for a platform super admin regardless of org role", () => {
+    mockState.isAdmin = true;
+    setOrganizations([org2]);
+    const { result } = renderHook(() => useIsOrgOwner());
     expect(result.current).toBe(true);
   });
 });

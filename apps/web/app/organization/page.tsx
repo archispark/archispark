@@ -3,7 +3,7 @@
 import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { useT } from "@/lib/i18n";
-import { useIsOrgAdmin } from "@/hooks/use-organization";
+import { useIsOrgOwner } from "@/hooks/use-organization";
 import { OrganizationSettings } from "@/components/organization-settings";
 import { WorkspaceSettings } from "@/components/workspace-settings";
 
@@ -21,7 +21,7 @@ function OrganizationPageInner() {
   const { t } = useT();
   const searchParams = useSearchParams();
   const tab = (searchParams.get("tab") as Tab) || "members";
-  const isOrgAdmin = useIsOrgAdmin();
+  const isOrgOwner = useIsOrgOwner();
 
   return (
     <div className="p-7 space-y-5">
@@ -32,7 +32,7 @@ function OrganizationPageInner() {
         </p>
       </div>
 
-      {isOrgAdmin ? (
+      {isOrgOwner ? (
         <>
           {tab === "workspace" && <WorkspaceSettings />}
           {tab === "members" && <OrganizationSettings />}

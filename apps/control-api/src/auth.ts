@@ -75,15 +75,6 @@ export interface AuthRequest extends Request {
 // Bootstrap: seed a default Phasetwo organization with the demo users
 // ---------------------------------------------------------------------------
 
-// Fixed Keycloak `sub` UUIDs for the demo accounts, matching the `id` fields
-// pinned in .docker/keycloak/realm-export.json.
-const DEMO_KEYCLOAK_SUBS: Record<string, string> = {
-  admin:   "c8a1f6c0-0000-4000-8000-000000000001",
-  user:    "c8a1f6c0-0000-4000-8000-000000000002",
-  contrib: "c8a1f6c0-0000-4000-8000-000000000003",
-  archi:   "c8a1f6c0-0000-4000-8000-000000000004",
-};
-
 /** Demo org roles for each seed user, mirroring the pre-migration `members` seed. */
 const DEMO_ORG_ROLES: Record<string, OrgRoleName> = {
   admin:   "owner",
@@ -95,7 +86,10 @@ const DEMO_ORG_ROLES: Record<string, OrgRoleName> = {
 /**
  * Ensures at least one Phasetwo organization exists (creating a "Default" one
  * for fresh installs) and that the demo users belong to it with their usual
- * roles. Called once at startup.
+ * roles. Called once at startup. Demo users are resolved by username (seeded
+ * separately via `pnpm seed:demo-users`, see .docker/keycloak/demo-users.json)
+ * — any that don't exist yet are skipped with a warning rather than failing
+ * startup.
  */
 export async function initOrganizations(): Promise<void> {
   const orgs = await listOrganizations();
@@ -108,9 +102,14 @@ export async function initOrganizations(): Promise<void> {
   await ensureDefaultOrgRoles(orgId);
   await ensureOrgSettings(orgId);
 
-  for (const [username, sub] of Object.entries(DEMO_KEYCLOAK_SUBS)) {
-    await addOrgMember(orgId, sub).catch(() => {});
-    await setOrgMemberRoles(orgId, sub, DEMO_ORG_ROLES[username]!);
+  for (const [username, role] of Object.entries(DEMO_ORG_ROLES)) {
+    const user = await findUserByUsername(username);
+    if (!user?.id) {
+      console.warn(`[auth] Demo user "${username}" not found in Keycloak — skipping organization membership (run "pnpm seed:demo-users").`);
+      continue;
+    }
+    await addOrgMember(orgId, user.id).catch(() => {});
+    await setOrgMemberRoles(orgId, user.id, role);
   }
 
   console.log("[auth] Organizations ready.");
@@ -668,28 +667,16 @@ export function requireWorkspaceWrite(req: AuthRequest, res: Response, next: Nex
 }
 
 /**
- * Phasetwo "view-organization": a plain `member` has no visibility into the
- * organization-administration section at all (members, invitations, teams)
- * — 403 on every method. Super admins always pass.
- */
-export function requireOrgAccess(req: AuthRequest, res: Response, next: NextFunction): void {
-  if (req.user?.role === "platform_admin") { next(); return; }
-  if (req.workspace?.orgRole === "member") {
-    res.status(403).json({ detail: "Accès réservé aux propriétaires et administrateurs de l'organisation." });
-    return;
-  }
-  next();
-}
-
-/**
- * Phasetwo "manage-roles" / "manage-invitations" / "manage-organization":
- * reserved for `owner` — `admin` only has the matching "view-*" rights.
- * Super admins always pass.
+ * Phasetwo organization administration (view-organization and beyond) is
+ * owner-only: `admin` has no visibility into `/organizations/*` at all
+ * (members, invitations, teams) — same as `member`. Outside that section,
+ * "manage-organization" actions like deleting a workspace entirely are also
+ * reserved for `owner`. Super admins always pass.
  */
 export function requireOrgOwner(req: AuthRequest, res: Response, next: NextFunction): void {
   if (req.user?.role === "platform_admin") { next(); return; }
   if (req.workspace?.orgRole !== "owner") {
-    res.status(403).json({ detail: "Action réservée aux propriétaires de l'organisation." });
+    res.status(403).json({ detail: "Accès réservé aux propriétaires de l'organisation." });
     return;
   }
   next();

@@ -190,7 +190,7 @@ app.post("/workspaces", async (req: AuthRequest, res: Response) => {
 app.put("/workspaces/:id", async (req: AuthRequest, res: Response) => {
   const body = parseBody(WorkspaceUpdateSchema, req.body, res);
   if (!body) return;
-  res.json(await updateWorkspace(req.params["id"] as string, body.name, req.workspace!, req.user!.id, body.team_ids));
+  res.json(await updateWorkspace(req.params["id"] as string, body.name, req.workspace!, req.user!.id, body.team_ids, body.description));
 });
 
 app.delete("/workspaces/:id", async (req: AuthRequest, res: Response) => {

@@ -71,6 +71,13 @@ export function useIsOrgAdmin(): boolean {
   return isSuperAdmin || role === "owner" || role === "admin";
 }
 
+/** Organization administration (members, invitations, teams) is owner-only — "admin" has no access, same as "member". */
+export function useIsOrgOwner(): boolean {
+  const isSuperAdmin = useIsAdmin();
+  const role = useOrgRole();
+  return isSuperAdmin || role === "owner";
+}
+
 /** Switches the active organization by writing the `active_org` cookie and refreshing queries. */
 export function useSetActiveOrganization(): (organizationId: string) => void {
   const qc = useQueryClient();

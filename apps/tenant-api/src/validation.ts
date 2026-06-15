@@ -132,6 +132,7 @@ export const WorkspaceCreateSchema = z.object({
 
 export const WorkspaceUpdateSchema = z.object({
   name: z.string().min(1, "Le champ 'name' est requis."),
+  description: z.string().nullable().optional(),
   team_ids: z.array(z.string()).optional(),
 });
 

@@ -92,6 +92,24 @@ describe("PUT /workspaces/:id", () => {
     expect(res.body.name).toBe(`Renamed WS ${ts}`);
   });
 
+  it("updates the description", async () => {
+    const ts = Date.now();
+    const createRes = await request(app).post("/workspaces").send({ name: `WS Desc ${ts}` });
+    const id = createRes.body.id;
+    const res = await request(app).put(`/workspaces/${id}`).send({ name: `WS Desc ${ts}`, description: "Nouvelle description" });
+    expect(res.status).toBe(200);
+    expect(res.body.description).toBe("Nouvelle description");
+  });
+
+  it("clears the description when set to null", async () => {
+    const ts = Date.now();
+    const createRes = await request(app).post("/workspaces").send({ name: `WS Desc Clear ${ts}`, description: "Initiale" });
+    const id = createRes.body.id;
+    const res = await request(app).put(`/workspaces/${id}`).send({ name: `WS Desc Clear ${ts}`, description: null });
+    expect(res.status).toBe(200);
+    expect(res.body.description).toBeNull();
+  });
+
   it("returns 404 for unknown workspace id", async () => {
     const res = await request(app).put("/workspaces/99999").send({ name: "X" });
     expect(res.status).toBe(404);

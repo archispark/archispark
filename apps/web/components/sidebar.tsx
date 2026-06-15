@@ -2,12 +2,15 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useState, useMemo } from "react";
-import { LayoutDashboard, LayoutGrid, Tag, Settings as SettingsIcon, GitBranch, List, ChevronDown, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { Suspense, useEffect, useRef, useState, useMemo } from "react";
+import { toast } from "sonner";
+import { LayoutDashboard, LayoutGrid, Tag, Settings as SettingsIcon, GitBranch, List, ChevronDown, PanelLeftClose, PanelLeftOpen, Upload, Download } from "lucide-react";
 import { getLayer, LAYER_HEX_COLORS, LAYER_LABELS } from "@/lib/archimate-helpers";
 import { allowedRelationships } from "@/lib/archimate-rules";
-import { useModel, useElements, useRelationships, useElementsInViews } from "@/lib/queries";
+import { useModel, useElements, useRelationships, useElementsInViews, useImportModel } from "@/lib/queries";
+import { exportModelUrl } from "@/lib/api";
 import type { ModelInfo } from "@/lib/api";
+import { useIsOrgAdmin } from "@/hooks/use-organization";
 import { useT } from "@/lib/i18n";
 
 interface LayerGroup {
@@ -153,6 +156,104 @@ function CollapseToggle({ collapsed, onToggleCollapse, t }: {
   );
 }
 
+/** Import/export controls for the active workspace's model — owner/admin only. */
+function ImportExportControls({ collapsed, onClose, t }: {
+  collapsed: boolean;
+  onClose: () => void;
+  t: ReturnType<typeof useT>["t"];
+}) {
+  const importModel = useImportModel();
+  const [exporting, setExporting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  async function handleExport() {
+    setExporting(true);
+    try {
+      const res = await fetch(exportModelUrl, { credentials: "include" });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const blob = await res.blob();
+      const disposition = res.headers.get("Content-Disposition") ?? "";
+      const filename = disposition.match(/filename="?([^";\n]+)"?/)?.[1] ?? "model.xml";
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = filename;
+      link.click();
+      URL.revokeObjectURL(link.href);
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  async function handleImportChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    try {
+      const info = await importModel.mutateAsync(file);
+      toast.success(t("sidebar.import_success", { name: info.name, n: info.element_count, v: info.view_count }));
+      onClose();
+    } catch (err) {
+      toast.error((err as Error).message);
+    }
+  }
+
+  const importLabel = importModel.isPending ? t("common.loading") : t("sidebar.import");
+  const exportLabel = exporting ? t("sidebar.exporting") : t("sidebar.export");
+
+  return (
+    <>
+      <input ref={fileInputRef} type="file" accept=".xml,application/xml,text/xml" className="hidden" onChange={handleImportChange} />
+      {collapsed ? (
+        <>
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={importModel.isPending}
+            title={importLabel}
+            aria-label={importLabel}
+            className="flex items-center justify-center size-9 rounded-md transition-colors text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-60 disabled:pointer-events-none"
+          >
+            <Upload className="size-4 shrink-0" />
+          </button>
+          <button
+            type="button"
+            onClick={handleExport}
+            disabled={exporting}
+            title={exportLabel}
+            aria-label={exportLabel}
+            className="flex items-center justify-center size-9 rounded-md transition-colors text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-60 disabled:pointer-events-none"
+          >
+            <Download className="size-4 shrink-0" />
+          </button>
+        </>
+      ) : (
+        <>
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={importModel.isPending}
+            className="flex items-center gap-2.5 px-3 py-2 rounded-md text-sm w-full transition-colors text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-60 disabled:pointer-events-none"
+          >
+            <Upload className="size-4 shrink-0" />
+            {importLabel}
+          </button>
+          <button
+            type="button"
+            onClick={handleExport}
+            disabled={exporting}
+            className="flex items-center gap-2.5 px-3 py-2 rounded-md text-sm w-full transition-colors text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-60 disabled:pointer-events-none"
+          >
+            <Download className="size-4 shrink-0" />
+            {exportLabel}
+          </button>
+        </>
+      )}
+    </>
+  );
+}
+
 export function Sidebar({ open, onClose, collapsed, onToggleCollapse }: { open: boolean; onClose: () => void; collapsed: boolean; onToggleCollapse: () => void }) {
   return (
     <Suspense>
@@ -171,6 +272,7 @@ function SidebarInner({ open, onClose, collapsed, onToggleCollapse }: { open: bo
   const { data: elements = [] } = useElements();
   const { data: relationships = [] } = useRelationships();
   const { data: inViews = [] } = useElementsInViews();
+  const isOrgAdmin = useIsOrgAdmin();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => { setMounted(true); }, []);
@@ -335,6 +437,7 @@ function SidebarInner({ open, onClose, collapsed, onToggleCollapse }: { open: bo
 
         {/* Organisation & settings — bottom */}
         <div className="border-t border-border px-2 py-2 flex flex-col gap-1">
+          {isOrgAdmin && <ImportExportControls collapsed={false} onClose={onClose} t={t} />}
           <Link
             href="/settings"
             onClick={onClose}
@@ -361,6 +464,7 @@ function SidebarInner({ open, onClose, collapsed, onToggleCollapse }: { open: bo
         </div>
 
         <div className={`hidden border-t border-border py-2 flex-col items-center gap-1 ${collapsed ? "md:flex" : ""}`}>
+          {isOrgAdmin && <ImportExportControls collapsed={true} onClose={onClose} t={t} />}
           <RailLink href="/settings" icon={SettingsIcon} label={t("sidebar.settings")} active={pathname === "/settings" || pathname.startsWith("/settings/")} onClick={onClose} />
         </div>
 

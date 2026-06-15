@@ -548,7 +548,7 @@ registry.registerPath({
 
 registry.registerPath({
   method: "put", path: "/workspaces/{id}", tags: ["Workspaces"],
-  summary: "Renommer un workspace", operationId: "updateWorkspace",
+  summary: "Modifier un workspace (nom, description, équipes)", operationId: "updateWorkspace",
   security: BothAuth,
   request: {
     params: z.object({ id: z.string() }),

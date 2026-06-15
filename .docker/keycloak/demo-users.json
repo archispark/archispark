@@ -1,0 +1,31 @@
+[
+  {
+    "username": "admin",
+    "email": "admin@archispark.internal",
+    "firstName": "Admin",
+    "lastName": "Archispark",
+    "password": "admin",
+    "realmRoles": ["platform_admin"]
+  },
+  {
+    "username": "user",
+    "email": "user@archispark.internal",
+    "firstName": "User",
+    "lastName": "Archispark",
+    "password": "user"
+  },
+  {
+    "username": "contrib",
+    "email": "contrib@archispark.internal",
+    "firstName": "Contrib",
+    "lastName": "Archispark",
+    "password": "contrib"
+  },
+  {
+    "username": "archi",
+    "email": "archi@archispark.internal",
+    "firstName": "Archi",
+    "lastName": "Archispark",
+    "password": "archi"
+  }
+]

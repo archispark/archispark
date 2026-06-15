@@ -32,11 +32,11 @@
  * Organization membership/roles (owner|admin|member) and invitations live in
  * Keycloak (Phasetwo Organizations extension, see @workspace/auth's orgs.ts);
  * teams/team members stay local, scoped to a Keycloak organization id.
- * Members with role "member" get read-only access (requireWorkspaceWrite) and
- * cannot access /organizations/* at all (requireOrgAccess); within that
- * section, changing a member's role, managing invitations, and deleting a
- * workspace entirely are further restricted to "owner" (requireOrgOwner) —
- * "admin" can read/write ArchiMate content but not perform those actions.
+ * Members with role "member" get read-only access (requireWorkspaceWrite).
+ * /organizations/* (members, invitations, teams) and deleting a workspace
+ * entirely are owner-only (requireOrgOwner) — "admin" can read/write
+ * ArchiMate content but has no access to organization administration at all,
+ * same as "member".
  */
 
 import express, { Request, Response, NextFunction } from "express";
@@ -74,7 +74,6 @@ import {
   requireSuperAdmin,
   resolveWorkspaceContext,
   requireWorkspaceWrite,
-  requireOrgAccess,
   requireOrgOwner,
   type AuthRequest,
 } from "./auth.js";
@@ -150,9 +149,9 @@ app.use((req: AuthRequest, res, next) => {
   next();
 });
 
-// The /organizations/* section (members, invitations, teams) is invisible to
-// plain members — Phasetwo "view-organization".
-app.use("/organizations", requireOrgAccess);
+// The /organizations/* section (members, invitations, teams) is owner-only —
+// "admin" has no organization-administration access at all, same as "member".
+app.use("/organizations", requireOrgOwner);
 
 // ---------------------------------------------------------------------------
 // User info endpoint — wraps the verified Keycloak access token's claims
@@ -174,7 +173,7 @@ app.get("/organizations/members", async (req: AuthRequest, res: Response) => {
   res.json(await listOrgMembersOut(req.workspace!.organizationId));
 });
 
-app.put("/organizations/members/:userId", requireOrgOwner as express.RequestHandler, async (req: AuthRequest, res: Response) => {
+app.put("/organizations/members/:userId", async (req: AuthRequest, res: Response) => {
   const role = parseOrgRole((req.body as { role?: unknown }).role);
   if (!role) { res.status(422).json({ detail: `Le champ 'role' doit être l'un de : ${ORG_ROLES.join(", ")}.` }); return; }
   await updateOrgMemberRole(req.workspace!.organizationId, req.params["userId"] as string, role);
@@ -190,7 +189,7 @@ app.get("/organizations/invitations", async (req: AuthRequest, res: Response) =>
   res.json(await listOrgInvitationsOut(req.workspace!.organizationId));
 });
 
-app.post("/organizations/invitations", requireOrgOwner as express.RequestHandler, async (req: AuthRequest, res: Response) => {
+app.post("/organizations/invitations", async (req: AuthRequest, res: Response) => {
   const { email, role: roleInput } = req.body as { email?: unknown; role?: unknown };
   if (!email || typeof email !== "string" || !email.trim()) { res.status(422).json({ detail: "Le champ 'email' est requis." }); return; }
   const role = parseOrgRole(roleInput);
@@ -198,7 +197,7 @@ app.post("/organizations/invitations", requireOrgOwner as express.RequestHandler
   res.status(201).json(await createInvitation(req.workspace!.organizationId, email.trim(), role));
 });
 
-app.delete("/organizations/invitations/:invitationId", requireOrgOwner as express.RequestHandler, async (req: AuthRequest, res: Response) => {
+app.delete("/organizations/invitations/:invitationId", async (req: AuthRequest, res: Response) => {
   await cancelInvitation(req.workspace!.organizationId, req.params["invitationId"] as string);
   res.status(204).send();
 });

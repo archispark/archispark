@@ -9,6 +9,7 @@ import {
   useActivateWorkspace,
 } from "@/lib/queries";
 import { useT } from "@/lib/i18n";
+import { useIsOrgAdmin } from "@/hooks/use-organization";
 
 export default function WorkspacesPage() {
   const { t } = useT();
@@ -16,6 +17,7 @@ export default function WorkspacesPage() {
   const { data: workspaces = [], isLoading } = useWorkspaces();
   const createWs = useCreateWorkspace();
   const activateWs = useActivateWorkspace();
+  const isOrgAdmin = useIsOrgAdmin();
 
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState("");
@@ -60,7 +62,7 @@ export default function WorkspacesPage() {
           </h1>
           <p className="text-muted-foreground text-[13px] mt-0.5">{t("workspaces.subtitle")}</p>
         </div>
-        {!showForm && (
+        {!showForm && isOrgAdmin && (
           <button
             onClick={() => { setShowForm(true); setError(null); }}
             className="flex items-center gap-1.5 text-[13px] bg-primary text-primary-foreground rounded-md px-3 py-1.5 hover:bg-primary/90 shrink-0"

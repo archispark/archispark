@@ -12,7 +12,7 @@ import {
   useDeleteWorkspace,
   useActivateWorkspace,
 } from "@/lib/queries";
-import { useIsOrgAdmin, useTeams } from "@/hooks/use-organization";
+import { useTeams } from "@/hooks/use-organization";
 import { useFormModal } from "@/hooks/use-form-modal";
 import { Input } from "@workspace/ui/components/input";
 import { Button } from "@workspace/ui/components/button";
@@ -30,7 +30,6 @@ import {
 
 export function WorkspaceSettings() {
   const { t } = useT();
-  const isOrgAdmin = useIsOrgAdmin();
   const teams = useTeams();
   const { data: workspaces = [], isLoading } = useWorkspaces();
   const createWs = useCreateWorkspace();
@@ -180,7 +179,7 @@ export function WorkspaceSettings() {
               <Label htmlFor="edit-ws-name">{t("nav.workspace_name")} *</Label>
               <Input id="edit-ws-name" value={editName} onChange={(e) => setEditName(e.target.value)} autoComplete="off" />
             </div>
-            {isOrgAdmin && teams.data && teams.data.length > 0 && (
+            {teams.data && teams.data.length > 0 && (
               <div className="flex flex-col gap-1.5">
                 <Label>{t("settings.general.teams_label")}</Label>
                 <p className="text-[11px] text-muted-foreground">{t("settings.general.teams_hint")}</p>

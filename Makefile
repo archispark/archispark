@@ -40,12 +40,13 @@ help:
 	@printf "  \033[36mps\033[0m              État des services\n"
 	@printf "  \033[36mpull\033[0m            Mettre à jour les images Hub\n"
 	@printf "\n\033[4mDéveloppement\033[0m\n"
-	@printf "  \033[36mdev\033[0m             Postgres + Redis en Docker, puis pnpm dev (hot-reload)\n"
-	@printf "  \033[36mdev-infra\033[0m       Postgres + Redis seulement (background)\n"
-	@printf "  \033[36mdev-down\033[0m        Arrêter l'infrastructure de dev\n"
-	@printf "  \033[36mdev-logs\033[0m        Suivre les logs de dev\n"
-	@printf "  \033[36mdev-ps\033[0m          État des services de dev\n"
-	@printf "  \033[36mdev-rrl\033[0m         Réinitialiser les compteurs Redis de rate-limiting (ARGS=\"<ip> | --all --yes\")\n"
+	@printf "  \033[36mdev\033[0m                 Postgres + Redis en Docker, puis pnpm dev (hot-reload)\n"
+	@printf "  \033[36mdev-infra\033[0m           Postgres + Redis seulement (background)\n"
+	@printf "  \033[36mdev-down\033[0m            Arrêter l'infrastructure de dev\n"
+	@printf "  \033[36mdev-logs\033[0m            Suivre les logs de dev\n"
+	@printf "  \033[36mdev-ps\033[0m              État des services de dev\n"
+	@printf "  \033[36mdev-keycloak-setup\033[0m  Créer/mettre à jour le realm Keycloak Phase Two (realm-export.json)\n"
+	@printf "  \033[36mdev-seed-demo\033[0m       Créer les utilisateurs Keycloak de démo + charger les données de démo\n"
 	@printf "\n\033[4mBuild\033[0m (OS=$(OS) VERSION=$(VERSION))\n"
 	@printf "  \033[36mbuild\033[0m           Builder toutes les images pour l'OS courant\n"
 	@printf "  \033[36mbuild-api\033[0m       Builder l'image API\n"
@@ -94,7 +95,7 @@ pull:
 #  Développement
 # =============================================================================
 
-.PHONY: dev dev-infra dev-down dev-logs dev-ps dev-rrl
+.PHONY: dev dev-infra dev-down dev-logs dev-ps dev-keycloak-setup dev-seed-demo
 
 dev: dev-infra
 	. $(NVM_DIR)/nvm.sh && nvm use 24 && set -a && . ./.env && set +a && pnpm dev
@@ -111,11 +112,16 @@ dev-logs:
 dev-ps:
 	$(DC_DEV) ps
 
-# Réinitialise les compteurs Redis de rate-limiting.
-# Usage : make dev-rrl [ARGS="<ip> | --all --yes"]
-dev-rrl:
-	. $(NVM_DIR)/nvm.sh && nvm use 24 && set -a && . ./.env && set +a && \
-		pnpm --filter control-api reset-rate-limit $(ARGS)
+# Crée/mets à jour le realm Keycloak Phase Two (rôles, clients, service
+# account) depuis .docker/keycloak/realm-export.json — idempotent, fonctionne
+# en local et sur un realm Phasetwo hébergé.
+dev-keycloak-setup:
+	. $(NVM_DIR)/nvm.sh && nvm use 24 && set -a && . ./.env && set +a && pnpm setup:realm
+
+# Crée/mets à jour les utilisateurs de démo Keycloak puis charge les données
+# de démo (workspaces, éléments, vues).
+dev-seed-demo:
+	. $(NVM_DIR)/nvm.sh && nvm use 24 && set -a && . ./.env && set +a && pnpm seed:demo
 
 # =============================================================================
 #  Build des images
