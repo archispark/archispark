@@ -8,6 +8,10 @@ export default defineConfig({
     environment: "jsdom",
     setupFiles: ["./vitest.setup.ts"],
     globals: true,
+    // Some component tests chain several renders/waitFor cycles; under
+    // turbo's workspace-wide parallel test run the 5s default can be
+    // exceeded on a loaded machine. Allow more headroom (see control-api).
+    testTimeout: 15000,
     coverage: {
       provider: "v8",
       reporter: ["lcovonly"],

@@ -4,10 +4,11 @@ export default defineConfig({
   test: {
     pool: "forks",
     // Each test file boots its own PGlite (WASM) instance; under turbo's
-    // workspace-wide parallel run the default 5s/10s timeouts can be too
-    // tight for slower CI/dev machines.
-    testTimeout: 30000,
-    hookTimeout: 30000,
+    // workspace-wide parallel run (all 6 packages' suites running at once,
+    // each with multiple PGlite instances) 30s can still be exceeded on an
+    // 8-core machine, so give these hooks generous headroom.
+    testTimeout: 90000,
+    hookTimeout: 90000,
     // Only run tests in src/ — dist/ is compiled output that would otherwise be
     // picked up after a build, double-counting and diluting coverage.
     include: ["src/**/*.test.ts"],
