@@ -45,6 +45,4 @@ npm-debug.log*
 *.db-shm
 *.db-wal
 
-# Documentation — vit dans le repo séparé archispark-docs
-docs/
 .playwright-mcp/
