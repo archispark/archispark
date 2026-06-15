@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "archimate-vercel": {
+      "type": "http",
+      "url": "https://mcp.archispark.cloud/mcp/",
+      "headers": {
+        "Authorization": "Bearer ${ARCHISPARK_MCP_TOKEN}"
+      }
+    }
+  }
+}

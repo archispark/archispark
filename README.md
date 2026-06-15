@@ -24,6 +24,7 @@ See [Installation & local development](docs/installation.md) for prerequisites, 
 | [MCP server](docs/mcp-server.md) | Model Context Protocol tools for AI agents |
 | [Demo data](docs/demo-data.md) | Seeding demo organizations and accounts |
 | [Contributing](docs/contributing.md) | Running tests, code of conduct |
+| [Claude Code configuration](docs/claude-code.md) | MCP servers, plugins, and agents for Claude Code / Claude Code Web |
 
 ## License
 

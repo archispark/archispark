@@ -18,6 +18,10 @@ export default defineConfig({
     alias: {
       "@": resolve(__dirname, "."),
       "@workspace/ui": resolve(__dirname, "../../packages/ui/src"),
+      "@workspace/auth": resolve(
+        __dirname,
+        "../../packages/auth/src/index.ts"
+      ),
     },
   },
 });
