@@ -105,7 +105,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        service: [control-api, tenant-api, web, mcp-server]
+        service: [control-api, tenant-api, admin-web, web, mcp-server]
     steps:
       - name: Checkout
         uses: actions/checkout@v5
