@@ -12,20 +12,23 @@
     "email": "user@archispark.internal",
     "firstName": "User",
     "lastName": "Archispark",
-    "password": "user"
+    "password": "user",
+    "orgRole": "member"
   },
   {
     "username": "contrib",
     "email": "contrib@archispark.internal",
     "firstName": "Contrib",
     "lastName": "Archispark",
-    "password": "contrib"
+    "password": "contrib",
+    "orgRole": "member"
   },
   {
     "username": "archi",
     "email": "archi@archispark.internal",
     "firstName": "Archi",
     "lastName": "Archispark",
-    "password": "archi"
+    "password": "archi",
+    "orgRole": "admin"
   }
 ]

@@ -25,18 +25,25 @@ import {
   setUserPassword,
   getUserRealmRoles,
   assignRealmRole,
+  listOrganizations,
+  listOrgMembers,
+  addOrgMember,
+  ensureDefaultOrgRoles,
+  setOrgMemberRoles,
+  type OrgRoleName,
   type KeycloakUserRepresentation,
 } from "@workspace/auth";
 
 interface DemoUser extends KeycloakUserRepresentation {
   password: string;
   realmRoles?: string[];
+  orgRole?: OrgRoleName;
 }
 
 const USERS_PATH = resolve(import.meta.dirname, "../../../.docker/keycloak/demo-users.json");
 const users = JSON.parse(readFileSync(USERS_PATH, "utf-8")) as DemoUser[];
 
-for (const { password, realmRoles, ...rep } of users) {
+for (const { password, realmRoles, orgRole: _orgRole, ...rep } of users) {
   const existing = await findUserByUsername(rep.username);
   let userId: string;
   if (existing?.id) {
@@ -59,6 +66,28 @@ for (const { password, realmRoles, ...rep } of users) {
       }
     }
   }
+}
+
+// Add demo users to the first Keycloak organization with their org role
+const orgs = await listOrganizations();
+const org = orgs[0];
+if (org?.id) {
+  await ensureDefaultOrgRoles(org.id);
+  const members = await listOrgMembers(org.id);
+  const memberIds = new Set(members.map((m) => m.id));
+  for (const { username, realmRoles, orgRole } of users) {
+    if (realmRoles?.includes("platform_admin") || !orgRole) continue;
+    const u = await findUserByUsername(username);
+    if (!u?.id) continue;
+    if (!memberIds.has(u.id)) {
+      await addOrgMember(org.id, u.id);
+      console.log(`Added ${username} to organization "${org.name}"`);
+    }
+    await setOrgMemberRoles(org.id, u.id, orgRole);
+    console.log(`  org role: ${orgRole}`);
+  }
+} else {
+  console.warn("No organization found in Keycloak — skipping org membership step.");
 }
 
 console.log("Done.");

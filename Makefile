@@ -27,7 +27,7 @@ ENV_FILE  := .env.$(ENV)
 
 SERVICES  := api web mcp-server
 
-DC        := docker compose
+DC        := $(shell if docker compose version >/dev/null 2>&1; then echo "docker compose"; else echo "docker-compose"; fi)
 DC_PROD   := $(DC) -f .docker/docker-compose.yml
 DC_DEV    := $(DC) -f .docker/docker-compose.dev.yml
 
@@ -54,6 +54,7 @@ help:
 	@printf "  \033[36mps\033[0m              État des services\n"
 	@printf "  \033[36mpull\033[0m            Mettre à jour les images (ENV=prod)\n"
 	@printf "\n\033[4mKeycloak / démo\033[0m\n"
+	@printf "  \033[36msetup-demo\033[0m       Setup complet démo : realm + comptes + workspaces (keycloak-setup → seed-demo-users → seed-demo)\n"
 	@printf "  \033[36mkeycloak-setup\033[0m   Créer/mettre à jour le realm Keycloak Phase Two (realm-export.json)\n"
 	@printf "  \033[36mseed-demo-users\033[0m  Créer/mettre à jour les 4 comptes Keycloak de démo (admin/user/contrib/archi)\n"
 	@printf "  \033[36mseed-demo\033[0m        Charger les workspaces de démo (ArchiMetal/ArchiSurance)\n"
@@ -104,7 +105,11 @@ pull:
 #  Keycloak / démo (ENV=dev|prod)
 # =============================================================================
 
-.PHONY: keycloak-setup seed-demo-users seed-demo
+.PHONY: setup-demo keycloak-setup seed-demo-users seed-demo
+
+# Setup complet démo : realm Keycloak + comptes de démo + workspaces.
+# Idempotent — safe à relancer après une mise à jour du realm ou des données.
+setup-demo: keycloak-setup seed-demo-users seed-demo
 
 # Crée/mets à jour le realm Keycloak Phase Two (rôles, clients, service
 # account) depuis .docker/keycloak/realm-export.json — idempotent, fonctionne
