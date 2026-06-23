@@ -2,7 +2,6 @@
   "enableAllProjectMcpServers": true,
   "enabledPlugins": {
     "vercel@claude-plugins-official": true,
-    "github@claude-plugins-official": true,
     "playwright@claude-plugins-official": true
   },
   "extraKnownMarketplaces": {
@@ -16,7 +15,6 @@
   "permissions": {
     "allow": [
       "mcp__vercel__*",
-      "mcp__github__*",
       "mcp__playwright__*",
       "mcp__archimate-vercel__*",
       "WebFetch(domain:github.com)",
