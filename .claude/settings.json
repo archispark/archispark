@@ -21,11 +21,9 @@
       "mcp__archimate-vercel__*",
       "WebFetch(domain:github.com)",
       "WebFetch(domain:vercel.com)",
-      "Skill(run)",
-      "Skill(run:*)",
-      "Bash(git*)",
-      "Bash(curl*)",
-      "Bash(pnpm*)"
+      "Bash(git *)",
+      "Bash(curl *)",
+      "Bash(pnpm *)"
     ]
   }
 }
