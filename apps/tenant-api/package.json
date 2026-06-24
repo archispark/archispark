@@ -50,7 +50,7 @@
     "fast-xml-parser": "^5.8.0",
     "helmet": "^8.2.0",
     "lru-cache": "^11.5.1",
-    "multer": "^2.1.1",
+    "multer": "^2.2.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
