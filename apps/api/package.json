@@ -1,7 +1,7 @@
 {
-  "name": "tenant-api",
+  "name": "api",
   "version": "0.1.0",
-  "description": "Tenant-plane REST API (ArchiMate model data) for ArchiSpark",
+  "description": "Unified REST API for ArchiSpark — auth, ArchiMate 3.1 modeling, workspaces (Express, PostgreSQL, Keycloak)",
   "type": "module",
   "exports": {
     ".": {
@@ -41,6 +41,7 @@
   },
   "dependencies": {
     "@asteasolutions/zod-to-openapi": "^8.5.0",
+    "@workspace/auth": "workspace:*",
     "@workspace/db": "workspace:*",
     "archiver": "^8.0.0",
     "colord": "^2.9.3",

@@ -37,16 +37,15 @@ jobs:
         if: inputs.reset == true
         # CASCADE on workspaces.id removes all child rows (elements, relationships,
         # views, nodes, connections, bendpoints, property_definitions, …).
-        # workspaces lives in the tenant fallback DB after Phase 7.
-        run: psql "$TENANT_DATABASE_URL_UNPOOLED" -c "DELETE FROM workspaces WHERE name IN ('ArchiMetal', 'ArchiSurance');"
+        run: psql "$DATABASE_URL_UNPOOLED" -c "DELETE FROM workspaces WHERE name IN ('ArchiMetal', 'ArchiSurance');"
         env:
-          TENANT_DATABASE_URL_UNPOOLED: ${{ secrets.TENANT_DATABASE_URL_UNPOOLED }}
+          DATABASE_URL_UNPOOLED: ${{ secrets.DATABASE_URL_UNPOOLED }}
           PGSSLMODE: require
 
       - name: Seed demo data
         run: pnpm --filter @workspace/db seed:demo
         env:
-          TENANT_DATABASE_URL: ${{ secrets.TENANT_DATABASE_URL_UNPOOLED }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL_UNPOOLED }}
           KEYCLOAK_URL: ${{ secrets.KEYCLOAK_URL }}
           KEYCLOAK_REALM: ${{ secrets.KEYCLOAK_REALM }}
           KEYCLOAK_ADMIN_CLIENT_ID: ${{ secrets.KEYCLOAK_ADMIN_CLIENT_ID }}

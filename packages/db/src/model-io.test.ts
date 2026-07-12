@@ -8,7 +8,7 @@ let orgId: string;
 
 beforeAll(async () => {
   await runMigrations();
-  orgId = `org-model-io-test-${randomUUID()}`;
+  orgId = `owner-model-io-test-${randomUUID()}`;
 });
 
 function emptyModel(uuid: string, name = "Empty"): ArchiModel {

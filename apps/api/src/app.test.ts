@@ -1,16 +1,16 @@
 /**
- * Tests for the ArchiMate tenant API (src/app.ts).
+ * Tests for the ArchiSpark API (src/app.ts).
  *
  * Structure:
  * - Unit tests: internal helpers tested with plain objects (no real model).
  * - Integration tests: supertest against the Express app, authenticated via a
- *   tenant-api JWT signed with TENANT_JWT_SECRET (apps/control-api signs these
- *   for real requests; tests mint their own via test-helper.ts).
+ *   fake Keycloak access token (test-helper.ts / test/keycloak-token-fake.ts —
+ *   there is no real Keycloak instance in the test environment).
  */
 
 import { describe, it, expect, beforeAll, afterEach } from "vitest";
 import _request from "supertest";
-import { getAdminToken, TEST_CTX, TEST_USER_ID } from "../src/test-helper.js";
+import { getAdminToken, TEST_USER_ID } from "../src/test-helper.js";
 
 let adminToken: string;
 
@@ -524,7 +524,7 @@ describe("GET /elements", () => {
 
   it("returns all elements", async () => {
     const data = (await request(app).get(`/elements`)).body as ElementOut[];
-    expect(data.length).toBe((await store.listElements(await getActiveWorkspaceId(TEST_CTX, TEST_USER_ID))).length);
+    expect(data.length).toBe((await store.listElements(await getActiveWorkspaceId(TEST_USER_ID))).length);
   });
 
   it("element has required shape", async () => {
@@ -762,7 +762,7 @@ describe("GET /relationships", () => {
 
   it("returns all relationships", async () => {
     const data = (await request(app).get(`/relationships`)).body as RelationshipOut[];
-    expect(data.length).toBe((await store.listRelationships(await getActiveWorkspaceId(TEST_CTX, TEST_USER_ID))).length);
+    expect(data.length).toBe((await store.listRelationships(await getActiveWorkspaceId(TEST_USER_ID))).length);
   });
 
   it("relationship has required shape", async () => {
@@ -864,7 +864,7 @@ describe("GET /views", () => {
 
   it("returns all views", async () => {
     const data = (await request(app).get(`/views`)).body as ViewOut[];
-    expect(data.length).toBe((await store.listViews(await getActiveWorkspaceId(TEST_CTX, TEST_USER_ID))).length);
+    expect(data.length).toBe((await store.listViews(await getActiveWorkspaceId(TEST_USER_ID))).length);
   });
 
   it("view has required shape", async () => {
@@ -1354,7 +1354,7 @@ describe("GET /property-definitions", () => {
 
   it("count matches model", async () => {
     const data = (await request(app).get("/property-definitions")).body as PropertyDefinitionOut[];
-    expect(data.length).toBe((await store.listPropertyDefinitions(await getActiveWorkspaceId(TEST_CTX, TEST_USER_ID))).length);
+    expect(data.length).toBe((await store.listPropertyDefinitions(await getActiveWorkspaceId(TEST_USER_ID))).length);
   });
 });
 

@@ -12,7 +12,7 @@ claude mcp add archimate \
   --header "Authorization: Bearer <token>"
 ```
 
-The token resolves the calling user's organization membership: write tools (`create_*`, `update_*`, `delete_*`, `activate_workspace`, `import_model`) require `owner`/`admin`/`platform_admin`; org `member`s get a read-only error. All tools operate on that organization's active workspace.
+The token resolves the calling user's identity — all tools operate on that user's own active workspace.
 
 **Available tools (38), 2 prompts, 2 resources:**
 

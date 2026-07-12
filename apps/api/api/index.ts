@@ -10,5 +10,8 @@
  * TypeScript / workspace-resolution surprises at bundle time.
  */
 import { app } from "../dist/app.js";
+import { runMigrations } from "@workspace/db";
+
+await runMigrations().catch((err: Error) => console.error("[db] migrations failed:", err.message));
 
 export default app;

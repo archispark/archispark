@@ -1,42 +1,13 @@
-import { signTenantToken } from "@workspace/db";
-import type { WorkspaceContext } from "./tenant-auth.js";
+import { DEMO_KEYCLOAK_SUBS, makeFakeAccessToken } from "./test/keycloak-token-fake.js";
 
-// Shared with tenant-auth.test.ts. Set here (module scope, evaluated before any
-// beforeAll) so requireTenantToken can verify tokens minted by getAdminToken().
-process.env["TENANT_JWT_SECRET"] ??= "test-tenant-jwt-secret";
+export const TEST_USER_ID = DEMO_KEYCLOAK_SUBS.admin;
 
-export const TEST_ORGANIZATION_ID = "test-org";
-export const TEST_USER_ID = "test-user";
-
-/** workspaces.organization_id has no FK — any string id is a valid fixture. */
-export const TEST_CTX: WorkspaceContext = {
-  organizationId: TEST_ORGANIZATION_ID,
-  orgRole: "owner",
-  teamIds: [],
-};
-
-/** Mints a tenant-api access token for the fixed test org/user (owner, no dedicated tenant DB). */
+/** Mints a fake Keycloak access token for the primary test user (regular "user" role). */
 export function getAdminToken(): string {
-  return signTenantToken({
-    sub: TEST_USER_ID,
-    username: "admin",
-    platform_role: "user",
-    organization_id: TEST_CTX.organizationId,
-    org_role: TEST_CTX.orgRole,
-    team_ids: TEST_CTX.teamIds,
-    tenant_db: null,
-  });
+  return makeFakeAccessToken({ sub: TEST_USER_ID, preferred_username: "admin" });
 }
 
-/** Mints a tenant-api access token for the fixed test org, but with the "admin" org role (no dedicated tenant DB). */
-export function getOrgAdminToken(): string {
-  return signTenantToken({
-    sub: TEST_USER_ID,
-    username: "contrib",
-    platform_role: "user",
-    organization_id: TEST_CTX.organizationId,
-    org_role: "admin",
-    team_ids: TEST_CTX.teamIds,
-    tenant_db: null,
-  });
+/** Mints a fake Keycloak access token for a second, distinct test user — used to verify workspace ownership isolation. */
+export function getSecondUserToken(): string {
+  return makeFakeAccessToken({ sub: DEMO_KEYCLOAK_SUBS.user, preferred_username: "user" });
 }

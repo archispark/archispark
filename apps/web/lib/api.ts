@@ -1,5 +1,3 @@
-import type { OrgRoleName } from "@workspace/auth";
-
 export interface ModelInfo {
   identifier: string;
   name: string;
@@ -19,8 +17,7 @@ export interface WorkspaceInfo {
   description?: string | null;
   path?: string | null;
   active: boolean;
-  organization_id: string;
-  team_ids: string[];
+  owner_id: string;
 }
 
 export interface Property {
@@ -292,25 +289,6 @@ export const deleteViewConnection = (viewId: string, connId: string) =>
 
 export const exportModelUrl = `${BASE}/export`;
 
-// --- Auth ---
-
-export interface UserOut {
-  id: string;
-  username: string;
-  role: string;
-  created_at: string;
-}
-
-
-export const fetchUsers = () => get<UserOut[]>("/users");
-
-export interface UserCreateIn { username: string; password: string; role?: string; }
-export interface UserUpdateIn { password?: string; role?: string; }
-
-export const createUser = (body: UserCreateIn) => post<UserOut>("/users", body);
-export const updateUserApi = (id: string, body: UserUpdateIn) => put<UserOut>(`/users/${encodeURIComponent(id)}`, body);
-export const deleteUserApi = (id: string) => del(`/users/${encodeURIComponent(id)}`);
-
 export async function importModel(file: File): Promise<ModelInfo> {
   const form = new FormData();
   form.append("file", file);
@@ -384,18 +362,6 @@ export const updateProvider = (id: string, body: OAuthProviderUpdateIn) =>
   put<OAuthProviderOut>(`/settings/providers/${encodeURIComponent(id)}`, body);
 export const deleteProvider = (id: string) => del(`/settings/providers/${encodeURIComponent(id)}`);
 
-// --- PostgreSQL ---
-
-export interface PostgresStatus {
-  connected: boolean;
-  host: string | null;
-  port: number | null;
-  database: string | null;
-  version: string | null;
-}
-
-export const fetchPostgresStatus = () => get<PostgresStatus>("/settings/postgres");
-
 // --- API Tokens ---
 
 export interface ApiTokenOut {
@@ -432,93 +398,10 @@ export const updateSiteMessages = (body: SiteMessages) => put<{ ok: boolean }>("
 
 export const fetchWorkspaces = () => get<WorkspaceInfo[]>("/workspaces");
 
-export interface WorkspaceCreateIn { name: string; path?: string; description?: string | null; team_ids?: string[]; }
-export interface WorkspaceUpdateIn { name: string; description?: string | null; team_ids?: string[]; }
+export interface WorkspaceCreateIn { name: string; path?: string; description?: string | null; }
+export interface WorkspaceUpdateIn { name: string; description?: string | null; }
 
 export const createWorkspaceApi = (body: WorkspaceCreateIn) => post<WorkspaceInfo>("/workspaces", body);
 export const updateWorkspaceApi = (id: string, body: WorkspaceUpdateIn) => put<WorkspaceInfo>(`/workspaces/${encodeURIComponent(id)}`, body);
 export const deleteWorkspaceApi = (id: string) => del(`/workspaces/${encodeURIComponent(id)}`);
 export const activateWorkspaceApi = (id: string) => post<WorkspaceInfo>(`/workspaces/${encodeURIComponent(id)}/activate`, {});
-
-// --- Organizations (current workspace: members, invitations, teams) ---
-
-function orgHeaders(orgId: string): HeadersInit {
-  return { "X-Org-Id": orgId };
-}
-
-export interface OrgMemberOut {
-  user_id: string;
-  username: string;
-  email: string | null;
-  role: OrgRoleName | null;
-}
-
-export interface OrgInvitationOut {
-  id: string;
-  email: string;
-  roles: string[];
-  created_at: string | null;
-}
-
-export interface OrgTeamOut {
-  id: string;
-  name: string;
-  organization_id: string;
-  created_at: string;
-}
-
-export interface OrgTeamMemberOut {
-  user_id: string;
-  username: string;
-  email: string | null;
-}
-
-export const fetchOrgMembers = (orgId: string) =>
-  get<OrgMemberOut[]>("/organizations/members", orgHeaders(orgId));
-
-export const updateOrgMemberRole = (orgId: string, userId: string, role: OrgRoleName) =>
-  put<{ ok: boolean }>(`/organizations/members/${encodeURIComponent(userId)}`, { role }, orgHeaders(orgId));
-
-export const removeOrgMember = (orgId: string, userId: string) =>
-  del(`/organizations/members/${encodeURIComponent(userId)}`, orgHeaders(orgId));
-
-export const fetchOrgInvitations = (orgId: string) =>
-  get<OrgInvitationOut[]>("/organizations/invitations", orgHeaders(orgId));
-
-export const createOrgInvitation = (orgId: string, email: string, role: OrgRoleName) =>
-  post<OrgInvitationOut>("/organizations/invitations", { email, role }, orgHeaders(orgId));
-
-export const cancelOrgInvitation = (orgId: string, invitationId: string) =>
-  del(`/organizations/invitations/${encodeURIComponent(invitationId)}`, orgHeaders(orgId));
-
-export const fetchOrgTeams = (orgId: string) =>
-  get<OrgTeamOut[]>("/organizations/teams", orgHeaders(orgId));
-
-export const createOrgTeam = (orgId: string, name: string) =>
-  post<OrgTeamOut>("/organizations/teams", { name }, orgHeaders(orgId));
-
-export const updateOrgTeam = (orgId: string, teamId: string, name: string) =>
-  put<OrgTeamOut>(`/organizations/teams/${encodeURIComponent(teamId)}`, { name }, orgHeaders(orgId));
-
-export const removeOrgTeam = (orgId: string, teamId: string) =>
-  del(`/organizations/teams/${encodeURIComponent(teamId)}`, orgHeaders(orgId));
-
-export const fetchOrgTeamMembers = (orgId: string, teamId: string) =>
-  get<OrgTeamMemberOut[]>(`/organizations/teams/${encodeURIComponent(teamId)}/members`, orgHeaders(orgId));
-
-/** POST returns 204 with no body — can't use the generic `post<T>` helper, which always calls `.json()`. */
-export async function addOrgTeamMember(orgId: string, teamId: string, userId: string): Promise<void> {
-  const res = await fetch(`${BASE}/organizations/teams/${encodeURIComponent(teamId)}/members`, {
-    method: "POST",
-    credentials: "include",
-    headers: { "Content-Type": "application/json", ...orgHeaders(orgId) },
-    body: JSON.stringify({ user_id: userId }),
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: `HTTP ${res.status}` }));
-    throw new Error(err.detail || `API error: ${res.status}`);
-  }
-}
-
-export const removeOrgTeamMember = (orgId: string, teamId: string, userId: string) =>
-  del(`/organizations/teams/${encodeURIComponent(teamId)}/members/${encodeURIComponent(userId)}`, orgHeaders(orgId));

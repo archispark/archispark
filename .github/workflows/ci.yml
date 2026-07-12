@@ -28,41 +28,26 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build native addons
-        run: pnpm --filter control-api build && pnpm --filter tenant-api build
+        run: pnpm --filter api build
         env:
           NODE_ENV: production
 
       - name: Run CI Tasks (Lint, Typecheck, Test)
-        run: pnpm turbo run lint typecheck test:coverage --filter=control-api --filter=tenant-api --filter=mcp-server --filter=web
+        run: pnpm turbo run lint typecheck test:coverage --filter=api --filter=mcp-server --filter=web
         env:
           NODE_ENV: test
 
-      - name: Upload control-api coverage report
+      - name: Upload api coverage report
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: coverage-control-api
-          path: apps/control-api/coverage/
+          name: coverage-api
+          path: apps/api/coverage/
           retention-days: 7
 
-      - name: Upload tenant-api coverage report
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: coverage-tenant-api
-          path: apps/tenant-api/coverage/
-          retention-days: 7
-
-      - name: control-api coverage summary
+      - name: api coverage summary
         uses: davelosert/vitest-coverage-report-action@v2
         if: github.event_name == 'pull_request'
         with:
-          name: control-api
-          working-directory: apps/control-api
-
-      - name: tenant-api coverage summary
-        uses: davelosert/vitest-coverage-report-action@v2
-        if: github.event_name == 'pull_request'
-        with:
-          name: tenant-api
-          working-directory: apps/tenant-api
+          name: api
+          working-directory: apps/api

@@ -120,6 +120,13 @@
       "when": 1780720000000,
       "tag": "0016_drop_better_auth_tables",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1780730000000,
+      "tag": "0017_remove_multi_tenancy",
+      "breakpoints": true
     }
   ]
 }

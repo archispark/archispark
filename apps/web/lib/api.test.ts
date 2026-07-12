@@ -12,18 +12,12 @@ import {
   createViewNode, updateViewNode, deleteViewNode,
   createViewConnection, updateViewConnection, deleteViewConnection,
   saveModel, importModel,
-  fetchUsers, updateUserApi, deleteUserApi, createUser,
   fetchPropertyDefinitions, createPropertyDefinition, updatePropertyDefinition, deletePropertyDefinition,
   fetchWorkspaces, createWorkspaceApi, updateWorkspaceApi, deleteWorkspaceApi, activateWorkspaceApi,
   fetchViewpoints,
   fetchProviders, createProvider, updateProvider, deleteProvider,
-  fetchPostgresStatus,
   fetchApiTokens, createApiToken, deleteApiToken,
   fetchSiteMessages, updateSiteMessages,
-  fetchOrgMembers, updateOrgMemberRole, removeOrgMember,
-  fetchOrgInvitations, createOrgInvitation, cancelOrgInvitation,
-  fetchOrgTeams, createOrgTeam, updateOrgTeam, removeOrgTeam,
-  fetchOrgTeamMembers, addOrgTeamMember, removeOrgTeamMember,
 } from "./api";
 
 describe("viewImageUrl", () => {
@@ -162,12 +156,6 @@ describe("GET functions", () => {
     const v = await fetchView("v1");
     expect(v.identifier).toBe("v1");
     expect(v.nodes).toEqual([]);
-  });
-
-  it("fetchUsers returns user list", async () => {
-    mockFetchOk([{ id: "u1", username: "admin", role: "admin", created_at: "2024-01-01" }]);
-    const users = await fetchUsers();
-    expect(users[0]!.username).toBe("admin");
   });
 
   it("fetchPropertyDefinitions returns definitions", async () => {
@@ -329,29 +317,6 @@ describe("importModel", () => {
 // User mutations
 // ---------------------------------------------------------------------------
 
-describe("user mutations", () => {
-  afterEach(() => vi.unstubAllGlobals());
-
-  it("updateUserApi puts", async () => {
-    mockFetchOk({ id: "u2", username: "bob", role: "user", created_at: "2024-01-01" });
-  });
-
-  it("updateUserApi puts", async () => {
-    mockFetchOk({ id: "u2", username: "bob", role: "admin", created_at: "2024-01-01" });
-    const u = await updateUserApi("u2", { role: "admin" });
-    expect(u.role).toBe("admin");
-  });
-
-  it("deleteUserApi sends DELETE", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true }));
-    await deleteUserApi("u2");
-    expect(vi.mocked(fetch)).toHaveBeenCalledWith(
-      expect.stringContaining("/users/u2"),
-      expect.objectContaining({ method: "DELETE" })
-    );
-  });
-});
-
 // ---------------------------------------------------------------------------
 // Property definition mutations
 // ---------------------------------------------------------------------------
@@ -498,18 +463,8 @@ describe("view connection mutations", () => {
 // User create & misc
 // ---------------------------------------------------------------------------
 
-describe("createUser and fetchViewpoints", () => {
+describe("fetchViewpoints", () => {
   afterEach(() => vi.unstubAllGlobals());
-
-  it("createUser posts", async () => {
-    mockFetchOk({ id: "u3", username: "newuser", role: "user", created_at: "2024-01-01" });
-    const u = await createUser({ username: "newuser", password: "pass123" });
-    expect(u.username).toBe("newuser");
-    expect(vi.mocked(fetch)).toHaveBeenCalledWith(
-      expect.stringContaining("/users"),
-      expect.objectContaining({ method: "POST" })
-    );
-  });
 
   it("fetchViewpoints returns array", async () => {
     mockFetchOk(["Layered", "Application Usage"]);
@@ -643,20 +598,6 @@ describe("OAuth provider mutations", () => {
       json: async () => { throw new Error("parse fail"); },
     }));
     await expect(updateProvider("p1", { name: "X" })).rejects.toThrow();
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Settings — Postgres
-// ---------------------------------------------------------------------------
-
-describe("settings status helpers", () => {
-  afterEach(() => vi.unstubAllGlobals());
-
-  it("fetchPostgresStatus returns postgres status", async () => {
-    mockFetchOk({ connected: true, host: "localhost", port: 5432, database: "app", version: "14" });
-    const status = await fetchPostgresStatus();
-    expect(status.connected).toBe(true);
   });
 });
 
@@ -843,185 +784,3 @@ describe("importModel error handling branches", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Organizations (current workspace: members, invitations, teams)
-// ---------------------------------------------------------------------------
-
-describe("organization member functions", () => {
-  afterEach(() => vi.unstubAllGlobals());
-
-  it("fetchOrgMembers GETs /organizations/members with the X-Org-Id header", async () => {
-    mockFetchOk([{ user_id: "u1", username: "alice", email: "alice@example.com", role: "owner" }]);
-    const members = await fetchOrgMembers("org-1");
-    expect(members[0]!.username).toBe("alice");
-    expect(vi.mocked(fetch)).toHaveBeenCalledWith(
-      expect.stringContaining("/organizations/members"),
-      expect.objectContaining({ headers: { "X-Org-Id": "org-1" } }),
-    );
-  });
-
-  it("updateOrgMemberRole PUTs the new role with the X-Org-Id header", async () => {
-    mockFetchOk({ ok: true });
-    const res = await updateOrgMemberRole("org-1", "u1", "admin");
-    expect(res.ok).toBe(true);
-    expect(vi.mocked(fetch)).toHaveBeenCalledWith(
-      expect.stringContaining("/organizations/members/u1"),
-      expect.objectContaining({
-        method: "PUT",
-        headers: expect.objectContaining({ "X-Org-Id": "org-1" }),
-        body: JSON.stringify({ role: "admin" }),
-      }),
-    );
-  });
-
-  it("removeOrgMember sends DELETE with the X-Org-Id header", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true }));
-    await removeOrgMember("org-1", "u1");
-    expect(vi.mocked(fetch)).toHaveBeenCalledWith(
-      expect.stringContaining("/organizations/members/u1"),
-      expect.objectContaining({ method: "DELETE", headers: { "X-Org-Id": "org-1" } }),
-    );
-  });
-});
-
-describe("organization invitation functions", () => {
-  afterEach(() => vi.unstubAllGlobals());
-
-  it("fetchOrgInvitations GETs /organizations/invitations with the X-Org-Id header", async () => {
-    mockFetchOk([{ id: "inv-1", email: "bob@example.com", roles: ["member"], created_at: "2024-01-01" }]);
-    const invitations = await fetchOrgInvitations("org-1");
-    expect(invitations[0]!.email).toBe("bob@example.com");
-    expect(vi.mocked(fetch)).toHaveBeenCalledWith(
-      expect.stringContaining("/organizations/invitations"),
-      expect.objectContaining({ headers: { "X-Org-Id": "org-1" } }),
-    );
-  });
-
-  it("createOrgInvitation POSTs the email and role with the X-Org-Id header", async () => {
-    mockFetchOk({ id: "inv-2", email: "carol@example.com", roles: ["admin"], created_at: "2024-01-02" });
-    const invitation = await createOrgInvitation("org-1", "carol@example.com", "admin");
-    expect(invitation.id).toBe("inv-2");
-    expect(vi.mocked(fetch)).toHaveBeenCalledWith(
-      expect.stringContaining("/organizations/invitations"),
-      expect.objectContaining({
-        method: "POST",
-        headers: expect.objectContaining({ "X-Org-Id": "org-1" }),
-        body: JSON.stringify({ email: "carol@example.com", role: "admin" }),
-      }),
-    );
-  });
-
-  it("cancelOrgInvitation sends DELETE with the X-Org-Id header", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true }));
-    await cancelOrgInvitation("org-1", "inv-1");
-    expect(vi.mocked(fetch)).toHaveBeenCalledWith(
-      expect.stringContaining("/organizations/invitations/inv-1"),
-      expect.objectContaining({ method: "DELETE", headers: { "X-Org-Id": "org-1" } }),
-    );
-  });
-});
-
-describe("organization team functions", () => {
-  afterEach(() => vi.unstubAllGlobals());
-
-  it("fetchOrgTeams GETs /organizations/teams with the X-Org-Id header", async () => {
-    mockFetchOk([{ id: "team-1", name: "Platform", organization_id: "org-1", created_at: "2024-01-01" }]);
-    const teams = await fetchOrgTeams("org-1");
-    expect(teams[0]!.name).toBe("Platform");
-    expect(vi.mocked(fetch)).toHaveBeenCalledWith(
-      expect.stringContaining("/organizations/teams"),
-      expect.objectContaining({ headers: { "X-Org-Id": "org-1" } }),
-    );
-  });
-
-  it("createOrgTeam POSTs the team name with the X-Org-Id header", async () => {
-    mockFetchOk({ id: "team-2", name: "Design", organization_id: "org-1", created_at: "2024-01-02" });
-    const team = await createOrgTeam("org-1", "Design");
-    expect(team.name).toBe("Design");
-    expect(vi.mocked(fetch)).toHaveBeenCalledWith(
-      expect.stringContaining("/organizations/teams"),
-      expect.objectContaining({
-        method: "POST",
-        headers: expect.objectContaining({ "X-Org-Id": "org-1" }),
-        body: JSON.stringify({ name: "Design" }),
-      }),
-    );
-  });
-
-  it("updateOrgTeam PUTs the new team name with the X-Org-Id header", async () => {
-    mockFetchOk({ id: "team-2", name: "Renamed", organization_id: "org-1", created_at: "2024-01-02" });
-    const team = await updateOrgTeam("org-1", "team-2", "Renamed");
-    expect(team.name).toBe("Renamed");
-    expect(vi.mocked(fetch)).toHaveBeenCalledWith(
-      expect.stringContaining("/organizations/teams/team-2"),
-      expect.objectContaining({
-        method: "PUT",
-        headers: expect.objectContaining({ "X-Org-Id": "org-1" }),
-        body: JSON.stringify({ name: "Renamed" }),
-      }),
-    );
-  });
-
-  it("removeOrgTeam sends DELETE with the X-Org-Id header", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true }));
-    await removeOrgTeam("org-1", "team-2");
-    expect(vi.mocked(fetch)).toHaveBeenCalledWith(
-      expect.stringContaining("/organizations/teams/team-2"),
-      expect.objectContaining({ method: "DELETE", headers: { "X-Org-Id": "org-1" } }),
-    );
-  });
-});
-
-describe("organization team member functions", () => {
-  afterEach(() => vi.unstubAllGlobals());
-
-  it("fetchOrgTeamMembers GETs /organizations/teams/:id/members with the X-Org-Id header", async () => {
-    mockFetchOk([{ user_id: "u1", username: "alice", email: "alice@example.com" }]);
-    const members = await fetchOrgTeamMembers("org-1", "team-1");
-    expect(members[0]!.username).toBe("alice");
-    expect(vi.mocked(fetch)).toHaveBeenCalledWith(
-      expect.stringContaining("/organizations/teams/team-1/members"),
-      expect.objectContaining({ headers: { "X-Org-Id": "org-1" } }),
-    );
-  });
-
-  it("addOrgTeamMember POSTs the user id and resolves on a 204 with no body", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true }));
-    await expect(addOrgTeamMember("org-1", "team-1", "u2")).resolves.toBeUndefined();
-    expect(vi.mocked(fetch)).toHaveBeenCalledWith(
-      expect.stringContaining("/organizations/teams/team-1/members"),
-      expect.objectContaining({
-        method: "POST",
-        headers: expect.objectContaining({ "Content-Type": "application/json", "X-Org-Id": "org-1" }),
-        body: JSON.stringify({ user_id: "u2" }),
-      }),
-    );
-  });
-
-  it("addOrgTeamMember throws err.detail when the request fails with a parseable body", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
-      ok: false,
-      status: 409,
-      json: async () => ({ detail: "User already in team" }),
-    }));
-    await expect(addOrgTeamMember("org-1", "team-1", "u2")).rejects.toThrow("User already in team");
-  });
-
-  it("addOrgTeamMember throws fallback message when the request fails and json parse also fails", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
-      ok: false,
-      status: 500,
-      json: async () => { throw new Error("parse fail"); },
-    }));
-    await expect(addOrgTeamMember("org-1", "team-1", "u2")).rejects.toThrow("HTTP 500");
-  });
-
-  it("removeOrgTeamMember sends DELETE with the X-Org-Id header", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true }));
-    await removeOrgTeamMember("org-1", "team-1", "u2");
-    expect(vi.mocked(fetch)).toHaveBeenCalledWith(
-      expect.stringContaining("/organizations/teams/team-1/members/u2"),
-      expect.objectContaining({ method: "DELETE", headers: { "X-Org-Id": "org-1" } }),
-    );
-  });
-});

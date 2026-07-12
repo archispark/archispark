@@ -1,14 +1,12 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { LogOut, User, Settings } from "lucide-react";
+import { LogOut, User } from "lucide-react";
 import { useCurrentUser } from "@/hooks/use-current-user";
-import { useIsOrgOwner } from "@/hooks/use-organization";
 import Link from "next/link";
 
 export function UserMenu() {
   const user = useCurrentUser();
-  const isOrgOwner = useIsOrgOwner();
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -55,17 +53,6 @@ export function UserMenu() {
             <User className="size-3.5 text-muted-foreground shrink-0" />
             Mon profil
           </Link>
-
-          {isOrgOwner && (
-            <Link
-              href="/organization"
-              onClick={() => setOpen(false)}
-              className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] hover:bg-muted text-left transition-colors no-underline text-foreground"
-            >
-              <Settings className="size-3.5 text-muted-foreground shrink-0" />
-              Organisation
-            </Link>
-          )}
 
           <div className="border-t border-border mt-1 pt-1">
             <button

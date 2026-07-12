@@ -19,7 +19,6 @@ import {
   DialogFooter, DialogClose,
 } from "@workspace/ui/components/dialog";
 import { ChevronLeft, Trash2 } from "lucide-react";
-import { useIsOrgAdmin } from "@/hooks/use-organization";
 import { useT } from "@/lib/i18n";
 
 // ── Inline editable text ──────────────────────────────────────────────────────
@@ -77,7 +76,8 @@ function InlineText({
 
 export default function ViewDetailPage() {
   const { t } = useT();
-  const isAdmin = useIsOrgAdmin();
+  // Every workspace has exactly one owner (the authenticated user) — always write-enabled.
+  const isAdmin = true;
   const router = useRouter();
   const params = useParams<{ id: string }>();
   const id = decodeURIComponent(params.id);

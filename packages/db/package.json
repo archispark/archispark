@@ -21,15 +21,12 @@
     "migrate:prod": "tsx scripts/migrate-prod.ts"
   },
   "dependencies": {
-    "@neondatabase/serverless": "^0.10.4",
     "@workspace/auth": "workspace:*",
     "drizzle-orm": "^0.45.2",
-    "jsonwebtoken": "^9.0.3",
     "pg": "^8.13.3"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.1",
-    "@types/jsonwebtoken": "^9.0.10",
     "@types/pg": "^8.11.11",
     "@types/node": "^22.0.0",
     "@vitest/coverage-v8": "^4.1.8",

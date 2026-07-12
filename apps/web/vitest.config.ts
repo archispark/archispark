@@ -10,7 +10,7 @@ export default defineConfig({
     globals: true,
     // Some component tests chain several renders/waitFor cycles; under
     // turbo's workspace-wide parallel test run the 5s default can be
-    // exceeded on a loaded machine. Allow more headroom (see control-api).
+    // exceeded on a loaded machine. Allow more headroom (see apps/api).
     testTimeout: 15000,
     coverage: {
       provider: "v8",

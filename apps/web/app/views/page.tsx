@@ -20,7 +20,6 @@ import {
   DialogTitle, DialogDescription, DialogFooter, DialogClose,
 } from "@workspace/ui/components/dialog";
 import { Plus, ChevronDown, ChevronRight, Trash2 } from "lucide-react";
-import { useIsOrgAdmin } from "@/hooks/use-organization";
 import { useKeyboardShortcut } from "@/hooks/use-keyboard-shortcut";
 import { useT } from "@/lib/i18n";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -28,7 +27,8 @@ import { DataTable } from "@/components/data-table";
 
 export default function ViewsPage() {
   const { t } = useT();
-  const isAdmin = useIsOrgAdmin();
+  // Every workspace has exactly one owner (the authenticated user) — always write-enabled.
+  const isAdmin = true;
   const { data: viewpoints = [] } = useViewpoints();
   const [views, setViews] = useState<ViewOut[]>([]);
   const [loading, setLoading] = useState(true);

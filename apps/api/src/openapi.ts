@@ -147,13 +147,12 @@ const ErrorDetailSchema = registry.register("ErrorDetail", z.object({
 }).openapi("ErrorDetail"));
 
 const WorkspaceInfoSchema = registry.register("WorkspaceInfo", z.object({
-  id:              z.string(),
-  name:            z.string(),
-  path:            z.string().nullable().optional(),
-  description:     z.string().nullable().optional(),
-  active:          z.boolean(),
-  organization_id: z.string(),
-  team_ids:        z.array(z.string()),
+  id:          z.string(),
+  name:        z.string(),
+  path:        z.string().nullable().optional(),
+  description: z.string().nullable().optional(),
+  active:      z.boolean(),
+  owner_id:    z.string(),
 }).openapi("WorkspaceInfo"));
 
 const UserOutSchema = registry.register("UserOut", z.object({
@@ -583,16 +582,6 @@ registry.registerPath({
 });
 
 registry.registerPath({
-  method: "get", path: "/users", tags: ["Users"],
-  summary: "Lister les utilisateurs", operationId: "listUsers",
-  security: BothAuth,
-  responses: {
-    200: { description: "Liste des utilisateurs", content: { "application/json": { schema: z.array(UserOutSchema) } } },
-    401: Unauthorized, 403: Forbidden,
-  },
-});
-
-registry.registerPath({
   method: "get", path: "/property-definitions", tags: ["PropertyDefinitions"],
   summary: "Lister les définitions de propriétés", operationId: "listPropertyDefinitions",
   security: BothAuth,
@@ -699,7 +688,7 @@ const _doc: Record<string, any> = generator.generateDocument({
     description:
       "API REST pour interroger et modifier un modèle ArchiMate 3.1. " +
       "Authentification via cookie de session (access_token Keycloak) ou Bearer token (token API personnel). " +
-      "Accès aux workspaces selon l'organisation et les équipes de l'utilisateur (rôles owner/admin/member).",
+      "Chaque workspace appartient à un seul utilisateur.",
     contact: { name: "GitHub", url: "https://github.com/archispark/archispark" },
   },
   servers: [
@@ -714,7 +703,6 @@ const _doc: Record<string, any> = generator.generateDocument({
     { name: "Relationships",       description: "Relations ArchiMate 3.1" },
     { name: "Views",               description: "Vues et diagrammes" },
     { name: "PropertyDefinitions", description: "Définitions de propriétés" },
-    { name: "Users",               description: "Gestion des utilisateurs" },
     { name: "Settings",            description: "Tokens API personnels" },
     { name: "MCP",                 description: "Transport MCP (streamable-http)" },
   ],

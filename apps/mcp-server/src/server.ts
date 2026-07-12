@@ -4,7 +4,7 @@
  * Exposes ArchiMate MCP tools via streamable-HTTP transport.
  * Reads from (and writes to) the same PostgreSQL database as the REST API.
  * Authentication: Bearer token from api_tokens table (same tokens as the REST API).
- * RBAC: each tool checks the authenticated user's layer permissions before acting.
+ * Every tool operates on the authenticated user's own workspaces.
  */
 
 import express, { type Request, type Response, type NextFunction } from "express";
@@ -12,9 +12,9 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { z } from "zod";
 
-import packageJson from "control-api/package.json" with { type: "json" };
-// Import from the `tenant-api` package root (its `.` export), not deep
-// `tenant-api/src/*.js` paths: the `.` export is traced into `dist/` by
+import packageJson from "api/package.json" with { type: "json" };
+// Import from the `api` package root (its `.` export), not deep
+// `api/src/*.js` paths: the `.` export is traced into `dist/` by
 // Vercel's bundler, the wildcard `./src/*.js` export is not (caused
 // ERR_MODULE_NOT_FOUND on the deployed lambda).
 import {
@@ -34,10 +34,10 @@ import {
   type NodeUpdateIn,
   type ConnectionCreateIn,
   type ConnectionUpdateIn,
-} from "tenant-api";
+} from "api";
 // Auth helpers in a local wrapper so tests can mock them with a simple relative path
 // (mocking api sub-modules via wildcard package exports is unreliable in Vitest).
-import { lookupApiToken, getMembershipContext, type TokenUser, type WorkspaceContext } from "./token-auth.js";
+import { lookupApiToken, type TokenUser } from "./token-auth.js";
 
 import {
   ELEMENT_TYPES_BY_LAYER,
@@ -75,17 +75,7 @@ const { version } = packageJson;
 // McpServer can only be connected to one transport at a time, so sharing one
 // instance across sessions throws "Already connected to a transport" — which on
 // serverless means every request after the first on a warm instance 500s.
-function createMcpServer(user: TokenUser, ctx: WorkspaceContext): McpServer {
-  const isAdmin = user.role === "platform_admin";
-
-  /** Blocks write operations for org members (read-only). Super admins always pass. */
-  function requireWrite(): void {
-    if (isAdmin) return;
-    if (ctx.orgRole === "member") {
-      throw new Error("Accès en lecture seule : modification réservée aux administrateurs et propriétaires de l'organisation.");
-    }
-  }
-
+function createMcpServer(user: TokenUser): McpServer {
   const mcpServer = new McpServer({
     name: "ArchiSpark",
     version,
@@ -194,7 +184,7 @@ mcpServer.registerTool(
       "Appeler en premier pour vérifier quel modèle est chargé avant de modéliser.",
     inputSchema: {},
   },
-  async () => toContent(await store.getModelInfo(await getActiveWorkspaceId(ctx, user.id)))
+  async () => toContent(await store.getModelInfo(await getActiveWorkspaceId(user.id)))
 );
 
 mcpServer.registerTool(
@@ -208,7 +198,7 @@ mcpServer.registerTool(
     inputSchema: {},
   },
   async () => {
-    const presentTypes = await store.listElementTypes(await getActiveWorkspaceId(ctx, user.id));
+    const presentTypes = await store.listElementTypes(await getActiveWorkspaceId(user.id));
     const presentSet = new Set(presentTypes);
 
     const grouped: Record<string, unknown> = {};
@@ -249,7 +239,7 @@ mcpServer.registerTool(
     if (element_type && !ELEMENT_TYPES.has(element_type)) {
       throw new Error(elementTypeError(element_type));
     }
-    return toContent(await store.listElements(await getActiveWorkspaceId(ctx, user.id), element_type, name));
+    return toContent(await store.listElements(await getActiveWorkspaceId(user.id), element_type, name));
   }
 );
 
@@ -262,7 +252,7 @@ mcpServer.registerTool(
       "L'identifiant est le champ 'identifier' retourné par list_elements ou create_element.",
     inputSchema: { element_id: z.string().describe("Identifiant de l'élément (champ 'identifier')") },
   },
-  async ({ element_id }) => toContent(await store.getElementById(await getActiveWorkspaceId(ctx, user.id), element_id))
+  async ({ element_id }) => toContent(await store.getElementById(await getActiveWorkspaceId(user.id), element_id))
 );
 
 mcpServer.registerTool(
@@ -274,7 +264,7 @@ mcpServer.registerTool(
     inputSchema: {},
   },
   async () => {
-    const types = await store.listRelationshipTypes(await getActiveWorkspaceId(ctx, user.id));
+    const types = await store.listRelationshipTypes(await getActiveWorkspaceId(user.id));
     const withSemantics = types.map((t: string) => ({
       type: t,
       description: RELATIONSHIP_SEMANTICS[t]?.description ?? "",
@@ -301,7 +291,7 @@ mcpServer.registerTool(
     if (rel_type && !RELATIONSHIP_TYPES.has(rel_type)) {
       throw new Error(relationshipTypeError(rel_type));
     }
-    return toContent(await store.listRelationships(await getActiveWorkspaceId(ctx, user.id), rel_type, source_id_filter, target_id));
+    return toContent(await store.listRelationships(await getActiveWorkspaceId(user.id), rel_type, source_id_filter, target_id));
   }
 );
 
@@ -314,7 +304,7 @@ mcpServer.registerTool(
     inputSchema: { relationship_id: z.string().describe("Identifiant de la relation (champ 'identifier')") },
   },
   async ({ relationship_id }) => {
-    return toContent(await store.getRelationshipById(await getActiveWorkspaceId(ctx, user.id), relationship_id));
+    return toContent(await store.getRelationshipById(await getActiveWorkspaceId(user.id), relationship_id));
   }
 );
 
@@ -327,7 +317,7 @@ mcpServer.registerTool(
     inputSchema: {},
   },
   async () => {
-    return toContent(await store.listViews(await getActiveWorkspaceId(ctx, user.id)));
+    return toContent(await store.listViews(await getActiveWorkspaceId(user.id)));
   }
 );
 
@@ -341,7 +331,7 @@ mcpServer.registerTool(
     inputSchema: { view_id: z.string().describe("Identifiant de la vue (champ 'identifier')") },
   },
   async ({ view_id }) => {
-    return toContent(await store.getViewById(await getActiveWorkspaceId(ctx, user.id), view_id));
+    return toContent(await store.getViewById(await getActiveWorkspaceId(user.id), view_id));
   }
 );
 
@@ -366,8 +356,7 @@ mcpServer.registerTool(
     },
   },
   async ({ name, viewpoint, documentation }) => {
-    requireWrite();
-    const view = await store.createView(await getActiveWorkspaceId(ctx, user.id), { name, viewpoint, documentation });
+    const view = await store.createView(await getActiveWorkspaceId(user.id), { name, viewpoint, documentation });
     return toContent({
       ...view,
       next_steps: [
@@ -399,8 +388,7 @@ mcpServer.registerTool(
     },
   },
   async ({ view_id, element_id, x, y, w, h }) => {
-    requireWrite();
-    return toContent(await store.createNode(await getActiveWorkspaceId(ctx, user.id), view_id, { element_id, x, y, w, h }));
+    return toContent(await store.createNode(await getActiveWorkspaceId(user.id), view_id, { element_id, x, y, w, h }));
   }
 );
 
@@ -418,12 +406,11 @@ mcpServer.registerTool(
     },
   },
   async ({ view_id, name, viewpoint, documentation }) => {
-    requireWrite();
     const input: ViewUpdateIn = {};
     if (name !== undefined) input.name = name;
     if (viewpoint !== undefined) input.viewpoint = viewpoint;
     if (documentation !== undefined) input.documentation = documentation;
-    return toContent(await store.updateView(await getActiveWorkspaceId(ctx, user.id), view_id, input));
+    return toContent(await store.updateView(await getActiveWorkspaceId(user.id), view_id, input));
   }
 );
 
@@ -437,8 +424,7 @@ mcpServer.registerTool(
     inputSchema: { view_id: z.string().describe("Identifiant de la vue à supprimer") },
   },
   async ({ view_id }) => {
-    requireWrite();
-    await store.deleteView(await getActiveWorkspaceId(ctx, user.id), view_id);
+    await store.deleteView(await getActiveWorkspaceId(user.id), view_id);
     return toContent({ deleted: true, identifier: view_id });
   }
 );
@@ -460,14 +446,13 @@ mcpServer.registerTool(
     },
   },
   async ({ view_id, node_id, x, y, w, h, name }) => {
-    requireWrite();
     const input: NodeUpdateIn = {};
     if (x !== undefined) input.x = x;
     if (y !== undefined) input.y = y;
     if (w !== undefined) input.w = w;
     if (h !== undefined) input.h = h;
     if (name !== undefined) input.name = name;
-    return toContent(await store.updateViewNode(await getActiveWorkspaceId(ctx, user.id), view_id, node_id, input));
+    return toContent(await store.updateViewNode(await getActiveWorkspaceId(user.id), view_id, node_id, input));
   }
 );
 
@@ -484,8 +469,7 @@ mcpServer.registerTool(
     },
   },
   async ({ view_id, node_id }) => {
-    requireWrite();
-    await store.deleteViewNode(await getActiveWorkspaceId(ctx, user.id), view_id, node_id);
+    await store.deleteViewNode(await getActiveWorkspaceId(user.id), view_id, node_id);
     return toContent({ deleted: true, identifier: node_id });
   }
 );
@@ -509,8 +493,7 @@ mcpServer.registerTool(
     },
   },
   async ({ view_id, source, target, relationship_id, name, source_side, target_side }) => {
-    requireWrite();
-    return toContent(await store.createViewConnection(await getActiveWorkspaceId(ctx, user.id), view_id, {
+    return toContent(await store.createViewConnection(await getActiveWorkspaceId(user.id), view_id, {
       source, target, relationship_id, name,
       source_side: source_side as ConnectionCreateIn["source_side"],
       target_side: target_side as ConnectionCreateIn["target_side"],
@@ -535,14 +518,13 @@ mcpServer.registerTool(
     },
   },
   async ({ view_id, connection_id, name, source, target, source_side, target_side }) => {
-    requireWrite();
     const input: ConnectionUpdateIn = {};
     if (name !== undefined) input.name = name;
     if (source !== undefined) input.source = source;
     if (target !== undefined) input.target = target;
     if (source_side !== undefined) input.source_side = source_side as ConnectionUpdateIn["source_side"];
     if (target_side !== undefined) input.target_side = target_side as ConnectionUpdateIn["target_side"];
-    return toContent(await store.updateViewConnection(await getActiveWorkspaceId(ctx, user.id), view_id, connection_id, input));
+    return toContent(await store.updateViewConnection(await getActiveWorkspaceId(user.id), view_id, connection_id, input));
   }
 );
 
@@ -558,8 +540,7 @@ mcpServer.registerTool(
     },
   },
   async ({ view_id, connection_id }) => {
-    requireWrite();
-    await store.deleteViewConnection(await getActiveWorkspaceId(ctx, user.id), view_id, connection_id);
+    await store.deleteViewConnection(await getActiveWorkspaceId(user.id), view_id, connection_id);
     return toContent({ deleted: true, identifier: connection_id });
   }
 );
@@ -596,11 +577,10 @@ mcpServer.registerTool(
     },
   },
   async ({ name, type, documentation, properties }) => {
-    requireWrite();
     if (!ELEMENT_TYPES.has(type)) {
       throw new Error(elementTypeError(type));
     }
-    const element = await store.createElement(await getActiveWorkspaceId(ctx, user.id), { name, type, documentation, properties });
+    const element = await store.createElement(await getActiveWorkspaceId(user.id), { name, type, documentation, properties });
     return toContent({ ...element, hints: elementCreationHints(type) });
   }
 );
@@ -622,7 +602,6 @@ mcpServer.registerTool(
     },
   },
   async ({ element_id, name, type, documentation, properties }) => {
-    requireWrite();
     if (type && !ELEMENT_TYPES.has(type)) {
       throw new Error(elementTypeError(type));
     }
@@ -631,7 +610,7 @@ mcpServer.registerTool(
     if (type !== undefined) input.type = type;
     if (documentation !== undefined) input.documentation = documentation;
     if (properties !== undefined) input.properties = properties;
-    return toContent(await store.updateElement(await getActiveWorkspaceId(ctx, user.id), element_id, input));
+    return toContent(await store.updateElement(await getActiveWorkspaceId(user.id), element_id, input));
   }
 );
 
@@ -647,8 +626,7 @@ mcpServer.registerTool(
     },
   },
   async ({ element_id }) => {
-    requireWrite();
-    await store.deleteElement(await getActiveWorkspaceId(ctx, user.id), element_id);
+    await store.deleteElement(await getActiveWorkspaceId(user.id), element_id);
     return toContent({ deleted: true, identifier: element_id });
   }
 );
@@ -687,11 +665,10 @@ mcpServer.registerTool(
     },
   },
   async ({ type, source, target, name, documentation, properties, access_type, is_directed, influence_strength }) => {
-    requireWrite();
     if (!RELATIONSHIP_TYPES.has(type)) {
       throw new Error(relationshipTypeError(type));
     }
-    const relationship = await store.createRelationship(await getActiveWorkspaceId(ctx, user.id), {
+    const relationship = await store.createRelationship(await getActiveWorkspaceId(user.id), {
       type, source, target, name, documentation, properties,
       access_type, is_directed, influence_strength,
     });
@@ -719,7 +696,6 @@ mcpServer.registerTool(
     },
   },
   async ({ relationship_id, name, type, source, target, documentation, properties, access_type, is_directed, influence_strength }) => {
-    requireWrite();
     if (type && !RELATIONSHIP_TYPES.has(type)) {
       throw new Error(relationshipTypeError(type));
     }
@@ -733,7 +709,7 @@ mcpServer.registerTool(
     if (access_type !== undefined) input.access_type = access_type;
     if (is_directed !== undefined) input.is_directed = is_directed;
     if (influence_strength !== undefined) input.influence_strength = influence_strength;
-    return toContent(await store.updateRelationship(await getActiveWorkspaceId(ctx, user.id), relationship_id, input));
+    return toContent(await store.updateRelationship(await getActiveWorkspaceId(user.id), relationship_id, input));
   }
 );
 
@@ -748,8 +724,7 @@ mcpServer.registerTool(
     },
   },
   async ({ relationship_id }) => {
-    requireWrite();
-    await store.deleteRelationship(await getActiveWorkspaceId(ctx, user.id), relationship_id);
+    await store.deleteRelationship(await getActiveWorkspaceId(user.id), relationship_id);
     return toContent({ deleted: true, identifier: relationship_id });
   }
 );
@@ -763,7 +738,7 @@ mcpServer.registerTool(
     inputSchema: { element_id: z.string().describe("Identifiant de l'élément") },
   },
   async ({ element_id }) => {
-    return toContent(await store.getElementRelationships(await getActiveWorkspaceId(ctx, user.id), element_id));
+    return toContent(await store.getElementRelationships(await getActiveWorkspaceId(user.id), element_id));
   }
 );
 
@@ -776,7 +751,7 @@ mcpServer.registerTool(
       "des éléments orphelins (présents dans le modèle mais sans vue).",
     inputSchema: {},
   },
-  async () => toContent(await store.listElementsInViews(await getActiveWorkspaceId(ctx, user.id)))
+  async () => toContent(await store.listElementsInViews(await getActiveWorkspaceId(user.id)))
 );
 
 // ---------------------------------------------------------------------------
@@ -792,7 +767,7 @@ mcpServer.registerTool(
       "Utiliser activate_workspace pour changer de contexte.",
     inputSchema: {},
   },
-  async () => toContent(await getWorkspaces(ctx, user.id))
+  async () => toContent(await getWorkspaces(user.id))
 );
 
 mcpServer.registerTool(
@@ -805,8 +780,7 @@ mcpServer.registerTool(
     inputSchema: { workspace_id: z.string().describe("Identifiant numérique du workspace (champ 'id' de list_workspaces)") },
   },
   async ({ workspace_id }) => {
-    requireWrite();
-    return toContent(await activateWorkspace(workspace_id, ctx, user.id));
+    return toContent(await activateWorkspace(workspace_id, user.id));
   }
 );
 
@@ -823,7 +797,7 @@ mcpServer.registerTool(
     inputSchema: {},
   },
   async () => {
-    const xml = await store.exportModelToXml(await getActiveWorkspaceId(ctx, user.id));
+    const xml = await store.exportModelToXml(await getActiveWorkspaceId(user.id));
     return { content: [{ type: "text" as const, text: xml }] };
   }
 );
@@ -838,8 +812,7 @@ mcpServer.registerTool(
     inputSchema: { xml: z.string().describe("Contenu XML au format Open Exchange ArchiMate 3.1") },
   },
   async ({ xml }) => {
-    requireWrite();
-    return toContent(await store.importModelFromXml(await getActiveWorkspaceId(ctx, user.id), xml));
+    return toContent(await store.importModelFromXml(await getActiveWorkspaceId(user.id), xml));
   }
 );
 
@@ -873,7 +846,7 @@ mcpServer.registerTool(
       "Les propriétés permettent d'ajouter des métadonnées personnalisées aux éléments et relations.",
     inputSchema: {},
   },
-  async () => toContent(await store.listPropertyDefinitions(await getActiveWorkspaceId(ctx, user.id)))
+  async () => toContent(await store.listPropertyDefinitions(await getActiveWorkspaceId(user.id)))
 );
 
 mcpServer.registerTool(
@@ -882,7 +855,7 @@ mcpServer.registerTool(
     description: "Retourne le détail d'une définition de propriété par son identifiant.",
     inputSchema: { id: z.string().describe("Identifiant de la définition de propriété") },
   },
-  async ({ id }) => toContent(await store.getPropertyDefinitionById(await getActiveWorkspaceId(ctx, user.id), id))
+  async ({ id }) => toContent(await store.getPropertyDefinitionById(await getActiveWorkspaceId(user.id), id))
 );
 
 mcpServer.registerTool(
@@ -895,11 +868,10 @@ mcpServer.registerTool(
     },
   },
   async ({ name, type }) => {
-    requireWrite();
     if (type && !PROPERTY_DEFINITION_TYPES.has(type)) {
       throw new Error(`Type invalide: '${type}'. Types valides: ${_PROPERTY_DEFINITION_TYPES_STR}`);
     }
-    return toContent(await store.createPropertyDefinition(await getActiveWorkspaceId(ctx, user.id), { name, type }));
+    return toContent(await store.createPropertyDefinition(await getActiveWorkspaceId(user.id), { name, type }));
   }
 );
 
@@ -914,14 +886,13 @@ mcpServer.registerTool(
     },
   },
   async ({ id, name, type }) => {
-    requireWrite();
     if (type && !PROPERTY_DEFINITION_TYPES.has(type)) {
       throw new Error(`Type invalide: '${type}'. Types valides: ${_PROPERTY_DEFINITION_TYPES_STR}`);
     }
     const input: PropertyDefinitionUpdateIn = {};
     if (name !== undefined) input.name = name;
     if (type !== undefined) input.type = type;
-    return toContent(await store.updatePropertyDefinition(await getActiveWorkspaceId(ctx, user.id), id, input));
+    return toContent(await store.updatePropertyDefinition(await getActiveWorkspaceId(user.id), id, input));
   }
 );
 
@@ -934,8 +905,7 @@ mcpServer.registerTool(
     inputSchema: { id: z.string().describe("Identifiant de la définition à supprimer") },
   },
   async ({ id }) => {
-    requireWrite();
-    await store.deletePropertyDefinition(await getActiveWorkspaceId(ctx, user.id), id);
+    await store.deletePropertyDefinition(await getActiveWorkspaceId(user.id), id);
     return toContent({ deleted: true, identifier: id });
   }
 );
@@ -965,7 +935,7 @@ mcpServer.registerTool(
     },
   },
   async ({ view_id }) => {
-    const model = await store.loadModel(await getActiveWorkspaceId(ctx, user.id));
+    const model = await store.loadModel(await getActiveWorkspaceId(user.id));
     const view = model.views.find((v) => v.uuid === view_id);
     if (!view) throw new Error(`Vue '${view_id}' introuvable.`);
     const svg = renderViewToSvg(view, model);
@@ -1019,7 +989,6 @@ app.delete("/mcp/", methodNotAllowed);
 
 interface McpRequest extends Request {
   mcpUser?: TokenUser;
-  mcpWorkspace?: WorkspaceContext;
 }
 
 app.use("/mcp/", async (req: McpRequest, res: Response, next: NextFunction) => {
@@ -1034,13 +1003,7 @@ app.use("/mcp/", async (req: McpRequest, res: Response, next: NextFunction) => {
       res.status(401).json({ jsonrpc: "2.0", error: { code: -32000, message: "Token invalide." }, id: null });
       return;
     }
-    const ctx = await getMembershipContext(user.id, user.organizationId);
-    if (!ctx) {
-      res.status(403).json({ jsonrpc: "2.0", error: { code: -32000, message: "Accès à cette organisation refusé." }, id: null });
-      return;
-    }
     req.mcpUser = user;
-    req.mcpWorkspace = ctx;
     next();
   } catch {
     res.status(401).json({ jsonrpc: "2.0", error: { code: -32000, message: "Erreur d'authentification." }, id: null });
@@ -1051,7 +1014,7 @@ app.post("/mcp/", async (req: McpRequest, res: Response) => {
   try {
     const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
     res.on("close", () => { transport.close(); });
-    const mcpServer = createMcpServer(req.mcpUser!, req.mcpWorkspace!);
+    const mcpServer = createMcpServer(req.mcpUser!);
     await mcpServer.connect(transport);
     await transport.handleRequest(req, res, req.body);
   } catch (err) {

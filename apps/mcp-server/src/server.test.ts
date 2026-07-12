@@ -28,18 +28,18 @@ const shared = vi.hoisted(() => {
 });
 
 // ---------------------------------------------------------------------------
-// Mock control-api / tenant-api packages
+// Mock the api package
 // ---------------------------------------------------------------------------
 
-vi.mock("control-api/package.json", () => ({ default: { version: "0.0.0-test" } }));
+vi.mock("api/package.json", () => ({ default: { version: "0.0.0-test" } }));
 
-vi.mock("tenant-api/src/registry.js", () => ({
+vi.mock("api/src/registry.js", () => ({
   getActiveWorkspaceId: vi.fn().mockResolvedValue(1),
   getWorkspaces: vi.fn().mockResolvedValue([{ id: "1", name: "Default", active: true }]),
   activateWorkspace: vi.fn().mockResolvedValue({ id: "2", name: "Other", active: true }),
 }));
 
-vi.mock("tenant-api/src/store.js", () => ({
+vi.mock("api/src/store.js", () => ({
   getModelInfo: vi.fn().mockResolvedValue({ identifier: "m1", name: "Test" }),
   listElementTypes: vi.fn().mockResolvedValue(["ApplicationComponent"]),
   listElements: vi.fn().mockResolvedValue([]),
@@ -76,11 +76,11 @@ vi.mock("tenant-api/src/store.js", () => ({
   importModelFromXml: vi.fn().mockResolvedValue({ identifier: "m1", name: "Imported" }),
 }));
 
-vi.mock("tenant-api/src/renderer.js", () => ({
+vi.mock("api/src/renderer.js", () => ({
   renderViewToSvg: vi.fn().mockReturnValue("<svg/>"),
 }));
 
-vi.mock("tenant-api/src/schemas.js", () => ({
+vi.mock("api/src/schemas.js", () => ({
   ELEMENT_TYPES: new Set(["ApplicationComponent", "BusinessActor"]),
   RELATIONSHIP_TYPES: new Set(["Association", "Realization"]),
   PROPERTY_DEFINITION_TYPES: new Set(["string", "number"]),
@@ -94,10 +94,9 @@ const TEST_TOKEN = vi.hoisted(() => "test-mcp-bearer-token-fixture");
 // package wildcard exports, which Vitest resolves inconsistently in fork mode).
 vi.mock("./token-auth.js", () => ({
   lookupApiToken: vi.fn().mockImplementation((token: string) => {
-    if (token === TEST_TOKEN) return Promise.resolve({ id: "user-admin", username: "admin", role: "platform_admin", organizationId: "org-1", workspaceId: null });
+    if (token === TEST_TOKEN) return Promise.resolve({ id: "user-admin", username: "admin", role: "platform_admin", workspaceId: null });
     return Promise.resolve(null);
   }),
-  getMembershipContext: vi.fn().mockResolvedValue({ organizationId: "org-1", orgRole: "owner", teamIds: [] }),
 }));
 
 // ---------------------------------------------------------------------------
@@ -149,10 +148,10 @@ import {
   listPropertyDefinitions, getPropertyDefinitionById,
   createPropertyDefinition, updatePropertyDefinition, deletePropertyDefinition,
   loadModel, exportModelToXml, importModelFromXml,
-} from "tenant-api/src/store.js";
-import { getWorkspaces, activateWorkspace } from "tenant-api/src/registry.js";
-import { renderViewToSvg } from "tenant-api/src/renderer.js";
-import { lookupApiToken, getMembershipContext } from "./token-auth.js";
+} from "api/src/store.js";
+import { getWorkspaces, activateWorkspace } from "api/src/registry.js";
+import { renderViewToSvg } from "api/src/renderer.js";
+import { lookupApiToken } from "./token-auth.js";
 
 // ---------------------------------------------------------------------------
 // Helper: a POST request triggers createMcpServer() → registers tools
@@ -227,15 +226,8 @@ describe("POST /mcp/ (stateless)", () => {
     expect(res.status).toBe(401);
   });
 
-  it("returns 403 when the user has no membership in their token's organization", async () => {
-    vi.mocked(getMembershipContext).mockResolvedValueOnce(null);
-    const res = await request(app).post("/mcp/").set("Authorization", `Bearer ${TEST_TOKEN}`).send({ method: "initialize", params: {} });
-    expect(res.status).toBe(403);
-    expect(res.body.error.message).toMatch(/organisation/i);
-  });
-
   it("returns 401 when an unexpected error occurs during authentication", async () => {
-    vi.mocked(getMembershipContext).mockRejectedValueOnce(new Error("db error"));
+    vi.mocked(lookupApiToken).mockRejectedValueOnce(new Error("db error"));
     const res = await request(app).post("/mcp/").set("Authorization", `Bearer ${TEST_TOKEN}`).send({ method: "initialize", params: {} });
     expect(res.status).toBe(401);
     expect(res.body.error.message).toMatch(/authentification/i);
@@ -614,7 +606,7 @@ describe("MCP tool: list_workspaces", () => {
 describe("MCP tool: activate_workspace", () => {
   it("activates a workspace by id", async () => {
     const result = await callTool("activate_workspace", { workspace_id: "2" });
-    expect(vi.mocked(activateWorkspace)).toHaveBeenCalledWith("2", { organizationId: "org-1", orgRole: "owner", teamIds: [] }, "user-admin");
+    expect(vi.mocked(activateWorkspace)).toHaveBeenCalledWith("2", "user-admin");
     expect(result.content[0].text).toContain("Other");
   });
 });
@@ -733,97 +725,6 @@ describe("relationshipCreationHints — unknown type", () => {
     expect(hints.semantics).toBe("");
     expect(hints.direction).toBe("");
     expect(hints.next_steps.length).toBeGreaterThan(0);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// RBAC: read-only org member (requireWrite)
-// ---------------------------------------------------------------------------
-
-describe("RBAC: read-only org member", () => {
-  beforeAll(async () => {
-    // Re-register tool handlers with a non-admin, read-only org member
-    vi.mocked(lookupApiToken).mockResolvedValueOnce({ id: "u-viewer", username: "viewer", role: "user", organizationId: "org-1", workspaceId: null });
-    vi.mocked(getMembershipContext).mockResolvedValueOnce({ organizationId: "org-1", orgRole: "member", teamIds: [] });
-    await request(app).post("/mcp/").set("Authorization", `Bearer ${TEST_TOKEN}`).send({ jsonrpc: "2.0", method: "initialize", id: 1 });
-  });
-
-  afterAll(async () => {
-    // Restore admin handlers for subsequent test suites
-    await initSession();
-  });
-
-  it("list_relationships still succeeds for a read-only member", async () => {
-    await callTool("list_relationships");
-    expect(vi.mocked(listRelationships)).toHaveBeenCalled();
-  });
-
-  it("create_element throws for a read-only member", async () => {
-    await expect(callTool("create_element", { name: "X", type: "ApplicationComponent" }))
-      .rejects.toThrow(/lecture seule/i);
-  });
-
-  it("update_element throws for a read-only member", async () => {
-    await expect(callTool("update_element", { element_id: "e1", name: "Y" }))
-      .rejects.toThrow(/lecture seule/i);
-  });
-
-  it("delete_element throws for a read-only member", async () => {
-    await expect(callTool("delete_element", { element_id: "e1" }))
-      .rejects.toThrow(/lecture seule/i);
-  });
-
-  it("create_view throws for a read-only member", async () => {
-    await expect(callTool("create_view", { name: "test" }))
-      .rejects.toThrow(/lecture seule/i);
-  });
-
-  it("delete_view throws for a read-only member", async () => {
-    await expect(callTool("delete_view", { view_id: "v1" }))
-      .rejects.toThrow(/lecture seule/i);
-  });
-
-  it("create_relationship throws for a read-only member", async () => {
-    await expect(callTool("create_relationship", { type: "Association", source: "e1", target: "e2" }))
-      .rejects.toThrow(/lecture seule/i);
-  });
-
-  it("import_model throws for a read-only member", async () => {
-    await expect(callTool("import_model", { xml: "<model/>" }))
-      .rejects.toThrow(/lecture seule/i);
-  });
-
-  it("activate_workspace throws for a read-only member", async () => {
-    await expect(callTool("activate_workspace", { workspace_id: "2" }))
-      .rejects.toThrow(/lecture seule/i);
-  });
-
-  it("create_property_definition throws for a read-only member", async () => {
-    await expect(callTool("create_property_definition", { name: "Cost", type: "number" }))
-      .rejects.toThrow(/lecture seule/i);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// RBAC: non-admin org owner can write (requireWrite false branch for orgRole)
-// ---------------------------------------------------------------------------
-
-describe("RBAC: non-admin org owner can write", () => {
-  beforeAll(async () => {
-    // Non-platform-admin but org owner — requireWrite() must NOT throw
-    vi.mocked(lookupApiToken).mockResolvedValueOnce({ id: "u-owner", username: "owner", role: "user", organizationId: "org-1", workspaceId: null });
-    vi.mocked(getMembershipContext).mockResolvedValueOnce({ organizationId: "org-1", orgRole: "owner", teamIds: [] });
-    await request(app).post("/mcp/").set("Authorization", `Bearer ${TEST_TOKEN}`).send({ jsonrpc: "2.0", method: "initialize", id: 1 });
-  });
-
-  afterAll(async () => {
-    await initSession();
-  });
-
-  it("create_element succeeds for org owner (requireWrite does not throw for owner)", async () => {
-    const result = await callTool("create_element", { name: "App", type: "ApplicationComponent" });
-    expect(vi.mocked(createElement)).toHaveBeenCalled();
-    expect(result.content[0].text).toContain("e1");
   });
 });
 

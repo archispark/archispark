@@ -1,17 +1,16 @@
 /**
- * Demo seed script — loads ArchiMetal + ArchiSurance workspaces into the DB.
+ * Demo seed script — loads ArchiMetal + ArchiSurance workspaces into the DB,
+ * owned by the "archi" demo user.
  *
  * Usage:
  *   pnpm --filter @workspace/db seed:demo
  *
  * Requires:
- *   TENANT_DATABASE_URL — tenant fallback DB (workspaces, elements, …)
+ *   DATABASE_URL — the shared database (workspaces, elements, …)
  *   KEYCLOAK_URL, KEYCLOAK_REALM, KEYCLOAK_ADMIN_CLIENT_ID,
- *   KEYCLOAK_ADMIN_CLIENT_SECRET — used to look up the first Keycloak
- *                                  organization via the Phasetwo Orgs API
+ *   KEYCLOAK_ADMIN_CLIENT_SECRET — used to look up the "archi" demo user's
+ *                                  Keycloak sub (run seed:demo-users first)
  *
- * Both workspaces are created inside the first organization returned by
- * Keycloak.
  * Destructive reset: deletes existing ArchiSurance/ArchiMetal workspaces (CASCADE)
  * then reimports from the generated SQL. Safe to run multiple times.
  */
@@ -19,14 +18,14 @@
 import { readFileSync } from "fs";
 import { resolve } from "path";
 import pg from "pg";
-import { listOrganizations } from "@workspace/auth";
+import { findUserByUsername } from "@workspace/auth";
 
-const TENANT_SQL_PATH = resolve(import.meta.dirname, "../seeds/demo.sql");
-const tenantSqlTemplate = readFileSync(TENANT_SQL_PATH, "utf-8");
+const SQL_PATH = resolve(import.meta.dirname, "../seeds/demo.sql");
+const sqlTemplate = readFileSync(SQL_PATH, "utf-8");
 
-const tenantUrl = process.env["TENANT_DATABASE_URL"];
-if (!tenantUrl) {
-  console.error("Error: TENANT_DATABASE_URL is required.");
+const dbUrl = process.env["DATABASE_URL"];
+if (!dbUrl) {
+  console.error("Error: DATABASE_URL is required.");
   process.exit(1);
 }
 
@@ -51,21 +50,20 @@ function makeClient(url: string): pg.Client {
   });
 }
 
-const orgs = await listOrganizations();
-const org = orgs[0];
-if (!org?.id) {
-  console.error("Error: no organization found in Keycloak. Create one first.");
+const owner = await findUserByUsername("archi");
+if (!owner?.id) {
+  console.error('Error: demo user "archi" not found in Keycloak. Run `pnpm --filter @workspace/db seed:demo-users` first.');
   process.exit(1);
 }
-const orgId = org.id;
-console.log(`Using organization: ${orgId} (${org.name})`);
+const ownerId = owner.id;
+console.log(`Using owner: ${ownerId} (archi)`);
 
-const tenantSql = tenantSqlTemplate.replaceAll("'__ORG_ID__'", `'${orgId}'`);
+const sql = sqlTemplate.replaceAll("'__OWNER_ID__'", `'${ownerId}'`);
 
-const tenantClient = makeClient(tenantUrl);
-await tenantClient.connect();
-console.log("Seeding tenant DB (workspaces, elements, views)…");
-await tenantClient.query(tenantSql);
-await tenantClient.end();
+const client = makeClient(dbUrl);
+await client.connect();
+console.log("Seeding workspaces (elements, views)…");
+await client.query(sql);
+await client.end();
 
 console.log("Done.");

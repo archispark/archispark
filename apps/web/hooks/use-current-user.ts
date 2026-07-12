@@ -1,13 +1,6 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import type { OrgRoleName } from "@workspace/auth";
-
-export interface CurrentUserOrganization {
-  id: string;
-  name: string;
-  role: OrgRoleName;
-}
 
 export interface CurrentUser {
   id: string;
@@ -15,7 +8,6 @@ export interface CurrentUser {
   name: string;
   email: string | null;
   role: string;
-  organizations: CurrentUserOrganization[];
 }
 
 async function fetchCurrentUser(): Promise<CurrentUser | null> {
@@ -37,11 +29,4 @@ export function useCurrentUser(): CurrentUser | null {
 export function useIsAdmin(): boolean {
   const user = useCurrentUser();
   return user?.role === "platform_admin";
-}
-
-/** True once the session is known and belongs to a non-admin user with no organization membership. */
-export function useHasNoOrganization(): boolean {
-  const user = useCurrentUser();
-  if (!user) return false;
-  return user.role !== "platform_admin" && user.organizations.length === 0;
 }

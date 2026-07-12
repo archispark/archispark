@@ -23,7 +23,6 @@ import {
   DialogFooter, DialogClose,
 } from "@workspace/ui/components/dialog";
 import { ChevronLeft, ChevronDown, ChevronRight, Trash2, Plus } from "lucide-react";
-import { useIsOrgAdmin } from "@/hooks/use-organization";
 import { useFormModal } from "@/hooks/use-form-modal";
 import { useT } from "@/lib/i18n";
 
@@ -342,7 +341,8 @@ export default function RelationshipDetailPage() {
   const { t } = useT();
   const params = useParams<{ id: string }>();
   const id = decodeURIComponent(params.id);
-  const isAdmin = useIsOrgAdmin();
+  // Every workspace has exactly one owner (the authenticated user) — always write-enabled.
+  const isAdmin = true;
   const router = useRouter();
 
   const { data: rel, isLoading, error } = useRelationship(id);

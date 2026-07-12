@@ -17,10 +17,6 @@ import {
   fetchViewpoints,
   fetchPropertyDefinitions,
   fetchWorkspaces,
-  fetchUsers,
-  createUser,
-  updateUserApi,
-  deleteUserApi,
   createElement,
   updateElement,
   deleteElement,
@@ -49,8 +45,6 @@ import {
   type PropertyDefinitionUpdateIn,
   type WorkspaceCreateIn,
   type WorkspaceUpdateIn,
-  type UserCreateIn,
-  type UserUpdateIn,
 } from "./api";
 
 // ---------------------------------------------------------------------------
@@ -74,7 +68,6 @@ export const queryKeys = {
   viewpoints: () => ["viewpoints"] as const,
   propertyDefinitions: () => ["propertyDefinitions"] as const,
   workspaces: () => ["workspaces"] as const,
-  users: () => ["users"] as const,
 };
 
 // ---------------------------------------------------------------------------
@@ -149,10 +142,6 @@ export function usePropertyDefinitions() {
 
 export function useWorkspaces() {
   return useQuery({ queryKey: queryKeys.workspaces(), queryFn: fetchWorkspaces });
-}
-
-export function useUsers() {
-  return useQuery({ queryKey: queryKeys.users(), queryFn: fetchUsers });
 }
 
 // ---------------------------------------------------------------------------
@@ -352,26 +341,3 @@ export function useImportModel() {
   });
 }
 
-export function useCreateUser() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (body: UserCreateIn) => createUser(body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.users() }),
-  });
-}
-
-export function useUpdateUser() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, body }: { id: string; body: UserUpdateIn }) => updateUserApi(id, body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.users() }),
-  });
-}
-
-export function useDeleteUser() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (id: string) => deleteUserApi(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.users() }),
-  });
-}

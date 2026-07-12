@@ -336,15 +336,15 @@ export async function modelToDb(workspaceId: number, model: ArchiModel): Promise
 // Seed: create a workspace row and populate from an ArchiModel
 // ---------------------------------------------------------------------------
 
-export async function seedWorkspace(name: string, model: ArchiModel, organizationId: string): Promise<number> {
+export async function seedWorkspace(name: string, model: ArchiModel, ownerId: string): Promise<number> {
   const [existing] = await db.select({ id: workspaces.id }).from(workspaces)
-    .where(and(eq(workspaces.organizationId, organizationId), eq(workspaces.name, name)));
+    .where(and(eq(workspaces.ownerId, ownerId), eq(workspaces.name, name)));
   if (existing) return existing.id;
 
   const now = Math.floor(Date.now() / 1000);
   const [ws] = await db.insert(workspaces).values({
     uuid: model.uuid, name, description: model.desc ?? null,
-    version: model.version ?? null, organizationId, createdAt: now, updatedAt: now,
+    version: model.version ?? null, ownerId, createdAt: now, updatedAt: now,
   }).returning({ id: workspaces.id });
   if (!ws) throw new Error("Failed to create workspace");
 

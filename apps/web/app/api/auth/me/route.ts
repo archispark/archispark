@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { verifyAccessToken, ORG_ROLES } from "@workspace/auth";
+import { verifyAccessToken } from "@workspace/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -16,11 +16,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   }
 
   const role = claims.realm_access?.roles?.includes("platform_admin") ? "platform_admin" : "user";
-  const organizations = Object.entries(claims.organizations ?? {}).map(([id, org]) => ({
-    id,
-    name: org.name,
-    role: ORG_ROLES.find((r) => org.roles.includes(r)) ?? "member",
-  }));
 
   return NextResponse.json({
     id: claims.sub,
@@ -28,6 +23,5 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     name: claims.name ?? claims.preferred_username ?? claims.sub,
     email: claims.email ?? null,
     role,
-    organizations,
   });
 }

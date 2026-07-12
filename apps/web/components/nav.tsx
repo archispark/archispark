@@ -7,12 +7,10 @@ import { Menu, FolderOpen } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { type ElementOut } from "@/lib/api";
 import { useWorkspaces, useElement, useView } from "@/lib/queries";
-import { useAutoActivateOrganization } from "@/hooks/use-organization";
 import { useT } from "@/lib/i18n";
 import { LocaleSwitcher } from "@/components/locale-switcher";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { UserMenu } from "@/components/user-menu";
-import { OrgSwitcher } from "@/components/org-switcher";
 
 export function Nav({ onToggleSidebar }: { onToggleSidebar: () => void }) {
   const pathname = usePathname();
@@ -33,8 +31,6 @@ export function Nav({ onToggleSidebar }: { onToggleSidebar: () => void }) {
 
   const activeWs = workspaces.find((w) => w.active);
   const segments = pathname.split("/").filter(Boolean);
-  const isOrganizationView = segments[0] === "organization";
-  useAutoActivateOrganization();
 
   // On /elements/[id], resolve the element so the breadcrumb shows its name, not
   // the raw id. useElement is reactive (unlike qc.getQueryData), so the breadcrumb
@@ -54,7 +50,6 @@ export function Nav({ onToggleSidebar }: { onToggleSidebar: () => void }) {
 properties: "breadcrumb.properties",
       users: "breadcrumb.users",
       settings: "breadcrumb.settings",
-      organization: "breadcrumb.organization",
       workspaces: "breadcrumb.workspaces",
       login: "breadcrumb.login",
       profile: "breadcrumb.profile",
@@ -109,14 +104,9 @@ properties: "breadcrumb.properties",
 
       <div className="w-px h-5 bg-border mx-1" />
 
-      <OrgSwitcher />
-
-      {/* Unified breadcrumb: Organisation / Workspaces / nom projet / Section / leaf */}
+      {/* Unified breadcrumb: Workspaces / nom projet / Section / leaf */}
       {workspaces.length > 0 && (
         <div className="flex items-center gap-1.5 text-[13px] text-muted-foreground overflow-hidden">
-          {/* The /organization view is its own root, like /workspaces below. */}
-          {!isOrganizationView && (
-          <>
           <Link
             href="/workspaces"
             className="flex items-center gap-1.5 hover:text-foreground no-underline whitespace-nowrap shrink-0"
@@ -150,8 +140,6 @@ properties: "breadcrumb.properties",
               </span>
             );
           })}
-          </>
-          )}
           </>
           )}
         </div>

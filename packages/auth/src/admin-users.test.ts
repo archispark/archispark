@@ -22,8 +22,8 @@ const ADMIN_BASE = `${KC_URL}/admin/realms/${KC_REALM}`;
 function stubEnv(): void {
   vi.stubEnv("KEYCLOAK_URL", KC_URL);
   vi.stubEnv("KEYCLOAK_REALM", KC_REALM);
-  vi.stubEnv("KEYCLOAK_ADMIN_CLIENT_ID", "archispark-control-api");
-  vi.stubEnv("KEYCLOAK_ADMIN_CLIENT_SECRET", "archispark-control-api-secret");
+  vi.stubEnv("KEYCLOAK_ADMIN_CLIENT_ID", "archispark-api");
+  vi.stubEnv("KEYCLOAK_ADMIN_CLIENT_SECRET", "archispark-api-secret");
 }
 
 function tokenResponse(): Response {

@@ -4,9 +4,8 @@ import { ShieldAlert, LogOut } from "lucide-react";
 import { useT } from "@/lib/i18n";
 
 /**
- * Platform admins manage organizations from admin-web and have no access to
- * tenant data — shown instead of the workspace UI when a platform_admin
- * session reaches apps/web.
+ * Platform admins have no workspaces of their own — shown instead of the
+ * workspace UI when a platform_admin session reaches apps/web.
  */
 export function PlatformAdminBlock() {
   const { t } = useT();

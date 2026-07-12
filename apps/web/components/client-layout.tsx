@@ -3,10 +3,8 @@
 import { ThemeProvider } from "@/components/theme-provider";
 import { Nav } from "@/components/nav";
 import { Sidebar } from "@/components/sidebar";
-import { OrganizationSidebar } from "@/components/organization-sidebar";
 import { PlatformAdminBlock } from "@/components/platform-admin-block";
-import { NoOrganizationBlock } from "@/components/no-organization-block";
-import { useIsAdmin, useHasNoOrganization } from "@/hooks/use-current-user";
+import { useIsAdmin } from "@/hooks/use-current-user";
 import { useState, useEffect, useCallback } from "react";
 import { usePathname } from "next/navigation";
 import { Toaster } from "sonner";
@@ -58,8 +56,6 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isLogin = pathname === "/login";
   const isPlatformAdmin = useIsAdmin();
-  const hasNoOrganization = useHasNoOrganization();
-  const isOrganizationView = pathname === "/organization" || pathname.startsWith("/organization/");
   // The workspaces overview is a full-width chrome-light page (no model context),
   // so it hides the sidebar — only the top nav stays.
   const hideSidebar = isLogin || pathname === "/workspaces";
@@ -85,34 +81,16 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!isLogin && hasNoOrganization) {
-    return (
-      <ThemeProvider>
-        <NoOrganizationBlock />
-        <Toaster richColors position="bottom-right" />
-      </ThemeProvider>
-    );
-  }
-
   return (
     <ThemeProvider>
       {!isLogin && <Nav onToggleSidebar={() => setSidebarOpen((v) => !v)} />}
       {!hideSidebar && (
-        isOrganizationView ? (
-          <OrganizationSidebar
-            open={sidebarOpen}
-            onClose={() => setSidebarOpen(false)}
-            collapsed={sidebarCollapsed}
-            onToggleCollapse={toggleSidebarCollapsed}
-          />
-        ) : (
-          <Sidebar
-            open={sidebarOpen}
-            onClose={() => setSidebarOpen(false)}
-            collapsed={sidebarCollapsed}
-            onToggleCollapse={toggleSidebarCollapsed}
-          />
-        )
+        <Sidebar
+          open={sidebarOpen}
+          onClose={() => setSidebarOpen(false)}
+          collapsed={sidebarCollapsed}
+          onToggleCollapse={toggleSidebarCollapsed}
+        />
       )}
       <main
         className={

@@ -10,7 +10,6 @@ import { allowedRelationships } from "@/lib/archimate-rules";
 import { useModel, useElements, useRelationships, useElementsInViews, useImportModel } from "@/lib/queries";
 import { exportModelUrl } from "@/lib/api";
 import type { ModelInfo } from "@/lib/api";
-import { useIsOrgAdmin } from "@/hooks/use-organization";
 import { useT } from "@/lib/i18n";
 
 interface LayerGroup {
@@ -306,7 +305,6 @@ function SidebarInner({ open, onClose, collapsed, onToggleCollapse }: { open: bo
   const { data: elements = [] } = useElements();
   const { data: relationships = [] } = useRelationships();
   const { data: inViews = [] } = useElementsInViews();
-  const isOrgAdmin = useIsOrgAdmin();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => { setMounted(true); }, []);
@@ -469,9 +467,9 @@ function SidebarInner({ open, onClose, collapsed, onToggleCollapse }: { open: bo
 
         </div>
 
-        {/* Organisation & settings — bottom */}
+        {/* Settings — bottom */}
         <div className="border-t border-border px-2 py-2 flex flex-col gap-1">
-          {isOrgAdmin && <ImportExportControls collapsed={false} onClose={onClose} t={t} />}
+          <ImportExportControls collapsed={false} onClose={onClose} t={t} />
           <Link
             href="/settings"
             onClick={onClose}
@@ -498,7 +496,7 @@ function SidebarInner({ open, onClose, collapsed, onToggleCollapse }: { open: bo
         </div>
 
         <div className={`hidden border-t border-border py-2 flex-col items-center gap-1 ${collapsed ? "md:flex" : ""}`}>
-          {isOrgAdmin && <ImportExportControls collapsed={true} onClose={onClose} t={t} />}
+          <ImportExportControls collapsed={true} onClose={onClose} t={t} />
           <RailLink href="/settings" icon={SettingsIcon} label={t("sidebar.settings")} active={pathname === "/settings" || pathname.startsWith("/settings/")} onClick={onClose} />
         </div>
 

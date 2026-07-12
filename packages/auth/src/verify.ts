@@ -7,8 +7,6 @@ export interface KeycloakClaims {
   email?: string;
   name?: string;
   realm_access?: { roles: string[] };
-  /** Populated by Phasetwo's "Organization Role" protocol mapper. */
-  organizations?: Record<string, { name: string; roles: string[] }>;
 }
 
 // One JWKS fetcher per Keycloak realm URL — jose caches/refreshes the keys internally.

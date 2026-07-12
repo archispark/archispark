@@ -4,17 +4,17 @@ import { seedWorkspace } from "@workspace/db";
 import * as store from "./store.js";
 
 // Each test runs against a fresh, isolated workspace seeded in the (PGlite) DB.
-// organizationId is a plain Keycloak/Phasetwo organization id — no local
-// "organizations" table to insert into (organizations live in Keycloak).
+// ownerId is a plain Keycloak `sub` — no local "users" table to insert into
+// (identities live in Keycloak).
 let wsId: number;
-let orgId: string;
+let ownerId: string;
 
 beforeEach(async () => {
-  orgId = `org-store-test-${randomUUID()}`;
+  ownerId = `owner-store-test-${randomUUID()}`;
   wsId = await seedWorkspace(`store-test-${randomUUID()}`, {
     uuid: `id-${randomUUID()}`, name: "Store Test", desc: null, version: null,
     elements: [], relationships: [], propertyDefinitions: [], views: [],
-  }, orgId);
+  }, ownerId);
 });
 
 // ---------------------------------------------------------------------------

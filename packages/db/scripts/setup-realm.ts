@@ -1,6 +1,6 @@
 /**
  * Recreates/updates the Keycloak Phase Two environment (realm, roles,
- * clients, control-api service account) from
+ * clients, api service account) from
  * .docker/keycloak/realm-export.json via the Admin REST API.
  *
  * Unlike `--import-realm` (Keycloak container first-boot only, local dev),
@@ -8,7 +8,7 @@
  * Phasetwo realm:
  *   - if the target realm doesn't exist yet, it is created from the full
  *     realm-export.json (realm + roles + clients + service account);
- *   - if it already exists, roles/clients/the control-api service account
+ *   - if it already exists, roles/clients/the api service account
  *     are applied via `partialImport` with `ifResourceExists: "SKIP"` —
  *     idempotent, only adds what's missing.
  *

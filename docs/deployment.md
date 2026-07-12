@@ -95,63 +95,25 @@ claude mcp add archimate \
 
 ## Vercel
 
-1. **Create the `archispark-tenant-api` project** (Phase 5, one-time) — import
-   the repo as a second Vercel project with root directory `apps/tenant-api`.
-   It's internal-only (no custom domain needed, the default `*.vercel.app`
-   URL is fine — see [Control-api / tenant-api split](architecture.md#control-api--tenant-api-split)).
+1. **Create the `archispark-api` project** — import the repo as a Vercel
+   project with root directory `apps/api`.
 
-2. **Add Neon** — In Vercel → Storage, add two Neon Postgres databases:
-   - `archispark-control` → attached to `archispark-control-api` and `archispark-mcp-server`. Neon auto-injects `DATABASE_URL` (pooled) and `DATABASE_URL_UNPOOLED` (direct).
-   - `archispark-tenant-fallback` → attached to `archispark-tenant-api`, `archispark-control-api`, and `archispark-mcp-server`. Rename the injected `DATABASE_URL` → `TENANT_DATABASE_URL` and `DATABASE_URL_UNPOOLED` → `TENANT_DATABASE_URL_UNPOOLED`.
+2. **Add Neon** — In Vercel → Storage, add a Neon Postgres database
+   (`archispark`), attached to `archispark-api` and `archispark-mcp-server`.
+   Neon auto-injects `DATABASE_URL` (pooled) and `DATABASE_URL_UNPOOLED`
+   (direct) into both projects.
 
-3. **Apply database migrations** — run the control DB migrations manually, then deploy tenant-api so it auto-applies the tenant schema on first cold start:
-
-```bash
-# Control DB (migrations 0000 → 0012, runs against DATABASE_URL)
-DATABASE_URL="<neon-control-pooled>" pnpm --filter @workspace/db migrate:prod
-
-# Tenant DB — two options:
-# Option A (recommended): deploy tenant-api with TENANT_DATABASE_URL set;
-#   runTenantFallbackMigrations() applies drizzle-pg/tenant/ automatically on cold start.
-# Option B (manual, if tenant-api not yet deployed):
-DATABASE_URL="<neon-tenant-pooled>" pnpm --filter @workspace/db exec drizzle-kit migrate --config drizzle.config.tenant.ts
-```
-
-> **Important:** the tenant DB schema (`workspaces`, `elements`, `views`, etc.) is separate from the control DB schema and must be migrated independently. Forgetting this step results in "relation does not exist" errors on workspace creation.
-
-4. **Set environment variables** — grab a Vercel token from Account Settings → Tokens, then:
+3. **Apply database migrations**:
 
 ```bash
-VERCEL_TOKEN=xxx \
-bash apps/control-api/scripts/setup-vercel-env.sh
+DATABASE_URL="<neon-pooled>" pnpm --filter @workspace/db migrate:prod
 ```
 
-The script configures:
+4. **Set environment variables** — `DATABASE_URL` (from Neon, above),
+   `KEYCLOAK_URL`, `KEYCLOAK_REALM`, `KEYCLOAK_ADMIN_CLIENT_ID`,
+   `KEYCLOAK_ADMIN_CLIENT_SECRET` on `archispark-api`; `ARCHIMATE_API_URL`
+   (the `archispark-api` deployment URL) on `archispark-web`. Authentication
+   itself (Keycloak realm, client ids/secrets) is configured via each
+   project's Vercel dashboard — see [Keycloak login](authentication.md#keycloak-login).
 
-| Variable | Project | Value |
-|---|---|---|
-| `TENANT_API_URL` | api | `archispark-tenant-api`'s deployment URL |
-| `TENANT_JWT_SECRET` | api, tenant-api | shared (auto-generated) |
-| `TENANT_DB_ENCRYPTION_KEY` | tenant-api | auto-generated |
-| `ARCHIMATE_API_URL` | web, admin-web | API Vercel deployment URL |
-
-Authentication itself (Keycloak realm, client ids/secrets) is configured
-separately via each project's Vercel dashboard — see
-[Keycloak login](authentication.md#keycloak-login-stage-3).
-
-5. **Redeploy** `archispark-control-api`, `archispark-tenant-api`, `archispark-web`, and `archispark-admin-web`.
-
-### Admin web project (`apps/admin-web`)
-
-`apps/admin-web` deploys as its own Vercel project (root directory
-`apps/admin-web`, same build/output settings as `archispark-web`):
-
-1. Create the `archispark-admin-web` Vercel project (root directory
-   `apps/admin-web`, same team).
-2. Attach its domain (or subdomain, e.g. `admin.<domain>`) in the Vercel
-   dashboard.
-3. Set `KEYCLOAK_CLIENT_ID_ADMIN_WEB` (defaults to `archispark-admin-web`) and
-   the shared `KEYCLOAK_URL`/`KEYCLOAK_REALM` — see
-   [Keycloak login](authentication.md#keycloak-login-stage-3). Each app signs in against
-   Keycloak independently via its own OIDC client, so no shared-cookie
-   configuration between `apps/web` and `apps/admin-web` is required.
+5. **Redeploy** `archispark-api`, `archispark-web`, and `archispark-mcp-server`.

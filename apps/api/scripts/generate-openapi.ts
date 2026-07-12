@@ -1,9 +1,9 @@
 /**
  * Generates openapi.json from the TypeScript spec and writes it to:
- *   - apps/tenant-api/openapi.json          (source of truth)
+ *   - apps/api/openapi.json                (source of truth)
  *   - archispark-docs/public/openapi.json  (if the repo exists alongside archispark)
  *
- * Usage: pnpm --filter tenant-api openapi
+ * Usage: pnpm --filter api openapi
  */
 import { writeFileSync, existsSync } from "node:fs";
 import { resolve, dirname } from "node:path";
@@ -13,7 +13,7 @@ import { openApiSpec } from "../src/openapi.js";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const json = JSON.stringify(openApiSpec, null, 2) + "\n";
 
-// Primary output: apps/tenant-api/openapi.json
+// Primary output: apps/api/openapi.json
 const apiOut = resolve(__dirname, "../openapi.json");
 writeFileSync(apiOut, json, "utf-8");
 console.log(`✓ ${apiOut}`);

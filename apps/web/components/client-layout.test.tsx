@@ -2,10 +2,9 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { ClientLayout } from "./client-layout";
 
-const { mockUsePathname, mockUseIsAdmin, mockUseHasNoOrganization } = vi.hoisted(() => ({
+const { mockUsePathname, mockUseIsAdmin } = vi.hoisted(() => ({
   mockUsePathname: vi.fn(),
   mockUseIsAdmin: vi.fn(),
-  mockUseHasNoOrganization: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -14,7 +13,6 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("@/hooks/use-current-user", () => ({
   useIsAdmin: mockUseIsAdmin,
-  useHasNoOrganization: mockUseHasNoOrganization,
 }));
 
 vi.mock("@/components/theme-provider", () => ({
@@ -27,10 +25,6 @@ vi.mock("@/components/query-provider", () => ({
 
 vi.mock("@/components/platform-admin-block", () => ({
   PlatformAdminBlock: () => <div data-testid="platform-admin-block">blocked</div>,
-}));
-
-vi.mock("@/components/no-organization-block", () => ({
-  NoOrganizationBlock: () => <div data-testid="no-organization-block">blocked</div>,
 }));
 
 vi.mock("@/components/nav", () => ({
@@ -68,23 +62,6 @@ vi.mock("@/components/sidebar", () => ({
   ),
 }));
 
-vi.mock("@/components/organization-sidebar", () => ({
-  OrganizationSidebar: ({
-    open,
-    onClose,
-  }: {
-    open: boolean;
-    onClose: () => void;
-  }) => (
-    <div data-testid="organization-sidebar" data-open={open}>
-      organization-sidebar
-      <button type="button" data-testid="close-organization-sidebar" onClick={onClose}>
-        close
-      </button>
-    </div>
-  ),
-}));
-
 vi.mock("sonner", () => ({
   Toaster: () => <div data-testid="toaster">toaster</div>,
 }));
@@ -94,7 +71,6 @@ beforeEach(() => {
   vi.clearAllMocks();
   localStorage.clear();
   sessionStorage.clear();
-  mockUseHasNoOrganization.mockReturnValue(false);
   vi.stubGlobal(
     "fetch",
     vi.fn().mockResolvedValue({
@@ -121,7 +97,6 @@ describe("ClientLayout", () => {
       expect(screen.getByTestId("platform-admin-block")).toBeInTheDocument();
       expect(screen.queryByTestId("nav")).not.toBeInTheDocument();
       expect(screen.queryByTestId("sidebar")).not.toBeInTheDocument();
-      expect(screen.queryByTestId("organization-sidebar")).not.toBeInTheDocument();
       expect(screen.queryByTestId("page-content")).not.toBeInTheDocument();
       expect(screen.getByTestId("toaster")).toBeInTheDocument();
     });
@@ -145,67 +120,6 @@ describe("ClientLayout", () => {
     });
   });
 
-  describe("no_organization gating", () => {
-    it("renders only the NoOrganizationBlock when the session has no organization and not on /login", () => {
-      // Arrange
-      mockUsePathname.mockReturnValue("/dashboard");
-      mockUseIsAdmin.mockReturnValue(false);
-      mockUseHasNoOrganization.mockReturnValue(true);
-
-      // Act
-      render(
-        <ClientLayout>
-          <div data-testid="page-content">content</div>
-        </ClientLayout>,
-      );
-
-      // Assert
-      expect(screen.getByTestId("no-organization-block")).toBeInTheDocument();
-      expect(screen.queryByTestId("nav")).not.toBeInTheDocument();
-      expect(screen.queryByTestId("sidebar")).not.toBeInTheDocument();
-      expect(screen.queryByTestId("organization-sidebar")).not.toBeInTheDocument();
-      expect(screen.queryByTestId("page-content")).not.toBeInTheDocument();
-      expect(screen.getByTestId("toaster")).toBeInTheDocument();
-    });
-
-    it("renders the normal layout (not NoOrganizationBlock) when the session has no organization but is on /login", () => {
-      // Arrange
-      mockUsePathname.mockReturnValue("/login");
-      mockUseIsAdmin.mockReturnValue(false);
-      mockUseHasNoOrganization.mockReturnValue(true);
-
-      // Act
-      render(
-        <ClientLayout>
-          <div data-testid="page-content">content</div>
-        </ClientLayout>,
-      );
-
-      // Assert
-      expect(screen.queryByTestId("no-organization-block")).not.toBeInTheDocument();
-      expect(screen.queryByTestId("nav")).not.toBeInTheDocument();
-      expect(screen.getByTestId("page-content")).toBeInTheDocument();
-    });
-
-    it("prefers PlatformAdminBlock over NoOrganizationBlock when both flags are set", () => {
-      // Arrange
-      mockUsePathname.mockReturnValue("/dashboard");
-      mockUseIsAdmin.mockReturnValue(true);
-      mockUseHasNoOrganization.mockReturnValue(true);
-
-      // Act
-      render(
-        <ClientLayout>
-          <div data-testid="page-content">content</div>
-        </ClientLayout>,
-      );
-
-      // Assert
-      expect(screen.getByTestId("platform-admin-block")).toBeInTheDocument();
-      expect(screen.queryByTestId("no-organization-block")).not.toBeInTheDocument();
-    });
-  });
-
   describe("normal layout", () => {
     it("renders Nav, Sidebar and children when not a platform admin and not on /login", () => {
       // Arrange
@@ -223,26 +137,8 @@ describe("ClientLayout", () => {
       expect(screen.queryByTestId("platform-admin-block")).not.toBeInTheDocument();
       expect(screen.getByTestId("nav")).toBeInTheDocument();
       expect(screen.getByTestId("sidebar")).toBeInTheDocument();
-      expect(screen.queryByTestId("organization-sidebar")).not.toBeInTheDocument();
       expect(screen.getByTestId("page-content")).toBeInTheDocument();
       expect(screen.getByTestId("toaster")).toBeInTheDocument();
-    });
-
-    it("renders the OrganizationSidebar instead of Sidebar on /organization routes", () => {
-      // Arrange
-      mockUsePathname.mockReturnValue("/organization/members");
-      mockUseIsAdmin.mockReturnValue(false);
-
-      // Act
-      render(
-        <ClientLayout>
-          <div data-testid="page-content">content</div>
-        </ClientLayout>,
-      );
-
-      // Assert
-      expect(screen.getByTestId("organization-sidebar")).toBeInTheDocument();
-      expect(screen.queryByTestId("sidebar")).not.toBeInTheDocument();
     });
 
     it("hides the Nav and Sidebar on /login", () => {
@@ -278,7 +174,6 @@ describe("ClientLayout", () => {
       // Assert
       expect(screen.getByTestId("nav")).toBeInTheDocument();
       expect(screen.queryByTestId("sidebar")).not.toBeInTheDocument();
-      expect(screen.queryByTestId("organization-sidebar")).not.toBeInTheDocument();
     });
 
     it("toggles the mobile sidebar open state via Nav and closes it via Sidebar", () => {
@@ -307,29 +202,6 @@ describe("ClientLayout", () => {
 
       // Assert — sidebar is closed again
       expect(screen.getByTestId("sidebar").dataset.open).toBe("false");
-    });
-
-    it("closes the mobile OrganizationSidebar via its onClose callback", () => {
-      // Arrange
-      mockUsePathname.mockReturnValue("/organization/members");
-      mockUseIsAdmin.mockReturnValue(false);
-
-      // Act
-      render(
-        <ClientLayout>
-          <div data-testid="page-content">content</div>
-        </ClientLayout>,
-      );
-      fireEvent.click(screen.getByTestId("toggle-mobile-sidebar"));
-
-      // Assert — open after toggling
-      expect(screen.getByTestId("organization-sidebar").dataset.open).toBe("true");
-
-      // Act
-      fireEvent.click(screen.getByTestId("close-organization-sidebar"));
-
-      // Assert
-      expect(screen.getByTestId("organization-sidebar").dataset.open).toBe("false");
     });
 
     it("restores the collapsed sidebar state from localStorage on mount and persists toggles", async () => {

@@ -120,7 +120,7 @@ describe("refreshTokens", () => {
       expect(input.toString()).toBe(TOKEN_ENDPOINT);
       const body = new URLSearchParams(init?.body as string);
       expect(body.get("grant_type")).toBe("refresh_token");
-      expect(body.get("client_id")).toBe("archispark-admin-web");
+      expect(body.get("client_id")).toBe("archispark-web");
       expect(body.get("refresh_token")).toBe("old-refresh");
       return new Response(JSON.stringify({ access_token: "new-at", refresh_token: "new-rt", expires_in: 300 }), {
         status: 200,
@@ -129,7 +129,7 @@ describe("refreshTokens", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    const tokens = await refreshTokens({ clientId: "archispark-admin-web", refreshToken: "old-refresh" });
+    const tokens = await refreshTokens({ clientId: "archispark-web", refreshToken: "old-refresh" });
 
     expect(tokens).toEqual({ access_token: "new-at", refresh_token: "new-rt", expires_in: 300 });
   });
