@@ -119,11 +119,16 @@ claude mcp add archimate \
    Neon auto-injects `DATABASE_URL` (pooled) and `DATABASE_URL_UNPOOLED`
    (direct) into both projects.
 
-3. **Apply database migrations, then the organization backfill**:
+3. **Apply database migrations, then the organization backfill** using the
+   manual GitHub Actions workflow **Run production migrations**
+   (`migrate-prod.yml`). It reads the `DATABASE_URL_UNPOOLED` repository
+   secret, so no Vercel environment export is needed on a developer machine.
+
+   For exceptional local recovery only:
 
 ```bash
-DATABASE_URL="<neon-pooled>" pnpm --filter @workspace/db migrate:prod
-DATABASE_URL="<neon-pooled>" pnpm --filter @workspace/db backfill:prod
+DATABASE_URL="<neon-unpooled>" pnpm --filter @workspace/db migrate:prod
+DATABASE_URL="<neon-unpooled>" pnpm --filter @workspace/db backfill:prod
 ```
 
 `backfill:prod` populates `workspaces.organization_id`/`api_tokens.organization_id`
