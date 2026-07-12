@@ -9,17 +9,41 @@ WASM, in-memory) — full Postgres fidelity, no Docker required.
 
 ## Database schema
 
-`packages/db/src/schema.ts` defines every table in one place: `siteSettings`
-(login/banner messages), `apiTokens` (personal API tokens), `workspaces`
-(each owned by a single user — `ownerId`, a Keycloak `sub`),
-`userActiveWorkspace` (per-user pointer to the workspace currently in use),
-and the ArchiMate content tables (`elements`, `relationships`,
+`packages/db/src/schema.ts` defines every table in one place, following an
+**Organisation → Workspace** hierarchy: `organizations` (`slug`, `name`,
+`isPersonal`, `enabled` — a suspension flag settable only by a
+`platform_admin`), `organizationMembers` (`organizationId`, `userId` — a
+Keycloak `sub` — and `role`: `"owner" | "admin" | "member"`),
+`userActiveOrganization` (per-user pointer to the organization currently in
+use), `siteSettings` (login/banner messages), `apiTokens` (personal API
+tokens, each scoped to one `organizationId` and optionally pinned to one
+`workspaceId`), `workspaces` (each belonging to exactly one organization —
+`organizationId`; `createdById`, a Keycloak `sub`, is traceability only and
+never used for access control), `userActiveWorkspace` (per-user,
+per-organization pointer to the workspace currently in use), and the
+ArchiMate content tables (`elements`, `relationships`,
 `propertyDefinitions`, `elementProperties`, `relationshipProperties`,
 `views`, `nodes`, `connections`, `bendpoints`), all keyed by `workspace_id`
 with cascading foreign keys.
 
+A fourth role, `platform_admin`, is a Keycloak **realm** role (not an
+`organization_members` row) — it administers organizations
+(`/platform/organizations*`, metadata only) but is structurally denied any
+access to organization content, enforced once in
+[`apps/api/src/access.ts`](../apps/api/src/access.ts) rather than left to be
+remembered at every call site. See [Authentication](authentication.md) for
+the full role matrix.
+
 There is no local `users` table — identities live entirely in Keycloak.
-`apiTokens.userId`/`workspaces.ownerId` are plain Keycloak `sub` values.
+`apiTokens.userId`/`organizationMembers.userId`/`workspaces.createdById` are
+plain Keycloak `sub` values.
+
+`apiTokens.organizationId`/`workspaces.organizationId` are nullable at the
+DB level only during the expand→backfill→contract
+migration window (see
+[`packages/db/src/backfill-organizations.ts`](../packages/db/src/backfill-organizations.ts));
+the backfill runs automatically right after migrations, before the app
+serves any traffic, so every row the application ever reads has one.
 
 To generate a migration after a schema change:
 
@@ -33,11 +57,16 @@ npx drizzle-kit generate   # writes to drizzle-pg/
 `apps/api` is the single backend service — it owns authentication
 (`requireAuth`, verifying a Keycloak access token via JWKS or a personal API
 token), personal settings (`/me`, `/settings/api-tokens`,
-`/settings/messages`), and every ArchiMate modeling route (`/workspaces`,
-`/elements`, `/relationships`, `/views`, `/property-definitions`,
-`/export`, `/import`, `/openapi.json`, `/docs`). Every workspace route
-implicitly scopes to `req.user!.id` — a user only ever sees and modifies
-their own workspaces.
+`/settings/messages`), organization/member management (`/organizations*`,
+`/platform/organizations*`), and every ArchiMate modeling route
+(`/workspaces`, `/elements`, `/relationships`, `/views`,
+`/property-definitions`, `/export`, `/import`, `/openapi.json`, `/docs`).
+Every workspace/organization route resolves access through the single
+authorization gateway,
+[`apps/api/src/access.ts`](../apps/api/src/access.ts)
+(`resolveActiveContext`/`assertOrgAccess`/`assertWorkspaceAccess`) — a user
+sees and acts on every workspace of every organization they belong to,
+subject to their role (`owner`/`admin`: read+write, `member`: read-only).
 
 `apps/mcp-server` reads/writes the same database directly (in-process import
 of `apps/api`'s `store`/`registry` modules, not an HTTP call), authenticated

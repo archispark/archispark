@@ -29,12 +29,21 @@ paths:
   row, or cookie) is mounted globally via `app.use(requireAuth)` before
   all routes except `/health`, `/openapi.json`, `/docs`, and
   `GET /settings/messages`.
-- **Ownership is enforced by query scoping, not a separate check.**
-  Every query is scoped to `getActiveWorkspaceId(req.user!.id)` /
-  `WHERE ownerId = userId`. When a row doesn't belong to the requesting
-  user, throw `NotFoundError` (404) — **never** `ForbiddenError` (403).
-  Unauthorized access is deliberately disguised as "not found" to avoid
-  leaking existence.
+- **Erreurs d'accès à deux niveaux, décidées une seule fois dans
+  `access.ts`.** `NotFoundError` (404) si l'appelant n'a aucune
+  appartenance à l'organisation ciblée (ou si l'id n'existe pas) — masque
+  volontairement « pas membre » en « non trouvé » pour ne pas divulguer
+  l'existence d'une ressource. `ForbiddenError` (403) si l'appelant **est**
+  membre reconnu mais que son rôle est insuffisant pour l'action demandée
+  (écriture pour un `member`, gestion des membres pour un non-`owner`,
+  organisation suspendue) — l'existence et la relation de l'appelant à la
+  ressource sont déjà connues, 404 serait trompeur. Les deux ne sont levées
+  que depuis `access.ts` (`assertOrgAccess`/`assertWorkspaceAccess`/
+  `resolveActiveContext`), jamais route par route. Les handlers résolvent
+  le workspace actif via `activeWorkspaceId(req, intent)` (ou
+  `resolveActiveContext`/`assertWorkspaceAccess` directement) —
+  `getActiveWorkspaceId(userId)` / `WHERE ownerId = userId` n'existent
+  plus depuis l'introduction du modèle Organisation → Workspace.
 - OpenAPI docs (`/openapi.json`, `/docs`) are generated from the same
   zod schemas via `@asteasolutions/zod-to-openapi` (`.openapi(...)`
   calls in `openapi.ts`) — extend the zod schema, not a separate spec.

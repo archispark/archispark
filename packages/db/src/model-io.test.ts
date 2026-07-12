@@ -1,18 +1,38 @@
-import { describe, it, expect, beforeAll } from "vitest";
-import { randomUUID } from "node:crypto";
-import { seedWorkspace, modelFromDb, modelToDb } from "./model-io.js";
-import { runMigrations } from "./migrate.js";
-import type { ArchiModel } from "./model.js";
+import { describe, it, expect, beforeAll } from "vitest"
+import { randomUUID } from "node:crypto"
+import { seedWorkspace, modelFromDb, modelToDb } from "./model-io.js"
+import { runMigrations } from "./migrate.js"
+import { db } from "./connection.js"
+import { organizations } from "./schema.js"
+import type { ArchiModel } from "./model.js"
 
-let orgId: string;
+let userId: string
+let organizationId: number
 
 beforeAll(async () => {
-  await runMigrations();
-  orgId = `owner-model-io-test-${randomUUID()}`;
-});
+  await runMigrations()
+  userId = `owner-model-io-test-${randomUUID()}`
+  const [org] = await db
+    .insert(organizations)
+    .values({
+      slug: `model-io-test-${randomUUID()}`,
+      name: "Model IO Test Org",
+    })
+    .returning({ id: organizations.id })
+  organizationId = org!.id
+})
 
 function emptyModel(uuid: string, name = "Empty"): ArchiModel {
-  return { uuid, name, desc: null, version: null, elements: [], relationships: [], propertyDefinitions: [], views: [] };
+  return {
+    uuid,
+    name,
+    desc: null,
+    version: null,
+    elements: [],
+    relationships: [],
+    propertyDefinitions: [],
+    views: [],
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -21,18 +41,33 @@ function emptyModel(uuid: string, name = "Empty"): ArchiModel {
 
 describe("seedWorkspace", () => {
   it("creates workspace and returns numeric id", async () => {
-    const id = await seedWorkspace(`SW-${Date.now()}`, emptyModel("sw-uuid-1"), orgId);
-    expect(typeof id).toBe("number");
-    expect(id).toBeGreaterThan(0);
-  });
+    const id = await seedWorkspace(
+      `SW-${Date.now()}`,
+      emptyModel("sw-uuid-1"),
+      userId,
+      organizationId
+    )
+    expect(typeof id).toBe("number")
+    expect(id).toBeGreaterThan(0)
+  })
 
   it("returns existing id when name already exists (idempotent)", async () => {
-    const name = `SW-dup-${Date.now()}`;
-    const id1 = await seedWorkspace(name, emptyModel("sw-dup-1"), orgId);
-    const id2 = await seedWorkspace(name, emptyModel("sw-dup-2"), orgId);
-    expect(id2).toBe(id1);
-  });
-});
+    const name = `SW-dup-${Date.now()}`
+    const id1 = await seedWorkspace(
+      name,
+      emptyModel("sw-dup-1"),
+      userId,
+      organizationId
+    )
+    const id2 = await seedWorkspace(
+      name,
+      emptyModel("sw-dup-2"),
+      userId,
+      organizationId
+    )
+    expect(id2).toBe(id1)
+  })
+})
 
 // ---------------------------------------------------------------------------
 // modelFromDb — error paths
@@ -40,9 +75,9 @@ describe("seedWorkspace", () => {
 
 describe("modelFromDb", () => {
   it("throws when workspace id not found", async () => {
-    await expect(modelFromDb(999999)).rejects.toThrow(/not found/i);
-  });
-});
+    await expect(modelFromDb(999999)).rejects.toThrow(/not found/i)
+  })
+})
 
 // ---------------------------------------------------------------------------
 // Full roundtrip: modelToDb → modelFromDb
@@ -55,176 +90,271 @@ describe("modelToDb + modelFromDb roundtrip", () => {
       name: "Roundtrip Model",
       desc: "model description",
       version: "2.0",
-      propertyDefinitions: [
-        { uuid: "pd1", name: "Category", type: "string" },
-      ],
+      propertyDefinitions: [{ uuid: "pd1", name: "Category", type: "string" }],
       elements: [
         {
-          uuid: "e1", name: "App A", type: "ApplicationComponent",
-          desc: "el desc", props: { pd1: "cat-a" },
+          uuid: "e1",
+          name: "App A",
+          type: "ApplicationComponent",
+          desc: "el desc",
+          props: { pd1: "cat-a" },
         },
         {
-          uuid: "e2", name: "Actor B", type: "BusinessActor",
-          desc: null, props: {},
+          uuid: "e2",
+          name: "Actor B",
+          type: "BusinessActor",
+          desc: null,
+          props: {},
         },
       ],
       relationships: [
         {
-          uuid: "r1", type: "Association", name: "uses",
+          uuid: "r1",
+          type: "Association",
+          name: "uses",
           source: "e1",
-          target: { uuid: "e2", name: "Actor B", type: "BusinessActor", desc: null, props: {} },
-          desc: "rel desc", props: { pd1: "rel-cat" },
-          access_type: "Write", is_directed: true, influence_strength: "high",
+          target: {
+            uuid: "e2",
+            name: "Actor B",
+            type: "BusinessActor",
+            desc: null,
+            props: {},
+          },
+          desc: "rel desc",
+          props: { pd1: "rel-cat" },
+          access_type: "Write",
+          is_directed: true,
+          influence_strength: "high",
         },
         {
-          uuid: "r2", type: "Realization", name: null,
-          source: "e2", target: "e1",
-          desc: null, props: {},
-          access_type: null, is_directed: null, influence_strength: null,
+          uuid: "r2",
+          type: "Realization",
+          name: null,
+          source: "e2",
+          target: "e1",
+          desc: null,
+          props: {},
+          access_type: null,
+          is_directed: null,
+          influence_strength: null,
         },
       ],
       views: [
         {
-          uuid: "v1", name: "Main View",
-          desc: "view desc", primary_viewpoint: "Layered",
+          uuid: "v1",
+          name: "Main View",
+          desc: "view desc",
+          primary_viewpoint: "Layered",
           nodes: [
             {
-              uuid: "n1", name: "Box A", ref: "e1",
-              x: 10, y: 20, w: 120, h: 60,
+              uuid: "n1",
+              name: "Box A",
+              ref: "e1",
+              x: 10,
+              y: 20,
+              w: 120,
+              h: 60,
               fill_color: { r: 255, g: 200, b: 100, a: 90 },
               line_color: { r: 50, g: 50, b: 50, a: 100 },
               font_color: { r: 0, g: 0, b: 0 },
-              font_name: "Arial", font_size: 11, line_width: 2,
+              font_name: "Arial",
+              font_size: 11,
+              line_width: 2,
               archi_type: null,
               nodes: [
                 {
-                  uuid: "n2", name: null, ref: { uuid: "e2", name: "Actor B", type: "BusinessActor", desc: null, props: {} },
-                  x: 5, y: 5, w: 60, h: 30,
-                  fill_color: null, line_color: null, font_color: null,
-                  font_name: null, font_size: null, line_width: null,
-                  archi_type: null, nodes: [],
+                  uuid: "n2",
+                  name: null,
+                  ref: {
+                    uuid: "e2",
+                    name: "Actor B",
+                    type: "BusinessActor",
+                    desc: null,
+                    props: {},
+                  },
+                  x: 5,
+                  y: 5,
+                  w: 60,
+                  h: 30,
+                  fill_color: null,
+                  line_color: null,
+                  font_color: null,
+                  font_name: null,
+                  font_size: null,
+                  line_width: null,
+                  archi_type: null,
+                  nodes: [],
                 },
               ],
             },
           ],
           conns: [
             {
-              uuid: "c1", name: "Arrow",
-              ref: "r1", source: "n1", target: "n2",
+              uuid: "c1",
+              name: "Arrow",
+              ref: "r1",
+              source: "n1",
+              target: "n2",
               line_color: { r: 80, g: 80, b: 80, a: 100 },
               font_color: { r: 0, g: 0, b: 0 },
-              font_name: "Helvetica", font_size: 9, line_width: 1,
-              bendpoints: [{ x: 50, y: 30 }, { x: 90, y: 55 }],
+              font_name: "Helvetica",
+              font_size: 9,
+              line_width: 1,
+              bendpoints: [
+                { x: 50, y: 30 },
+                { x: 90, y: 55 },
+              ],
             },
             {
-              uuid: "c2", name: null,
-              ref: null, source: null, target: null,
-              line_color: null, font_color: null,
-              font_name: null, font_size: null, line_width: null,
+              uuid: "c2",
+              name: null,
+              ref: null,
+              source: null,
+              target: null,
+              line_color: null,
+              font_color: null,
+              font_name: null,
+              font_size: null,
+              line_width: null,
               bendpoints: [],
             },
           ],
         },
         {
-          uuid: "v2", name: "Empty View",
-          desc: null, primary_viewpoint: null,
-          nodes: [], conns: [],
+          uuid: "v2",
+          name: "Empty View",
+          desc: null,
+          primary_viewpoint: null,
+          nodes: [],
+          conns: [],
         },
       ],
-    };
+    }
 
-    const wsId = await seedWorkspace(`RT-WS-${Date.now()}`, model, orgId);
-    const loaded = await modelFromDb(wsId);
+    const wsId = await seedWorkspace(
+      `RT-WS-${Date.now()}`,
+      model,
+      userId,
+      organizationId
+    )
+    const loaded = await modelFromDb(wsId)
 
-    expect(loaded.uuid).toBe(model.uuid);
-    expect(loaded.desc).toBe("model description");
-    expect(loaded.version).toBe("2.0");
+    expect(loaded.uuid).toBe(model.uuid)
+    expect(loaded.desc).toBe("model description")
+    expect(loaded.version).toBe("2.0")
 
-    expect(loaded.elements).toHaveLength(2);
-    const elA = loaded.elements.find((e) => e.uuid === "e1")!;
-    expect(elA.desc).toBe("el desc");
-    expect(elA.props["pd1"]).toBe("cat-a");
+    expect(loaded.elements).toHaveLength(2)
+    const elA = loaded.elements.find((e) => e.uuid === "e1")!
+    expect(elA.desc).toBe("el desc")
+    expect(elA.props["pd1"]).toBe("cat-a")
 
-    expect(loaded.relationships).toHaveLength(2);
-    const rel1 = loaded.relationships.find((r) => r.uuid === "r1")!;
-    expect(rel1.name).toBe("uses");
-    expect(rel1.is_directed).toBe(true);
-    expect(rel1.access_type).toBe("Write");
-    expect(rel1.influence_strength).toBe("high");
-    expect(rel1.props["pd1"]).toBe("rel-cat");
-    const rel2 = loaded.relationships.find((r) => r.uuid === "r2")!;
-    expect(rel2.access_type).toBeNull();
-    expect(rel2.is_directed).toBeNull();
+    expect(loaded.relationships).toHaveLength(2)
+    const rel1 = loaded.relationships.find((r) => r.uuid === "r1")!
+    expect(rel1.name).toBe("uses")
+    expect(rel1.is_directed).toBe(true)
+    expect(rel1.access_type).toBe("Write")
+    expect(rel1.influence_strength).toBe("high")
+    expect(rel1.props["pd1"]).toBe("rel-cat")
+    const rel2 = loaded.relationships.find((r) => r.uuid === "r2")!
+    expect(rel2.access_type).toBeNull()
+    expect(rel2.is_directed).toBeNull()
 
-    expect(loaded.propertyDefinitions).toHaveLength(1);
-    expect(loaded.propertyDefinitions[0]!.name).toBe("Category");
+    expect(loaded.propertyDefinitions).toHaveLength(1)
+    expect(loaded.propertyDefinitions[0]!.name).toBe("Category")
 
-    expect(loaded.views).toHaveLength(2);
-    const v1 = loaded.views.find((v) => v.uuid === "v1")!;
-    expect(v1.desc).toBe("view desc");
-    expect(v1.primary_viewpoint).toBe("Layered");
+    expect(loaded.views).toHaveLength(2)
+    const v1 = loaded.views.find((v) => v.uuid === "v1")!
+    expect(v1.desc).toBe("view desc")
+    expect(v1.primary_viewpoint).toBe("Layered")
 
-    expect(v1.nodes).toHaveLength(1);
-    const parentNode = v1.nodes[0]!;
-    expect(parentNode.fill_color).toEqual({ r: 255, g: 200, b: 100, a: 90 });
-    expect(parentNode.font_name).toBe("Arial");
-    expect(parentNode.nodes).toHaveLength(1);
-    const childNode = parentNode.nodes[0]!;
-    expect(childNode.fill_color).toBeNull();
-    expect(childNode.line_color).toBeNull();
+    expect(v1.nodes).toHaveLength(1)
+    const parentNode = v1.nodes[0]!
+    expect(parentNode.fill_color).toEqual({ r: 255, g: 200, b: 100, a: 90 })
+    expect(parentNode.font_name).toBe("Arial")
+    expect(parentNode.nodes).toHaveLength(1)
+    const childNode = parentNode.nodes[0]!
+    expect(childNode.fill_color).toBeNull()
+    expect(childNode.line_color).toBeNull()
 
-    expect(v1.conns).toHaveLength(2);
-    const c1 = v1.conns.find((c) => c.uuid === "c1")!;
-    expect(c1.bendpoints).toHaveLength(2);
-    expect(c1.bendpoints![0]).toEqual({ x: 50, y: 30 });
-    expect(c1.bendpoints![1]).toEqual({ x: 90, y: 55 });
-    const c2 = v1.conns.find((c) => c.uuid === "c2")!;
-    expect(c2.line_color).toBeNull();
-    expect(c2.bendpoints).toHaveLength(0);
+    expect(v1.conns).toHaveLength(2)
+    const c1 = v1.conns.find((c) => c.uuid === "c1")!
+    expect(c1.bendpoints).toHaveLength(2)
+    expect(c1.bendpoints![0]).toEqual({ x: 50, y: 30 })
+    expect(c1.bendpoints![1]).toEqual({ x: 90, y: 55 })
+    const c2 = v1.conns.find((c) => c.uuid === "c2")!
+    expect(c2.line_color).toBeNull()
+    expect(c2.bendpoints).toHaveLength(0)
 
-    const v2 = loaded.views.find((v) => v.uuid === "v2")!;
-    expect(v2.nodes).toHaveLength(0);
-    expect(v2.conns).toHaveLength(0);
-    expect(v2.primary_viewpoint).toBeNull();
-  });
+    const v2 = loaded.views.find((v) => v.uuid === "v2")!
+    expect(v2.nodes).toHaveLength(0)
+    expect(v2.conns).toHaveLength(0)
+    expect(v2.primary_viewpoint).toBeNull()
+  })
 
   it("replaces model data on second modelToDb call", async () => {
-    const initial = emptyModel(`upd-uuid-${Date.now()}`, "Initial");
-    const wsId = await seedWorkspace(`Upd-WS-${Date.now()}`, initial, orgId);
+    const initial = emptyModel(`upd-uuid-${Date.now()}`, "Initial")
+    const wsId = await seedWorkspace(
+      `Upd-WS-${Date.now()}`,
+      initial,
+      userId,
+      organizationId
+    )
 
     const updated: ArchiModel = {
       ...initial,
       uuid: `upd-uuid2-${Date.now()}`,
       desc: "updated",
-      elements: [{ uuid: "upd-e1", name: "New El", type: "ApplicationComponent", desc: null, props: {} }],
+      elements: [
+        {
+          uuid: "upd-e1",
+          name: "New El",
+          type: "ApplicationComponent",
+          desc: null,
+          props: {},
+        },
+      ],
       relationships: [],
       propertyDefinitions: [],
       views: [],
-    };
+    }
 
-    await modelToDb(wsId, updated);
-    const loaded = await modelFromDb(wsId);
-    expect(loaded.desc).toBe("updated");
-    expect(loaded.elements).toHaveLength(1);
-    expect(loaded.elements[0]!.uuid).toBe("upd-e1");
-  });
+    await modelToDb(wsId, updated)
+    const loaded = await modelFromDb(wsId)
+    expect(loaded.desc).toBe("updated")
+    expect(loaded.elements).toHaveLength(1)
+    expect(loaded.elements[0]!.uuid).toBe("upd-e1")
+  })
 
   it("handles element with multiple properties", async () => {
     const model: ArchiModel = {
       uuid: `props-uuid-${Date.now()}`,
-      name: "Props Model", desc: null, version: null,
+      name: "Props Model",
+      desc: null,
+      version: null,
       propertyDefinitions: [
         { uuid: "p1", name: "Owner", type: "string" },
         { uuid: "p2", name: "Cost", type: "number" },
       ],
       elements: [
-        { uuid: "ep1", name: "El", type: "ApplicationComponent", desc: null, props: { p1: "team-a", p2: "1000" } },
+        {
+          uuid: "ep1",
+          name: "El",
+          type: "ApplicationComponent",
+          desc: null,
+          props: { p1: "team-a", p2: "1000" },
+        },
       ],
-      relationships: [], views: [],
-    };
-    const wsId = await seedWorkspace(`Props-WS-${Date.now()}`, model, orgId);
-    const loaded = await modelFromDb(wsId);
-    expect(loaded.elements[0]!.props["p1"]).toBe("team-a");
-    expect(loaded.elements[0]!.props["p2"]).toBe("1000");
-  });
-});
+      relationships: [],
+      views: [],
+    }
+    const wsId = await seedWorkspace(
+      `Props-WS-${Date.now()}`,
+      model,
+      userId,
+      organizationId
+    )
+    const loaded = await modelFromDb(wsId)
+    expect(loaded.elements[0]!.props["p1"]).toBe("team-a")
+    expect(loaded.elements[0]!.props["p2"]).toBe("1000")
+  })
+})

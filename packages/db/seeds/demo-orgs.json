@@ -1,0 +1,16 @@
+{
+  "organizations": [
+    {
+      "slug": "archisurance",
+      "name": "ArchiSurance Insurance",
+      "workspace": "ArchiSurance",
+      "members": { "archi": "owner", "contrib": "admin", "user": "member" }
+    },
+    {
+      "slug": "archimetal",
+      "name": "ArchiMetal Industries",
+      "workspace": "ArchiMetal",
+      "members": { "archi": "owner", "user": "admin", "contrib": "member" }
+    }
+  ]
+}

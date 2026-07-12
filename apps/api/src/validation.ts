@@ -1,9 +1,14 @@
-import { z } from "zod";
-import { extendZodWithOpenApi } from "@asteasolutions/zod-to-openapi";
-import type { Response } from "express";
-import { ELEMENT_TYPES, RELATIONSHIP_TYPES, PROPERTY_DEFINITION_TYPES, VIEWPOINTS } from "./schemas.js";
+import { z } from "zod"
+import { extendZodWithOpenApi } from "@asteasolutions/zod-to-openapi"
+import type { Response } from "express"
+import {
+  ELEMENT_TYPES,
+  RELATIONSHIP_TYPES,
+  PROPERTY_DEFINITION_TYPES,
+  VIEWPOINTS,
+} from "./schemas.js"
 
-extendZodWithOpenApi(z);
+extendZodWithOpenApi(z)
 
 // ---------------------------------------------------------------------------
 // Reusable field schemas
@@ -11,20 +16,22 @@ extendZodWithOpenApi(z);
 
 const elementType = z.string().refine((v) => ELEMENT_TYPES.has(v), {
   message: `Type d'élément ArchiMate invalide. Types valides: ${[...ELEMENT_TYPES].sort((a, b) => a.localeCompare(b)).join(", ")}`,
-});
+})
 
 const relationshipType = z.string().refine((v) => RELATIONSHIP_TYPES.has(v), {
   message: `Type de relation ArchiMate invalide. Types valides: ${[...RELATIONSHIP_TYPES].sort((a, b) => a.localeCompare(b)).join(", ")}`,
-});
+})
 
-const propertyDefType = z.string().refine((v) => PROPERTY_DEFINITION_TYPES.has(v), {
-  message: `Type invalide. Types valides: ${[...PROPERTY_DEFINITION_TYPES].sort((a, b) => a.localeCompare(b)).join(", ")}`,
-});
+const propertyDefType = z
+  .string()
+  .refine((v) => PROPERTY_DEFINITION_TYPES.has(v), {
+    message: `Type invalide. Types valides: ${[...PROPERTY_DEFINITION_TYPES].sort((a, b) => a.localeCompare(b)).join(", ")}`,
+  })
 
 const propertyOut = z.object({
   property_definition_ref: z.string(),
   value: z.string(),
-});
+})
 
 // ---------------------------------------------------------------------------
 // Route body schemas
@@ -35,26 +42,30 @@ export const ElementCreateSchema = z.object({
   type: elementType,
   documentation: z.string().nullable().optional(),
   properties: z.array(propertyOut).optional(),
-});
+})
 
 export const ElementUpdateSchema = z.object({
   name: z.string().min(1).optional(),
   type: elementType.optional(),
   documentation: z.string().nullable().optional(),
   properties: z.array(propertyOut).optional(),
-});
+})
 
 export const RelationshipCreateSchema = z.object({
   name: z.string().nullable().optional(),
   type: relationshipType,
-  source: z.string({ error: "Le champ 'source' est requis." }).min(1, "Le champ 'source' est requis."),
-  target: z.string({ error: "Le champ 'target' est requis." }).min(1, "Le champ 'target' est requis."),
+  source: z
+    .string({ error: "Le champ 'source' est requis." })
+    .min(1, "Le champ 'source' est requis."),
+  target: z
+    .string({ error: "Le champ 'target' est requis." })
+    .min(1, "Le champ 'target' est requis."),
   documentation: z.string().nullable().optional(),
   properties: z.array(propertyOut).optional(),
   access_type: z.string().nullable().optional(),
   is_directed: z.boolean().nullable().optional(),
   influence_strength: z.string().nullable().optional(),
-});
+})
 
 export const RelationshipUpdateSchema = z.object({
   name: z.string().nullable().optional(),
@@ -66,19 +77,23 @@ export const RelationshipUpdateSchema = z.object({
   access_type: z.string().nullable().optional(),
   is_directed: z.boolean().nullable().optional(),
   influence_strength: z.string().nullable().optional(),
-});
+})
 
 export const ViewCreateSchema = z.object({
   name: z.string().min(1, "Le champ 'name' est requis."),
-  viewpoint: z.string().refine((v) => VIEWPOINTS.has(v), { message: "Viewpoint invalide." }).nullable().optional(),
+  viewpoint: z
+    .string()
+    .refine((v) => VIEWPOINTS.has(v), { message: "Viewpoint invalide." })
+    .nullable()
+    .optional(),
   documentation: z.string().nullable().optional(),
-});
+})
 
 export const ViewUpdateSchema = z.object({
   name: z.string().min(1).optional(),
   viewpoint: z.string().nullable().optional(),
   documentation: z.string().nullable().optional(),
-});
+})
 
 export const NodeCreateSchema = z.object({
   element_id: z.string().min(1, "Le champ 'element_id' est requis."),
@@ -86,7 +101,7 @@ export const NodeCreateSchema = z.object({
   y: z.number().nullable().optional(),
   w: z.number().nullable().optional(),
   h: z.number().nullable().optional(),
-});
+})
 
 export const NodeUpdateSchema = z.object({
   x: z.number().nullable().optional(),
@@ -94,7 +109,7 @@ export const NodeUpdateSchema = z.object({
   w: z.number().nullable().optional(),
   h: z.number().nullable().optional(),
   name: z.string().nullable().optional(),
-});
+})
 
 export const ConnectionCreateSchema = z.object({
   relationship_id: z.string().nullable().optional(),
@@ -103,7 +118,7 @@ export const ConnectionCreateSchema = z.object({
   name: z.string().nullable().optional(),
   source_side: z.enum(["top", "right", "bottom", "left"]).nullable().optional(),
   target_side: z.enum(["top", "right", "bottom", "left"]).nullable().optional(),
-});
+})
 
 export const ConnectionUpdateSchema = z.object({
   name: z.string().nullable().optional(),
@@ -111,54 +126,103 @@ export const ConnectionUpdateSchema = z.object({
   target: z.string().optional(),
   source_side: z.enum(["top", "right", "bottom", "left"]).nullable().optional(),
   target_side: z.enum(["top", "right", "bottom", "left"]).nullable().optional(),
-});
+})
 
 export const PropertyDefinitionCreateSchema = z.object({
   name: z.string().min(1, "Le champ 'name' est requis."),
   type: propertyDefType.optional(),
-});
+})
 
 export const PropertyDefinitionUpdateSchema = z.object({
   name: z.string().min(1).optional(),
   type: propertyDefType.optional(),
-});
+})
 
 export const WorkspaceCreateSchema = z.object({
   name: z.string().min(1, "Le champ 'name' est requis."),
   path: z.string().optional(),
   description: z.string().nullable().optional(),
-});
+  organization_id: z.string().optional(),
+})
 
 export const WorkspaceUpdateSchema = z.object({
   name: z.string().min(1, "Le champ 'name' est requis."),
   description: z.string().nullable().optional(),
-});
+})
+
+export const OrganizationCreateSchema = z.object({
+  name: z.string().min(1, "Le champ 'name' est requis."),
+})
+
+export const OrganizationUpdateSchema = z.object({
+  name: z.string().min(1, "Le champ 'name' est requis."),
+})
+
+const orgRole = z.enum(["owner", "admin", "member"], {
+  error: "Rôle invalide.",
+})
+
+export const OrganizationMemberCreateSchema = z.object({
+  username: z.string().min(1, "Le champ 'username' est requis."),
+  role: orgRole,
+})
+
+export const OrganizationMemberUpdateSchema = z.object({
+  role: orgRole,
+})
+
+export const PlatformOrganizationUpdateSchema = z.object({
+  enabled: z.boolean(),
+})
+
+export const ApiTokenCreateSchema = z.object({
+  name: z.string().min(1, "Le champ 'name' est requis."),
+  organization_id: z.string({
+    error: "Le champ 'organization_id' est requis.",
+  }),
+  workspace_id: z.string().nullable().optional(),
+  expires_at: z.union([z.string(), z.number()]).nullable().optional(),
+})
 
 // ---------------------------------------------------------------------------
 // Query string schemas
 // ---------------------------------------------------------------------------
 
 export const ElementQuerySchema = z.object({
-  type: z.string().refine((v) => ELEMENT_TYPES.has(v), { message: "Type d'élément ArchiMate invalide." }).optional(),
+  type: z
+    .string()
+    .refine((v) => ELEMENT_TYPES.has(v), {
+      message: "Type d'élément ArchiMate invalide.",
+    })
+    .optional(),
   name: z.string().optional(),
-});
+})
 
 export const RelationshipQuerySchema = z.object({
-  type: z.string().refine((v) => RELATIONSHIP_TYPES.has(v), { message: "Type de relation ArchiMate invalide." }).optional(),
+  type: z
+    .string()
+    .refine((v) => RELATIONSHIP_TYPES.has(v), {
+      message: "Type de relation ArchiMate invalide.",
+    })
+    .optional(),
   source_id: z.string().optional(),
   target_id: z.string().optional(),
-});
+})
 
 // ---------------------------------------------------------------------------
 // Validation helper
 // ---------------------------------------------------------------------------
 
-export function parseBody<T>(schema: z.ZodType<T>, body: unknown, res: Response): T | null {
-  const result = schema.safeParse(body);
+export function parseBody<T>(
+  schema: z.ZodType<T>,
+  body: unknown,
+  res: Response
+): T | null {
+  const result = schema.safeParse(body)
   if (!result.success) {
-    const first = result.error.issues[0];
-    res.status(422).json({ detail: first?.message ?? "Validation échouée." });
-    return null;
+    const first = result.error.issues[0]
+    res.status(422).json({ detail: first?.message ?? "Validation échouée." })
+    return null
   }
-  return result.data;
+  return result.data
 }

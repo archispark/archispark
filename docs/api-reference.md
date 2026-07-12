@@ -1,16 +1,42 @@
 # API Reference
 
-## Workspace management
+## Organizations
 
-Every workspace belongs to exactly one user (`owner_id`, a Keycloak `sub`) — a user only ever sees and modifies their own workspaces.
+Workspaces belong to an organization — see [Authentication](authentication.md#organizations-and-roles) for the full role matrix (`owner`/`admin`/`member`) and the `platform_admin` isolation guarantee.
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| `GET` | `/organizations` | member+ | List organizations the caller belongs to, with their role and which one is active (empty for `platform_admin`) |
+| `POST` | `/organizations` | any user | Create a "team" organization — body: `{ name }`; caller becomes `owner` |
+| `PUT` | `/organizations/:id` | owner/admin | Rename — body: `{ name }` |
+| `DELETE` | `/organizations/:id` | owner | Delete (cascades to workspaces/members/tokens) |
+| `POST` | `/organizations/:id/activate` | member+ | Switch the caller's active organization |
+| `GET` | `/organizations/:id/members` | member+ | List members with role and username |
+| `POST` | `/organizations/:id/members` | owner | Add an existing Keycloak user — body: `{ username, role }` (no email invitation) |
+| `PUT` | `/organizations/:id/members/:userId` | owner | Change a member's role — body: `{ role }`; refuses to demote the last `owner` |
+| `DELETE` | `/organizations/:id/members/:userId` | owner | Remove a member, including self-removal; refuses to remove the last `owner` |
+
+## Platform administration
+
+`platform_admin`-only, metadata only — never organization content.
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/workspaces` | List the current user's workspaces |
-| `POST` | `/workspaces` | Create workspace — body: `{ name, path?, description? }` (`path` = XML file to import) |
-| `PUT` | `/workspaces/:id` | Rename workspace and/or update `description` |
-| `DELETE` | `/workspaces/:id` | Delete workspace (deleting the active one switches to another owned by the user; deleting the last one is allowed and leaves zero — the web UI then redirects to its `/workspaces` page to create a new one) |
-| `POST` | `/workspaces/:id/activate` | Switch the current user's active workspace |
+| `GET` | `/platform/organizations` | List every organization (id, slug, name, `is_personal`, `enabled`, `created_at`) |
+| `PUT` | `/platform/organizations/:id` | Suspend/reactivate — body: `{ enabled }` |
+| `DELETE` | `/platform/organizations/:id` | Delete an organization |
+
+## Workspace management
+
+Every workspace belongs to exactly one organization (`organization_id`) — a caller sees and acts on every workspace of every organization they belong to, subject to their role in that organization.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/workspaces` | List the caller's active organization's workspaces |
+| `POST` | `/workspaces` | Create workspace — body: `{ name, path?, description?, organization_id? }` (`path` = XML file to import; `organization_id` defaults to the caller's active organization, auto-creating a personal one on a user's very first workspace) |
+| `PUT` | `/workspaces/:id` | Rename workspace and/or update `description` (owner/admin) |
+| `DELETE` | `/workspaces/:id` | Delete workspace (owner/admin; deleting the active one switches to another in the same organization; deleting the last one is allowed and leaves zero — the web UI then redirects to its `/workspaces` page to create a new one) |
+| `POST` | `/workspaces/:id/activate` | Switch the caller's active workspace (and active organization, if different) |
 
 ## Model routes
 

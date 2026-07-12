@@ -57,7 +57,7 @@ For Docker/Helm/Vercel workflows, see [docs/installation.md](docs/installation.m
 
 ArchiSpark is a Turborepo/pnpm monorepo (Node >=22.13):
 
-- `apps/api` — the single backend service: auth (Keycloak), sessions, API tokens, personal settings, and every ArchiMate route (workspaces, elements/relationships/views, property definitions, model import/export, OpenAPI/docs). Every workspace belongs to exactly one user.
+- `apps/api` — the single backend service: auth (Keycloak), sessions, API tokens, personal settings, organization/member management, and every ArchiMate route (workspaces, elements/relationships/views, property definitions, model import/export, OpenAPI/docs). Workspaces belong to an Organization (`owner`/`admin`/`member` roles, plus a `platform_admin` realm role with no access to organization content) — see `apps/api/src/access.ts`, the single authorization gateway.
 - `apps/mcp-server` — MCP server exposing the ArchiMate model as tools for AI agents, authenticated via the same personal API tokens as the REST API.
 - `apps/web` — Next.js workspace UI (port 8000).
 - `packages/db` — Drizzle ORM schema (`schema.ts`, single shared database) and seed/migration scripts.

@@ -2,7 +2,7 @@
 
 Two sample ArchiMate models are available for demo or local testing: **ArchiMetal** (294 elements, 476 relationships, 33 views) and **ArchiSurance** (257 elements, 402 relationships, 40 views).
 
-Both workspaces are owned by the `archi` demo user.
+Each workspace belongs to its own demo organization (`packages/db/seeds/demo-orgs.json`): `archi` is `owner` of both, `user`/`contrib` hold swapped `admin`/`member` roles between the two — demonstrating that roles are per-organization. The `admin` demo account (`platform_admin`) is deliberately a member of neither, demonstrating platform/organization isolation from the demo itself.
 
 The seed is **idempotent** — re-running it replaces the matching workspace's content.
 
@@ -18,14 +18,14 @@ pnpm seed:demo         # equivalent to `make seed-demo`
 `KEYCLOAK_URL`, `KEYCLOAK_REALM`, `KEYCLOAK_ADMIN_CLIENT_ID`,
 `KEYCLOAK_ADMIN_CLIENT_SECRET`.
 
-**`pnpm seed:demo`** seeds the ArchiMate demo data (ArchiMetal/ArchiSurance)
-— requires `DATABASE_URL` and looks up the `archi` demo user's Keycloak
-`sub` (same Keycloak env vars as above; run `seed:demo-users` first). Also
-runnable directly via:
-
-```bash
-psql $DATABASE_URL -f packages/db/seeds/demo.sql
-```
+**`pnpm seed:demo`** seeds the two demo organizations, their memberships,
+and the ArchiMate demo data (ArchiMetal/ArchiSurance) — requires
+`DATABASE_URL` and looks up `archi`/`user`/`contrib`'s Keycloak `sub`s
+(same Keycloak env vars as above; run `seed:demo-users` first).
+`packages/db/seeds/demo.sql` itself is a template — its
+`__ARCHISURANCE_ORGANIZATION_ID__`/`__ARCHIMETAL_ORGANIZATION_ID__`/`__CREATED_BY_ID__`
+placeholders are only substituted by `seed-demo.ts`, so run it via `pnpm
+seed:demo` rather than `psql -f` directly.
 
 ## Restore demo data on Vercel (GitHub Actions)
 

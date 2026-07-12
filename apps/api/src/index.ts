@@ -8,18 +8,20 @@
  * does not get traced reliably. Mirror of the `@workspace/db` package's `.`
  * export.
  */
-export { lookupApiToken } from "./auth.js";
-export type { TokenUser } from "./auth.js";
-export * as store from "./store.js";
-export { getActiveWorkspaceId, getWorkspaces, activateWorkspace } from "./registry.js";
-export type { WorkspaceOut } from "./registry.js";
-export { renderViewToSvg } from "./renderer.js";
+export { lookupApiToken } from "./auth.js"
+export type { TokenUser } from "./auth.js"
+export * as store from "./store.js"
+export { getWorkspaces, activateWorkspace } from "./registry.js"
+export type { WorkspaceOut } from "./registry.js"
+export { resolveActiveContext, assertWorkspaceAccess } from "./access.js"
+export type { AccessUser, Intent, OrgRoleName, TokenContext } from "./access.js"
+export { renderViewToSvg } from "./renderer.js"
 export {
   ELEMENT_TYPES,
   RELATIONSHIP_TYPES,
   PROPERTY_DEFINITION_TYPES,
   VIEWPOINTS,
-} from "./schemas.js";
+} from "./schemas.js"
 export type {
   ElementUpdateIn,
   RelationshipUpdateIn,
@@ -28,4 +30,4 @@ export type {
   NodeUpdateIn,
   ConnectionCreateIn,
   ConnectionUpdateIn,
-} from "./schemas.js";
+} from "./schemas.js"

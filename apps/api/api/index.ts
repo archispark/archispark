@@ -9,9 +9,13 @@
  * produces (it builds @workspace/db and this app with tsc) so the function has no
  * TypeScript / workspace-resolution surprises at bundle time.
  */
-import { app } from "../dist/app.js";
-import { runMigrations } from "@workspace/db";
+import { app } from "../dist/app.js"
+import { runMigrations, runOrganizationBackfill } from "@workspace/db"
 
-await runMigrations().catch((err: Error) => console.error("[db] migrations failed:", err.message));
+await runMigrations()
+  .then(() => runOrganizationBackfill())
+  .catch((err: Error) =>
+    console.error("[db] migrations/backfill failed:", err.message)
+  )
 
-export default app;
+export default app

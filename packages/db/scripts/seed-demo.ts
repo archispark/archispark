@@ -1,69 +1,147 @@
 /**
  * Demo seed script — loads ArchiMetal + ArchiSurance workspaces into the DB,
- * owned by the "archi" demo user.
+ * one per demo organization (packages/db/seeds/demo-orgs.json), owned by the
+ * "archi" demo user with "user"/"contrib" as admin/member (swapped between
+ * the two organizations, to demonstrate that roles are per-organization).
+ * "admin" (the platform_admin demo account) is deliberately never a member
+ * of either organization — demonstrates platform/organization isolation
+ * from the demo itself.
  *
  * Usage:
  *   pnpm --filter @workspace/db seed:demo
  *
  * Requires:
- *   DATABASE_URL — the shared database (workspaces, elements, …)
+ *   DATABASE_URL — the shared database (organizations, workspaces, elements, …)
  *   KEYCLOAK_URL, KEYCLOAK_REALM, KEYCLOAK_ADMIN_CLIENT_ID,
- *   KEYCLOAK_ADMIN_CLIENT_SECRET — used to look up the "archi" demo user's
- *                                  Keycloak sub (run seed:demo-users first)
+ *   KEYCLOAK_ADMIN_CLIENT_SECRET — used to look up the demo users' Keycloak
+ *                                  subs (run seed:demo-users first)
  *
  * Destructive reset: deletes existing ArchiSurance/ArchiMetal workspaces (CASCADE)
  * then reimports from the generated SQL. Safe to run multiple times.
  */
 
-import { readFileSync } from "fs";
-import { resolve } from "path";
-import pg from "pg";
-import { findUserByUsername } from "@workspace/auth";
+import { readFileSync } from "fs"
+import { resolve } from "path"
+import pg from "pg"
+import { findUserByUsername } from "@workspace/auth"
 
-const SQL_PATH = resolve(import.meta.dirname, "../seeds/demo.sql");
-const sqlTemplate = readFileSync(SQL_PATH, "utf-8");
+interface DemoOrg {
+  slug: string
+  name: string
+  workspace: string
+  members: Record<string, string>
+}
 
-const dbUrl = process.env["DATABASE_URL"];
+const SQL_PATH = resolve(import.meta.dirname, "../seeds/demo.sql")
+const sqlTemplate = readFileSync(SQL_PATH, "utf-8")
+
+const ORGS_PATH = resolve(import.meta.dirname, "../seeds/demo-orgs.json")
+const demoOrgs: DemoOrg[] = JSON.parse(
+  readFileSync(ORGS_PATH, "utf-8")
+).organizations
+
+const dbUrl = process.env["DATABASE_URL"]
 if (!dbUrl) {
-  console.error("Error: DATABASE_URL is required.");
-  process.exit(1);
+  console.error("Error: DATABASE_URL is required.")
+  process.exit(1)
 }
 
 const isLocal = (url: string) =>
-  /@(localhost|127\.0\.0\.1|\[::1\]|postgres)[:/]/.test(url);
+  /@(localhost|127\.0\.0\.1|\[::1\]|postgres)[:/]/.test(url)
 
 function stripSslmode(cs: string): string {
   try {
-    const u = new URL(cs);
-    u.searchParams.delete("sslmode");
-    return u.toString();
+    const u = new URL(cs)
+    u.searchParams.delete("sslmode")
+    return u.toString()
   } catch {
-    return cs;
+    return cs
   }
 }
 
 function makeClient(url: string): pg.Client {
-  const local = isLocal(url);
+  const local = isLocal(url)
   return new pg.Client({
     connectionString: local ? url : stripSslmode(url),
     ssl: local ? undefined : { rejectUnauthorized: false },
-  });
+  })
 }
 
-const owner = await findUserByUsername("archi");
-if (!owner?.id) {
-  console.error('Error: demo user "archi" not found in Keycloak. Run `pnpm --filter @workspace/db seed:demo-users` first.');
-  process.exit(1);
+async function getOrCreateOrganization(
+  client: pg.Client,
+  slug: string,
+  name: string
+): Promise<number> {
+  const { rows } = await client.query<{ id: number }>(
+    `INSERT INTO organizations (slug, name, is_personal, enabled)
+     VALUES ($1, $2, false, true)
+     ON CONFLICT (slug) DO UPDATE SET name = EXCLUDED.name
+     RETURNING id`,
+    [slug, name]
+  )
+  return rows[0]!.id
 }
-const ownerId = owner.id;
-console.log(`Using owner: ${ownerId} (archi)`);
 
-const sql = sqlTemplate.replaceAll("'__OWNER_ID__'", `'${ownerId}'`);
+async function upsertMember(
+  client: pg.Client,
+  organizationId: number,
+  userId: string,
+  role: string
+): Promise<void> {
+  await client.query(
+    `INSERT INTO organization_members (organization_id, user_id, role)
+     VALUES ($1, $2, $3)
+     ON CONFLICT (organization_id, user_id) DO UPDATE SET role = EXCLUDED.role`,
+    [organizationId, userId, role]
+  )
+}
 
-const client = makeClient(dbUrl);
-await client.connect();
-console.log("Seeding workspaces (elements, views)…");
-await client.query(sql);
-await client.end();
+// ── 1. Resolve demo users' Keycloak subs ────────────────────────────────────
 
-console.log("Done.");
+const usernames = new Set(demoOrgs.flatMap((org) => Object.keys(org.members)))
+const userIds = new Map<string, string>()
+for (const username of usernames) {
+  const user = await findUserByUsername(username)
+  if (!user?.id) {
+    console.error(
+      `Error: demo user "${username}" not found in Keycloak. Run \`pnpm --filter @workspace/db seed:demo-users\` first.`
+    )
+    process.exit(1)
+  }
+  userIds.set(username, user.id)
+  console.log(`Resolved user: ${user.id} (${username})`)
+}
+const archiId = userIds.get("archi")!
+
+// ── 2. Create organizations + memberships ───────────────────────────────────
+
+const client = makeClient(dbUrl)
+await client.connect()
+
+const orgIdByWorkspace = new Map<string, number>()
+for (const org of demoOrgs) {
+  const orgId = await getOrCreateOrganization(client, org.slug, org.name)
+  orgIdByWorkspace.set(org.workspace, orgId)
+  for (const [username, role] of Object.entries(org.members)) {
+    await upsertMember(client, orgId, userIds.get(username)!, role)
+  }
+  console.log(
+    `Organization "${org.name}" (id=${orgId}): ${Object.keys(org.members).length} member(s).`
+  )
+}
+
+// ── 3. Seed the workspaces (elements, views) into their organization ───────
+
+const archisuranceOrgId = orgIdByWorkspace.get("ArchiSurance")!
+const archimetalOrgId = orgIdByWorkspace.get("ArchiMetal")!
+
+const sql = sqlTemplate
+  .replaceAll("__ARCHISURANCE_ORGANIZATION_ID__", String(archisuranceOrgId))
+  .replaceAll("__ARCHIMETAL_ORGANIZATION_ID__", String(archimetalOrgId))
+  .replaceAll("'__CREATED_BY_ID__'", `'${archiId}'`)
+
+console.log("Seeding workspaces (elements, views)…")
+await client.query(sql)
+await client.end()
+
+console.log("Done.")

@@ -2,7 +2,41 @@
 
 All routes except `GET /openapi.json`, `GET /docs`, and `GET /settings/messages` require a Keycloak access token — either as an `access_token` cookie (see [Keycloak login](#keycloak-login)) or an `Authorization: Bearer <token>` header — or a personal API token.
 
-Every workspace route implicitly scopes to the authenticated user's own workspaces (`ownerId`, a Keycloak `sub`) — there is no organization or team concept, and no separate write-permission check: a user can always create, read, update, and delete their own workspaces and their content.
+## Organizations and roles
+
+Workspaces belong to **Organizations**, not directly to users. An
+organization has members with one of three roles:
+
+| Role | Read | Write (elements/relationships/views/…) | Manage members | Delete organization |
+|------|------|------------------------------------------|-----------------|----------------------|
+| `owner` | ✅ | ✅ | ✅ | ✅ |
+| `admin` | ✅ | ✅ | ❌ | ❌ |
+| `member` | ✅ | ❌ | ❌ | ❌ |
+
+Every organization/workspace route resolves the caller's role through the
+single authorization gateway,
+[`apps/api/src/access.ts`](../apps/api/src/access.ts) — never a per-route
+check. Two-level error convention: `404 Not Found` if the caller has no
+membership in the target organization (deliberately masks "not a member"
+as "not found"), `403 Forbidden` if the caller **is** a recognized member
+but their role is insufficient for the action, or the organization has been
+suspended by a `platform_admin`.
+
+A fourth role, **`platform_admin`**, is a Keycloak *realm* role (set on the
+Keycloak user, not an `organization_members` row) — it administers
+organizations from `/platform/organizations*` (metadata only: list,
+suspend/reactivate, delete) but is **structurally denied** any access to
+organization content (workspaces, elements, …), even if a stray
+`organization_members` row happened to exist for that user — `access.ts`
+rejects `platform_admin` unconditionally, before ever checking membership.
+
+Every user gets a personal organization (`is_personal = true`)
+auto-created the first time they create a workspace with no organization
+selected — this preserves frictionless solo use. Creating a "team"
+organization (`POST /organizations`) shared with other members is a
+separate, explicit action. There is no email-invitation flow in v1 —
+adding a member (`POST /organizations/:id/members`) requires an existing
+Keycloak username.
 
 `/settings/messages` (`PUT`) is restricted to users holding the global `platform_admin` realm role (`requireSuperAdmin`).
 
@@ -10,7 +44,7 @@ Every workspace route implicitly scopes to the authenticated user's own workspac
 |--------|------|------|-------------|
 | `GET` | `/me` | user | Returns current user |
 
-Default credentials: `admin` / `admin` (`platform_admin`), `user` / `user`, `contrib` / `contrib`, `archi` / `archi` (owns the demo workspaces, see [Demo seed](demo-data.md#demo-seed)).
+Default credentials: `admin` / `admin` (`platform_admin`, no organization membership by design), `user` / `user`, `contrib` / `contrib`, `archi` / `archi`. The demo seed creates two organizations, one per demo workspace, with `archi` as `owner` of both and `user`/`contrib` swapped between `admin`/`member` — see [Demo seed](demo-data.md#demo-seed).
 
 ## Keycloak login
 
@@ -69,7 +103,15 @@ directly from the verified claims — `id: claims.sub`,
 `realm_access.roles` includes `platform_admin` (`"user"` otherwise).
 A request may alternatively present a personal API token
 (`apiTokens` table) as the Bearer value — `lookupApiToken` resolves it to
-the same `req.user` shape via the Keycloak Admin API.
+the same `req.user` shape via the Keycloak Admin API. A token is created
+scoped to one organization (`organization_id`, required) and optionally
+pinned to one workspace of that organization (`workspace_id`); this scope
+is carried as `req.tokenContext` and takes priority over interactive
+active-organization/workspace selection in `resolveActiveContext`. The
+token's `owner`/`admin`/`member` role is **never** frozen on the token
+itself — it's re-resolved live from `organization_members` on every
+request, so a revoked or demoted membership takes effect immediately even
+for an existing token.
 
 **Browser login for `apps/web`:** the app signs in via the OIDC
 authorization-code + PKCE flow against Keycloak. `/login` is a single "Se

@@ -18,7 +18,8 @@
     "seed:demo": "tsx scripts/seed-demo.ts",
     "seed:demo-users": "tsx scripts/seed-demo-users.ts",
     "setup:realm": "tsx scripts/setup-realm.ts",
-    "migrate:prod": "tsx scripts/migrate-prod.ts"
+    "migrate:prod": "tsx scripts/migrate-prod.ts",
+    "backfill:prod": "tsx scripts/backfill-prod.ts"
   },
   "dependencies": {
     "@workspace/auth": "workspace:*",

@@ -6,7 +6,8 @@
 
 DO $$
 DECLARE
-  v_owner_id TEXT;
+  v_organization_id INTEGER;
+  v_created_by_id TEXT;
   ws_id     INTEGER;
   el_db_id  INTEGER;
   rel_db_id INTEGER;
@@ -17,11 +18,12 @@ BEGIN
   -- =================================================================
   -- Workspace: ArchiSurance  (257 elements, 402 rels, 40 views)
   -- =================================================================
-  v_owner_id := '__OWNER_ID__';
+  v_organization_id := __ARCHISURANCE_ORGANIZATION_ID__;
+  v_created_by_id := '__CREATED_BY_ID__';
 
-  DELETE FROM workspaces WHERE owner_id = v_owner_id AND name = 'ArchiSurance';
-  INSERT INTO workspaces (uuid, name, description, version, owner_id, created_at, updated_at)
-    VALUES ('id-f0607ad9eb0845a8829f43f5f7c676ff', 'ArchiSurance', NULL, NULL, v_owner_id, EXTRACT(EPOCH FROM NOW())::INT, EXTRACT(EPOCH FROM NOW())::INT)
+  DELETE FROM workspaces WHERE organization_id = v_organization_id AND name = 'ArchiSurance';
+  INSERT INTO workspaces (uuid, name, description, version, organization_id, created_by_id, created_at, updated_at)
+    VALUES ('id-f0607ad9eb0845a8829f43f5f7c676ff', 'ArchiSurance', NULL, NULL, v_organization_id, v_created_by_id, EXTRACT(EPOCH FROM NOW())::INT, EXTRACT(EPOCH FROM NOW())::INT)
     RETURNING id INTO ws_id;
 
     INSERT INTO property_definitions (workspace_id, uuid, name, type)
@@ -5379,11 +5381,12 @@ BEGIN
   -- =================================================================
   -- Workspace: ArchiMetal  (294 elements, 476 rels, 33 views)
   -- =================================================================
-  v_owner_id := '__OWNER_ID__';
+  v_organization_id := __ARCHIMETAL_ORGANIZATION_ID__;
+  v_created_by_id := '__CREATED_BY_ID__';
 
-  DELETE FROM workspaces WHERE owner_id = v_owner_id AND name = 'ArchiMetal';
-  INSERT INTO workspaces (uuid, name, description, version, owner_id, created_at, updated_at)
-    VALUES ('id-e42df43bd2104e9aa7ccc8fd25a80ac6', 'ArchiMetal', NULL, NULL, v_owner_id, EXTRACT(EPOCH FROM NOW())::INT, EXTRACT(EPOCH FROM NOW())::INT)
+  DELETE FROM workspaces WHERE organization_id = v_organization_id AND name = 'ArchiMetal';
+  INSERT INTO workspaces (uuid, name, description, version, organization_id, created_by_id, created_at, updated_at)
+    VALUES ('id-e42df43bd2104e9aa7ccc8fd25a80ac6', 'ArchiMetal', NULL, NULL, v_organization_id, v_created_by_id, EXTRACT(EPOCH FROM NOW())::INT, EXTRACT(EPOCH FROM NOW())::INT)
     RETURNING id INTO ws_id;
 
     INSERT INTO property_definitions (workspace_id, uuid, name, type)

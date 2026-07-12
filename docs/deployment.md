@@ -1,5 +1,21 @@
 # Deployment
 
+## Organizations migration (releases including `0018_organizations_expand.sql`)
+
+This release introduces the Organization → Workspace hierarchy via an
+expand→backfill→verify→contract migration (see
+[Architecture](architecture.md#database-schema)). It is deployed with the
+**`Recreate`** rollout strategy (short maintenance window, no rolling
+update) rather than a double-write compatibility design — the Helm chart's
+default `RollingUpdate` should be overridden to `Recreate` for this
+release's rollout. After deploying: run `pnpm --filter @workspace/db
+backfill:prod` once against the target database (no-op if already run —
+see the Vercel steps above for the exact invocation), then verify with the
+three queries in `plan.md`'s Phase 2 before ever generating
+`0019_organizations_contract.sql` (the `NOT NULL` contract migration,
+intentionally not shipped in this release — see that file for the full
+rationale).
+
 ## Kubernetes (Helm)
 
 A Helm chart is available in `.k8s/helm/archispark/`. It deploys the full stack (api, web, mcp-server, postgres) with an NGINX Ingress — the same topology as the Docker Compose setup.
@@ -103,11 +119,19 @@ claude mcp add archimate \
    Neon auto-injects `DATABASE_URL` (pooled) and `DATABASE_URL_UNPOOLED`
    (direct) into both projects.
 
-3. **Apply database migrations**:
+3. **Apply database migrations, then the organization backfill**:
 
 ```bash
 DATABASE_URL="<neon-pooled>" pnpm --filter @workspace/db migrate:prod
+DATABASE_URL="<neon-pooled>" pnpm --filter @workspace/db backfill:prod
 ```
+
+`backfill:prod` populates `workspaces.organization_id`/`api_tokens.organization_id`
+(left `NULL` by the DDL alone) — required once after any `migrate:prod` run
+that includes `0018_organizations_expand.sql` or later; a no-op on a fresh
+database, and safe to re-run. `apps/api`/`apps/api/api/index.ts` also run it
+automatically on every cold start, but running it explicitly here avoids
+the very first request after a migration hitting an unbackfilled row.
 
 4. **Set environment variables** — `DATABASE_URL` (from Neon, above),
    `KEYCLOAK_URL`, `KEYCLOAK_REALM`, `KEYCLOAK_ADMIN_CLIENT_ID`,
@@ -156,7 +180,10 @@ d'environnement du déploiement.
    ce realm (console admin → Clients → `archispark-api` → Credentials).
 
 3. **Provisionner la base Postgres dédiée** du client et appliquer les
-   migrations (`pnpm --filter @workspace/db migrate:prod`).
+   migrations (`pnpm --filter @workspace/db migrate:prod`), puis le
+   backfill des organisations (`pnpm --filter @workspace/db backfill:prod`
+   — no-op sur une base neuve, voir
+   [Organizations migration](#organizations-migration-releases-including-0018_organizations_expandsql)).
 
 4. **Déployer** `archispark-api`/`archispark-web` du client (Helm — voir
    [Kubernetes (Helm)](#kubernetes-helm) — ou Vercel), pointés vers le
