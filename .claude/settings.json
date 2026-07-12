@@ -2,13 +2,20 @@
   "enableAllProjectMcpServers": true,
   "enabledPlugins": {
     "vercel@claude-plugins-official": true,
-    "playwright@claude-plugins-official": true
+    "playwright@claude-plugins-official": true,
+    "codex@openai-codex": true
   },
   "extraKnownMarketplaces": {
     "claude-plugins-official": {
       "source": {
         "source": "github",
         "repo": "anthropics/claude-plugins-official"
+      }
+    },
+    "openai-codex": {
+      "source": {
+        "source": "github",
+        "repo": "openai/codex-plugin-cc"
       }
     }
   },
@@ -21,7 +28,26 @@
       "WebFetch(domain:vercel.com)",
       "Bash(git *)",
       "Bash(curl *)",
-      "Bash(pnpm *)"
+      "Bash(pnpm *)",
+      "Bash(make *)"
+    ],
+    "deny": [
+      "Bash(rm -rf*)",
+      "Read(./.env)",
+      "Read(./.env.*)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r '.tool_input.file_path // .tool_response.filePath' | { read -r f; case \"$f\" in *.ts|*.tsx) npx prettier --write \"$f\" ;; esac; } 2>/dev/null || true"
+          }
+        ]
+      }
     ]
   }
 }

@@ -1,2 +1,2 @@
-export { lookupApiToken, getMembershipContext } from "control-api";
-export type { TokenUser, WorkspaceContext } from "control-api";
+export { lookupApiToken } from "api";
+export type { TokenUser } from "api";

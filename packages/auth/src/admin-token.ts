@@ -18,7 +18,7 @@ function getAdminCredentials(): { clientId: string; clientSecret: string } {
 }
 
 /**
- * Returns a cached `client_credentials` access token for the control-api's
+ * Returns a cached `client_credentials` access token for the api's
  * confidential Keycloak client, refetching ~30s before it expires.
  */
 export async function getAdminToken(): Promise<string> {

@@ -8,8 +8,8 @@ const TOKEN_ENDPOINT = `${KC_URL}/realms/${KC_REALM}/protocol/openid-connect/tok
 function stubEnv(): void {
   vi.stubEnv("KEYCLOAK_URL", KC_URL);
   vi.stubEnv("KEYCLOAK_REALM", KC_REALM);
-  vi.stubEnv("KEYCLOAK_ADMIN_CLIENT_ID", "archispark-control-api");
-  vi.stubEnv("KEYCLOAK_ADMIN_CLIENT_SECRET", "archispark-control-api-secret");
+  vi.stubEnv("KEYCLOAK_ADMIN_CLIENT_ID", "archispark-api");
+  vi.stubEnv("KEYCLOAK_ADMIN_CLIENT_SECRET", "archispark-api-secret");
 }
 
 afterEach(() => {
@@ -25,8 +25,8 @@ describe("getAdminToken", () => {
       expect(input.toString()).toBe(TOKEN_ENDPOINT);
       const body = new URLSearchParams(init?.body as string);
       expect(body.get("grant_type")).toBe("client_credentials");
-      expect(body.get("client_id")).toBe("archispark-control-api");
-      expect(body.get("client_secret")).toBe("archispark-control-api-secret");
+      expect(body.get("client_id")).toBe("archispark-api");
+      expect(body.get("client_secret")).toBe("archispark-api-secret");
       return new Response(JSON.stringify({ access_token: "admin-token", expires_in: 60 }), {
         status: 200,
         headers: { "content-type": "application/json" },
@@ -84,7 +84,7 @@ describe("getAdminToken", () => {
   it("throws when KEYCLOAK_ADMIN_CLIENT_ID is missing", async () => {
     vi.stubEnv("KEYCLOAK_URL", KC_URL);
     vi.stubEnv("KEYCLOAK_REALM", KC_REALM);
-    vi.stubEnv("KEYCLOAK_ADMIN_CLIENT_SECRET", "archispark-control-api-secret");
+    vi.stubEnv("KEYCLOAK_ADMIN_CLIENT_SECRET", "archispark-api-secret");
 
     await expect(getAdminToken()).rejects.toThrow("KEYCLOAK_ADMIN_CLIENT_ID is not set");
   });
@@ -92,7 +92,7 @@ describe("getAdminToken", () => {
   it("throws when KEYCLOAK_ADMIN_CLIENT_SECRET is missing", async () => {
     vi.stubEnv("KEYCLOAK_URL", KC_URL);
     vi.stubEnv("KEYCLOAK_REALM", KC_REALM);
-    vi.stubEnv("KEYCLOAK_ADMIN_CLIENT_ID", "archispark-control-api");
+    vi.stubEnv("KEYCLOAK_ADMIN_CLIENT_ID", "archispark-api");
 
     await expect(getAdminToken()).rejects.toThrow("KEYCLOAK_ADMIN_CLIENT_SECRET is not set");
   });

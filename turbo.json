@@ -31,18 +31,12 @@
         "KEYCLOAK_URL",
         "KEYCLOAK_REALM",
         "KEYCLOAK_CLIENT_ID_WEB",
-        "KEYCLOAK_CLIENT_ID_ADMIN_WEB",
         "KEYCLOAK_ADMIN_CLIENT_ID",
         "KEYCLOAK_ADMIN_CLIENT_SECRET",
         "ARCHIMATE_API_URL",
         "NODE_OPTIONS",
         "PORT",
-        "HOST",
-        "TENANT_API_URL",
-        "TENANT_JWT_SECRET",
-        "TENANT_DB_ENCRYPTION_KEY",
-        "TENANT_DATABASE_URL",
-        "TENANT_DB_PASSWORD"
+        "HOST"
       ]
     }
   }

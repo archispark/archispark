@@ -1,0 +1,74 @@
+{
+  "name": "api",
+  "version": "0.1.0",
+  "description": "Unified REST API for ArchiSpark — auth, ArchiMate 3.1 modeling, workspaces (Express, PostgreSQL, Keycloak)",
+  "type": "module",
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "types": "./src/index.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json",
+    "./src/*.js": {
+      "source": "./src/*.ts",
+      "types": "./src/*.ts",
+      "default": "./dist/*.js"
+    }
+  },
+  "scripts": {
+    "start": "TSX_TSCONFIG_PATH=./tsconfig.dev.json tsx src/main.ts",
+    "dev": "TSX_TSCONFIG_PATH=./tsconfig.dev.json tsx watch src/main.ts",
+    "build": "tsc",
+    "start:dist": "node dist/main.js",
+    "test": "vitest run",
+    "test:watch": "vitest watch",
+    "test:coverage": "vitest run --coverage",
+    "test:ci": "vitest run --reporter=junit --outputFile=test-report.junit.xml",
+    "lint": "eslint . --ext .ts",
+    "openapi": "tsx scripts/generate-openapi.ts"
+  },
+  "keywords": [
+    "archimate",
+    "enterprise-architecture",
+    "coarchi"
+  ],
+  "author": "Lacrif",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/archispark/mcp-archimate"
+  },
+  "dependencies": {
+    "@asteasolutions/zod-to-openapi": "^8.5.0",
+    "@workspace/auth": "workspace:*",
+    "@workspace/db": "workspace:*",
+    "archiver": "^8.0.0",
+    "colord": "^2.9.3",
+    "cors": "^2.8.6",
+    "drizzle-orm": "^0.45.2",
+    "express": "^5.2.1",
+    "fast-xml-parser": "^5.8.0",
+    "helmet": "^8.2.0",
+    "lru-cache": "^11.5.1",
+    "multer": "^2.1.1",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@codecov/vite-plugin": "^2.0.1",
+    "@eslint/js": "^10.0.1",
+    "@types/archiver": "^8.0.0",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.0",
+    "@types/multer": "^2.1.0",
+    "@types/node": "^25.9.2",
+    "@types/supertest": "^7.2.0",
+    "@vitest/coverage-v8": "^4.1.8",
+    "eslint": "^10.4.1",
+    "supertest": "^7.0.0",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.61.0",
+    "vitest": "^4.1.8"
+  }
+}

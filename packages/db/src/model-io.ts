@@ -5,8 +5,8 @@
  * modelToDb(workspaceId, model) — replaces all rows for the workspace with the model data.
  */
 
-import { and, eq } from "drizzle-orm";
-import { db } from "./connection.js";
+import { and, eq } from "drizzle-orm"
+import { db } from "./connection.js"
 import {
   workspaces,
   elements,
@@ -18,7 +18,7 @@ import {
   nodes,
   connections,
   bendpoints,
-} from "./schema.js";
+} from "./schema.js"
 import type {
   ArchiModel,
   ArchiElement,
@@ -29,15 +29,20 @@ import type {
   ArchiPropertyDefinition,
   ArchiColor,
   BendPoint,
-} from "./model.js";
+} from "./model.js"
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-export function rowToColor(r: number | null, g: number | null, b: number | null, a: number | null): ArchiColor | null {
-  if (r == null && g == null && b == null) return null;
-  return { r: r ?? 0, g: g ?? 0, b: b ?? 0, a };
+export function rowToColor(
+  r: number | null,
+  g: number | null,
+  b: number | null,
+  a: number | null
+): ArchiColor | null {
+  if (r == null && g == null && b == null) return null
+  return { r: r ?? 0, g: g ?? 0, b: b ?? 0, a }
 }
 
 export function buildNodeTree(
@@ -51,7 +56,7 @@ export function buildNodeTree(
     .map((n) => {
       const ref = n.elementUuid
         ? (elementMap.get(n.elementUuid) ?? n.elementUuid)
-        : null;
+        : null
       return {
         uuid: n.uuid,
         name: n.name ?? null,
@@ -60,57 +65,101 @@ export function buildNodeTree(
         y: n.y,
         w: n.w,
         h: n.h,
-        fill_color: rowToColor(n.fillColorR, n.fillColorG, n.fillColorB, n.fillColorA),
-        line_color: rowToColor(n.lineColorR, n.lineColorG, n.lineColorB, n.lineColorA),
+        fill_color: rowToColor(
+          n.fillColorR,
+          n.fillColorG,
+          n.fillColorB,
+          n.fillColorA
+        ),
+        line_color: rowToColor(
+          n.lineColorR,
+          n.lineColorG,
+          n.lineColorB,
+          n.lineColorA
+        ),
         font_name: n.fontName ?? null,
         font_size: n.fontSize ?? null,
         font_color: rowToColor(n.fontColorR, n.fontColorG, n.fontColorB, null),
         line_width: n.lineWidth ?? null,
         archi_type: null,
         nodes: buildNodeTree(flat, n.uuid, elementMap),
-      } satisfies ArchiNode;
-    });
+      } satisfies ArchiNode
+    })
 }
 
-export function colorToRow(c: ArchiColor | null): { r: number | null; g: number | null; b: number | null; a: number | null } {
-  if (!c) return { r: null, g: null, b: null, a: null };
-  return { r: c.r, g: c.g, b: c.b, a: c.a ?? null };
+export function colorToRow(c: ArchiColor | null): {
+  r: number | null
+  g: number | null
+  b: number | null
+  a: number | null
+} {
+  if (!c) return { r: null, g: null, b: null, a: null }
+  return { r: c.r, g: c.g, b: c.b, a: c.a ?? null }
 }
 
 export function flattenNodes(
   nodeList: ArchiNode[],
   parentUuid: string | null,
   acc: Array<{
-    uuid: string; name: string | null; elementUuid: string | null; parentNodeUuid: string | null;
-    x: number | null; y: number | null; w: number | null; h: number | null;
-    fillColorR: number | null; fillColorG: number | null; fillColorB: number | null; fillColorA: number | null;
-    lineColorR: number | null; lineColorG: number | null; lineColorB: number | null; lineColorA: number | null;
-    lineWidth: number | null; fontName: string | null; fontSize: number | null;
-    fontColorR: number | null; fontColorG: number | null; fontColorB: number | null; fontColorA: number | null;
-    sortOrder: number;
+    uuid: string
+    name: string | null
+    elementUuid: string | null
+    parentNodeUuid: string | null
+    x: number | null
+    y: number | null
+    w: number | null
+    h: number | null
+    fillColorR: number | null
+    fillColorG: number | null
+    fillColorB: number | null
+    fillColorA: number | null
+    lineColorR: number | null
+    lineColorG: number | null
+    lineColorB: number | null
+    lineColorA: number | null
+    lineWidth: number | null
+    fontName: string | null
+    fontSize: number | null
+    fontColorR: number | null
+    fontColorG: number | null
+    fontColorB: number | null
+    fontColorA: number | null
+    sortOrder: number
   }>,
   order: { i: number }
 ): void {
   for (const n of nodeList) {
-    const ref = n.ref ? (typeof n.ref === "string" ? n.ref : n.ref.uuid) : null;
-    const fill = colorToRow(n.fill_color);
-    const line = colorToRow(n.line_color);
-    const fontC = colorToRow(n.font_color);
+    const ref = n.ref ? (typeof n.ref === "string" ? n.ref : n.ref.uuid) : null
+    const fill = colorToRow(n.fill_color)
+    const line = colorToRow(n.line_color)
+    const fontC = colorToRow(n.font_color)
     acc.push({
       uuid: n.uuid,
       name: n.name ?? null,
       elementUuid: ref,
       parentNodeUuid: parentUuid,
-      x: n.x, y: n.y, w: n.w, h: n.h,
-      fillColorR: fill.r, fillColorG: fill.g, fillColorB: fill.b, fillColorA: fill.a,
-      lineColorR: line.r, lineColorG: line.g, lineColorB: line.b, lineColorA: line.a,
+      x: n.x,
+      y: n.y,
+      w: n.w,
+      h: n.h,
+      fillColorR: fill.r,
+      fillColorG: fill.g,
+      fillColorB: fill.b,
+      fillColorA: fill.a,
+      lineColorR: line.r,
+      lineColorG: line.g,
+      lineColorB: line.b,
+      lineColorA: line.a,
       lineWidth: n.line_width ?? null,
       fontName: n.font_name ?? null,
       fontSize: n.font_size ?? null,
-      fontColorR: fontC.r, fontColorG: fontC.g, fontColorB: fontC.b, fontColorA: fontC.a,
+      fontColorR: fontC.r,
+      fontColorG: fontC.g,
+      fontColorB: fontC.b,
+      fontColorA: fontC.a,
       sortOrder: order.i++,
-    });
-    flattenNodes(n.nodes, n.uuid, acc, order);
+    })
+    flattenNodes(n.nodes, n.uuid, acc, order)
   }
 }
 
@@ -119,21 +168,29 @@ export function flattenNodes(
 // ---------------------------------------------------------------------------
 
 export async function modelFromDb(workspaceId: number): Promise<ArchiModel> {
-  const [ws] = await db.select().from(workspaces).where(eq(workspaces.id, workspaceId));
-  if (!ws) throw new Error(`Workspace ${workspaceId} not found in DB`);
+  const [ws] = await db
+    .select()
+    .from(workspaces)
+    .where(eq(workspaces.id, workspaceId))
+  if (!ws) throw new Error(`Workspace ${workspaceId} not found in DB`)
 
   // Elements
-  const elemRows = await db.select().from(elements).where(eq(elements.workspaceId, workspaceId));
-  const elemPropsRows = await db.select().from(elementProperties)
+  const elemRows = await db
+    .select()
+    .from(elements)
+    .where(eq(elements.workspaceId, workspaceId))
+  const elemPropsRows = await db
+    .select()
+    .from(elementProperties)
     .innerJoin(elements, eq(elementProperties.elementId, elements.id))
-    .where(eq(elements.workspaceId, workspaceId));
+    .where(eq(elements.workspaceId, workspaceId))
 
-  const elemPropsByElemId = new Map<number, Record<string, string>>();
+  const elemPropsByElemId = new Map<number, Record<string, string>>()
   for (const row of elemPropsRows) {
-    const ep = row.element_properties;
-    const map = elemPropsByElemId.get(ep.elementId) ?? {};
-    map[ep.propertyDefUuid] = ep.value;
-    elemPropsByElemId.set(ep.elementId, map);
+    const ep = row.element_properties
+    const map = elemPropsByElemId.get(ep.elementId) ?? {}
+    map[ep.propertyDefUuid] = ep.value
+    elemPropsByElemId.set(ep.elementId, map)
   }
 
   const archiElements: ArchiElement[] = elemRows.map((r) => ({
@@ -142,22 +199,32 @@ export async function modelFromDb(workspaceId: number): Promise<ArchiModel> {
     type: r.type,
     desc: r.description ?? null,
     props: elemPropsByElemId.get(r.id) ?? {},
-  }));
+  }))
 
-  const elementMap = new Map<string, ArchiElement>(archiElements.map((e) => [e.uuid, e]));
+  const elementMap = new Map<string, ArchiElement>(
+    archiElements.map((e) => [e.uuid, e])
+  )
 
   // Relationships
-  const relRows = await db.select().from(relationships).where(eq(relationships.workspaceId, workspaceId));
-  const relPropsRows = await db.select().from(relationshipProperties)
-    .innerJoin(relationships, eq(relationshipProperties.relationshipId, relationships.id))
-    .where(eq(relationships.workspaceId, workspaceId));
+  const relRows = await db
+    .select()
+    .from(relationships)
+    .where(eq(relationships.workspaceId, workspaceId))
+  const relPropsRows = await db
+    .select()
+    .from(relationshipProperties)
+    .innerJoin(
+      relationships,
+      eq(relationshipProperties.relationshipId, relationships.id)
+    )
+    .where(eq(relationships.workspaceId, workspaceId))
 
-  const relPropsByRelId = new Map<number, Record<string, string>>();
+  const relPropsByRelId = new Map<number, Record<string, string>>()
   for (const row of relPropsRows) {
-    const rp = row.relationship_properties;
-    const map = relPropsByRelId.get(rp.relationshipId) ?? {};
-    map[rp.propertyDefUuid] = rp.value;
-    relPropsByRelId.set(rp.relationshipId, map);
+    const rp = row.relationship_properties
+    const map = relPropsByRelId.get(rp.relationshipId) ?? {}
+    map[rp.propertyDefUuid] = rp.value
+    relPropsByRelId.set(rp.relationshipId, map)
   }
 
   const archiRelationships: ArchiRelationship[] = relRows.map((r) => ({
@@ -171,59 +238,80 @@ export async function modelFromDb(workspaceId: number): Promise<ArchiModel> {
     access_type: r.accessType ?? null,
     is_directed: r.isDirected ?? null,
     influence_strength: r.influenceModifier ?? null,
-  }));
+  }))
 
   // Property definitions
-  const pdRows = await db.select().from(propertyDefinitions).where(eq(propertyDefinitions.workspaceId, workspaceId));
+  const pdRows = await db
+    .select()
+    .from(propertyDefinitions)
+    .where(eq(propertyDefinitions.workspaceId, workspaceId))
   const archiPropDefs: ArchiPropertyDefinition[] = pdRows.map((r) => ({
     uuid: r.uuid,
     name: r.name,
     type: r.type,
-  }));
+  }))
 
   // Views
-  const viewRows = await db.select().from(views).where(eq(views.workspaceId, workspaceId));
+  const viewRows = await db
+    .select()
+    .from(views)
+    .where(eq(views.workspaceId, workspaceId))
 
-  const archiViews: ArchiView[] = await Promise.all(viewRows.map(async (v) => {
-    const nodeRows = await db.select().from(nodes).where(eq(nodes.viewId, v.id));
-    const rootNodes = buildNodeTree(nodeRows, null, elementMap);
+  const archiViews: ArchiView[] = await Promise.all(
+    viewRows.map(async (v) => {
+      const nodeRows = await db
+        .select()
+        .from(nodes)
+        .where(eq(nodes.viewId, v.id))
+      const rootNodes = buildNodeTree(nodeRows, null, elementMap)
 
-    const connRows = await db.select().from(connections).where(eq(connections.viewId, v.id));
-    const bpRows = await db.select().from(bendpoints)
-      .innerJoin(connections, eq(bendpoints.connectionId, connections.id))
-      .where(eq(connections.viewId, v.id));
+      const connRows = await db
+        .select()
+        .from(connections)
+        .where(eq(connections.viewId, v.id))
+      const bpRows = await db
+        .select()
+        .from(bendpoints)
+        .innerJoin(connections, eq(bendpoints.connectionId, connections.id))
+        .where(eq(connections.viewId, v.id))
 
-    const bpByConnId = new Map<number, BendPoint[]>();
-    for (const row of bpRows) {
-      const bp = row.bendpoints;
-      const arr = bpByConnId.get(bp.connectionId) ?? [];
-      arr.push({ x: bp.x, y: bp.y });
-      bpByConnId.set(bp.connectionId, arr);
-    }
+      const bpByConnId = new Map<number, BendPoint[]>()
+      for (const row of bpRows) {
+        const bp = row.bendpoints
+        const arr = bpByConnId.get(bp.connectionId) ?? []
+        arr.push({ x: bp.x, y: bp.y })
+        bpByConnId.set(bp.connectionId, arr)
+      }
 
-    const archiConns: ArchiConnection[] = connRows.map((c) => ({
-      uuid: c.uuid,
-      name: c.name ?? null,
-      ref: c.relationshipUuid ?? null,
-      source: c.sourceNodeUuid ?? null,
-      target: c.targetNodeUuid ?? null,
-      line_color: rowToColor(c.lineColorR, c.lineColorG, c.lineColorB, c.lineColorA),
-      font_name: c.fontName ?? null,
-      font_size: c.fontSize ?? null,
-      font_color: rowToColor(c.fontColorR, c.fontColorG, c.fontColorB, null),
-      line_width: c.lineWidth ?? null,
-      bendpoints: bpByConnId.get(c.id) ?? [],
-    }));
+      const archiConns: ArchiConnection[] = connRows.map((c) => ({
+        uuid: c.uuid,
+        name: c.name ?? null,
+        ref: c.relationshipUuid ?? null,
+        source: c.sourceNodeUuid ?? null,
+        target: c.targetNodeUuid ?? null,
+        line_color: rowToColor(
+          c.lineColorR,
+          c.lineColorG,
+          c.lineColorB,
+          c.lineColorA
+        ),
+        font_name: c.fontName ?? null,
+        font_size: c.fontSize ?? null,
+        font_color: rowToColor(c.fontColorR, c.fontColorG, c.fontColorB, null),
+        line_width: c.lineWidth ?? null,
+        bendpoints: bpByConnId.get(c.id) ?? [],
+      }))
 
-    return {
-      uuid: v.uuid,
-      name: v.name,
-      desc: v.description ?? null,
-      primary_viewpoint: v.viewpoint ?? null,
-      nodes: rootNodes,
-      conns: archiConns,
-    };
-  }));
+      return {
+        uuid: v.uuid,
+        name: v.name,
+        desc: v.description ?? null,
+        primary_viewpoint: v.viewpoint ?? null,
+        nodes: rootNodes,
+        conns: archiConns,
+      }
+    })
+  )
 
   return {
     uuid: ws.uuid,
@@ -234,7 +322,7 @@ export async function modelFromDb(workspaceId: number): Promise<ArchiModel> {
     relationships: archiRelationships,
     propertyDefinitions: archiPropDefs,
     views: archiViews,
-  };
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -242,112 +330,184 @@ export async function modelFromDb(workspaceId: number): Promise<ArchiModel> {
 // ---------------------------------------------------------------------------
 
 // Replaces all rows for the workspace atomically (PostgreSQL async transaction).
-export async function modelToDb(workspaceId: number, model: ArchiModel): Promise<void> {
+export async function modelToDb(
+  workspaceId: number,
+  model: ArchiModel
+): Promise<void> {
   await (db as any).transaction(async (tx: any) => {
-    await tx.update(workspaces).set({
-      uuid: model.uuid,
-      description: model.desc ?? null,
-      version: model.version ?? null,
-      updatedAt: Math.floor(Date.now() / 1000),
-    }).where(eq(workspaces.id, workspaceId));
+    await tx
+      .update(workspaces)
+      .set({
+        uuid: model.uuid,
+        description: model.desc ?? null,
+        version: model.version ?? null,
+        updatedAt: Math.floor(Date.now() / 1000),
+      })
+      .where(eq(workspaces.id, workspaceId))
 
-    await tx.delete(elements).where(eq(elements.workspaceId, workspaceId));
-    await tx.delete(relationships).where(eq(relationships.workspaceId, workspaceId));
-    await tx.delete(propertyDefinitions).where(eq(propertyDefinitions.workspaceId, workspaceId));
-    await tx.delete(views).where(eq(views.workspaceId, workspaceId));
+    await tx.delete(elements).where(eq(elements.workspaceId, workspaceId))
+    await tx
+      .delete(relationships)
+      .where(eq(relationships.workspaceId, workspaceId))
+    await tx
+      .delete(propertyDefinitions)
+      .where(eq(propertyDefinitions.workspaceId, workspaceId))
+    await tx.delete(views).where(eq(views.workspaceId, workspaceId))
 
     for (const pd of model.propertyDefinitions) {
       await tx.insert(propertyDefinitions).values({
-        workspaceId, uuid: pd.uuid, name: pd.name, type: pd.type,
-      });
+        workspaceId,
+        uuid: pd.uuid,
+        name: pd.name,
+        type: pd.type,
+      })
     }
 
     for (const e of model.elements) {
-      const [res] = await tx.insert(elements).values({
-        workspaceId, uuid: e.uuid, type: e.type, name: e.name, description: e.desc ?? null,
-      }).returning({ id: elements.id });
+      const [res] = await tx
+        .insert(elements)
+        .values({
+          workspaceId,
+          uuid: e.uuid,
+          type: e.type,
+          name: e.name,
+          description: e.desc ?? null,
+        })
+        .returning({ id: elements.id })
       // v8 ignore next
-      if (!res) continue;
+      if (!res) continue
       for (const [defUuid, value] of Object.entries(e.props)) {
-        await tx.insert(elementProperties).values({ elementId: res.id, propertyDefUuid: defUuid, value });
+        await tx
+          .insert(elementProperties)
+          .values({ elementId: res.id, propertyDefUuid: defUuid, value })
       }
     }
 
     for (const r of model.relationships) {
-      const srcUuid = typeof r.source === "string" ? r.source : r.source.uuid;
-      const tgtUuid = typeof r.target === "string" ? r.target : r.target.uuid;
-      const [res] = await tx.insert(relationships).values({
-        workspaceId, uuid: r.uuid, type: r.type, name: r.name ?? null,
-        description: r.desc ?? null, sourceUuid: srcUuid, targetUuid: tgtUuid,
-        accessType: r.access_type ?? null,
-        isDirected: r.is_directed ?? null,
-        influenceModifier: r.influence_strength ?? null,
-      }).returning({ id: relationships.id });
+      const srcUuid = typeof r.source === "string" ? r.source : r.source.uuid
+      const tgtUuid = typeof r.target === "string" ? r.target : r.target.uuid
+      const [res] = await tx
+        .insert(relationships)
+        .values({
+          workspaceId,
+          uuid: r.uuid,
+          type: r.type,
+          name: r.name ?? null,
+          description: r.desc ?? null,
+          sourceUuid: srcUuid,
+          targetUuid: tgtUuid,
+          accessType: r.access_type ?? null,
+          isDirected: r.is_directed ?? null,
+          influenceModifier: r.influence_strength ?? null,
+        })
+        .returning({ id: relationships.id })
       // v8 ignore next
-      if (!res) continue;
+      if (!res) continue
       for (const [defUuid, value] of Object.entries(r.props)) {
-        await tx.insert(relationshipProperties).values({ relationshipId: res.id, propertyDefUuid: defUuid, value });
+        await tx
+          .insert(relationshipProperties)
+          .values({ relationshipId: res.id, propertyDefUuid: defUuid, value })
       }
     }
 
     for (const v of model.views) {
-      const [vRes] = await tx.insert(views).values({
-        workspaceId, uuid: v.uuid, name: v.name,
-        description: v.desc ?? null, viewpoint: v.primary_viewpoint ?? null,
-      }).returning({ id: views.id });
+      const [vRes] = await tx
+        .insert(views)
+        .values({
+          workspaceId,
+          uuid: v.uuid,
+          name: v.name,
+          description: v.desc ?? null,
+          viewpoint: v.primary_viewpoint ?? null,
+        })
+        .returning({ id: views.id })
       // v8 ignore next
-      if (!vRes) continue;
-      const viewId = vRes.id;
+      if (!vRes) continue
+      const viewId = vRes.id
 
-      const flatNodes: Parameters<typeof flattenNodes>[2] = [];
-      flattenNodes(v.nodes, null, flatNodes, { i: 0 });
+      const flatNodes: Parameters<typeof flattenNodes>[2] = []
+      flattenNodes(v.nodes, null, flatNodes, { i: 0 })
       for (const n of flatNodes) {
-        await tx.insert(nodes).values({ viewId, ...n });
+        await tx.insert(nodes).values({ viewId, ...n })
       }
 
       for (const c of v.conns) {
-        const lineC = colorToRow(c.line_color);
-        const fontC2 = colorToRow(c.font_color);
-        const [cRes] = await tx.insert(connections).values({
-          viewId, uuid: c.uuid, name: c.name ?? null,
-          relationshipUuid: c.ref ?? null,
-          sourceNodeUuid: c.source ?? null,
-          targetNodeUuid: c.target ?? null,
-          lineColorR: lineC.r, lineColorG: lineC.g, lineColorB: lineC.b, lineColorA: lineC.a,
-          lineWidth: c.line_width ?? null,
-          fontName: c.font_name ?? null,
-          fontSize: c.font_size ?? null,
-          fontColorR: fontC2.r, fontColorG: fontC2.g, fontColorB: fontC2.b, fontColorA: fontC2.a,
-        }).returning({ id: connections.id });
+        const lineC = colorToRow(c.line_color)
+        const fontC2 = colorToRow(c.font_color)
+        const [cRes] = await tx
+          .insert(connections)
+          .values({
+            viewId,
+            uuid: c.uuid,
+            name: c.name ?? null,
+            relationshipUuid: c.ref ?? null,
+            sourceNodeUuid: c.source ?? null,
+            targetNodeUuid: c.target ?? null,
+            lineColorR: lineC.r,
+            lineColorG: lineC.g,
+            lineColorB: lineC.b,
+            lineColorA: lineC.a,
+            lineWidth: c.line_width ?? null,
+            fontName: c.font_name ?? null,
+            fontSize: c.font_size ?? null,
+            fontColorR: fontC2.r,
+            fontColorG: fontC2.g,
+            fontColorB: fontC2.b,
+            fontColorA: fontC2.a,
+          })
+          .returning({ id: connections.id })
         // v8 ignore next
-        if (!cRes) continue;
+        if (!cRes) continue
         if (c.bendpoints?.length) {
           for (let i = 0; i < c.bendpoints.length; i++) {
-            const bp = c.bendpoints[i]!;
-            await tx.insert(bendpoints).values({ connectionId: cRes.id, x: bp.x, y: bp.y, sortOrder: i });
+            const bp = c.bendpoints[i]!
+            await tx
+              .insert(bendpoints)
+              .values({ connectionId: cRes.id, x: bp.x, y: bp.y, sortOrder: i })
           }
         }
       }
     }
-  });
+  })
 }
 
 // ---------------------------------------------------------------------------
 // Seed: create a workspace row and populate from an ArchiModel
 // ---------------------------------------------------------------------------
 
-export async function seedWorkspace(name: string, model: ArchiModel, organizationId: string): Promise<number> {
-  const [existing] = await db.select({ id: workspaces.id }).from(workspaces)
-    .where(and(eq(workspaces.organizationId, organizationId), eq(workspaces.name, name)));
-  if (existing) return existing.id;
+export async function seedWorkspace(
+  name: string,
+  model: ArchiModel,
+  createdById: string,
+  organizationId: number
+): Promise<number> {
+  const [existing] = await db
+    .select({ id: workspaces.id })
+    .from(workspaces)
+    .where(
+      and(
+        eq(workspaces.organizationId, organizationId),
+        eq(workspaces.name, name)
+      )
+    )
+  if (existing) return existing.id
 
-  const now = Math.floor(Date.now() / 1000);
-  const [ws] = await db.insert(workspaces).values({
-    uuid: model.uuid, name, description: model.desc ?? null,
-    version: model.version ?? null, organizationId, createdAt: now, updatedAt: now,
-  }).returning({ id: workspaces.id });
-  if (!ws) throw new Error("Failed to create workspace");
+  const now = Math.floor(Date.now() / 1000)
+  const [ws] = await db
+    .insert(workspaces)
+    .values({
+      uuid: model.uuid,
+      name,
+      description: model.desc ?? null,
+      version: model.version ?? null,
+      createdById,
+      organizationId,
+      createdAt: now,
+      updatedAt: now,
+    })
+    .returning({ id: workspaces.id })
+  if (!ws) throw new Error("Failed to create workspace")
 
-  await modelToDb(ws.id, model);
-  return ws.id;
+  await modelToDb(ws.id, model)
+  return ws.id
 }

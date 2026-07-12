@@ -7,19 +7,19 @@
 | API | Express + TypeScript ESM, PostgreSQL (Drizzle ORM), Keycloak (auth) |
 | MCP | `@modelcontextprotocol/sdk` — Streamable HTTP transport, Bearer token auth |
 | Web | Next.js 16, React, shadcn/ui, Vercel Analytics + Speed Insights |
-| Admin web | Next.js 16 — platform admin console (`apps/admin-web`), `platform_admin` only |
 
 ## Quick start
 
 ```bash
 make install      # pnpm install
-make up           # postgres + keycloak (Docker), then pnpm dev — API :3000 · Web :8000 · Admin :8001 · MCP :3001 · all bound to 0.0.0.0
+make up           # postgres + keycloak (Docker), then pnpm dev — API :3000 · Web :8000 · MCP :3001 · all bound to 0.0.0.0
 ```
 
-On first run the API:
-1. Applies pending PostgreSQL migrations (`packages/db/drizzle-pg/`)
-2. Seeds default users (`admin/admin`, `user/user`, `contrib/contrib`, `archi/archi`) if the `users` table is empty
-3. Seeds workspaces from `workspaces.json` or `config.json` + XML files if present
+On first run, `apps/api` applies pending PostgreSQL migrations
+(`packages/db/drizzle-pg/`). Demo users and workspaces are not seeded
+automatically — run `make setup-demo` (or the individual `make
+keycloak-setup` / `seed-demo-users` / `seed-demo` targets, see
+[Demo seed](demo-data.md#demo-seed)).
 
 `DATABASE_URL` is **required** — there is no hardcoded
 default. For local development, `make up` sources `.env.dev`, which sets
@@ -32,7 +32,7 @@ Two Docker Compose files cover every deployment mode, selected via `ENV` (defaul
 
 | File | Purpose |
 |------|---------|
-| `docker-compose.yml` | **Production** (`ENV=prod`) — pulls published images from Docker Hub (Traefik, control-api, tenant-api, mcp-server, web, PostgreSQL) |
+| `docker-compose.yml` | **Production** (`ENV=prod`) — pulls published images from Docker Hub (Traefik, api, mcp-server, web, PostgreSQL) |
 | `docker-compose.dev.yml` | **Development infra** (`ENV=dev`, default) — PostgreSQL + Keycloak, started by `make up`, which also runs `pnpm dev` for hot-reload |
 
 The `Makefile` wraps the most common operations and loads `.env.$(ENV)` (`.env.dev` or `.env.prod`, via `-include`). Run `make` or `make help` for the full list.
@@ -40,7 +40,7 @@ The `Makefile` wraps the most common operations and loads `.env.$(ENV)` (`.env.d
 ```bash
 # First-time setup
 make install        # pnpm install
-make env            # copy .env.example → .env.dev (edit DB_PASSWORD, TENANT_JWT_SECRET, TENANT_DB_PASSWORD, TENANT_DB_ENCRYPTION_KEY)
+make env            # copy .env.example → .env.dev (edit DB_PASSWORD, KEYCLOAK_ADMIN_CLIENT_SECRET)
 make env ENV=prod   # ... or → .env.prod, for a production deployment
 
 # Development (ENV=dev, default)
@@ -52,7 +52,7 @@ make logs
 #   docker exec <postgres-container> psql -U archispark -d postgres -c "CREATE DATABASE archispark_keycloak;"
 #   docker exec <postgres-container> psql -U archispark -d postgres -c "GRANT ALL PRIVILEGES ON DATABASE archispark_keycloak TO archispark;"
 
-make keycloak-setup  # create/update the Keycloak realm (roles, clients, service account) via the Admin API — works on hosted Phasetwo too
+make keycloak-setup  # create/update the Keycloak realm (roles, clients, service account) via the Admin API — works on any Keycloak instance
 make seed-demo-users # create/update the 4 Keycloak demo accounts (admin/user/contrib/archi)
 make seed-demo       # seed demo ArchiMate data (ArchiMetal/ArchiSurance, see Demo seed)
 

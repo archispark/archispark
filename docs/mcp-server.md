@@ -12,7 +12,7 @@ claude mcp add archimate \
   --header "Authorization: Bearer <token>"
 ```
 
-The token resolves the calling user's organization membership: write tools (`create_*`, `update_*`, `delete_*`, `activate_workspace`, `import_model`) require `owner`/`admin`/`platform_admin`; org `member`s get a read-only error. All tools operate on that organization's active workspace.
+The token resolves the calling user's identity and its pinned organization/workspace scope (set at token creation, see [Authentication](authentication.md#organizations-and-roles)) — every tool resolves access through the same `apps/api/src/access.ts` gateway used by the REST API, honouring the caller's `owner`/`admin`/`member` role (read-only tools work for any role; mutating tools like `create_element` or `import_model` require `owner`/`admin`).
 
 **Available tools (38), 2 prompts, 2 resources:**
 

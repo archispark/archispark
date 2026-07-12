@@ -28,7 +28,7 @@ services:
       - "5432:5432"
     volumes:
       - postgres_dev_data:/var/lib/postgresql/data
-      # Script d'initialisation : crée archispark_tenant au premier démarrage
+      # Script d'initialisation : crée la base archispark_keycloak au premier démarrage
       - ./initdb:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test:     ["CMD-SHELL", "pg_isready -U archispark -d archispark"]
@@ -36,9 +36,9 @@ services:
       timeout:  5s
       retries:  10
 
-  # ── Identity (Keycloak / Phasetwo) ───────────────────────────────────────
+  # ── Identity (Keycloak) ───────────────────────────────────────────────────
   keycloak:
-    image: quay.io/phasetwo/phasetwo-keycloak:26.0.2
+    image: quay.io/keycloak/keycloak:26.0.2
     restart: unless-stopped
     command: start-dev --import-realm
     environment:

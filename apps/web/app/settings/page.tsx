@@ -5,7 +5,6 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { useWorkspaces, useUpdateWorkspace, useDeleteWorkspace } from "@/lib/queries";
-import { useIsOrgAdmin, useIsOrgOwner } from "@/hooks/use-organization";
 import { useFormModal } from "@/hooks/use-form-modal";
 import { Input } from "@workspace/ui/components/input";
 import { Button } from "@workspace/ui/components/button";
@@ -40,8 +39,6 @@ export default function SettingsPage() {
 function WorkspaceTab() {
   const { t } = useT();
   const router = useRouter();
-  const isOrgAdmin = useIsOrgAdmin();
-  const isOrgOwner = useIsOrgOwner();
   const { data: workspaces = [], isLoading } = useWorkspaces();
   const updateWs = useUpdateWorkspace();
   const deleteWs = useDeleteWorkspace();
@@ -68,7 +65,7 @@ function WorkspaceTab() {
     try {
       await updateWs.mutateAsync({
         id: active.id,
-        body: { name: name.trim(), description: description.trim() || null, team_ids: active.team_ids },
+        body: { name: name.trim(), description: description.trim() || null },
       });
       toast.success(t("settings.general.saved"));
     } catch (err) {
@@ -99,7 +96,7 @@ function WorkspaceTab() {
       <div className="space-y-4">
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="ws-name">{t("nav.workspace_name")} *</Label>
-          <Input id="ws-name" value={name} onChange={(e) => setName(e.target.value)} disabled={!isOrgAdmin} autoComplete="off" />
+          <Input id="ws-name" value={name} onChange={(e) => setName(e.target.value)} autoComplete="off" />
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="ws-desc">{t("common.optional_desc")}</Label>
@@ -107,7 +104,6 @@ function WorkspaceTab() {
             id="ws-desc"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            disabled={!isOrgAdmin}
             rows={3}
             className="text-sm px-3 py-2 border border-border rounded-md bg-background text-foreground resize-y disabled:opacity-60"
           />
@@ -115,22 +111,18 @@ function WorkspaceTab() {
         {error && (
           <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">{error}</div>
         )}
-        {isOrgAdmin && (
-          <Button onClick={handleSave} disabled={saving || !name.trim() || !dirty}>
-            {saving ? t("common.saving") : t("common.save")}
-          </Button>
-        )}
+        <Button onClick={handleSave} disabled={saving || !name.trim() || !dirty}>
+          {saving ? t("common.saving") : t("common.save")}
+        </Button>
       </div>
 
-      {isOrgOwner && (
-        <div className="border-t border-border pt-4 space-y-2">
-          <h2 className="text-sm font-semibold text-destructive">{t("settings.general.delete_ws")}</h2>
-          <p className="text-[12px] text-muted-foreground">{t("settings.workspaces.delete_desc", { name: active.name })}</p>
-          <Button variant="destructive" size="sm" onClick={() => deleteActions.openNew()}>
-            {t("settings.general.delete_ws")}
-          </Button>
-        </div>
-      )}
+      <div className="border-t border-border pt-4 space-y-2">
+        <h2 className="text-sm font-semibold text-destructive">{t("settings.general.delete_ws")}</h2>
+        <p className="text-[12px] text-muted-foreground">{t("settings.workspaces.delete_desc", { name: active.name })}</p>
+        <Button variant="destructive" size="sm" onClick={() => deleteActions.openNew()}>
+          {t("settings.general.delete_ws")}
+        </Button>
+      </div>
 
       <Dialog open={deleteModal.open} onOpenChange={(o) => !o && deleteActions.close()}>
         <DialogContent className="sm:max-w-sm">

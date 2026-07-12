@@ -1,7 +1,7 @@
 /**
  * Vercel serverless entry point.
  *
- * Mirrors apps/control-api/api/index.ts. Vercel detects this file under `api/` and
+ * Mirrors apps/api/api/index.ts. Vercel detects this file under `api/` and
  * builds it as a Node serverless function with @vercel/node; the catch-all
  * rewrite in vercel.json sends every route here and Express routes `/mcp/`
  * internally.

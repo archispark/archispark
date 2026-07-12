@@ -4,7 +4,6 @@ import { GET } from "./route";
 
 vi.mock("@workspace/auth", () => ({
   verifyAccessToken: vi.fn(),
-  ORG_ROLES: ["owner", "admin", "member"],
 }));
 
 import { verifyAccessToken } from "@workspace/auth";
@@ -48,7 +47,6 @@ describe("GET /api/auth/me", () => {
       name: "Admin Archispark",
       email: "admin@archispark.internal",
       role: "platform_admin",
-      organizations: [],
     });
   });
 
@@ -63,38 +61,5 @@ describe("GET /api/auth/me", () => {
     expect(body.role).toBe("user");
     expect(body.email).toBeNull();
     expect(body.name).toBe("user");
-    expect(body.organizations).toEqual([]);
-  });
-
-  it("derives organizations from the organizations claim", async () => {
-    vi.mocked(verifyAccessToken).mockResolvedValue({
-      sub: "c8a1f6c0-0000-4000-8000-000000000003",
-      preferred_username: "archi",
-      realm_access: { roles: [] },
-      organizations: {
-        "org-1": { name: "Default", roles: ["owner"] },
-        "org-2": { name: "Acme", roles: ["member", "admin"] },
-      },
-    });
-    const res = await GET(makeReq("access_token=good"));
-    const body = await res.json();
-    expect(body.organizations).toEqual([
-      { id: "org-1", name: "Default", role: "owner" },
-      { id: "org-2", name: "Acme", role: "admin" },
-    ]);
-  });
-
-  it("defaults an organization's role to member when no recognized org role is present", async () => {
-    vi.mocked(verifyAccessToken).mockResolvedValue({
-      sub: "c8a1f6c0-0000-4000-8000-000000000004",
-      preferred_username: "ghost",
-      realm_access: { roles: [] },
-      organizations: {
-        "org-1": { name: "Default", roles: ["unexpected-role"] },
-      },
-    });
-    const res = await GET(makeReq("access_token=good"));
-    const body = await res.json();
-    expect(body.organizations).toEqual([{ id: "org-1", name: "Default", role: "member" }]);
   });
 });

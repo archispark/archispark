@@ -1,62 +1,122 @@
 # Authentication
 
-All routes except `GET /openapi.json`, `GET /docs`, and `GET /settings/messages` require a Keycloak access token — either as an `access_token` cookie (see [Keycloak login](#keycloak-login-stage-3)) or an `Authorization: Bearer <token>` header — or a personal API token.
+All routes except `GET /openapi.json`, `GET /docs`, and `GET /settings/messages` require a Keycloak access token — either as an `access_token` cookie (see [Keycloak login](#keycloak-login)) or an `Authorization: Bearer <token>` header — or a personal API token.
 
-Every authenticated request resolves an **active organization** — from the API token's organization, the `X-Org-Id` header (validated against the user's `organizations` claim, see [Keycloak login](#keycloak-login-stage-3)), the session's active organization, or (failing that) the user's first organization membership — and attaches the user's role (`owner`/`admin`/`member`) and team memberships in that organization to the request.
+## Organizations and roles
 
-Write operations (`POST`, `PUT`, `DELETE`) on workspace content require the `owner` or `admin` role in the active organization (or the platform super admin role, see below); plain `member`s are read-only. `/users*` and `/settings/api-tokens*` are exempt from this check. Deleting a workspace entirely (`DELETE /workspaces/:id`) is further restricted to `owner`. The entire `/organizations/*` section (members, invitations, teams — organization administration) is owner-only and invisible to both `admin` and plain `member`, regardless of method (see [Organizations & teams](administration.md#organizations--teams)).
+Workspaces belong to **Organizations**, not directly to users. An
+organization has members with one of three roles:
+
+| Role | Read | Write (elements/relationships/views/…) | Manage members | Delete organization |
+|------|------|------------------------------------------|-----------------|----------------------|
+| `owner` | ✅ | ✅ | ✅ | ✅ |
+| `admin` | ✅ | ✅ | ❌ | ❌ |
+| `member` | ✅ | ❌ | ❌ | ❌ |
+
+Every organization/workspace route resolves the caller's role through the
+single authorization gateway,
+[`apps/api/src/access.ts`](../apps/api/src/access.ts) — never a per-route
+check. Two-level error convention: `404 Not Found` if the caller has no
+membership in the target organization (deliberately masks "not a member"
+as "not found"), `403 Forbidden` if the caller **is** a recognized member
+but their role is insufficient for the action, or the organization has been
+suspended by a `platform_admin`.
+
+A fourth role, **`platform_admin`**, is a Keycloak *realm* role (set on the
+Keycloak user, not an `organization_members` row) — it administers
+organizations from `/platform/organizations*` (metadata only: list,
+suspend/reactivate, delete) but is **structurally denied** any access to
+organization content (workspaces, elements, …), even if a stray
+`organization_members` row happened to exist for that user — `access.ts`
+rejects `platform_admin` unconditionally, before ever checking membership.
+
+Every user gets a personal organization (`is_personal = true`)
+auto-created the first time they create a workspace with no organization
+selected — this preserves frictionless solo use. Creating a "team"
+organization (`POST /organizations`) shared with other members is a
+separate, explicit action. There is no email-invitation flow in v1 —
+adding a member (`POST /organizations/:id/members`) requires an existing
+Keycloak username.
+
+`/settings/messages` (`PUT`) is restricted to users holding the global `platform_admin` realm role (`requireSuperAdmin`).
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | `GET` | `/me` | user | Returns current user |
 
-Organization membership, roles, invitations, and teams are managed via the
-[`/organizations/*`](administration.md#organization-scoped-api-control-api) routes — see
-[Organizations & teams](administration.md#organizations--teams).
+Default credentials: `admin` / `admin` (`platform_admin`, no organization membership by design), `user` / `user`, `contrib` / `contrib`, `archi` / `archi`. The demo seed creates two organizations, one per demo workspace, with `archi` as `owner` of both and `user`/`contrib` swapped between `admin`/`member` — see [Demo seed](demo-data.md#demo-seed).
 
-Default credentials: `admin` / `admin` (`platform_admin`, org `owner`), `user` / `user` (org `member`, read-only), `contrib` / `contrib` (org `admin`), `archi` / `archi` (org `owner`).
+## Keycloak login
 
-## Keycloak login (Stage 3)
-
-`docker compose -f .docker/docker-compose.dev.yml up -d --wait` also starts a local Keycloak (Phasetwo distribution,
+`docker compose -f .docker/docker-compose.dev.yml up -d --wait` also starts a local Keycloak (classic
+`quay.io/keycloak/keycloak` distribution,
 `http://localhost:8080`, admin console login from `KEYCLOAK_ADMIN`/`KEYCLOAK_ADMIN_PASSWORD`
 in `.env.dev`), pre-loaded via `--import-realm` from
-`.docker/keycloak/realm-export.json` with realm `archispark`, clients
-`archispark-web` / `archispark-admin-web` / `archispark-control-api`, the
-`platform_admin` realm role, and the control-api service account
-(`manage-users`/`view-users`/`manage-organizations`, etc.).
+`.docker/keycloak/realm-export.json` with realm `archispark`, the client
+`archispark-web`, the `platform_admin` realm role, and the api service
+account (`archispark-api`, `manage-users`/`view-users`/`query-users`/`view-realm`).
 
 The 4 demo accounts (`admin`/`user`/`contrib`/`archi`, passwords match
 usernames) are **not** part of `realm-export.json` — they live in
 `.docker/keycloak/demo-users.json` and are created/updated via the Keycloak
 Admin API by `pnpm seed:demo-users` (`make seed-demo-users`, see
 [Demo seed](demo-data.md#demo-seed)). Unlike `--import-realm`, this works against any
-Keycloak instance, including a hosted Phasetwo realm.
+Keycloak instance, including a client's dedicated realm on a remote server.
 
 `make keycloak-setup` (`pnpm setup:realm`) creates or updates the realm
 itself (roles, clients, service account) from the same
 `realm-export.json` via the Admin REST API — an alternative to
 `--import-realm` for environments where the Keycloak container isn't
-recreated from scratch (e.g. a hosted Phasetwo Cloud realm).
+recreated from scratch (e.g. onboarding a new client's realm on a shared
+remote Keycloak — see [Deployment](deployment.md#onboarding-dun-nouveau-client-un-realm-keycloak-dédié)).
 
-**Bearer token:** `apps/control-api` (via `@workspace/auth`,
-`packages/auth`) accepts a Keycloak-issued access token as a Bearer token,
-verified against the realm's JWKS (`KEYCLOAK_URL`/`KEYCLOAK_REALM`). `req.user`
-is built directly from the verified claims — `id: claims.sub`,
+## One Keycloak realm per client
+
+Each ArchiSpark client gets its own Keycloak realm (`archispark-<tenant>`)
+on a shared, self-hosted **classic Keycloak** instance (the same
+`quay.io/keycloak/keycloak` distribution as local dev — see
+[Deployment](deployment.md#kubernetes-helm)). A realm is a fully separate
+identity namespace — its own users, roles, Identity Providers, sessions,
+and JWKS/issuer — so this gives complete tenant isolation with **no
+application code involved**:
+[`verifyAccessToken`](../packages/auth/src/verify.ts) already validates the
+token's `issuer` (`${KEYCLOAK_URL}/realms/${KEYCLOAK_REALM}`), which
+includes the realm name. A token issued for `archispark-acme` is therefore
+automatically rejected by a deployment configured with
+`KEYCLOAK_REALM=archispark-other`.
+
+Each client's `apps/api`/`apps/web` deployment simply points at its own
+realm via env vars — `KEYCLOAK_URL` (the shared Keycloak instance),
+`KEYCLOAK_REALM=archispark-<tenant>`, `KEYCLOAK_CLIENT_ID_WEB=archispark-web`,
+`KEYCLOAK_ADMIN_CLIENT_ID`/`KEYCLOAK_ADMIN_CLIENT_SECRET` (the service
+account created in that realm). SSO (Google/Microsoft/other OIDC or SAML)
+is configured per realm via the admin console's *Identity providers* menu
+— a client's SSO configuration is never visible to another client. See
+[Deployment](deployment.md#onboarding-dun-nouveau-client-un-realm-keycloak-dédié)
+for the full onboarding runbook.
+
+**Bearer token:** `apps/api` (via `@workspace/auth`, `packages/auth`)
+accepts a Keycloak-issued access token as a Bearer token, verified against
+the realm's JWKS (`KEYCLOAK_URL`/`KEYCLOAK_REALM`). `req.user` is built
+directly from the verified claims — `id: claims.sub`,
 `username: claims.preferred_username`, and `role: "platform_admin"` if
 `realm_access.roles` includes `platform_admin` (`"user"` otherwise).
-Organization role and team resolution then proceed from `req.user.id` (the
-Keycloak `sub`) exactly as for any other authenticated user — see
-[Organizations & teams](administration.md#organizations--teams). `initOrganizations()` seeds
-the demo users into the `Default` organization (with their respective
-`owner`/`admin`/`member` roles) at control-api startup, resolved by username
-via the Keycloak Admin API.
+A request may alternatively present a personal API token
+(`apiTokens` table) as the Bearer value — `lookupApiToken` resolves it to
+the same `req.user` shape via the Keycloak Admin API. A token is created
+scoped to one organization (`organization_id`, required) and optionally
+pinned to one workspace of that organization (`workspace_id`); this scope
+is carried as `req.tokenContext` and takes priority over interactive
+active-organization/workspace selection in `resolveActiveContext`. The
+token's `owner`/`admin`/`member` role is **never** frozen on the token
+itself — it's re-resolved live from `organization_members` on every
+request, so a revoked or demoted membership takes effect immediately even
+for an existing token.
 
-**Browser login for `apps/web` / `apps/admin-web`:** both apps sign in via the
-OIDC authorization-code + PKCE flow against Keycloak. `/login` is a single "Se
-connecter" link to `/api/auth/login`. Each app has its own client
-(`KEYCLOAK_CLIENT_ID_WEB` /
-`KEYCLOAK_CLIENT_ID_ADMIN_WEB` → `archispark-web` / `archispark-admin-web`).
+**Browser login for `apps/web`:** the app signs in via the OIDC
+authorization-code + PKCE flow against Keycloak. `/login` is a single "Se
+connecter" link to `/api/auth/login`, using the `KEYCLOAK_CLIENT_ID_WEB`
+client (`archispark-web`).
 
 | Route | Purpose |
 |-------|---------|
@@ -72,8 +132,8 @@ using the `refresh_token` cookie and forwards the resulting `Set-Cookie`s
 before continuing, and only redirects to `/api/auth/login?from=<path>` if the
 refresh also fails.
 
-`apps/control-api`'s `requireAuth` also accepts the `access_token` cookie —
+`apps/api`'s `requireAuth` also accepts the `access_token` cookie —
 verified and bridged the same way as the Bearer path above. A
-cookie-authenticated request to a proxied route (e.g. `apps/web`'s `/api/*` →
-control-api) therefore resolves to the same `req.user` as a Bearer token for
-the same person.
+cookie-authenticated request forwarded by `apps/web`'s `/api/*` rewrite
+therefore resolves to the same `req.user` as a Bearer token for the same
+person.

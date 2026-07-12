@@ -12,7 +12,6 @@ import {
   useDeleteWorkspace,
   useActivateWorkspace,
 } from "@/lib/queries";
-import { useTeams } from "@/hooks/use-organization";
 import { useFormModal } from "@/hooks/use-form-modal";
 import { Input } from "@workspace/ui/components/input";
 import { Button } from "@workspace/ui/components/button";
@@ -30,7 +29,6 @@ import {
 
 export function WorkspaceSettings() {
   const { t } = useT();
-  const teams = useTeams();
   const { data: workspaces = [], isLoading } = useWorkspaces();
   const createWs = useCreateWorkspace();
   const updateWs = useUpdateWorkspace();
@@ -45,7 +43,6 @@ export function WorkspaceSettings() {
   const [newDesc, setNewDesc] = useState("");
 
   const [editName, setEditName] = useState("");
-  const [editTeamIds, setEditTeamIds] = useState<string[]>([]);
 
   function openCreate() {
     setNewName("");
@@ -55,12 +52,7 @@ export function WorkspaceSettings() {
 
   function openEdit(ws: WorkspaceInfo) {
     setEditName(ws.name);
-    setEditTeamIds(ws.team_ids ?? []);
     editActions.openWith(ws);
-  }
-
-  function toggleEditTeam(teamId: string) {
-    setEditTeamIds((ids) => (ids.includes(teamId) ? ids.filter((id) => id !== teamId) : [...ids, teamId]));
   }
 
   async function handleCreate() {
@@ -75,7 +67,7 @@ export function WorkspaceSettings() {
     if (!editModal.target || !editName.trim()) return;
     const id = editModal.target.id;
     await editActions.run(async () => {
-      await updateWs.mutateAsync({ id, body: { name: editName.trim(), team_ids: editTeamIds } });
+      await updateWs.mutateAsync({ id, body: { name: editName.trim() } });
     });
   }
 
@@ -179,25 +171,6 @@ export function WorkspaceSettings() {
               <Label htmlFor="edit-ws-name">{t("nav.workspace_name")} *</Label>
               <Input id="edit-ws-name" value={editName} onChange={(e) => setEditName(e.target.value)} autoComplete="off" />
             </div>
-            {teams.data && teams.data.length > 0 && (
-              <div className="flex flex-col gap-1.5">
-                <Label>{t("settings.general.teams_label")}</Label>
-                <p className="text-[11px] text-muted-foreground">{t("settings.general.teams_hint")}</p>
-                <div className="border border-border rounded-lg divide-y divide-border overflow-hidden">
-                  {teams.data.map((team) => (
-                    <label key={team.id} className="flex items-center gap-2.5 px-3 py-2 text-[13px] cursor-pointer hover:bg-muted/50">
-                      <input
-                        type="checkbox"
-                        checked={editTeamIds.includes(team.id)}
-                        onChange={() => toggleEditTeam(team.id)}
-                        className="size-3.5"
-                      />
-                      <span className="flex-1 min-w-0 truncate">{team.name}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
           {editModal.error && (
             <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">{editModal.error}</div>

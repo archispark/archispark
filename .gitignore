@@ -44,3 +44,8 @@ npm-debug.log*
 *.db-wal
 
 .playwright-mcp/
+
+# Claude Code local overrides (not shared with the team)
+.claude/settings.local.json
+CLAUDE.local.md
+.claude/agent-memory-local/

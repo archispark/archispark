@@ -1,22 +1,44 @@
 # API Reference
 
-## Workspace management
+## Organizations
 
-*tenant-api route — see [Control-api / tenant-api split](architecture.md#control-api--tenant-api-split).*
+Workspaces belong to an organization — see [Authentication](authentication.md#organizations-and-roles) for the full role matrix (`owner`/`admin`/`member`) and the `platform_admin` isolation guarantee.
 
-Workspaces belong to an organization (`organization_id`) and are listed only if the current user is a member of that organization (and, when `team_ids` is non-empty, a member of one of those teams or an org owner/admin).
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| `GET` | `/organizations` | member+ | List organizations the caller belongs to, with their role and which one is active (empty for `platform_admin`) |
+| `POST` | `/organizations` | any user | Create a "team" organization — body: `{ name }`; caller becomes `owner` |
+| `PUT` | `/organizations/:id` | owner/admin | Rename — body: `{ name }` |
+| `DELETE` | `/organizations/:id` | owner | Delete (cascades to workspaces/members/tokens) |
+| `POST` | `/organizations/:id/activate` | member+ | Switch the caller's active organization |
+| `GET` | `/organizations/:id/members` | member+ | List members with role and username |
+| `POST` | `/organizations/:id/members` | owner | Add an existing Keycloak user — body: `{ username, role }` (no email invitation) |
+| `PUT` | `/organizations/:id/members/:userId` | owner | Change a member's role — body: `{ role }`; refuses to demote the last `owner` |
+| `DELETE` | `/organizations/:id/members/:userId` | owner | Remove a member, including self-removal; refuses to remove the last `owner` |
+
+## Platform administration
+
+`platform_admin`-only, metadata only — never organization content.
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/workspaces` | List workspaces visible to the current user in the active organization |
-| `POST` | `/workspaces` | Create workspace — body: `{ name, path?, description?, team_ids? }` (`path` = XML file to import; org owner/admin only) |
-| `PUT` | `/workspaces/:id` | Rename workspace and/or update `description`/`team_ids` (org owner/admin only) |
-| `DELETE` | `/workspaces/:id` | Delete workspace (org **owner** only — `manage-organization`; deleting the active one switches to another in the organization; deleting the last one is allowed and leaves zero — the web UI then redirects to its `/workspaces` page to create a new one) |
-| `POST` | `/workspaces/:id/activate` | Switch the current user's active workspace within the active organization |
+| `GET` | `/platform/organizations` | List every organization (id, slug, name, `is_personal`, `enabled`, `created_at`) |
+| `PUT` | `/platform/organizations/:id` | Suspend/reactivate — body: `{ enabled }` |
+| `DELETE` | `/platform/organizations/:id` | Delete an organization |
+
+## Workspace management
+
+Every workspace belongs to exactly one organization (`organization_id`) — a caller sees and acts on every workspace of every organization they belong to, subject to their role in that organization.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/workspaces` | List the caller's active organization's workspaces |
+| `POST` | `/workspaces` | Create workspace — body: `{ name, path?, description?, organization_id? }` (`path` = XML file to import; `organization_id` defaults to the caller's active organization, auto-creating a personal one on a user's very first workspace) |
+| `PUT` | `/workspaces/:id` | Rename workspace and/or update `description` (owner/admin) |
+| `DELETE` | `/workspaces/:id` | Delete workspace (owner/admin; deleting the active one switches to another in the same organization; deleting the last one is allowed and leaves zero — the web UI then redirects to its `/workspaces` page to create a new one) |
+| `POST` | `/workspaces/:id/activate` | Switch the caller's active workspace (and active organization, if different) |
 
 ## Model routes
-
-*tenant-api route — see [Control-api / tenant-api split](architecture.md#control-api--tenant-api-split).*
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -26,8 +48,6 @@ Workspaces belong to an organization (`organization_id`) and are listed only if 
 | `POST` | `/import` | Replace the active workspace model from an XML body |
 
 ## Elements
-
-*tenant-api route — see [Control-api / tenant-api split](architecture.md#control-api--tenant-api-split).*
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -40,8 +60,6 @@ Workspaces belong to an organization (`organization_id`) and are listed only if 
 
 ## Relationships
 
-*tenant-api route — see [Control-api / tenant-api split](architecture.md#control-api--tenant-api-split).*
-
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/relationships/types` | Sorted list of relationship types present |
@@ -52,8 +70,6 @@ Workspaces belong to an organization (`organization_id`) and are listed only if 
 | `DELETE` | `/relationships/:id` | Delete |
 
 ## Views
-
-*tenant-api route — see [Control-api / tenant-api split](architecture.md#control-api--tenant-api-split).*
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -66,8 +82,6 @@ Workspaces belong to an organization (`organization_id`) and are listed only if 
 | `GET` | `/views/:id/image` | Render view as SVG (`?format=svg`; PNG export is client-side) |
 
 ## Property definitions
-
-*tenant-api route — see [Control-api / tenant-api split](architecture.md#control-api--tenant-api-split).*
 
 | Method | Path | Description |
 |--------|------|-------------|

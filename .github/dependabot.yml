@@ -11,30 +11,17 @@ updates:
       dev-tooling:
         patterns: ["turbo", "typescript", "prettier*", "@workspace/*"]
 
-  # Control API
+  # API
   - package-ecosystem: npm
-    directory: /apps/control-api
+    directory: /apps/api
     schedule:
       interval: weekly
       day: monday
     groups:
-      control-api-deps:
+      api-deps:
         patterns: ["*"]
         exclude-patterns: ["@types/*"]
-      control-api-types:
-        patterns: ["@types/*"]
-
-  # Tenant API
-  - package-ecosystem: npm
-    directory: /apps/tenant-api
-    schedule:
-      interval: weekly
-      day: monday
-    groups:
-      tenant-api-deps:
-        patterns: ["*"]
-        exclude-patterns: ["@types/*"]
-      tenant-api-types:
+      api-types:
         patterns: ["@types/*"]
 
   # Web

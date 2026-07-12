@@ -32,14 +32,14 @@ import {
 } from "@workspace/ui/components/dialog";
 import { DataTable } from "@/components/data-table";
 import { Plus, Pencil, Trash2 } from "lucide-react";
-import { useIsOrgAdmin } from "@/hooks/use-organization";
 import { useT } from "@/lib/i18n";
 
 const PROPERTY_TYPES = ["string", "boolean", "integer", "double", "date", "object"];
 
 export default function PropertiesPage() {
   const { t } = useT();
-  const isAdmin = useIsOrgAdmin();
+  // Every workspace has exactly one owner (the authenticated user) — always write-enabled.
+  const isAdmin = true;
   const [defs, setDefs] = useState<PropertyDefinitionOut[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

@@ -77,23 +77,49 @@ they come from marketplace plugins (see below).
 
 ## Plugins & skills (`.claude/settings.json`)
 
-`enabledPlugins` turns on three plugins from the `claude-plugins-official`
-marketplace, each bundling its own MCP server:
+`enabledPlugins` turns on four plugins:
 
-| Plugin | MCP server it provides | Notes |
-|---|---|---|
-| `vercel` | `vercel` (`mcp.vercel.com`) | Also provides the `vercel:*` skills (deploy, env management, AI SDK guidance, etc.). OAuth — connect once via `/mcp` (CLI) or the Claude Code Web UI. |
-| `github` | `github` (`api.githubcopilot.com/mcp`) | Needs `GITHUB_PERSONAL_ACCESS_TOKEN` set as a secret/env var. |
-| `playwright` | `playwright` | Launches its own headless browser — no local Chrome dependency. |
+| Plugin | Marketplace | Provides | Notes |
+|---|---|---|---|
+| `vercel` | `claude-plugins-official` | MCP server `vercel` (`mcp.vercel.com`) | Also provides the `vercel:*` skills (deploy, env management, AI SDK guidance, etc.). OAuth — connect once via `/mcp` (CLI) or the Claude Code Web UI. |
+| `github` | `claude-plugins-official` | MCP server `github` (`api.githubcopilot.com/mcp`) | Needs `GITHUB_PERSONAL_ACCESS_TOKEN` set as a secret/env var. |
+| `playwright` | `claude-plugins-official` | MCP server `playwright` | Launches its own headless browser — no local Chrome dependency. |
+| `codex` | `openai-codex` | `/codex:review`, `/codex:adversarial-review`, `/codex:rescue`, `/codex:status`, `/codex:result`, `/codex:cancel`, `/codex:transfer`, `/codex:setup` | No MCP server — Bash-driven background Codex CLI runtime. Code review and test/coverage fix-up work is delegated here (see below) instead of local sub-agents. Run `/codex:setup` once per machine to verify Codex CLI install and auth. |
 
-`extraKnownMarketplaces` registers the marketplace these ship from
-(`anthropics/claude-plugins-official`) so they resolve even in a fresh
-sandbox.
+`extraKnownMarketplaces` registers the two marketplaces these ship from
+(`anthropics/claude-plugins-official`, `openai/codex-plugin-cc`) so they
+resolve even in a fresh sandbox.
 
-## Agents (`.claude/agents/`)
+## Code review & test triage — delegated to Codex, not local agents
 
-- `vitest-coverage-enforcer` — release validation sub-agent, see
-  [CLAUDE.md](../CLAUDE.md#release-process).
+This project has no `.claude/agents/` sub-agents. Review and test/coverage
+work is delegated to the Codex plugin instead:
+
+- `/codex:review --background` (add `--base main` for a whole-branch
+  review) after a significant change — read-only.
+- `/codex:adversarial-review --background <risk angle>` before a
+  production-facing change (auth, data loss, concurrency).
+- `/codex:rescue --background <precise task>` to investigate a bug, fix
+  a failing test, or close a coverage gap — can modify code.
+- Release validation (`.claude/skills/release/SKILL.md`) uses `/codex:review`
+  + `/codex:rescue` in place of the old `vitest-coverage-enforcer` agent.
+
+See [CLAUDE.md's "Amélioration continue"](../CLAUDE.md#amélioration-continue)
+for when to promote a recurring Codex finding into a rule.
+
+## Rules (`.claude/rules/`)
+
+Path-scoped conventions, loaded only when Claude touches matching
+files: `testing.md` (`**/*.test.ts(x)`), `api.md` (`apps/api/src/**`),
+`db.md` (`packages/db/**`), `frontend.md` (`apps/web/**`,
+`packages/ui/**`).
+
+## Skills (`.claude/skills/`)
+
+- `release` — human-triggered walkthrough of the release process (see
+  [CLAUDE.md](../CLAUDE.md#release-process)).
+- `retro` — human-triggered end-of-session retrospective that proposes
+  updates to `CLAUDE.md`/`.claude/rules/`/`docs/decisions.md`.
 
 ## What's intentionally left out
 

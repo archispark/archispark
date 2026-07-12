@@ -1,5 +1,21 @@
 # Deployment
 
+## Organizations migration (releases including `0018_organizations_expand.sql`)
+
+This release introduces the Organization → Workspace hierarchy via an
+expand→backfill→verify→contract migration (see
+[Architecture](architecture.md#database-schema)). It is deployed with the
+**`Recreate`** rollout strategy (short maintenance window, no rolling
+update) rather than a double-write compatibility design — the Helm chart's
+default `RollingUpdate` should be overridden to `Recreate` for this
+release's rollout. After deploying: run `pnpm --filter @workspace/db
+backfill:prod` once against the target database (no-op if already run —
+see the Vercel steps above for the exact invocation), then verify with the
+three queries in `plan.md`'s Phase 2 before ever generating
+`0019_organizations_contract.sql` (the `NOT NULL` contract migration,
+intentionally not shipped in this release — see that file for the full
+rationale).
+
 ## Kubernetes (Helm)
 
 A Helm chart is available in `.k8s/helm/archispark/`. It deploys the full stack (api, web, mcp-server, postgres) with an NGINX Ingress — the same topology as the Docker Compose setup.
@@ -95,63 +111,97 @@ claude mcp add archimate \
 
 ## Vercel
 
-1. **Create the `archispark-tenant-api` project** (Phase 5, one-time) — import
-   the repo as a second Vercel project with root directory `apps/tenant-api`.
-   It's internal-only (no custom domain needed, the default `*.vercel.app`
-   URL is fine — see [Control-api / tenant-api split](architecture.md#control-api--tenant-api-split)).
+1. **Create the `archispark-api` project** — import the repo as a Vercel
+   project with root directory `apps/api`.
 
-2. **Add Neon** — In Vercel → Storage, add two Neon Postgres databases:
-   - `archispark-control` → attached to `archispark-control-api` and `archispark-mcp-server`. Neon auto-injects `DATABASE_URL` (pooled) and `DATABASE_URL_UNPOOLED` (direct).
-   - `archispark-tenant-fallback` → attached to `archispark-tenant-api`, `archispark-control-api`, and `archispark-mcp-server`. Rename the injected `DATABASE_URL` → `TENANT_DATABASE_URL` and `DATABASE_URL_UNPOOLED` → `TENANT_DATABASE_URL_UNPOOLED`.
+2. **Add Neon** — In Vercel → Storage, add a Neon Postgres database
+   (`archispark`), attached to `archispark-api` and `archispark-mcp-server`.
+   Neon auto-injects `DATABASE_URL` (pooled) and `DATABASE_URL_UNPOOLED`
+   (direct) into both projects.
 
-3. **Apply database migrations** — run the control DB migrations manually, then deploy tenant-api so it auto-applies the tenant schema on first cold start:
-
-```bash
-# Control DB (migrations 0000 → 0012, runs against DATABASE_URL)
-DATABASE_URL="<neon-control-pooled>" pnpm --filter @workspace/db migrate:prod
-
-# Tenant DB — two options:
-# Option A (recommended): deploy tenant-api with TENANT_DATABASE_URL set;
-#   runTenantFallbackMigrations() applies drizzle-pg/tenant/ automatically on cold start.
-# Option B (manual, if tenant-api not yet deployed):
-DATABASE_URL="<neon-tenant-pooled>" pnpm --filter @workspace/db exec drizzle-kit migrate --config drizzle.config.tenant.ts
-```
-
-> **Important:** the tenant DB schema (`workspaces`, `elements`, `views`, etc.) is separate from the control DB schema and must be migrated independently. Forgetting this step results in "relation does not exist" errors on workspace creation.
-
-4. **Set environment variables** — grab a Vercel token from Account Settings → Tokens, then:
+3. **Apply database migrations, then the organization backfill**:
 
 ```bash
-VERCEL_TOKEN=xxx \
-bash apps/control-api/scripts/setup-vercel-env.sh
+DATABASE_URL="<neon-pooled>" pnpm --filter @workspace/db migrate:prod
+DATABASE_URL="<neon-pooled>" pnpm --filter @workspace/db backfill:prod
 ```
 
-The script configures:
+`backfill:prod` populates `workspaces.organization_id`/`api_tokens.organization_id`
+(left `NULL` by the DDL alone) — required once after any `migrate:prod` run
+that includes `0018_organizations_expand.sql` or later; a no-op on a fresh
+database, and safe to re-run. `apps/api`/`apps/api/api/index.ts` also run it
+automatically on every cold start, but running it explicitly here avoids
+the very first request after a migration hitting an unbackfilled row.
 
-| Variable | Project | Value |
-|---|---|---|
-| `TENANT_API_URL` | api | `archispark-tenant-api`'s deployment URL |
-| `TENANT_JWT_SECRET` | api, tenant-api | shared (auto-generated) |
-| `TENANT_DB_ENCRYPTION_KEY` | tenant-api | auto-generated |
-| `ARCHIMATE_API_URL` | web, admin-web | API Vercel deployment URL |
+4. **Set environment variables** — `DATABASE_URL` (from Neon, above),
+   `KEYCLOAK_URL`, `KEYCLOAK_REALM`, `KEYCLOAK_ADMIN_CLIENT_ID`,
+   `KEYCLOAK_ADMIN_CLIENT_SECRET` on `archispark-api`; `ARCHIMATE_API_URL`
+   (the `archispark-api` deployment URL) on `archispark-web`. Authentication
+   itself (Keycloak realm, client ids/secrets) is configured via each
+   project's Vercel dashboard — see [Keycloak login](authentication.md#keycloak-login).
 
-Authentication itself (Keycloak realm, client ids/secrets) is configured
-separately via each project's Vercel dashboard — see
-[Keycloak login](authentication.md#keycloak-login-stage-3).
+5. **Redeploy** `archispark-api`, `archispark-web`, and `archispark-mcp-server`.
 
-5. **Redeploy** `archispark-control-api`, `archispark-tenant-api`, `archispark-web`, and `archispark-admin-web`.
+## Onboarding d'un nouveau client (un realm Keycloak dédié)
 
-### Admin web project (`apps/admin-web`)
+ArchiSpark se déploie comme une plateforme **dédiée par client** (API +
+web + Postgres séparés) sur un **Keycloak self-hosté partagé** (image
+`quay.io/keycloak/keycloak` "classic", la même que celle utilisée en dev —
+déployée séparément de ce chart Helm, par exemple via le chart Keycloak
+officiel ou un conteneur dédié ; le chart `.k8s/helm/archispark/` ne
+provisionne pas Keycloak lui-même). L'isolation entre clients vient du
+**realm Keycloak** : chaque client a le sien
+(`archispark-<tenant>`), un namespace d'identité totalement séparé
+(utilisateurs, rôles, Identity Providers, JWKS/issuer) — voir
+[One Keycloak realm per client](authentication.md#one-keycloak-realm-per-client).
+Aucune modification de code applicatif n'est nécessaire pour ajouter un
+client : tout se joue dans la configuration Keycloak et les variables
+d'environnement du déploiement.
 
-`apps/admin-web` deploys as its own Vercel project (root directory
-`apps/admin-web`, same build/output settings as `archispark-web`):
+1. **Créer le realm du client**, via le script déjà existant
+   [`packages/db/scripts/setup-realm.ts`](../packages/db/scripts/setup-realm.ts)
+   (aucun script dédié n'est requis — il n'a jamais fait d'hypothèse sur un
+   nom de realm fixe) :
 
-1. Create the `archispark-admin-web` Vercel project (root directory
-   `apps/admin-web`, same team).
-2. Attach its domain (or subdomain, e.g. `admin.<domain>`) in the Vercel
-   dashboard.
-3. Set `KEYCLOAK_CLIENT_ID_ADMIN_WEB` (defaults to `archispark-admin-web`) and
-   the shared `KEYCLOAK_URL`/`KEYCLOAK_REALM` — see
-   [Keycloak login](authentication.md#keycloak-login-stage-3). Each app signs in against
-   Keycloak independently via its own OIDC client, so no shared-cookie
-   configuration between `apps/web` and `apps/admin-web` is required.
+   ```bash
+   KEYCLOAK_URL=<url du Keycloak self-hosté partagé> \
+   KEYCLOAK_REALM=archispark-<tenant> \
+   KEYCLOAK_SETUP_AUTH_REALM=master \
+   KEYCLOAK_SETUP_USERNAME=<admin master> \
+   KEYCLOAK_SETUP_PASSWORD=<mot de passe> \
+   pnpm --filter @workspace/db setup:realm
+   ```
+
+   (ou `KEYCLOAK_SETUP_AUTH_REALM=archispark-<tenant>` + un admin de ce
+   realm si le compte ne donne pas accès à `master` — voir les commentaires
+   en tête de `setup-realm.ts`.)
+
+2. **Récupérer le secret** du service account `archispark-api` généré dans
+   ce realm (console admin → Clients → `archispark-api` → Credentials).
+
+3. **Provisionner la base Postgres dédiée** du client et appliquer les
+   migrations (`pnpm --filter @workspace/db migrate:prod`), puis le
+   backfill des organisations (`pnpm --filter @workspace/db backfill:prod`
+   — no-op sur une base neuve, voir
+   [Organizations migration](#organizations-migration-releases-including-0018_organizations_expandsql)).
+
+4. **Déployer** `archispark-api`/`archispark-web` du client (Helm — voir
+   [Kubernetes (Helm)](#kubernetes-helm) — ou Vercel), pointés vers le
+   Keycloak partagé, avec : `DATABASE_URL`
+   (DB du client), `KEYCLOAK_URL` (le Keycloak partagé),
+   `KEYCLOAK_REALM=archispark-<tenant>`, `KEYCLOAK_CLIENT_ID_WEB=archispark-web`,
+   `KEYCLOAK_ADMIN_CLIENT_ID`/`KEYCLOAK_ADMIN_CLIENT_SECRET`.
+
+5. **(Optionnel) Peupler des comptes initiaux** :
+   `KEYCLOAK_REALM=archispark-<tenant> pnpm --filter @workspace/db seed:demo-users`,
+   ou créer les vrais utilisateurs via la console admin/API.
+
+6. **(Optionnel) Configurer le SSO du client** : console admin → Identity
+   providers → Google / Microsoft (Entra ID) / autre OIDC-SAML, propre à ce
+   realm — invisible des autres clients.
+
+7. **Tester** la connexion de bout en bout, puis vérifier l'isolation :
+   un token obtenu sur le realm d'un client doit être rejeté (401) par le
+   déploiement d'un autre client (`verifyAccessToken` rejette sur
+   l'`issuer`, sans rien à coder — voir
+   [One Keycloak realm per client](authentication.md#one-keycloak-realm-per-client)).

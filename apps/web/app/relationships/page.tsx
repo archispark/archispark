@@ -24,14 +24,14 @@ import {
 import { DataTable } from "@/components/data-table";
 import { PropertiesEditor } from "@/components/properties-editor";
 import { Plus, Trash2, ChevronDown, ChevronRight } from "lucide-react";
-import { useIsOrgAdmin } from "@/hooks/use-organization";
 import { useKeyboardShortcut } from "@/hooks/use-keyboard-shortcut";
 import { useT } from "@/lib/i18n";
 import { allowedRelationships } from "@/lib/archimate-rules";
 
 export default function RelationshipsPage() {
   const { t } = useT();
-  const isAdmin = useIsOrgAdmin();
+  // Every workspace has exactly one owner (the authenticated user) — always write-enabled.
+  const isAdmin = true;
   const [search, setSearch] = useState("");
   const [debouncedSearch] = useDebounce(search, 300);
   const [typeFilter, setTypeFilter] = useState<string | null>(null);

@@ -31,7 +31,7 @@ services:
       # Stockage persistant des certificats Let's Encrypt
       - traefik_certs:/letsencrypt
     depends_on:
-      control-api:
+      api:
         condition: service_healthy
       web:
         condition: service_healthy
@@ -41,31 +41,22 @@ services:
       - archispark
 
 
-  # ── REST API (control-plane) ────────────────────────────────────────────────
-  control-api:
-    image: archispark/archispark-control-api:${ARCHISPARK_OS:-alpine}-${ARCHISPARK_VERSION:-latest}
+  # ── REST API ─────────────────────────────────────────────────────────────
+  # Auth (Keycloak), tokens API personnels, et modélisation ArchiMate
+  # (elements, relationships, views, workspaces, import/export). Chaque
+  # workspace appartient à un seul utilisateur — pas de notion d'organisation.
+  api:
+    image: archispark/archispark-api:${ARCHISPARK_OS:-alpine}-${ARCHISPARK_VERSION:-latest}
     restart: unless-stopped
     depends_on:
       postgres:
-        condition: service_healthy
-      tenant-api:
         condition: service_healthy
     environment:
       NODE_ENV:            production
       PORT:                "3000"
       HOST:                "0.0.0.0"
-      # Connexion PostgreSQL (réseau Docker interne)
+      # Connexion PostgreSQL (réseau Docker interne) — base unique partagée
       DATABASE_URL:        "postgresql://archispark:${DB_PASSWORD}@postgres:5432/archispark"
-      # Base de données partagée pour les tenants sans Neon dédié
-      TENANT_DATABASE_URL: "postgresql://archispark:${DB_PASSWORD}@postgres:5432/archispark_tenant"
-      # URL interne du service tenant-api (réseau Docker) — requêtes de
-      # modélisation (elements, relationships, views, workspaces, import/export)
-      TENANT_API_URL:      "http://tenant-api:3002"
-      # Secret partagé avec tenant-api pour signer/vérifier le JWT inter-service
-      TENANT_JWT_SECRET:   ${TENANT_JWT_SECRET:?Set TENANT_JWT_SECRET in .env.prod}
-      # Mot de passe du rôle Postgres restreint archispark_tenant (créé au
-      # premier démarrage de control-api via ensureTenantRole)
-      TENANT_DB_PASSWORD:  ${TENANT_DB_PASSWORD:?Set TENANT_DB_PASSWORD in .env.prod}
     healthcheck:
       test:     ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/health"]
       interval: 10s
@@ -92,46 +83,15 @@ services:
       - "traefik.http.routers.api.middlewares=strip-api,security-headers"
       - "traefik.http.routers.api.service=api"
       - "traefik.http.services.api.loadbalancer.server.port=3000"
-      # Routeur /auth → pas de strip (chemin complet transmis à control-api)
+      # Routeur /auth → pas de strip (chemin complet transmis à l'API)
       - "traefik.http.routers.auth.rule=PathPrefix(`/auth`)"
       - "traefik.http.routers.auth.entrypoints=web"
       - "traefik.http.routers.auth.middlewares=security-headers"
       - "traefik.http.routers.auth.service=api"
 
-  # ── REST API (tenant data-plane) ────────────────────────────────────────────
-  # Service interne, non exposé via Traefik. Reçoit les requêtes de modélisation
-  # proxifiées par control-api, authentifiées par un JWT inter-service de courte
-  # durée (TENANT_JWT_SECRET) plutôt qu'une session utilisateur.
-  tenant-api:
-    image: archispark/archispark-tenant-api:${ARCHISPARK_OS:-alpine}-${ARCHISPARK_VERSION:-latest}
-    restart: unless-stopped
-    depends_on:
-      postgres:
-        condition: service_healthy
-    environment:
-      NODE_ENV:                  production
-      PORT:                      "3002"
-      HOST:                      "0.0.0.0"
-      # Connexion PostgreSQL de repli — base archispark_tenant, rôle restreint
-      # archispark_tenant (SELECT/INSERT/UPDATE/DELETE sur schema.tenant.ts only)
-      DATABASE_URL:              "postgresql://archispark_tenant:${TENANT_DB_PASSWORD}@postgres:5432/archispark_tenant"
-      TENANT_DATABASE_URL:       "postgresql://archispark_tenant:${TENANT_DB_PASSWORD}@postgres:5432/archispark_tenant"
-      # Secret partagé avec control-api pour vérifier le JWT inter-service
-      TENANT_JWT_SECRET:         ${TENANT_JWT_SECRET:?Set TENANT_JWT_SECRET in .env.prod}
-      # Clé de déchiffrement des chaînes de connexion Neon par-tenant
-      TENANT_DB_ENCRYPTION_KEY:  ${TENANT_DB_ENCRYPTION_KEY:?Set TENANT_DB_ENCRYPTION_KEY in .env.prod}
-    healthcheck:
-      test:     ["CMD", "wget", "-qO-", "http://127.0.0.1:3002/health"]
-      interval: 10s
-      timeout:  5s
-      retries:  5
-      start_period: 30s
-    networks:
-      - archispark
-
   # ── MCP Server ─────────────────────────────────────────────────────────────
   # Serveur Model Context Protocol — expose les outils ArchiMate aux agents IA.
-  # Démarre uniquement après que l'API soit saine (dépend de control-api:healthy).
+  # Démarre uniquement après que l'API soit saine (dépend de api:healthy).
   mcp-server:
     image: archispark/archispark-mcp-server:${ARCHISPARK_OS:-alpine}-${ARCHISPARK_VERSION:-latest}
     restart: unless-stopped
@@ -139,14 +99,10 @@ services:
       NODE_ENV:        production
       MCP_PORT:        "3001"
       HOST:            "0.0.0.0"
-      # Connexion directe à PostgreSQL — base control pour auth/lookups
+      # Connexion directe à PostgreSQL — même base unique que l'API
       DATABASE_URL:    "postgresql://archispark:${DB_PASSWORD}@postgres:5432/archispark"
-      # Base partagée tenant pour store/registry en mode repli
-      TENANT_DATABASE_URL: "postgresql://archispark:${DB_PASSWORD}@postgres:5432/archispark_tenant"
-      # Clé de déchiffrement des chaînes de connexion Neon par-tenant (registry/store)
-      TENANT_DB_ENCRYPTION_KEY: ${TENANT_DB_ENCRYPTION_KEY:?Set TENANT_DB_ENCRYPTION_KEY in .env.prod}
     depends_on:
-      control-api:
+      api:
         condition: service_healthy
     networks:
       - archispark
@@ -174,7 +130,7 @@ services:
       # Note : NEXT_PUBLIC_MCP_SERVER_URL est inlinée au build — non modifiable ici.
       # Pour la changer, rebuilder l'image avec docker-compose.build.yml.
     depends_on:
-      control-api:
+      api:
         condition: service_healthy
     healthcheck:
       test:     ["CMD", "wget", "-qO-", "http://127.0.0.1:8000/"]
@@ -194,8 +150,9 @@ services:
       - "traefik.http.services.web.loadbalancer.server.port=8000"
 
   # ── Base de données ────────────────────────────────────────────────────────
-  # PostgreSQL 17 — base principale de l'application.
-  # Le port 5432 est exposé pour permettre un accès externe (psql, DBeaver…).
+  # PostgreSQL 17 — base unique et partagée de l'application (auth/tokens et
+  # contenu ArchiMate). Le port 5432 est exposé pour permettre un accès
+  # externe (psql, DBeaver…).
   postgres:
     image: postgres:17-alpine
     restart: unless-stopped
@@ -208,7 +165,7 @@ services:
     volumes:
       # Volume nommé pour la persistance des données entre les redémarrages
       - postgres_data:/var/lib/postgresql/data
-      # Script d'initialisation : crée archispark_tenant au premier démarrage
+      # Script d'initialisation : crée la base archispark_keycloak au premier démarrage
       - ./initdb:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test:     ["CMD-SHELL", "pg_isready -U archispark -d archispark"]
