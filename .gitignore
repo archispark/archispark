@@ -49,3 +49,7 @@ npm-debug.log*
 .claude/settings.local.json
 CLAUDE.local.md
 .claude/agent-memory-local/
+
+# Fichiers de travail temporaires avec l'IA
+plan.md
+todo.md
