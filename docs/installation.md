@@ -52,7 +52,7 @@ make logs
 #   docker exec <postgres-container> psql -U archispark -d postgres -c "CREATE DATABASE archispark_keycloak;"
 #   docker exec <postgres-container> psql -U archispark -d postgres -c "GRANT ALL PRIVILEGES ON DATABASE archispark_keycloak TO archispark;"
 
-make keycloak-setup  # create/update the Keycloak realm (roles, clients, service account) via the Admin API — works on hosted Phasetwo too
+make keycloak-setup  # create/update the Keycloak realm (roles, clients, service account) via the Admin API — works on any Keycloak instance
 make seed-demo-users # create/update the 4 Keycloak demo accounts (admin/user/contrib/archi)
 make seed-demo       # seed demo ArchiMate data (ArchiMetal/ArchiSurance, see Demo seed)
 

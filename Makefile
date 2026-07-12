@@ -55,7 +55,7 @@ help:
 	@printf "  \033[36mpull\033[0m            Mettre à jour les images (ENV=prod)\n"
 	@printf "\n\033[4mKeycloak / démo\033[0m\n"
 	@printf "  \033[36msetup-demo\033[0m       Setup complet démo : realm + comptes + workspaces (keycloak-setup → seed-demo-users → seed-demo)\n"
-	@printf "  \033[36mkeycloak-setup\033[0m   Créer/mettre à jour le realm Keycloak Phase Two (realm-export.json)\n"
+	@printf "  \033[36mkeycloak-setup\033[0m   Créer/mettre à jour le realm Keycloak (realm-export.json)\n"
 	@printf "  \033[36mseed-demo-users\033[0m  Créer/mettre à jour les 4 comptes Keycloak de démo (admin/user/contrib/archi)\n"
 	@printf "  \033[36mseed-demo\033[0m        Charger les workspaces de démo (ArchiMetal/ArchiSurance)\n"
 	@printf "\n\033[4mBuild\033[0m (OS=$(OS) VERSION=$(VERSION))\n"
@@ -111,9 +111,9 @@ pull:
 # Idempotent — safe à relancer après une mise à jour du realm ou des données.
 setup-demo: keycloak-setup seed-demo-users seed-demo
 
-# Crée/mets à jour le realm Keycloak Phase Two (rôles, clients, service
+# Crée/mets à jour le realm Keycloak (rôles, clients, service
 # account) depuis .docker/keycloak/realm-export.json — idempotent, fonctionne
-# en local et sur un realm Phasetwo hébergé.
+# en local et sur n'importe quel realm distant (voir docs/deployment.md).
 keycloak-setup: $(ENV_FILE)
 	. $(NVM_DIR)/nvm.sh && nvm use 24 && set -a && . ./$(ENV_FILE) && set +a && pnpm setup:realm
 

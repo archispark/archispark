@@ -49,12 +49,7 @@ pnpm vitest run -t "creates a workspace with empty model"
 
 Tests run against [PGlite](https://pglite.dev) (in-memory Postgres) — no Docker required.
 
-### Database migrations
-
-```bash
-cd packages/db
-npx drizzle-kit generate   # writes to drizzle-pg/
-```
+Database migrations: see [.claude/rules/db.md](.claude/rules/db.md).
 
 For Docker/Helm/Vercel workflows, see [docs/installation.md](docs/installation.md) and [docs/deployment.md](docs/deployment.md).
 
@@ -69,39 +64,15 @@ ArchiSpark is a Turborepo/pnpm monorepo (Node >=22.13):
 - `packages/auth` — shared Keycloak auth helpers (`@workspace/auth`).
 - `packages/ui`, `packages/types` — shared React components and types.
 
-Detailed design docs live in [`docs/`](docs/) — in particular [docs/architecture.md](docs/architecture.md) (database schema, `apps/api`) and [docs/authentication.md](docs/authentication.md) (Keycloak login, tokens). Read these before making cross-cutting changes to auth or the database layer — they cover invariants that span many files.
+Detailed design docs live in [`docs/`](docs/) — in particular [docs/architecture.md](docs/architecture.md) (database schema, `apps/api`) and [docs/authentication.md](docs/authentication.md) (Keycloak login, tokens). Read these before making cross-cutting changes to auth or the database layer — they cover invariants that span many files. Past architecture decisions: [docs/decisions.md](docs/decisions.md).
 
 ## After every code change
 
 1. **Update the documentation**: keep the relevant file(s) under `docs/` (and `README.md` if the change affects the quick start or table of contents) in sync with any API, MCP tool, or behaviour change.
 
-## Release Process
+## Release process
 
-### Pre-release validation (ONLY before creating a tag)
-
-Before creating a release tag, run the `vitest-coverage-enforcer` sub-agent.
-
-The sub-agent is responsible for all release validation checks and must complete successfully before a release can be created.
-
-**Important:**
-
-* Do **not** run the `vitest-coverage-enforcer` during normal incremental development.
-* Run it **only** immediately before creating a release tag.
-
-### Creating a release
-
-After the validation step succeeds:
-
-1. Update `package.json` `"version"` so it exactly matches the release tag.
-2. Commit the version bump.
-3. Create the git tag using the same version.
-4. Push commits and tags:
-
-```bash
-git push origin main --tags
-```
-
-The git tag and the `package.json` version must always remain identical.
+Human-triggered only — see [.claude/skills/release/SKILL.md](.claude/skills/release/SKILL.md). Validation is delegated to the Codex plugin (`/codex:review`, `/codex:rescue`) only immediately before tagging, never during incremental development.
 
 ## Project conventions
 
@@ -110,3 +81,9 @@ The git tag and the `package.json` version must always remain identical.
 - **Type validation**: element and relationship types must belong to the ArchiMate 3.1 sets defined in `models/xsd`.
 - **Reference PNG components**: all components (PNG) go to `models/img/archimate`. Never write generated images to `models/img/archimate/` or any other directory.
 - **Reference SVG views**: `models/img/views/` contains SVGs exported directly by the Archi tool — these are the ground truth. When improving the renderer (`apps/api/src/renderer.ts`), compare generated output against the matching file in `models/img/views/` and minimize visual differences (shapes, colors, layout, connectors, labels, fonts).
+
+## Amélioration continue
+
+- Si l'utilisateur te corrige deux fois sur le même sujet, propose-lui explicitement d'ajouter une règle dans CLAUDE.md ou `.claude/rules/` (avec le texte exact de la règle). N'ajoute jamais une règle sans son accord.
+- Après toute décision d'architecture significative (choix de librairie, changement de pattern, refonte de module), propose une entrée dans [docs/decisions.md](docs/decisions.md).
+- Si tu découvres qu'une règle existante est obsolète ou contredite par le code actuel, signale-le au lieu de l'appliquer silencieusement.

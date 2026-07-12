@@ -117,3 +117,64 @@ DATABASE_URL="<neon-pooled>" pnpm --filter @workspace/db migrate:prod
    project's Vercel dashboard — see [Keycloak login](authentication.md#keycloak-login).
 
 5. **Redeploy** `archispark-api`, `archispark-web`, and `archispark-mcp-server`.
+
+## Onboarding d'un nouveau client (un realm Keycloak dédié)
+
+ArchiSpark se déploie comme une plateforme **dédiée par client** (API +
+web + Postgres séparés) sur un **Keycloak self-hosté partagé** (image
+`quay.io/keycloak/keycloak` "classic", la même que celle utilisée en dev —
+déployée séparément de ce chart Helm, par exemple via le chart Keycloak
+officiel ou un conteneur dédié ; le chart `.k8s/helm/archispark/` ne
+provisionne pas Keycloak lui-même). L'isolation entre clients vient du
+**realm Keycloak** : chaque client a le sien
+(`archispark-<tenant>`), un namespace d'identité totalement séparé
+(utilisateurs, rôles, Identity Providers, JWKS/issuer) — voir
+[One Keycloak realm per client](authentication.md#one-keycloak-realm-per-client).
+Aucune modification de code applicatif n'est nécessaire pour ajouter un
+client : tout se joue dans la configuration Keycloak et les variables
+d'environnement du déploiement.
+
+1. **Créer le realm du client**, via le script déjà existant
+   [`packages/db/scripts/setup-realm.ts`](../packages/db/scripts/setup-realm.ts)
+   (aucun script dédié n'est requis — il n'a jamais fait d'hypothèse sur un
+   nom de realm fixe) :
+
+   ```bash
+   KEYCLOAK_URL=<url du Keycloak self-hosté partagé> \
+   KEYCLOAK_REALM=archispark-<tenant> \
+   KEYCLOAK_SETUP_AUTH_REALM=master \
+   KEYCLOAK_SETUP_USERNAME=<admin master> \
+   KEYCLOAK_SETUP_PASSWORD=<mot de passe> \
+   pnpm --filter @workspace/db setup:realm
+   ```
+
+   (ou `KEYCLOAK_SETUP_AUTH_REALM=archispark-<tenant>` + un admin de ce
+   realm si le compte ne donne pas accès à `master` — voir les commentaires
+   en tête de `setup-realm.ts`.)
+
+2. **Récupérer le secret** du service account `archispark-api` généré dans
+   ce realm (console admin → Clients → `archispark-api` → Credentials).
+
+3. **Provisionner la base Postgres dédiée** du client et appliquer les
+   migrations (`pnpm --filter @workspace/db migrate:prod`).
+
+4. **Déployer** `archispark-api`/`archispark-web` du client (Helm — voir
+   [Kubernetes (Helm)](#kubernetes-helm) — ou Vercel), pointés vers le
+   Keycloak partagé, avec : `DATABASE_URL`
+   (DB du client), `KEYCLOAK_URL` (le Keycloak partagé),
+   `KEYCLOAK_REALM=archispark-<tenant>`, `KEYCLOAK_CLIENT_ID_WEB=archispark-web`,
+   `KEYCLOAK_ADMIN_CLIENT_ID`/`KEYCLOAK_ADMIN_CLIENT_SECRET`.
+
+5. **(Optionnel) Peupler des comptes initiaux** :
+   `KEYCLOAK_REALM=archispark-<tenant> pnpm --filter @workspace/db seed:demo-users`,
+   ou créer les vrais utilisateurs via la console admin/API.
+
+6. **(Optionnel) Configurer le SSO du client** : console admin → Identity
+   providers → Google / Microsoft (Entra ID) / autre OIDC-SAML, propre à ce
+   realm — invisible des autres clients.
+
+7. **Tester** la connexion de bout en bout, puis vérifier l'isolation :
+   un token obtenu sur le realm d'un client doit être rejeté (401) par le
+   déploiement d'un autre client (`verifyAccessToken` rejette sur
+   l'`issuer`, sans rien à coder — voir
+   [One Keycloak realm per client](authentication.md#one-keycloak-realm-per-client)).

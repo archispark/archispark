@@ -1,11 +1,15 @@
 /**
- * Recreates/updates the Keycloak Phase Two environment (realm, roles,
- * clients, api service account) from
+ * Recreates/updates a Keycloak realm environment (realm, roles, clients,
+ * api service account) from
  * .docker/keycloak/realm-export.json via the Admin REST API.
  *
+ * Not tied to any specific realm name — set KEYCLOAK_REALM to target a
+ * given client's dedicated realm (e.g. `archispark-<tenant>`), so this
+ * same script provisions every client realm on the shared Keycloak
+ * instance (see docs/deployment.md for the onboarding runbook).
+ *
  * Unlike `--import-realm` (Keycloak container first-boot only, local dev),
- * this works against any Keycloak instance — including an existing hosted
- * Phasetwo realm:
+ * this works against any Keycloak instance:
  *   - if the target realm doesn't exist yet, it is created from the full
  *     realm-export.json (realm + roles + clients + service account);
  *   - if it already exists, roles/clients/the api service account
@@ -19,8 +23,8 @@
  * via a `password` grant against KEYCLOAK_SETUP_AUTH_REALM (default
  * "master") using KEYCLOAK_SETUP_CLIENT_ID (default "admin-cli") and
  * KEYCLOAK_SETUP_USERNAME/KEYCLOAK_SETUP_PASSWORD (default KEYCLOAK_ADMIN/
- * KEYCLOAK_ADMIN_PASSWORD). For a hosted realm without master-realm access,
- * set KEYCLOAK_SETUP_AUTH_REALM to the target realm and
+ * KEYCLOAK_ADMIN_PASSWORD). Without master-realm access, set
+ * KEYCLOAK_SETUP_AUTH_REALM to the target realm and
  * KEYCLOAK_SETUP_USERNAME/KEYCLOAK_SETUP_PASSWORD to a realm-admin user.
  */
 

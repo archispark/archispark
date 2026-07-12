@@ -2,7 +2,7 @@
  * Drizzle ORM schema (ArchiMate 3.1, normalized PostgreSQL).
  *
  * Single shared database — no multi-tenancy. User identities live in
- * Keycloak (Phasetwo); see `@workspace/auth`. Every workspace is owned by
+ * Keycloak; see `@workspace/auth`. Every workspace is owned by
  * exactly one user (`ownerId`, a Keycloak `sub`); there is no organization
  * or team concept.
  *

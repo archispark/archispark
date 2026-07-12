@@ -14,7 +14,8 @@ Default credentials: `admin` / `admin` (`platform_admin`), `user` / `user`, `con
 
 ## Keycloak login
 
-`docker compose -f .docker/docker-compose.dev.yml up -d --wait` also starts a local Keycloak (Phasetwo distribution,
+`docker compose -f .docker/docker-compose.dev.yml up -d --wait` also starts a local Keycloak (classic
+`quay.io/keycloak/keycloak` distribution,
 `http://localhost:8080`, admin console login from `KEYCLOAK_ADMIN`/`KEYCLOAK_ADMIN_PASSWORD`
 in `.env.dev`), pre-loaded via `--import-realm` from
 `.docker/keycloak/realm-export.json` with realm `archispark`, the client
@@ -26,13 +27,39 @@ usernames) are **not** part of `realm-export.json` — they live in
 `.docker/keycloak/demo-users.json` and are created/updated via the Keycloak
 Admin API by `pnpm seed:demo-users` (`make seed-demo-users`, see
 [Demo seed](demo-data.md#demo-seed)). Unlike `--import-realm`, this works against any
-Keycloak instance, including a hosted Phasetwo realm.
+Keycloak instance, including a client's dedicated realm on a remote server.
 
 `make keycloak-setup` (`pnpm setup:realm`) creates or updates the realm
 itself (roles, clients, service account) from the same
 `realm-export.json` via the Admin REST API — an alternative to
 `--import-realm` for environments where the Keycloak container isn't
-recreated from scratch (e.g. a hosted Phasetwo Cloud realm).
+recreated from scratch (e.g. onboarding a new client's realm on a shared
+remote Keycloak — see [Deployment](deployment.md#onboarding-dun-nouveau-client-un-realm-keycloak-dédié)).
+
+## One Keycloak realm per client
+
+Each ArchiSpark client gets its own Keycloak realm (`archispark-<tenant>`)
+on a shared, self-hosted **classic Keycloak** instance (the same
+`quay.io/keycloak/keycloak` distribution as local dev — see
+[Deployment](deployment.md#kubernetes-helm)). A realm is a fully separate
+identity namespace — its own users, roles, Identity Providers, sessions,
+and JWKS/issuer — so this gives complete tenant isolation with **no
+application code involved**:
+[`verifyAccessToken`](../packages/auth/src/verify.ts) already validates the
+token's `issuer` (`${KEYCLOAK_URL}/realms/${KEYCLOAK_REALM}`), which
+includes the realm name. A token issued for `archispark-acme` is therefore
+automatically rejected by a deployment configured with
+`KEYCLOAK_REALM=archispark-other`.
+
+Each client's `apps/api`/`apps/web` deployment simply points at its own
+realm via env vars — `KEYCLOAK_URL` (the shared Keycloak instance),
+`KEYCLOAK_REALM=archispark-<tenant>`, `KEYCLOAK_CLIENT_ID_WEB=archispark-web`,
+`KEYCLOAK_ADMIN_CLIENT_ID`/`KEYCLOAK_ADMIN_CLIENT_SECRET` (the service
+account created in that realm). SSO (Google/Microsoft/other OIDC or SAML)
+is configured per realm via the admin console's *Identity providers* menu
+— a client's SSO configuration is never visible to another client. See
+[Deployment](deployment.md#onboarding-dun-nouveau-client-un-realm-keycloak-dédié)
+for the full onboarding runbook.
 
 **Bearer token:** `apps/api` (via `@workspace/auth`, `packages/auth`)
 accepts a Keycloak-issued access token as a Bearer token, verified against

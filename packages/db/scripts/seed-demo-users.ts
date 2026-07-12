@@ -5,7 +5,7 @@
  *
  * Unlike .docker/keycloak/realm-export.json (consumed by `--import-realm` at
  * Keycloak container first-boot, local dev only), this works against any
- * Keycloak instance — including a hosted Phasetwo realm — and is idempotent
+ * Keycloak realm — including a client's dedicated realm — and is idempotent
  * (safe to re-run; updates the password/role mappings of existing users).
  *
  * Usage:
