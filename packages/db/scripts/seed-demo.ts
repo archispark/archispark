@@ -9,6 +9,16 @@
  * of either organization — demonstrates platform/organization isolation
  * from the demo itself.
  *
+ * Self-healing legacy cleanup: `demo-orgs.json`'s `legacySlugs` lists slugs
+ * retired by a past org restructuring (e.g. the `archisurance`/`archimetal`
+ * → `archi`/`open` regroup). Each run deletes any organization matching one
+ * of those slugs, but only if it now holds zero workspaces — this also
+ * cascades away stale `user_active_organization` rows pointing at it, so a
+ * demo user's active org self-heals to a valid one on their next request
+ * instead of silently showing "no workspace". When retiring/renaming a slug
+ * in `organizations`, add the old slug to `legacySlugs` so future runs clean
+ * it up automatically.
+ *
  * Usage:
  *   pnpm --filter @workspace/db seed:demo
  *
@@ -35,17 +45,41 @@ interface DemoOrg {
   members: Record<string, string>
 }
 
+interface DemoOrgsFile {
+  organizations: DemoOrg[]
+  legacySlugs?: string[]
+}
+
 function organizationIdPlaceholder(workspace: string): string {
   return `__${workspace.toUpperCase().replace(/[^A-Z0-9]/g, "")}_ORGANIZATION_ID__`
+}
+
+async function cleanupLegacyOrganizations(
+  client: pg.Client,
+  slugs: string[]
+): Promise<void> {
+  for (const slug of slugs) {
+    const { rowCount } = await client.query(
+      `DELETE FROM organizations o
+       WHERE o.slug = $1
+         AND NOT EXISTS (SELECT 1 FROM workspaces w WHERE w.organization_id = o.id)`,
+      [slug]
+    )
+    if (rowCount) {
+      console.log(
+        `Cleaned up legacy organization "${slug}" (empty, no workspaces).`
+      )
+    }
+  }
 }
 
 const SQL_PATH = resolve(import.meta.dirname, "../seeds/demo.sql")
 const sqlTemplate = readFileSync(SQL_PATH, "utf-8")
 
 const ORGS_PATH = resolve(import.meta.dirname, "../seeds/demo-orgs.json")
-const demoOrgs: DemoOrg[] = JSON.parse(
-  readFileSync(ORGS_PATH, "utf-8")
-).organizations
+const demoOrgsFile: DemoOrgsFile = JSON.parse(readFileSync(ORGS_PATH, "utf-8"))
+const demoOrgs = demoOrgsFile.organizations
+const legacySlugs = demoOrgsFile.legacySlugs ?? []
 
 const dbUrl = process.env["DATABASE_URL"]
 if (!dbUrl) {
@@ -138,6 +172,10 @@ for (const org of demoOrgs) {
     `Organization "${org.name}" (id=${orgId}): ${org.workspaces.length} workspace(s), ${Object.keys(org.members).length} member(s).`
   )
 }
+
+// ── 2b. Clean up organizations retired by a past restructuring ─────────────
+
+await cleanupLegacyOrganizations(client, legacySlugs)
 
 // ── 3. Seed the workspaces (elements, views) into their organization ───────
 

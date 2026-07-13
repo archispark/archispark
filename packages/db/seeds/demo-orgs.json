@@ -12,5 +12,6 @@
       "workspaces": ["Open Day"],
       "members": { "archi": "owner", "user": "admin", "contrib": "member" }
     }
-  ]
+  ],
+  "legacySlugs": ["archisurance", "archimetal"]
 }

@@ -58,3 +58,38 @@ continue de fonctionner ; les organisations sont orthogonales à cette
 isolation). `.claude/rules/api.md` documente désormais la convention
 d'erreur à deux niveaux (`NotFoundError`/`ForbiddenError`) exclusivement
 depuis `access.ts`.
+
+## 2026-07-13 — Nettoyage auto-cicatrisant des organisations démo retirées
+
+**Contexte** : le seed démo est passé de 2 organisations à workspace
+unique (`archisurance`/`archimetal`) à 2 organisations regroupant
+plusieurs workspaces (`archi` → ArchiSurance + ArchiMetal, `open` → Open
+Day, voir `packages/db/seeds/demo-orgs.json`). Le workflow GitHub Actions
+`seed-demo.yml` supprime les workspaces démo **par nom** (`WHERE name IN
+(...)`), sans connaître leur organisation — après le renommage de slug,
+ça a vidé les anciennes organisations `archisurance`/`archimetal` sans les
+supprimer. Le pointeur `user_active_organization` du compte démo `archi`
+restait figé sur l'une de ces organisations désormais vide, masquant les
+workspaces réellement présents dans la nouvelle organisation `archi`
+(corrigé manuellement en production via `POST /organizations/:id/activate`
+puis `DELETE /organizations/:id`).
+
+**Décision** : `packages/db/seeds/demo-orgs.json` gagne une clé
+`legacySlugs` listant les anciens slugs retirés. `seed-demo.ts` supprime,
+à chaque exécution, toute organisation dont le slug figure dans
+`legacySlugs` **et qui ne contient plus aucun workspace** (garde-fou
+`NOT EXISTS (SELECT 1 FROM workspaces …)` — ne touche jamais une
+organisation qui contiendrait encore du contenu réel). `organizations` a
+déjà `ON DELETE CASCADE` sur `organization_members`/
+`user_active_organization` : supprimer l'organisation vide efface aussi
+le pointeur d'org active périmé, qui se re-résout automatiquement vers une
+organisation valide au prochain chargement (`resolveActiveOrganizationId`
+choisit alors l'organisation restante la plus petite) — sans action
+manuelle.
+
+**Conséquences** : toute future refonte des organisations/workspaces démo
+doit ajouter l'ancien slug à `legacySlugs` dans le même changement — le
+seed devient alors auto-cicatrisant au lieu de nécessiter une correction
+manuelle en production comme ici. Le garde-fou "zéro workspace" est
+volontairement strict : jamais de suppression aveugle par simple absence
+dans la liste courante, seulement par slug explicitement retiré.

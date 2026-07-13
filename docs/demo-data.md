@@ -35,4 +35,8 @@ The workflow **Actions → Restore demo data** can be triggered manually from Gi
 
 The workflow offers a **reset** checkbox (on by default): when checked it deletes the existing ArchiMetal, ArchiSurance and Open Day workspaces (all child data is removed via CASCADE) before re-seeding. Uncheck it to seed only if those workspaces do not yet exist.
 
-> Note: `packages/db/seeds/demo-orgs.json` upserts organizations by `slug`. If an environment was seeded before the `archisurance`/`archimetal` → `archi`/`open` slug rename, that reset only removes the named *workspaces* — it leaves the old, now-empty `archisurance`/`archimetal` organizations behind. Clean those up manually (`DELETE FROM organizations WHERE slug IN ('archisurance', 'archimetal');`, cascades to memberships) after confirming they hold no other data.
+### Retiring/renaming a demo organization slug
+
+`packages/db/seeds/demo-orgs.json` upserts organizations by `slug`. Because the reset step above deletes workspaces **by name only** (not scoped to an organization), renaming a demo org's slug (as happened for `archisurance`/`archimetal` → `archi`/`open`) can leave the old, now-empty organization behind — and if a demo user's `user_active_organization` still points at it, they'll see "no workspace" even though their data moved to the new organization (see [decisions.md](decisions.md#2026-07-13--nettoyage-auto-cicatrisant-des-organisations-démo-retirées)).
+
+`seed-demo.ts` self-heals this: `demo-orgs.json`'s `legacySlugs` array lists retired slugs, and every run deletes any organization matching one of those slugs **provided it now holds zero workspaces** — this also cascades away any stale `user_active_organization` row, so the affected user's active org automatically resolves to a valid one on their next request. **When retiring or renaming an org's slug, add the old slug to `legacySlugs` in the same change.**
