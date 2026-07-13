@@ -16,7 +16,6 @@ import {
   PanelLeftOpen,
   Upload,
   Download,
-  Building2,
 } from "lucide-react"
 import {
   getLayer,
@@ -612,18 +611,6 @@ function SidebarInner({
           <div className="flex flex-col gap-1 border-t border-border px-2 py-2">
             <ImportExportControls collapsed={false} onClose={onClose} t={t} />
             <Link
-              href="/organizations"
-              onClick={onClose}
-              className={`flex items-center gap-2.5 rounded-md px-3 py-2 text-sm no-underline transition-colors ${
-                pathname === "/organizations"
-                  ? "bg-card font-medium text-foreground shadow-sm"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
-              }`}
-            >
-              <Building2 className="size-4 shrink-0" />
-              {t("sidebar.organizations")}
-            </Link>
-            <Link
               href="/settings"
               onClick={onClose}
               className={`flex items-center gap-2.5 rounded-md px-3 py-2 text-sm no-underline transition-colors ${
@@ -686,13 +673,6 @@ function SidebarInner({
           className={`hidden flex-col items-center gap-1 border-t border-border py-2 ${collapsed ? "md:flex" : ""}`}
         >
           <ImportExportControls collapsed={true} onClose={onClose} t={t} />
-          <RailLink
-            href="/organizations"
-            icon={Building2}
-            label={t("sidebar.organizations")}
-            active={pathname === "/organizations"}
-            onClick={onClose}
-          />
           <RailLink
             href="/settings"
             icon={SettingsIcon}

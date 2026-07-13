@@ -65,9 +65,11 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
   // apps/web/app/platform/organizations/page.tsx.
   const isPlatformRoute = pathname?.startsWith("/platform")
   const isPlatformAdmin = useIsAdmin()
-  // The workspaces overview is a full-width chrome-light page (no model context),
-  // so it hides the sidebar — only the top nav stays.
-  const hideSidebar = isLogin || pathname === "/workspaces"
+  // The workspaces overview and the organizations page are full-width
+  // chrome-light pages (no model context), so they hide the sidebar —
+  // only the top nav stays.
+  const hideSidebar =
+    isLogin || pathname === "/workspaces" || pathname === "/organizations"
 
   useEffect(() => {
     setSidebarCollapsed(localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "1")

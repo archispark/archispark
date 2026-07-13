@@ -1,64 +1,90 @@
-"use client";
+"use client"
 
-import { useState, useRef, useEffect } from "react";
-import { LogOut, User } from "lucide-react";
-import { useCurrentUser } from "@/hooks/use-current-user";
-import Link from "next/link";
+import { useState, useRef, useEffect } from "react"
+import { LogOut, User, Building2 } from "lucide-react"
+import { useCurrentUser } from "@/hooks/use-current-user"
+import { useOrganizations } from "@/lib/queries"
+import { useT } from "@/lib/i18n"
+import Link from "next/link"
 
 export function UserMenu() {
-  const user = useCurrentUser();
-  const [open, setOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
+  const user = useCurrentUser()
+  const { data: organizations = [] } = useOrganizations()
+  const activeOrg = organizations.find((o) => o.active)
+  const { t } = useT()
+  const [open, setOpen] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) return
     function handleClick(e: MouseEvent) {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setOpen(false);
+        setOpen(false)
       }
     }
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, [open]);
+    document.addEventListener("mousedown", handleClick)
+    return () => document.removeEventListener("mousedown", handleClick)
+  }, [open])
 
   function logout() {
-    window.location.href = "/api/auth/logout";
+    window.location.href = "/api/auth/logout"
   }
 
-  const initial = user?.username?.[0]?.toUpperCase() ?? "?";
+  const initial = user?.username?.[0]?.toUpperCase() ?? "?"
 
   return (
     <div className="relative" ref={menuRef}>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center justify-center size-8 rounded-full overflow-hidden bg-primary/10 text-primary hover:ring-2 hover:ring-primary/30 transition-all text-[13px] font-semibold"
+        className="flex size-8 items-center justify-center overflow-hidden rounded-full bg-primary/10 text-[13px] font-semibold text-primary transition-all hover:ring-2 hover:ring-primary/30"
         aria-label="Mon compte"
       >
         {initial}
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 z-50 w-56 bg-popover border border-border rounded-lg shadow-lg py-1">
-          <div className="px-3 py-2.5 border-b border-border mb-1">
-            <p className="text-[13px] font-medium truncate">{user?.name || user?.username}</p>
-            <p className="text-[11px] text-muted-foreground capitalize">{user?.role}</p>
+        <div className="absolute top-full right-0 z-50 mt-2 w-56 rounded-lg border border-border bg-popover py-1 shadow-lg">
+          <div className="mb-1 border-b border-border px-3 py-2.5">
+            <p className="truncate text-[13px] font-medium">
+              {user?.name || user?.username}
+            </p>
+            {activeOrg && (
+              <p className="truncate text-[11px] text-muted-foreground">
+                {activeOrg.name}
+              </p>
+            )}
+            <p className="text-[11px] text-muted-foreground capitalize">
+              {user?.role}
+            </p>
           </div>
 
           <Link
             href="/profile"
             onClick={() => setOpen(false)}
-            className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] hover:bg-muted text-left transition-colors no-underline text-foreground"
+            className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[13px] text-foreground no-underline transition-colors hover:bg-muted"
           >
-            <User className="size-3.5 text-muted-foreground shrink-0" />
+            <User className="size-3.5 shrink-0 text-muted-foreground" />
             Mon profil
           </Link>
 
-          <div className="border-t border-border mt-1 pt-1">
+          <Link
+            href="/organizations"
+            onClick={() => setOpen(false)}
+            className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[13px] text-foreground no-underline transition-colors hover:bg-muted"
+          >
+            <Building2 className="size-3.5 shrink-0 text-muted-foreground" />
+            {t("sidebar.organizations")}
+          </Link>
+
+          <div className="mt-1 border-t border-border pt-1">
             <button
               type="button"
-              className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] hover:bg-destructive/10 text-destructive text-left transition-colors"
-              onClick={() => { setOpen(false); logout(); }}
+              className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[13px] text-destructive transition-colors hover:bg-destructive/10"
+              onClick={() => {
+                setOpen(false)
+                logout()
+              }}
             >
               <LogOut className="size-3.5 shrink-0" />
               Se déconnecter
@@ -67,5 +93,5 @@ export function UserMenu() {
         </div>
       )}
     </div>
-  );
+  )
 }

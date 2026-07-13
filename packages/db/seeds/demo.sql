@@ -21,7 +21,10 @@ BEGIN
   v_organization_id := __ARCHISURANCE_ORGANIZATION_ID__;
   v_created_by_id := '__CREATED_BY_ID__';
 
-  DELETE FROM workspaces WHERE organization_id = v_organization_id AND name = 'ArchiSurance';
+  -- Deletes by name + creator regardless of organization_id, not just
+  -- v_organization_id — clears stray copies left behind in another
+  -- organization (e.g. the creator's personal org) by a prior seed run.
+  DELETE FROM workspaces WHERE created_by_id = v_created_by_id AND name = 'ArchiSurance';
   INSERT INTO workspaces (uuid, name, description, version, organization_id, created_by_id, created_at, updated_at)
     VALUES ('id-f0607ad9eb0845a8829f43f5f7c676ff', 'ArchiSurance', NULL, NULL, v_organization_id, v_created_by_id, EXTRACT(EPOCH FROM NOW())::INT, EXTRACT(EPOCH FROM NOW())::INT)
     RETURNING id INTO ws_id;
@@ -5384,7 +5387,10 @@ BEGIN
   v_organization_id := __ARCHIMETAL_ORGANIZATION_ID__;
   v_created_by_id := '__CREATED_BY_ID__';
 
-  DELETE FROM workspaces WHERE organization_id = v_organization_id AND name = 'ArchiMetal';
+  -- Deletes by name + creator regardless of organization_id, not just
+  -- v_organization_id — clears stray copies left behind in another
+  -- organization (e.g. the creator's personal org) by a prior seed run.
+  DELETE FROM workspaces WHERE created_by_id = v_created_by_id AND name = 'ArchiMetal';
   INSERT INTO workspaces (uuid, name, description, version, organization_id, created_by_id, created_at, updated_at)
     VALUES ('id-e42df43bd2104e9aa7ccc8fd25a80ac6', 'ArchiMetal', NULL, NULL, v_organization_id, v_created_by_id, EXTRACT(EPOCH FROM NOW())::INT, EXTRACT(EPOCH FROM NOW())::INT)
     RETURNING id INTO ws_id;
