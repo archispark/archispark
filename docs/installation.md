@@ -54,7 +54,7 @@ make logs
 
 make keycloak-setup  # create/update the Keycloak realm (roles, clients, service account) via the Admin API — works on any Keycloak instance
 make seed-demo-users # create/update the 4 Keycloak demo accounts (admin/user/contrib/archi)
-make seed-demo       # seed demo ArchiMate data (ArchiMetal/ArchiSurance, see Demo seed)
+make seed-demo       # seed demo ArchiMate data (ArchiMetal/ArchiSurance/Open Day, see Demo seed)
 
 # Production (Hub images)
 make up ENV=prod    # docker compose up -d
