@@ -1,10 +1,11 @@
-import { defineConfig } from "vitest/config";
-import { resolve } from "path";
+import { defineConfig } from "vitest/config"
+import { resolve } from "path"
 
 export default defineConfig({
   resolve: {
     alias: {
       "@workspace/db": resolve(__dirname, "../../packages/db/src/index.ts"),
+      "@workspace/auth": resolve(__dirname, "../../packages/auth/src/index.ts"),
     },
   },
   test: {
@@ -23,4 +24,4 @@ export default defineConfig({
       exclude: ["**/package.json", "dist/**"],
     },
   },
-});
+})
