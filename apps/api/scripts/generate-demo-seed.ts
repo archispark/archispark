@@ -1,5 +1,6 @@
 /**
- * Generates packages/db/seeds/demo.sql from data/ArchiSurance.xml and data/ArchiMetal.xml.
+ * Generates packages/db/seeds/demo.sql from data/ArchiSurance.xml,
+ * data/ArchiMetal.xml and data/OpenDay.xml.
  * Each workspace's organization_id is a `__<WORKSPACE>_ORGANIZATION_ID__`
  * placeholder and created_by_id a `__CREATED_BY_ID__` placeholder, both
  * substituted at seed time (see packages/db/scripts/seed-demo.ts and
@@ -135,7 +136,7 @@ function workspaceBlock(model: ArchiModel): string {
     `  -- Workspace: ${ws}  (${model.elements.length} elements, ${model.relationships.length} rels, ${model.views.length} views)`
   )
   lines.push(`  -- ${"=".repeat(65)}`)
-  const placeholder = `__${ws.toUpperCase()}_ORGANIZATION_ID__`
+  const placeholder = `__${ws.toUpperCase().replace(/[^A-Z0-9]/g, "")}_ORGANIZATION_ID__`
   lines.push(`  v_organization_id := ${placeholder};`)
   lines.push(`  v_created_by_id := '__CREATED_BY_ID__';`)
   lines.push(``)
@@ -169,7 +170,7 @@ function workspaceBlock(model: ArchiModel): string {
 // Main
 // ---------------------------------------------------------------------------
 
-const files = ["ArchiSurance.xml", "ArchiMetal.xml"]
+const files = ["ArchiSurance.xml", "ArchiMetal.xml", "OpenDay.xml"]
 const models = files.map((f) =>
   parseOpenExchange(readFileSync(resolve(DATA_DIR, f), "utf-8"))
 )

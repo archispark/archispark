@@ -1,15 +1,15 @@
 {
   "organizations": [
     {
-      "slug": "archisurance",
-      "name": "ArchiSurance Insurance",
-      "workspace": "ArchiSurance",
+      "slug": "archi",
+      "name": "Archi",
+      "workspaces": ["ArchiSurance", "ArchiMetal"],
       "members": { "archi": "owner", "contrib": "admin", "user": "member" }
     },
     {
-      "slug": "archimetal",
-      "name": "ArchiMetal Industries",
-      "workspace": "ArchiMetal",
+      "slug": "open",
+      "name": "Open",
+      "workspaces": ["Open Day"],
       "members": { "archi": "owner", "user": "admin", "contrib": "member" }
     }
   ]

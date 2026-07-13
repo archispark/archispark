@@ -1,5 +1,5 @@
--- Demo seed: ArchiSurance + ArchiMetal
--- Generated from: ArchiSurance.xml, ArchiMetal.xml
+-- Demo seed: ArchiSurance + ArchiMetal + Open Day
+-- Generated from: ArchiSurance.xml, ArchiMetal.xml, OpenDay.xml
 -- Usage: psql $DATABASE_URL -f packages/db/seeds/demo.sql
 -- Or via script: pnpm --filter @workspace/db seed:demo
 -- Destructive reset: deletes existing ArchiSurance/ArchiMetal workspaces (CASCADE) then reimports.
@@ -21,10 +21,7 @@ BEGIN
   v_organization_id := __ARCHISURANCE_ORGANIZATION_ID__;
   v_created_by_id := '__CREATED_BY_ID__';
 
-  -- Deletes by name + creator regardless of organization_id, not just
-  -- v_organization_id — clears stray copies left behind in another
-  -- organization (e.g. the creator's personal org) by a prior seed run.
-  DELETE FROM workspaces WHERE created_by_id = v_created_by_id AND name = 'ArchiSurance';
+  DELETE FROM workspaces WHERE organization_id = v_organization_id AND name = 'ArchiSurance';
   INSERT INTO workspaces (uuid, name, description, version, organization_id, created_by_id, created_at, updated_at)
     VALUES ('id-f0607ad9eb0845a8829f43f5f7c676ff', 'ArchiSurance', NULL, NULL, v_organization_id, v_created_by_id, EXTRACT(EPOCH FROM NOW())::INT, EXTRACT(EPOCH FROM NOW())::INT)
     RETURNING id INTO ws_id;
@@ -5387,10 +5384,7 @@ BEGIN
   v_organization_id := __ARCHIMETAL_ORGANIZATION_ID__;
   v_created_by_id := '__CREATED_BY_ID__';
 
-  -- Deletes by name + creator regardless of organization_id, not just
-  -- v_organization_id — clears stray copies left behind in another
-  -- organization (e.g. the creator's personal org) by a prior seed run.
-  DELETE FROM workspaces WHERE created_by_id = v_created_by_id AND name = 'ArchiMetal';
+  DELETE FROM workspaces WHERE organization_id = v_organization_id AND name = 'ArchiMetal';
   INSERT INTO workspaces (uuid, name, description, version, organization_id, created_by_id, created_at, updated_at)
     VALUES ('id-e42df43bd2104e9aa7ccc8fd25a80ac6', 'ArchiMetal', NULL, NULL, v_organization_id, v_created_by_id, EXTRACT(EPOCH FROM NOW())::INT, EXTRACT(EPOCH FROM NOW())::INT)
     RETURNING id INTO ws_id;
@@ -11316,5 +11310,545 @@ BEGIN
     INSERT INTO nodes (view_id, uuid, element_uuid, parent_node_uuid, name, x, y, w, h, fill_color_r, fill_color_g, fill_color_b, fill_color_a, line_color_r, line_color_g, line_color_b, line_color_a, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a, line_width, sort_order)
       VALUES (view_db_id, 'id-a80601ad36b44c0d8ff64f668496834e', NULL, NULL, NULL, 612, 588, 215, 42, 255, 255, 255, 100, 92, 92, 92, 100, 'Sans', 9, 0, 0, 0, NULL, NULL, 1)
       RETURNING id INTO node_db_id;
+
+
+  -- =================================================================
+  -- Workspace: Open Day  (27 elements, 37 rels, 4 views)
+  -- =================================================================
+  v_organization_id := __OPENDAY_ORGANIZATION_ID__;
+  v_created_by_id := '__CREATED_BY_ID__';
+
+  DELETE FROM workspaces WHERE organization_id = v_organization_id AND name = 'Open Day';
+  INSERT INTO workspaces (uuid, name, description, version, organization_id, created_by_id, created_at, updated_at)
+    VALUES ('id-45a9ac5f', 'Open Day', 'Outline the process of organising an open day and its dependencies on applications and servers', NULL, v_organization_id, v_created_by_id, EXTRACT(EPOCH FROM NOW())::INT, EXTRACT(EPOCH FROM NOW())::INT)
+    RETURNING id INTO ws_id;
+
+    INSERT INTO elements (workspace_id, uuid, type, name, description)
+      VALUES (ws_id, 'id-44e2d629', 'BusinessEvent', '2 months prior to open day', NULL)
+      RETURNING id INTO el_db_id;
+    INSERT INTO elements (workspace_id, uuid, type, name, description)
+      VALUES (ws_id, 'id-b44eba60', 'BusinessProcess', 'Open Day Planning', NULL)
+      RETURNING id INTO el_db_id;
+    INSERT INTO elements (workspace_id, uuid, type, name, description)
+      VALUES (ws_id, 'id-978c40e6', 'BusinessProcess', 'Confirm room bookings', NULL)
+      RETURNING id INTO el_db_id;
+    INSERT INTO elements (workspace_id, uuid, type, name, description)
+      VALUES (ws_id, 'id-2b3b8ba0', 'BusinessProcess', 'E-mail staff', NULL)
+      RETURNING id INTO el_db_id;
+    INSERT INTO elements (workspace_id, uuid, type, name, description)
+      VALUES (ws_id, 'id-9e3801c2', 'BusinessProcess', 'Book catering', NULL)
+      RETURNING id INTO el_db_id;
+    INSERT INTO elements (workspace_id, uuid, type, name, description)
+      VALUES (ws_id, 'id-47285d10', 'BusinessProcess', 'Check and update signage', NULL)
+      RETURNING id INTO el_db_id;
+    INSERT INTO elements (workspace_id, uuid, type, name, description)
+      VALUES (ws_id, 'id-3cb49079', 'BusinessProcess', 'Print PGCE', NULL)
+      RETURNING id INTO el_db_id;
+    INSERT INTO elements (workspace_id, uuid, type, name, description)
+      VALUES (ws_id, 'id-db7c17ae', 'BusinessProcess', 'Update materials', 'i.e. powerpoint slides etc.')
+      RETURNING id INTO el_db_id;
+    INSERT INTO elements (workspace_id, uuid, type, name, description)
+      VALUES (ws_id, 'id-2ace49d8', 'BusinessProcess', 'Send update to subject staff', 'Stating expected subject numbers')
+      RETURNING id INTO el_db_id;
+    INSERT INTO elements (workspace_id, uuid, type, name, description)
+      VALUES (ws_id, 'id-f137467c', 'BusinessProcess', 'Wait for responses from academics', NULL)
+      RETURNING id INTO el_db_id;
+    INSERT INTO elements (workspace_id, uuid, type, name, description)
+      VALUES (ws_id, 'id-1fdf72fc', 'BusinessProcess', 'Print Open Day register', NULL)
+      RETURNING id INTO el_db_id;
+    INSERT INTO elements (workspace_id, uuid, type, name, description)
+      VALUES (ws_id, 'id-9f027bfe', 'BusinessProcess', 'Create marketing list', NULL)
+      RETURNING id INTO el_db_id;
+    INSERT INTO elements (workspace_id, uuid, type, name, description)
+      VALUES (ws_id, 'id-6bd81700', 'BusinessProcess', 'Attach marketing list to event', NULL)
+      RETURNING id INTO el_db_id;
+    INSERT INTO elements (workspace_id, uuid, type, name, description)
+      VALUES (ws_id, 'id-9ce889f6', 'BusinessProcess', 'E-mail marketing list', NULL)
+      RETURNING id INTO el_db_id;
+    INSERT INTO elements (workspace_id, uuid, type, name, description)
+      VALUES (ws_id, 'id-0911cddd', 'BusinessProcess', 'Add planning tasks', NULL)
+      RETURNING id INTO el_db_id;
+    INSERT INTO elements (workspace_id, uuid, type, name, description)
+      VALUES (ws_id, 'id-2ebb90c0', 'BusinessRole', 'Open day planner', NULL)
+      RETURNING id INTO el_db_id;
+    INSERT INTO elements (workspace_id, uuid, type, name, description)
+      VALUES (ws_id, 'id-61978d4f', 'BusinessActor', 'Sue', NULL)
+      RETURNING id INTO el_db_id;
+    INSERT INTO elements (workspace_id, uuid, type, name, description)
+      VALUES (ws_id, 'id-9f501f04', 'ApplicationService', 'E-mail service', NULL)
+      RETURNING id INTO el_db_id;
+    INSERT INTO elements (workspace_id, uuid, type, name, description)
+      VALUES (ws_id, 'id-8d05bce7', 'ApplicationService', 'Print Open Day register Service', NULL)
+      RETURNING id INTO el_db_id;
+    INSERT INTO elements (workspace_id, uuid, type, name, description)
+      VALUES (ws_id, 'id-579e6a84', 'ApplicationService', 'Marketing Service', NULL)
+      RETURNING id INTO el_db_id;
+    INSERT INTO elements (workspace_id, uuid, type, name, description)
+      VALUES (ws_id, 'id-038800f6', 'ApplicationService', 'CRM e-mail service', NULL)
+      RETURNING id INTO el_db_id;
+    INSERT INTO elements (workspace_id, uuid, type, name, description)
+      VALUES (ws_id, 'id-b76434e1', 'ApplicationComponent', 'MS exchange', NULL)
+      RETURNING id INTO el_db_id;
+    INSERT INTO elements (workspace_id, uuid, type, name, description)
+      VALUES (ws_id, 'id-c0f0365c', 'ApplicationComponent', 'CRM package', NULL)
+      RETURNING id INTO el_db_id;
+    INSERT INTO elements (workspace_id, uuid, type, name, description)
+      VALUES (ws_id, 'id-a39d8c8f', 'Device', 'Grouse Server', NULL)
+      RETURNING id INTO el_db_id;
+    INSERT INTO elements (workspace_id, uuid, type, name, description)
+      VALUES (ws_id, 'id-53049f90', 'Node', 'Roehampton_university_of_surrey_MSCRM', NULL)
+      RETURNING id INTO el_db_id;
+    INSERT INTO elements (workspace_id, uuid, type, name, description)
+      VALUES (ws_id, 'id-66b97ac1', 'Device', 'Heron server', NULL)
+      RETURNING id INTO el_db_id;
+    INSERT INTO elements (workspace_id, uuid, type, name, description)
+      VALUES (ws_id, 'id-8eeaee18', 'Node', 'SDB7', 'Note: this does not reflect reality')
+      RETURNING id INTO el_db_id;
+
+    INSERT INTO relationships (workspace_id, uuid, type, name, description, source_uuid, target_uuid, access_type, is_directed, influence_modifier)
+      VALUES (ws_id, 'id-eff75ee2', 'Triggering', NULL, NULL, 'id-44e2d629', 'id-b44eba60', NULL, NULL, NULL)
+      RETURNING id INTO rel_db_id;
+    INSERT INTO relationships (workspace_id, uuid, type, name, description, source_uuid, target_uuid, access_type, is_directed, influence_modifier)
+      VALUES (ws_id, 'id-b893d971', 'Triggering', NULL, NULL, 'id-978c40e6', 'id-2b3b8ba0', NULL, NULL, NULL)
+      RETURNING id INTO rel_db_id;
+    INSERT INTO relationships (workspace_id, uuid, type, name, description, source_uuid, target_uuid, access_type, is_directed, influence_modifier)
+      VALUES (ws_id, 'id-1e1f9740', 'Triggering', NULL, NULL, 'id-47285d10', 'id-3cb49079', NULL, NULL, NULL)
+      RETURNING id INTO rel_db_id;
+    INSERT INTO relationships (workspace_id, uuid, type, name, description, source_uuid, target_uuid, access_type, is_directed, influence_modifier)
+      VALUES (ws_id, 'id-bea8f3fb', 'Triggering', NULL, NULL, 'id-47285d10', 'id-db7c17ae', NULL, NULL, NULL)
+      RETURNING id INTO rel_db_id;
+    INSERT INTO relationships (workspace_id, uuid, type, name, description, source_uuid, target_uuid, access_type, is_directed, influence_modifier)
+      VALUES (ws_id, 'id-44f0d936', 'Triggering', NULL, NULL, 'id-db7c17ae', 'id-3cb49079', NULL, NULL, NULL)
+      RETURNING id INTO rel_db_id;
+    INSERT INTO relationships (workspace_id, uuid, type, name, description, source_uuid, target_uuid, access_type, is_directed, influence_modifier)
+      VALUES (ws_id, 'id-0d2c8af1', 'Triggering', NULL, NULL, 'id-2ace49d8', 'id-f137467c', NULL, NULL, NULL)
+      RETURNING id INTO rel_db_id;
+    INSERT INTO relationships (workspace_id, uuid, type, name, description, source_uuid, target_uuid, access_type, is_directed, influence_modifier)
+      VALUES (ws_id, 'id-d1a59003', 'Realization', NULL, NULL, 'id-c0f0365c', 'id-8d05bce7', NULL, NULL, NULL)
+      RETURNING id INTO rel_db_id;
+    INSERT INTO relationships (workspace_id, uuid, type, name, description, source_uuid, target_uuid, access_type, is_directed, influence_modifier)
+      VALUES (ws_id, 'id-1d50d876', 'Serving', NULL, NULL, 'id-8d05bce7', 'id-1fdf72fc', NULL, NULL, NULL)
+      RETURNING id INTO rel_db_id;
+    INSERT INTO relationships (workspace_id, uuid, type, name, description, source_uuid, target_uuid, access_type, is_directed, influence_modifier)
+      VALUES (ws_id, 'id-c01e3858', 'Serving', NULL, NULL, 'id-9f501f04', 'id-2b3b8ba0', NULL, NULL, NULL)
+      RETURNING id INTO rel_db_id;
+    INSERT INTO relationships (workspace_id, uuid, type, name, description, source_uuid, target_uuid, access_type, is_directed, influence_modifier)
+      VALUES (ws_id, 'id-60242ab2', 'Serving', NULL, NULL, 'id-9f501f04', 'id-978c40e6', NULL, NULL, NULL)
+      RETURNING id INTO rel_db_id;
+    INSERT INTO relationships (workspace_id, uuid, type, name, description, source_uuid, target_uuid, access_type, is_directed, influence_modifier)
+      VALUES (ws_id, 'id-90d7127d', 'Serving', NULL, NULL, 'id-9f501f04', 'id-2ace49d8', NULL, NULL, NULL)
+      RETURNING id INTO rel_db_id;
+    INSERT INTO relationships (workspace_id, uuid, type, name, description, source_uuid, target_uuid, access_type, is_directed, influence_modifier)
+      VALUES (ws_id, 'id-100b1381', 'Realization', NULL, NULL, 'id-b76434e1', 'id-9f501f04', NULL, NULL, NULL)
+      RETURNING id INTO rel_db_id;
+    INSERT INTO relationships (workspace_id, uuid, type, name, description, source_uuid, target_uuid, access_type, is_directed, influence_modifier)
+      VALUES (ws_id, 'id-43600474', 'Serving', NULL, NULL, 'id-8eeaee18', 'id-b76434e1', NULL, NULL, NULL)
+      RETURNING id INTO rel_db_id;
+    INSERT INTO relationships (workspace_id, uuid, type, name, description, source_uuid, target_uuid, access_type, is_directed, influence_modifier)
+      VALUES (ws_id, 'id-e1a8bc8e', 'Serving', NULL, NULL, 'id-53049f90', 'id-c0f0365c', NULL, NULL, NULL)
+      RETURNING id INTO rel_db_id;
+    INSERT INTO relationships (workspace_id, uuid, type, name, description, source_uuid, target_uuid, access_type, is_directed, influence_modifier)
+      VALUES (ws_id, 'id-5d2e4898', 'Triggering', NULL, NULL, 'id-978c40e6', 'id-9f027bfe', NULL, NULL, NULL)
+      RETURNING id INTO rel_db_id;
+    INSERT INTO relationships (workspace_id, uuid, type, name, description, source_uuid, target_uuid, access_type, is_directed, influence_modifier)
+      VALUES (ws_id, 'id-0b268825', 'Triggering', NULL, NULL, 'id-9f027bfe', 'id-6bd81700', NULL, NULL, NULL)
+      RETURNING id INTO rel_db_id;
+    INSERT INTO relationships (workspace_id, uuid, type, name, description, source_uuid, target_uuid, access_type, is_directed, influence_modifier)
+      VALUES (ws_id, 'id-3f274838', 'Triggering', NULL, NULL, 'id-6bd81700', 'id-9ce889f6', NULL, NULL, NULL)
+      RETURNING id INTO rel_db_id;
+    INSERT INTO relationships (workspace_id, uuid, type, name, description, source_uuid, target_uuid, access_type, is_directed, influence_modifier)
+      VALUES (ws_id, 'id-5f9dabf6', 'Triggering', NULL, NULL, 'id-9ce889f6', 'id-0911cddd', NULL, NULL, NULL)
+      RETURNING id INTO rel_db_id;
+    INSERT INTO relationships (workspace_id, uuid, type, name, description, source_uuid, target_uuid, access_type, is_directed, influence_modifier)
+      VALUES (ws_id, 'id-1eca8dc5', 'Serving', NULL, NULL, 'id-579e6a84', 'id-9f027bfe', NULL, NULL, NULL)
+      RETURNING id INTO rel_db_id;
+    INSERT INTO relationships (workspace_id, uuid, type, name, description, source_uuid, target_uuid, access_type, is_directed, influence_modifier)
+      VALUES (ws_id, 'id-46a20b2c', 'Serving', NULL, NULL, 'id-579e6a84', 'id-6bd81700', NULL, NULL, NULL)
+      RETURNING id INTO rel_db_id;
+    INSERT INTO relationships (workspace_id, uuid, type, name, description, source_uuid, target_uuid, access_type, is_directed, influence_modifier)
+      VALUES (ws_id, 'id-5035a98f', 'Serving', NULL, NULL, 'id-579e6a84', 'id-0911cddd', NULL, NULL, NULL)
+      RETURNING id INTO rel_db_id;
+    INSERT INTO relationships (workspace_id, uuid, type, name, description, source_uuid, target_uuid, access_type, is_directed, influence_modifier)
+      VALUES (ws_id, 'id-bb9c241c', 'Serving', NULL, NULL, 'id-038800f6', 'id-9ce889f6', NULL, NULL, NULL)
+      RETURNING id INTO rel_db_id;
+    INSERT INTO relationships (workspace_id, uuid, type, name, description, source_uuid, target_uuid, access_type, is_directed, influence_modifier)
+      VALUES (ws_id, 'id-34226e4e', 'Realization', NULL, NULL, 'id-c0f0365c', 'id-579e6a84', NULL, NULL, NULL)
+      RETURNING id INTO rel_db_id;
+    INSERT INTO relationships (workspace_id, uuid, type, name, description, source_uuid, target_uuid, access_type, is_directed, influence_modifier)
+      VALUES (ws_id, 'id-88052888', 'Realization', NULL, NULL, 'id-c0f0365c', 'id-038800f6', NULL, NULL, NULL)
+      RETURNING id INTO rel_db_id;
+    INSERT INTO relationships (workspace_id, uuid, type, name, description, source_uuid, target_uuid, access_type, is_directed, influence_modifier)
+      VALUES (ws_id, 'id-11bf0532', 'Triggering', NULL, NULL, 'id-0911cddd', 'id-db7c17ae', NULL, NULL, NULL)
+      RETURNING id INTO rel_db_id;
+    INSERT INTO relationships (workspace_id, uuid, type, name, description, source_uuid, target_uuid, access_type, is_directed, influence_modifier)
+      VALUES (ws_id, 'id-20f78070', 'Serving', NULL, NULL, 'id-b76434e1', 'id-b44eba60', NULL, NULL, NULL)
+      RETURNING id INTO rel_db_id;
+    INSERT INTO relationships (workspace_id, uuid, type, name, description, source_uuid, target_uuid, access_type, is_directed, influence_modifier)
+      VALUES (ws_id, 'id-79bc7cf9', 'Serving', NULL, NULL, 'id-b76434e1', 'id-2ace49d8', NULL, NULL, NULL)
+      RETURNING id INTO rel_db_id;
+    INSERT INTO relationships (workspace_id, uuid, type, name, description, source_uuid, target_uuid, access_type, is_directed, influence_modifier)
+      VALUES (ws_id, 'id-c1497873', 'Serving', NULL, NULL, 'id-c0f0365c', 'id-1fdf72fc', NULL, NULL, NULL)
+      RETURNING id INTO rel_db_id;
+    INSERT INTO relationships (workspace_id, uuid, type, name, description, source_uuid, target_uuid, access_type, is_directed, influence_modifier)
+      VALUES (ws_id, 'id-182eeac0', 'Triggering', NULL, NULL, 'id-2b3b8ba0', 'id-9e3801c2', NULL, NULL, NULL)
+      RETURNING id INTO rel_db_id;
+    INSERT INTO relationships (workspace_id, uuid, type, name, description, source_uuid, target_uuid, access_type, is_directed, influence_modifier)
+      VALUES (ws_id, 'id-dabed869', 'Triggering', NULL, NULL, 'id-9e3801c2', 'id-47285d10', NULL, NULL, NULL)
+      RETURNING id INTO rel_db_id;
+    INSERT INTO relationships (workspace_id, uuid, type, name, description, source_uuid, target_uuid, access_type, is_directed, influence_modifier)
+      VALUES (ws_id, 'id-921b7531', 'Triggering', NULL, NULL, 'id-b44eba60', 'id-2ace49d8', NULL, NULL, NULL)
+      RETURNING id INTO rel_db_id;
+    INSERT INTO relationships (workspace_id, uuid, type, name, description, source_uuid, target_uuid, access_type, is_directed, influence_modifier)
+      VALUES (ws_id, 'id-0a4fa37c', 'Triggering', NULL, NULL, 'id-f137467c', 'id-1fdf72fc', NULL, NULL, NULL)
+      RETURNING id INTO rel_db_id;
+    INSERT INTO relationships (workspace_id, uuid, type, name, description, source_uuid, target_uuid, access_type, is_directed, influence_modifier)
+      VALUES (ws_id, 'id-cf5eb3c9', 'Assignment', NULL, NULL, 'id-2ebb90c0', 'id-b44eba60', NULL, NULL, NULL)
+      RETURNING id INTO rel_db_id;
+    INSERT INTO relationships (workspace_id, uuid, type, name, description, source_uuid, target_uuid, access_type, is_directed, influence_modifier)
+      VALUES (ws_id, 'id-1ff172f4', 'Assignment', NULL, NULL, 'id-2ebb90c0', 'id-2ace49d8', NULL, NULL, NULL)
+      RETURNING id INTO rel_db_id;
+    INSERT INTO relationships (workspace_id, uuid, type, name, description, source_uuid, target_uuid, access_type, is_directed, influence_modifier)
+      VALUES (ws_id, 'id-13c0d952', 'Assignment', NULL, NULL, 'id-2ebb90c0', 'id-f137467c', NULL, NULL, NULL)
+      RETURNING id INTO rel_db_id;
+    INSERT INTO relationships (workspace_id, uuid, type, name, description, source_uuid, target_uuid, access_type, is_directed, influence_modifier)
+      VALUES (ws_id, 'id-d5e30971', 'Assignment', NULL, NULL, 'id-2ebb90c0', 'id-1fdf72fc', NULL, NULL, NULL)
+      RETURNING id INTO rel_db_id;
+    INSERT INTO relationships (workspace_id, uuid, type, name, description, source_uuid, target_uuid, access_type, is_directed, influence_modifier)
+      VALUES (ws_id, 'id-083a6326', 'Assignment', NULL, NULL, 'id-61978d4f', 'id-2ebb90c0', NULL, NULL, NULL)
+      RETURNING id INTO rel_db_id;
+
+    INSERT INTO views (workspace_id, uuid, name, description, viewpoint)
+      VALUES (ws_id, 'id-ae6ebda3', 'Map View', NULL, NULL)
+      RETURNING id INTO view_db_id;
+
+    INSERT INTO views (workspace_id, uuid, name, description, viewpoint)
+      VALUES (ws_id, 'id-03ceb8ea', 'Default View', NULL, NULL)
+      RETURNING id INTO view_db_id;
+    INSERT INTO nodes (view_id, uuid, element_uuid, parent_node_uuid, name, x, y, w, h, fill_color_r, fill_color_g, fill_color_b, fill_color_a, line_color_r, line_color_g, line_color_b, line_color_a, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a, line_width, sort_order)
+      VALUES (view_db_id, 'id-0c3b5672', NULL, NULL, 'Business layer', 48, 0, 1825, 265, 255, 254, 171, NULL, 92, 92, 92, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 0)
+      RETURNING id INTO node_db_id;
+    INSERT INTO nodes (view_id, uuid, element_uuid, parent_node_uuid, name, x, y, w, h, fill_color_r, fill_color_g, fill_color_b, fill_color_a, line_color_r, line_color_g, line_color_b, line_color_a, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a, line_width, sort_order)
+      VALUES (view_db_id, 'id-199d5447', 'id-44e2d629', 'id-0c3b5672', NULL, 72, 132, 120, 68, 255, 255, 181, NULL, 92, 92, 92, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1)
+      RETURNING id INTO node_db_id;
+    INSERT INTO nodes (view_id, uuid, element_uuid, parent_node_uuid, name, x, y, w, h, fill_color_r, fill_color_g, fill_color_b, fill_color_a, line_color_r, line_color_g, line_color_b, line_color_a, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a, line_width, sort_order)
+      VALUES (view_db_id, 'id-7d74a7cf', 'id-b44eba60', 'id-0c3b5672', NULL, 192, 84, 1021, 169, 255, 255, 181, NULL, 92, 92, 92, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 2)
+      RETURNING id INTO node_db_id;
+    INSERT INTO nodes (view_id, uuid, element_uuid, parent_node_uuid, name, x, y, w, h, fill_color_r, fill_color_g, fill_color_b, fill_color_a, line_color_r, line_color_g, line_color_b, line_color_a, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a, line_width, sort_order)
+      VALUES (view_db_id, 'id-27796ba5', 'id-978c40e6', 'id-7d74a7cf', NULL, 216, 108, 120, 55, 255, 255, 181, NULL, 92, 92, 92, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 3)
+      RETURNING id INTO node_db_id;
+    INSERT INTO nodes (view_id, uuid, element_uuid, parent_node_uuid, name, x, y, w, h, fill_color_r, fill_color_g, fill_color_b, fill_color_a, line_color_r, line_color_g, line_color_b, line_color_a, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a, line_width, sort_order)
+      VALUES (view_db_id, 'id-6223e28a', 'id-2b3b8ba0', 'id-7d74a7cf', NULL, 358, 108, 120, 55, 255, 255, 181, NULL, 92, 92, 92, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 4)
+      RETURNING id INTO node_db_id;
+    INSERT INTO nodes (view_id, uuid, element_uuid, parent_node_uuid, name, x, y, w, h, fill_color_r, fill_color_g, fill_color_b, fill_color_a, line_color_r, line_color_g, line_color_b, line_color_a, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a, line_width, sort_order)
+      VALUES (view_db_id, 'id-8fc2d7ce', 'id-9e3801c2', 'id-7d74a7cf', NULL, 648, 108, 120, 55, 255, 255, 181, NULL, 92, 92, 92, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 5)
+      RETURNING id INTO node_db_id;
+    INSERT INTO nodes (view_id, uuid, element_uuid, parent_node_uuid, name, x, y, w, h, fill_color_r, fill_color_g, fill_color_b, fill_color_a, line_color_r, line_color_g, line_color_b, line_color_a, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a, line_width, sort_order)
+      VALUES (view_db_id, 'id-88967664', 'id-47285d10', 'id-7d74a7cf', NULL, 934, 108, 120, 55, 255, 255, 181, NULL, 92, 92, 92, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 6)
+      RETURNING id INTO node_db_id;
+    INSERT INTO nodes (view_id, uuid, element_uuid, parent_node_uuid, name, x, y, w, h, fill_color_r, fill_color_g, fill_color_b, fill_color_a, line_color_r, line_color_g, line_color_b, line_color_a, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a, line_width, sort_order)
+      VALUES (view_db_id, 'id-c2dfc0c2', 'id-3cb49079', 'id-7d74a7cf', NULL, 1078, 108, 120, 55, 255, 255, 181, NULL, 92, 92, 92, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 7)
+      RETURNING id INTO node_db_id;
+    INSERT INTO nodes (view_id, uuid, element_uuid, parent_node_uuid, name, x, y, w, h, fill_color_r, fill_color_g, fill_color_b, fill_color_a, line_color_r, line_color_g, line_color_b, line_color_a, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a, line_width, sort_order)
+      VALUES (view_db_id, 'id-9346b4d7', 'id-db7c17ae', 'id-7d74a7cf', NULL, 1020, 180, 120, 55, 255, 255, 181, NULL, 92, 92, 92, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 8)
+      RETURNING id INTO node_db_id;
+    INSERT INTO nodes (view_id, uuid, element_uuid, parent_node_uuid, name, x, y, w, h, fill_color_r, fill_color_g, fill_color_b, fill_color_a, line_color_r, line_color_g, line_color_b, line_color_a, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a, line_width, sort_order)
+      VALUES (view_db_id, 'id-97ae36bf', 'id-9f027bfe', 'id-7d74a7cf', NULL, 432, 180, 120, 55, 255, 255, 181, NULL, 92, 92, 92, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 9)
+      RETURNING id INTO node_db_id;
+    INSERT INTO nodes (view_id, uuid, element_uuid, parent_node_uuid, name, x, y, w, h, fill_color_r, fill_color_g, fill_color_b, fill_color_a, line_color_r, line_color_g, line_color_b, line_color_a, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a, line_width, sort_order)
+      VALUES (view_db_id, 'id-d72fcac8', 'id-6bd81700', 'id-7d74a7cf', NULL, 576, 180, 120, 55, 255, 255, 181, NULL, 92, 92, 92, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 10)
+      RETURNING id INTO node_db_id;
+    INSERT INTO nodes (view_id, uuid, element_uuid, parent_node_uuid, name, x, y, w, h, fill_color_r, fill_color_g, fill_color_b, fill_color_a, line_color_r, line_color_g, line_color_b, line_color_a, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a, line_width, sort_order)
+      VALUES (view_db_id, 'id-a5b70039', 'id-9ce889f6', 'id-7d74a7cf', NULL, 732, 180, 120, 55, 255, 255, 181, NULL, 92, 92, 92, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 11)
+      RETURNING id INTO node_db_id;
+    INSERT INTO nodes (view_id, uuid, element_uuid, parent_node_uuid, name, x, y, w, h, fill_color_r, fill_color_g, fill_color_b, fill_color_a, line_color_r, line_color_g, line_color_b, line_color_a, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a, line_width, sort_order)
+      VALUES (view_db_id, 'id-554a4c9b', 'id-0911cddd', 'id-7d74a7cf', NULL, 876, 180, 120, 55, 255, 255, 181, NULL, 92, 92, 92, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 12)
+      RETURNING id INTO node_db_id;
+    INSERT INTO nodes (view_id, uuid, element_uuid, parent_node_uuid, name, x, y, w, h, fill_color_r, fill_color_g, fill_color_b, fill_color_a, line_color_r, line_color_g, line_color_b, line_color_a, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a, line_width, sort_order)
+      VALUES (view_db_id, 'id-a5553e89', 'id-2ace49d8', 'id-0c3b5672', NULL, 1236, 108, 120, 55, 255, 255, 181, NULL, 92, 92, 92, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 13)
+      RETURNING id INTO node_db_id;
+    INSERT INTO nodes (view_id, uuid, element_uuid, parent_node_uuid, name, x, y, w, h, fill_color_r, fill_color_g, fill_color_b, fill_color_a, line_color_r, line_color_g, line_color_b, line_color_a, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a, line_width, sort_order)
+      VALUES (view_db_id, 'id-932621a3', 'id-f137467c', 'id-0c3b5672', NULL, 1440, 108, 157, 55, 255, 255, 181, NULL, 92, 92, 92, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 14)
+      RETURNING id INTO node_db_id;
+    INSERT INTO nodes (view_id, uuid, element_uuid, parent_node_uuid, name, x, y, w, h, fill_color_r, fill_color_g, fill_color_b, fill_color_a, line_color_r, line_color_g, line_color_b, line_color_a, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a, line_width, sort_order)
+      VALUES (view_db_id, 'id-1ad8332d', 'id-1fdf72fc', 'id-0c3b5672', NULL, 1656, 108, 157, 55, 255, 255, 181, NULL, 92, 92, 92, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 15)
+      RETURNING id INTO node_db_id;
+    INSERT INTO nodes (view_id, uuid, element_uuid, parent_node_uuid, name, x, y, w, h, fill_color_r, fill_color_g, fill_color_b, fill_color_a, line_color_r, line_color_g, line_color_b, line_color_a, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a, line_width, sort_order)
+      VALUES (view_db_id, 'id-25192b26', 'id-2ebb90c0', 'id-0c3b5672', NULL, 672, 24, 120, 37, 255, 255, 181, NULL, 92, 92, 92, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 16)
+      RETURNING id INTO node_db_id;
+    INSERT INTO nodes (view_id, uuid, element_uuid, parent_node_uuid, name, x, y, w, h, fill_color_r, fill_color_g, fill_color_b, fill_color_a, line_color_r, line_color_g, line_color_b, line_color_a, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a, line_width, sort_order)
+      VALUES (view_db_id, 'id-8f1bc674', 'id-61978d4f', 'id-0c3b5672', NULL, 528, 24, 120, 37, 255, 255, 181, NULL, 92, 92, 92, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 17)
+      RETURNING id INTO node_db_id;
+    INSERT INTO nodes (view_id, uuid, element_uuid, parent_node_uuid, name, x, y, w, h, fill_color_r, fill_color_g, fill_color_b, fill_color_a, line_color_r, line_color_g, line_color_b, line_color_a, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a, line_width, sort_order)
+      VALUES (view_db_id, 'id-ded8ea96', NULL, NULL, 'Application layer (services)', 48, 288, 1825, 221, 102, 102, 255, NULL, 92, 92, 92, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 18)
+      RETURNING id INTO node_db_id;
+    INSERT INTO nodes (view_id, uuid, element_uuid, parent_node_uuid, name, x, y, w, h, fill_color_r, fill_color_g, fill_color_b, fill_color_a, line_color_r, line_color_g, line_color_b, line_color_a, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a, line_width, sort_order)
+      VALUES (view_db_id, 'id-32e3bb27', 'id-9f501f04', 'id-ded8ea96', NULL, 360, 372, 120, 55, 181, 255, 255, NULL, 92, 92, 92, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 19)
+      RETURNING id INTO node_db_id;
+    INSERT INTO nodes (view_id, uuid, element_uuid, parent_node_uuid, name, x, y, w, h, fill_color_r, fill_color_g, fill_color_b, fill_color_a, line_color_r, line_color_g, line_color_b, line_color_a, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a, line_width, sort_order)
+      VALUES (view_db_id, 'id-908d6edc', 'id-8d05bce7', 'id-ded8ea96', NULL, 1680, 372, 120, 55, 181, 255, 255, NULL, 92, 92, 92, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 20)
+      RETURNING id INTO node_db_id;
+    INSERT INTO nodes (view_id, uuid, element_uuid, parent_node_uuid, name, x, y, w, h, fill_color_r, fill_color_g, fill_color_b, fill_color_a, line_color_r, line_color_g, line_color_b, line_color_a, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a, line_width, sort_order)
+      VALUES (view_db_id, 'id-9516ff53', 'id-579e6a84', 'id-ded8ea96', NULL, 576, 372, 120, 55, 181, 255, 255, NULL, 92, 92, 92, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 21)
+      RETURNING id INTO node_db_id;
+    INSERT INTO nodes (view_id, uuid, element_uuid, parent_node_uuid, name, x, y, w, h, fill_color_r, fill_color_g, fill_color_b, fill_color_a, line_color_r, line_color_g, line_color_b, line_color_a, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a, line_width, sort_order)
+      VALUES (view_db_id, 'id-f2b22ef5', 'id-038800f6', 'id-ded8ea96', NULL, 732, 372, 120, 55, 181, 255, 255, NULL, 92, 92, 92, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 22)
+      RETURNING id INTO node_db_id;
+    INSERT INTO nodes (view_id, uuid, element_uuid, parent_node_uuid, name, x, y, w, h, fill_color_r, fill_color_g, fill_color_b, fill_color_a, line_color_r, line_color_g, line_color_b, line_color_a, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a, line_width, sort_order)
+      VALUES (view_db_id, 'id-4a0ea7ae', NULL, NULL, 'Application layer (applications)', 48, 528, 1825, 221, 102, 102, 255, NULL, 92, 92, 92, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 23)
+      RETURNING id INTO node_db_id;
+    INSERT INTO nodes (view_id, uuid, element_uuid, parent_node_uuid, name, x, y, w, h, fill_color_r, fill_color_g, fill_color_b, fill_color_a, line_color_r, line_color_g, line_color_b, line_color_a, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a, line_width, sort_order)
+      VALUES (view_db_id, 'id-bbf73f44', 'id-b76434e1', 'id-4a0ea7ae', NULL, 360, 624, 120, 55, 181, 255, 255, NULL, 92, 92, 92, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 24)
+      RETURNING id INTO node_db_id;
+    INSERT INTO nodes (view_id, uuid, element_uuid, parent_node_uuid, name, x, y, w, h, fill_color_r, fill_color_g, fill_color_b, fill_color_a, line_color_r, line_color_g, line_color_b, line_color_a, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a, line_width, sort_order)
+      VALUES (view_db_id, 'id-14b5e0bc', 'id-c0f0365c', 'id-4a0ea7ae', NULL, 1680, 624, 120, 55, 181, 255, 255, NULL, 92, 92, 92, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 25)
+      RETURNING id INTO node_db_id;
+    INSERT INTO nodes (view_id, uuid, element_uuid, parent_node_uuid, name, x, y, w, h, fill_color_r, fill_color_g, fill_color_b, fill_color_a, line_color_r, line_color_g, line_color_b, line_color_a, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a, line_width, sort_order)
+      VALUES (view_db_id, 'id-01aad038', NULL, NULL, 'Infrastructure', 48, 768, 1825, 229, 64, 128, 0, NULL, 92, 92, 92, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 26)
+      RETURNING id INTO node_db_id;
+    INSERT INTO nodes (view_id, uuid, element_uuid, parent_node_uuid, name, x, y, w, h, fill_color_r, fill_color_g, fill_color_b, fill_color_a, line_color_r, line_color_g, line_color_b, line_color_a, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a, line_width, sort_order)
+      VALUES (view_db_id, 'id-99a32239', 'id-a39d8c8f', 'id-01aad038', NULL, 1668, 804, 144, 181, 201, 231, 183, NULL, 92, 92, 92, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 27)
+      RETURNING id INTO node_db_id;
+    INSERT INTO nodes (view_id, uuid, element_uuid, parent_node_uuid, name, x, y, w, h, fill_color_r, fill_color_g, fill_color_b, fill_color_a, line_color_r, line_color_g, line_color_b, line_color_a, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a, line_width, sort_order)
+      VALUES (view_db_id, 'id-00bdd779', 'id-53049f90', 'id-99a32239', NULL, 1680, 840, 120, 97, 201, 231, 183, NULL, 92, 92, 92, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 28)
+      RETURNING id INTO node_db_id;
+    INSERT INTO nodes (view_id, uuid, element_uuid, parent_node_uuid, name, x, y, w, h, fill_color_r, fill_color_g, fill_color_b, fill_color_a, line_color_r, line_color_g, line_color_b, line_color_a, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a, line_width, sort_order)
+      VALUES (view_db_id, 'id-d79dbe4b', 'id-66b97ac1', 'id-01aad038', NULL, 348, 804, 157, 169, 201, 231, 183, NULL, 92, 92, 92, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 29)
+      RETURNING id INTO node_db_id;
+    INSERT INTO nodes (view_id, uuid, element_uuid, parent_node_uuid, name, x, y, w, h, fill_color_r, fill_color_g, fill_color_b, fill_color_a, line_color_r, line_color_g, line_color_b, line_color_a, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a, line_width, sort_order)
+      VALUES (view_db_id, 'id-835f51fb', 'id-8eeaee18', 'id-d79dbe4b', NULL, 360, 852, 120, 55, 201, 231, 183, NULL, 92, 92, 92, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 30)
+      RETURNING id INTO node_db_id;
+    INSERT INTO connections (view_id, uuid, name, relationship_uuid, source_node_uuid, target_node_uuid, line_color_r, line_color_g, line_color_b, line_color_a, line_width, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a)
+      VALUES (view_db_id, 'id-a2833157', NULL, 'id-eff75ee2', 'id-199d5447', 'id-7d74a7cf', 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)
+      RETURNING id INTO conn_db_id;
+    INSERT INTO connections (view_id, uuid, name, relationship_uuid, source_node_uuid, target_node_uuid, line_color_r, line_color_g, line_color_b, line_color_a, line_width, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a)
+      VALUES (view_db_id, 'id-36e85837', NULL, 'id-921b7531', 'id-7d74a7cf', 'id-a5553e89', 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)
+      RETURNING id INTO conn_db_id;
+    INSERT INTO connections (view_id, uuid, name, relationship_uuid, source_node_uuid, target_node_uuid, line_color_r, line_color_g, line_color_b, line_color_a, line_width, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a)
+      VALUES (view_db_id, 'id-209a7761', NULL, 'id-b893d971', 'id-27796ba5', 'id-6223e28a', 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)
+      RETURNING id INTO conn_db_id;
+    INSERT INTO connections (view_id, uuid, name, relationship_uuid, source_node_uuid, target_node_uuid, line_color_r, line_color_g, line_color_b, line_color_a, line_width, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a)
+      VALUES (view_db_id, 'id-f7e24958', NULL, 'id-5d2e4898', 'id-27796ba5', 'id-97ae36bf', 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)
+      RETURNING id INTO conn_db_id;
+    INSERT INTO bendpoints (connection_id, x, y, sort_order)
+      VALUES (conn_db_id, 383, 173, 0);
+    INSERT INTO connections (view_id, uuid, name, relationship_uuid, source_node_uuid, target_node_uuid, line_color_r, line_color_g, line_color_b, line_color_a, line_width, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a)
+      VALUES (view_db_id, 'id-0b320322', NULL, 'id-182eeac0', 'id-6223e28a', 'id-8fc2d7ce', 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)
+      RETURNING id INTO conn_db_id;
+    INSERT INTO connections (view_id, uuid, name, relationship_uuid, source_node_uuid, target_node_uuid, line_color_r, line_color_g, line_color_b, line_color_a, line_width, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a)
+      VALUES (view_db_id, 'id-36f1248f', NULL, 'id-dabed869', 'id-8fc2d7ce', 'id-88967664', 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)
+      RETURNING id INTO conn_db_id;
+    INSERT INTO connections (view_id, uuid, name, relationship_uuid, source_node_uuid, target_node_uuid, line_color_r, line_color_g, line_color_b, line_color_a, line_width, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a)
+      VALUES (view_db_id, 'id-3d397719', NULL, 'id-1e1f9740', 'id-88967664', 'id-c2dfc0c2', 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)
+      RETURNING id INTO conn_db_id;
+    INSERT INTO connections (view_id, uuid, name, relationship_uuid, source_node_uuid, target_node_uuid, line_color_r, line_color_g, line_color_b, line_color_a, line_width, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a)
+      VALUES (view_db_id, 'id-45e81556', NULL, 'id-bea8f3fb', 'id-88967664', 'id-9346b4d7', 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)
+      RETURNING id INTO conn_db_id;
+    INSERT INTO connections (view_id, uuid, name, relationship_uuid, source_node_uuid, target_node_uuid, line_color_r, line_color_g, line_color_b, line_color_a, line_width, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a)
+      VALUES (view_db_id, 'id-de0a7aaf', NULL, 'id-44f0d936', 'id-9346b4d7', 'id-c2dfc0c2', 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)
+      RETURNING id INTO conn_db_id;
+    INSERT INTO connections (view_id, uuid, name, relationship_uuid, source_node_uuid, target_node_uuid, line_color_r, line_color_g, line_color_b, line_color_a, line_width, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a)
+      VALUES (view_db_id, 'id-2e74fca8', NULL, 'id-0b268825', 'id-97ae36bf', 'id-d72fcac8', 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)
+      RETURNING id INTO conn_db_id;
+    INSERT INTO connections (view_id, uuid, name, relationship_uuid, source_node_uuid, target_node_uuid, line_color_r, line_color_g, line_color_b, line_color_a, line_width, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a)
+      VALUES (view_db_id, 'id-babefc68', NULL, 'id-3f274838', 'id-d72fcac8', 'id-a5b70039', 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)
+      RETURNING id INTO conn_db_id;
+    INSERT INTO connections (view_id, uuid, name, relationship_uuid, source_node_uuid, target_node_uuid, line_color_r, line_color_g, line_color_b, line_color_a, line_width, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a)
+      VALUES (view_db_id, 'id-70f34187', NULL, 'id-5f9dabf6', 'id-a5b70039', 'id-554a4c9b', 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)
+      RETURNING id INTO conn_db_id;
+    INSERT INTO connections (view_id, uuid, name, relationship_uuid, source_node_uuid, target_node_uuid, line_color_r, line_color_g, line_color_b, line_color_a, line_width, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a)
+      VALUES (view_db_id, 'id-924f70c1', NULL, 'id-11bf0532', 'id-554a4c9b', 'id-9346b4d7', 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)
+      RETURNING id INTO conn_db_id;
+    INSERT INTO connections (view_id, uuid, name, relationship_uuid, source_node_uuid, target_node_uuid, line_color_r, line_color_g, line_color_b, line_color_a, line_width, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a)
+      VALUES (view_db_id, 'id-87a66829', NULL, 'id-0d2c8af1', 'id-a5553e89', 'id-932621a3', 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)
+      RETURNING id INTO conn_db_id;
+    INSERT INTO connections (view_id, uuid, name, relationship_uuid, source_node_uuid, target_node_uuid, line_color_r, line_color_g, line_color_b, line_color_a, line_width, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a)
+      VALUES (view_db_id, 'id-f0d96522', NULL, 'id-0a4fa37c', 'id-932621a3', 'id-1ad8332d', 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)
+      RETURNING id INTO conn_db_id;
+    INSERT INTO connections (view_id, uuid, name, relationship_uuid, source_node_uuid, target_node_uuid, line_color_r, line_color_g, line_color_b, line_color_a, line_width, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a)
+      VALUES (view_db_id, 'id-f4bdea85', NULL, 'id-cf5eb3c9', 'id-25192b26', 'id-7d74a7cf', 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)
+      RETURNING id INTO conn_db_id;
+    INSERT INTO connections (view_id, uuid, name, relationship_uuid, source_node_uuid, target_node_uuid, line_color_r, line_color_g, line_color_b, line_color_a, line_width, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a)
+      VALUES (view_db_id, 'id-ead8cb5f', NULL, 'id-1ff172f4', 'id-25192b26', 'id-a5553e89', 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)
+      RETURNING id INTO conn_db_id;
+    INSERT INTO bendpoints (connection_id, x, y, sort_order)
+      VALUES (conn_db_id, 1296, 42, 0);
+    INSERT INTO connections (view_id, uuid, name, relationship_uuid, source_node_uuid, target_node_uuid, line_color_r, line_color_g, line_color_b, line_color_a, line_width, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a)
+      VALUES (view_db_id, 'id-53649919', NULL, 'id-13c0d952', 'id-25192b26', 'id-932621a3', 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)
+      RETURNING id INTO conn_db_id;
+    INSERT INTO bendpoints (connection_id, x, y, sort_order)
+      VALUES (conn_db_id, 1518, 42, 0);
+    INSERT INTO connections (view_id, uuid, name, relationship_uuid, source_node_uuid, target_node_uuid, line_color_r, line_color_g, line_color_b, line_color_a, line_width, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a)
+      VALUES (view_db_id, 'id-b771107d', NULL, 'id-d5e30971', 'id-25192b26', 'id-1ad8332d', 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)
+      RETURNING id INTO conn_db_id;
+    INSERT INTO bendpoints (connection_id, x, y, sort_order)
+      VALUES (conn_db_id, 1734, 42, 0);
+    INSERT INTO connections (view_id, uuid, name, relationship_uuid, source_node_uuid, target_node_uuid, line_color_r, line_color_g, line_color_b, line_color_a, line_width, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a)
+      VALUES (view_db_id, 'id-69c134b4', NULL, 'id-083a6326', 'id-8f1bc674', 'id-25192b26', 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)
+      RETURNING id INTO conn_db_id;
+    INSERT INTO connections (view_id, uuid, name, relationship_uuid, source_node_uuid, target_node_uuid, line_color_r, line_color_g, line_color_b, line_color_a, line_width, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a)
+      VALUES (view_db_id, 'id-1c19ed21', NULL, 'id-c01e3858', 'id-32e3bb27', 'id-6223e28a', 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)
+      RETURNING id INTO conn_db_id;
+    INSERT INTO connections (view_id, uuid, name, relationship_uuid, source_node_uuid, target_node_uuid, line_color_r, line_color_g, line_color_b, line_color_a, line_width, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a)
+      VALUES (view_db_id, 'id-1c2110c5', NULL, 'id-60242ab2', 'id-32e3bb27', 'id-27796ba5', 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)
+      RETURNING id INTO conn_db_id;
+    INSERT INTO bendpoints (connection_id, x, y, sort_order)
+      VALUES (conn_db_id, 418, 320, 0);
+    INSERT INTO bendpoints (connection_id, x, y, sort_order)
+      VALUES (conn_db_id, 274, 320, 1);
+    INSERT INTO connections (view_id, uuid, name, relationship_uuid, source_node_uuid, target_node_uuid, line_color_r, line_color_g, line_color_b, line_color_a, line_width, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a)
+      VALUES (view_db_id, 'id-bdd34810', NULL, 'id-90d7127d', 'id-32e3bb27', 'id-a5553e89', 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)
+      RETURNING id INTO conn_db_id;
+    INSERT INTO bendpoints (connection_id, x, y, sort_order)
+      VALUES (conn_db_id, 418, 320, 0);
+    INSERT INTO bendpoints (connection_id, x, y, sort_order)
+      VALUES (conn_db_id, 1294, 320, 1);
+    INSERT INTO connections (view_id, uuid, name, relationship_uuid, source_node_uuid, target_node_uuid, line_color_r, line_color_g, line_color_b, line_color_a, line_width, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a)
+      VALUES (view_db_id, 'id-d11ad784', NULL, 'id-1d50d876', 'id-908d6edc', 'id-1ad8332d', 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)
+      RETURNING id INTO conn_db_id;
+    INSERT INTO bendpoints (connection_id, x, y, sort_order)
+      VALUES (conn_db_id, 1734, 368, 0);
+    INSERT INTO connections (view_id, uuid, name, relationship_uuid, source_node_uuid, target_node_uuid, line_color_r, line_color_g, line_color_b, line_color_a, line_width, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a)
+      VALUES (view_db_id, 'id-af706c24', NULL, 'id-1eca8dc5', 'id-9516ff53', 'id-97ae36bf', 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)
+      RETURNING id INTO conn_db_id;
+    INSERT INTO connections (view_id, uuid, name, relationship_uuid, source_node_uuid, target_node_uuid, line_color_r, line_color_g, line_color_b, line_color_a, line_width, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a)
+      VALUES (view_db_id, 'id-f31c22e9', NULL, 'id-46a20b2c', 'id-9516ff53', 'id-d72fcac8', 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)
+      RETURNING id INTO conn_db_id;
+    INSERT INTO connections (view_id, uuid, name, relationship_uuid, source_node_uuid, target_node_uuid, line_color_r, line_color_g, line_color_b, line_color_a, line_width, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a)
+      VALUES (view_db_id, 'id-e4135d67', NULL, 'id-5035a98f', 'id-9516ff53', 'id-554a4c9b', 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)
+      RETURNING id INTO conn_db_id;
+    INSERT INTO connections (view_id, uuid, name, relationship_uuid, source_node_uuid, target_node_uuid, line_color_r, line_color_g, line_color_b, line_color_a, line_width, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a)
+      VALUES (view_db_id, 'id-b56e35f9', NULL, 'id-bb9c241c', 'id-f2b22ef5', 'id-a5b70039', 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)
+      RETURNING id INTO conn_db_id;
+    INSERT INTO connections (view_id, uuid, name, relationship_uuid, source_node_uuid, target_node_uuid, line_color_r, line_color_g, line_color_b, line_color_a, line_width, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a)
+      VALUES (view_db_id, 'id-c0ef86e3', NULL, 'id-100b1381', 'id-bbf73f44', 'id-32e3bb27', 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)
+      RETURNING id INTO conn_db_id;
+    INSERT INTO connections (view_id, uuid, name, relationship_uuid, source_node_uuid, target_node_uuid, line_color_r, line_color_g, line_color_b, line_color_a, line_width, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a)
+      VALUES (view_db_id, 'id-de49c775', NULL, 'id-d1a59003', 'id-14b5e0bc', 'id-908d6edc', 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)
+      RETURNING id INTO conn_db_id;
+    INSERT INTO connections (view_id, uuid, name, relationship_uuid, source_node_uuid, target_node_uuid, line_color_r, line_color_g, line_color_b, line_color_a, line_width, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a)
+      VALUES (view_db_id, 'id-b4a29f56', NULL, 'id-88052888', 'id-14b5e0bc', 'id-f2b22ef5', 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)
+      RETURNING id INTO conn_db_id;
+    INSERT INTO bendpoints (connection_id, x, y, sort_order)
+      VALUES (conn_db_id, 792, 651, 0);
+    INSERT INTO connections (view_id, uuid, name, relationship_uuid, source_node_uuid, target_node_uuid, line_color_r, line_color_g, line_color_b, line_color_a, line_width, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a)
+      VALUES (view_db_id, 'id-b35861b1', NULL, 'id-34226e4e', 'id-14b5e0bc', 'id-9516ff53', 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)
+      RETURNING id INTO conn_db_id;
+    INSERT INTO bendpoints (connection_id, x, y, sort_order)
+      VALUES (conn_db_id, 634, 651, 0);
+    INSERT INTO connections (view_id, uuid, name, relationship_uuid, source_node_uuid, target_node_uuid, line_color_r, line_color_g, line_color_b, line_color_a, line_width, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a)
+      VALUES (view_db_id, 'id-675fa973', NULL, 'id-e1a8bc8e', 'id-00bdd779', 'id-14b5e0bc', 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)
+      RETURNING id INTO conn_db_id;
+    INSERT INTO connections (view_id, uuid, name, relationship_uuid, source_node_uuid, target_node_uuid, line_color_r, line_color_g, line_color_b, line_color_a, line_width, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a)
+      VALUES (view_db_id, 'id-14d9e669', NULL, 'id-43600474', 'id-835f51fb', 'id-bbf73f44', 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)
+      RETURNING id INTO conn_db_id;
+
+    INSERT INTO views (workspace_id, uuid, name, description, viewpoint)
+      VALUES (ws_id, 'id-951e298e', 'Simplified but complete', NULL, NULL)
+      RETURNING id INTO view_db_id;
+    INSERT INTO nodes (view_id, uuid, element_uuid, parent_node_uuid, name, x, y, w, h, fill_color_r, fill_color_g, fill_color_b, fill_color_a, line_color_r, line_color_g, line_color_b, line_color_a, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a, line_width, sort_order)
+      VALUES (view_db_id, 'id-763cabc1', NULL, NULL, 'Business layer', 170, 48, 767, 121, 255, 254, 171, NULL, 92, 92, 92, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 0)
+      RETURNING id INTO node_db_id;
+    INSERT INTO nodes (view_id, uuid, element_uuid, parent_node_uuid, name, x, y, w, h, fill_color_r, fill_color_g, fill_color_b, fill_color_a, line_color_r, line_color_g, line_color_b, line_color_a, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a, line_width, sort_order)
+      VALUES (view_db_id, 'id-11418373', 'id-44e2d629', 'id-763cabc1', NULL, 182, 96, 120, 55, 255, 255, 181, NULL, 92, 92, 92, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1)
+      RETURNING id INTO node_db_id;
+    INSERT INTO nodes (view_id, uuid, element_uuid, parent_node_uuid, name, x, y, w, h, fill_color_r, fill_color_g, fill_color_b, fill_color_a, line_color_r, line_color_g, line_color_b, line_color_a, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a, line_width, sort_order)
+      VALUES (view_db_id, 'id-405bc21c', 'id-b44eba60', 'id-763cabc1', NULL, 326, 96, 120, 55, 255, 255, 181, NULL, 92, 92, 92, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 2)
+      RETURNING id INTO node_db_id;
+    INSERT INTO nodes (view_id, uuid, element_uuid, parent_node_uuid, name, x, y, w, h, fill_color_r, fill_color_g, fill_color_b, fill_color_a, line_color_r, line_color_g, line_color_b, line_color_a, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a, line_width, sort_order)
+      VALUES (view_db_id, 'id-1f13fbb7', 'id-2ace49d8', 'id-763cabc1', NULL, 470, 96, 120, 55, 255, 255, 181, NULL, 92, 92, 92, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 3)
+      RETURNING id INTO node_db_id;
+    INSERT INTO nodes (view_id, uuid, element_uuid, parent_node_uuid, name, x, y, w, h, fill_color_r, fill_color_g, fill_color_b, fill_color_a, line_color_r, line_color_g, line_color_b, line_color_a, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a, line_width, sort_order)
+      VALUES (view_db_id, 'id-ef028d71', 'id-f137467c', 'id-763cabc1', NULL, 614, 96, 144, 55, 255, 255, 181, NULL, 92, 92, 92, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 4)
+      RETURNING id INTO node_db_id;
+    INSERT INTO nodes (view_id, uuid, element_uuid, parent_node_uuid, name, x, y, w, h, fill_color_r, fill_color_g, fill_color_b, fill_color_a, line_color_r, line_color_g, line_color_b, line_color_a, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a, line_width, sort_order)
+      VALUES (view_db_id, 'id-6e017be7', 'id-1fdf72fc', 'id-763cabc1', NULL, 794, 96, 120, 55, 255, 255, 181, NULL, 92, 92, 92, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 5)
+      RETURNING id INTO node_db_id;
+    INSERT INTO nodes (view_id, uuid, element_uuid, parent_node_uuid, name, x, y, w, h, fill_color_r, fill_color_g, fill_color_b, fill_color_a, line_color_r, line_color_g, line_color_b, line_color_a, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a, line_width, sort_order)
+      VALUES (view_db_id, 'id-74f6743b', NULL, NULL, 'Application layer', 170, 180, 767, 109, 187, 253, 254, NULL, 92, 92, 92, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 6)
+      RETURNING id INTO node_db_id;
+    INSERT INTO nodes (view_id, uuid, element_uuid, parent_node_uuid, name, x, y, w, h, fill_color_r, fill_color_g, fill_color_b, fill_color_a, line_color_r, line_color_g, line_color_b, line_color_a, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a, line_width, sort_order)
+      VALUES (view_db_id, 'id-9f16aa42', 'id-b76434e1', 'id-74f6743b', NULL, 326, 216, 120, 55, 181, 255, 255, NULL, 92, 92, 92, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 7)
+      RETURNING id INTO node_db_id;
+    INSERT INTO nodes (view_id, uuid, element_uuid, parent_node_uuid, name, x, y, w, h, fill_color_r, fill_color_g, fill_color_b, fill_color_a, line_color_r, line_color_g, line_color_b, line_color_a, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a, line_width, sort_order)
+      VALUES (view_db_id, 'id-1bde4858', 'id-c0f0365c', 'id-74f6743b', NULL, 794, 216, 120, 55, 181, 255, 255, NULL, 92, 92, 92, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 8)
+      RETURNING id INTO node_db_id;
+    INSERT INTO nodes (view_id, uuid, element_uuid, parent_node_uuid, name, x, y, w, h, fill_color_r, fill_color_g, fill_color_b, fill_color_a, line_color_r, line_color_g, line_color_b, line_color_a, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a, line_width, sort_order)
+      VALUES (view_db_id, 'id-d54106a2', NULL, NULL, 'Infrastructure layer', 170, 300, 767, 145, 197, 223, 170, NULL, 92, 92, 92, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 9)
+      RETURNING id INTO node_db_id;
+    INSERT INTO nodes (view_id, uuid, element_uuid, parent_node_uuid, name, x, y, w, h, fill_color_r, fill_color_g, fill_color_b, fill_color_a, line_color_r, line_color_g, line_color_b, line_color_a, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a, line_width, sort_order)
+      VALUES (view_db_id, 'id-2017daeb', 'id-a39d8c8f', 'id-d54106a2', NULL, 746, 336, 154, 89, 201, 231, 183, NULL, 92, 92, 92, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 10)
+      RETURNING id INTO node_db_id;
+    INSERT INTO nodes (view_id, uuid, element_uuid, parent_node_uuid, name, x, y, w, h, fill_color_r, fill_color_g, fill_color_b, fill_color_a, line_color_r, line_color_g, line_color_b, line_color_a, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a, line_width, sort_order)
+      VALUES (view_db_id, 'id-e2dba36b', 'id-53049f90', 'id-2017daeb', NULL, 770, 360, 120, 55, 201, 231, 183, NULL, 92, 92, 92, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 11)
+      RETURNING id INTO node_db_id;
+    INSERT INTO nodes (view_id, uuid, element_uuid, parent_node_uuid, name, x, y, w, h, fill_color_r, fill_color_g, fill_color_b, fill_color_a, line_color_r, line_color_g, line_color_b, line_color_a, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a, line_width, sort_order)
+      VALUES (view_db_id, 'id-1c2f1646', 'id-66b97ac1', 'id-d54106a2', NULL, 302, 336, 154, 89, 201, 231, 183, NULL, 92, 92, 92, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 12)
+      RETURNING id INTO node_db_id;
+    INSERT INTO nodes (view_id, uuid, element_uuid, parent_node_uuid, name, x, y, w, h, fill_color_r, fill_color_g, fill_color_b, fill_color_a, line_color_r, line_color_g, line_color_b, line_color_a, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a, line_width, sort_order)
+      VALUES (view_db_id, 'id-1556e1b3', 'id-8eeaee18', 'id-1c2f1646', NULL, 326, 360, 120, 55, 201, 231, 183, NULL, 92, 92, 92, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 13)
+      RETURNING id INTO node_db_id;
+    INSERT INTO connections (view_id, uuid, name, relationship_uuid, source_node_uuid, target_node_uuid, line_color_r, line_color_g, line_color_b, line_color_a, line_width, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a)
+      VALUES (view_db_id, 'id-0b967b8f', NULL, 'id-eff75ee2', 'id-11418373', 'id-405bc21c', 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)
+      RETURNING id INTO conn_db_id;
+    INSERT INTO connections (view_id, uuid, name, relationship_uuid, source_node_uuid, target_node_uuid, line_color_r, line_color_g, line_color_b, line_color_a, line_width, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a)
+      VALUES (view_db_id, 'id-72189ca8', NULL, 'id-921b7531', 'id-405bc21c', 'id-1f13fbb7', 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)
+      RETURNING id INTO conn_db_id;
+    INSERT INTO connections (view_id, uuid, name, relationship_uuid, source_node_uuid, target_node_uuid, line_color_r, line_color_g, line_color_b, line_color_a, line_width, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a)
+      VALUES (view_db_id, 'id-f6bc9bd2', NULL, 'id-0d2c8af1', 'id-1f13fbb7', 'id-ef028d71', 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)
+      RETURNING id INTO conn_db_id;
+    INSERT INTO connections (view_id, uuid, name, relationship_uuid, source_node_uuid, target_node_uuid, line_color_r, line_color_g, line_color_b, line_color_a, line_width, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a)
+      VALUES (view_db_id, 'id-65e7de54', NULL, 'id-0a4fa37c', 'id-ef028d71', 'id-6e017be7', 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)
+      RETURNING id INTO conn_db_id;
+    INSERT INTO connections (view_id, uuid, name, relationship_uuid, source_node_uuid, target_node_uuid, line_color_r, line_color_g, line_color_b, line_color_a, line_width, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a)
+      VALUES (view_db_id, 'id-8a785e83', NULL, 'id-20f78070', 'id-9f16aa42', 'id-405bc21c', 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)
+      RETURNING id INTO conn_db_id;
+    INSERT INTO connections (view_id, uuid, name, relationship_uuid, source_node_uuid, target_node_uuid, line_color_r, line_color_g, line_color_b, line_color_a, line_width, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a)
+      VALUES (view_db_id, 'id-32e7c0b8', NULL, 'id-79bc7cf9', 'id-9f16aa42', 'id-1f13fbb7', 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)
+      RETURNING id INTO conn_db_id;
+    INSERT INTO bendpoints (connection_id, x, y, sort_order)
+      VALUES (conn_db_id, 529, 243, 0);
+    INSERT INTO connections (view_id, uuid, name, relationship_uuid, source_node_uuid, target_node_uuid, line_color_r, line_color_g, line_color_b, line_color_a, line_width, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a)
+      VALUES (view_db_id, 'id-c9b17364', NULL, 'id-c1497873', 'id-1bde4858', 'id-6e017be7', 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)
+      RETURNING id INTO conn_db_id;
+    INSERT INTO connections (view_id, uuid, name, relationship_uuid, source_node_uuid, target_node_uuid, line_color_r, line_color_g, line_color_b, line_color_a, line_width, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a)
+      VALUES (view_db_id, 'id-e918a351', NULL, 'id-e1a8bc8e', 'id-e2dba36b', 'id-1bde4858', 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)
+      RETURNING id INTO conn_db_id;
+    INSERT INTO connections (view_id, uuid, name, relationship_uuid, source_node_uuid, target_node_uuid, line_color_r, line_color_g, line_color_b, line_color_a, line_width, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a)
+      VALUES (view_db_id, 'id-c97fdc08', NULL, 'id-43600474', 'id-1556e1b3', 'id-9f16aa42', 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)
+      RETURNING id INTO conn_db_id;
+
+    INSERT INTO views (workspace_id, uuid, name, description, viewpoint)
+      VALUES (ws_id, 'id-22786dc1', 'Business layer, simple', NULL, NULL)
+      RETURNING id INTO view_db_id;
+    INSERT INTO nodes (view_id, uuid, element_uuid, parent_node_uuid, name, x, y, w, h, fill_color_r, fill_color_g, fill_color_b, fill_color_a, line_color_r, line_color_g, line_color_b, line_color_a, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a, line_width, sort_order)
+      VALUES (view_db_id, 'id-7ae97d6a', NULL, NULL, 'Business layer', 12, 72, 805, 121, 255, 254, 171, NULL, 92, 92, 92, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 0)
+      RETURNING id INTO node_db_id;
+    INSERT INTO nodes (view_id, uuid, element_uuid, parent_node_uuid, name, x, y, w, h, fill_color_r, fill_color_g, fill_color_b, fill_color_a, line_color_r, line_color_g, line_color_b, line_color_a, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a, line_width, sort_order)
+      VALUES (view_db_id, 'id-2f42184f', 'id-44e2d629', 'id-7ae97d6a', NULL, 24, 120, 120, 55, 255, 255, 181, NULL, 92, 92, 92, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1)
+      RETURNING id INTO node_db_id;
+    INSERT INTO nodes (view_id, uuid, element_uuid, parent_node_uuid, name, x, y, w, h, fill_color_r, fill_color_g, fill_color_b, fill_color_a, line_color_r, line_color_g, line_color_b, line_color_a, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a, line_width, sort_order)
+      VALUES (view_db_id, 'id-3eb3ae5d', 'id-b44eba60', 'id-7ae97d6a', NULL, 168, 120, 120, 55, 255, 255, 181, NULL, 92, 92, 92, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 2)
+      RETURNING id INTO node_db_id;
+    INSERT INTO nodes (view_id, uuid, element_uuid, parent_node_uuid, name, x, y, w, h, fill_color_r, fill_color_g, fill_color_b, fill_color_a, line_color_r, line_color_g, line_color_b, line_color_a, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a, line_width, sort_order)
+      VALUES (view_db_id, 'id-2e853834', 'id-2ace49d8', 'id-7ae97d6a', NULL, 324, 120, 120, 55, 255, 255, 181, NULL, 92, 92, 92, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 3)
+      RETURNING id INTO node_db_id;
+    INSERT INTO nodes (view_id, uuid, element_uuid, parent_node_uuid, name, x, y, w, h, fill_color_r, fill_color_g, fill_color_b, fill_color_a, line_color_r, line_color_g, line_color_b, line_color_a, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a, line_width, sort_order)
+      VALUES (view_db_id, 'id-a7863852', 'id-f137467c', 'id-7ae97d6a', NULL, 480, 120, 144, 55, 255, 255, 181, NULL, 92, 92, 92, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 4)
+      RETURNING id INTO node_db_id;
+    INSERT INTO nodes (view_id, uuid, element_uuid, parent_node_uuid, name, x, y, w, h, fill_color_r, fill_color_g, fill_color_b, fill_color_a, line_color_r, line_color_g, line_color_b, line_color_a, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a, line_width, sort_order)
+      VALUES (view_db_id, 'id-5877e6a2', 'id-1fdf72fc', 'id-7ae97d6a', NULL, 672, 120, 120, 55, 255, 255, 181, NULL, 92, 92, 92, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 5)
+      RETURNING id INTO node_db_id;
+    INSERT INTO connections (view_id, uuid, name, relationship_uuid, source_node_uuid, target_node_uuid, line_color_r, line_color_g, line_color_b, line_color_a, line_width, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a)
+      VALUES (view_db_id, 'id-660e48df', NULL, 'id-eff75ee2', 'id-2f42184f', 'id-3eb3ae5d', 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)
+      RETURNING id INTO conn_db_id;
+    INSERT INTO connections (view_id, uuid, name, relationship_uuid, source_node_uuid, target_node_uuid, line_color_r, line_color_g, line_color_b, line_color_a, line_width, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a)
+      VALUES (view_db_id, 'id-656bbf24', NULL, 'id-921b7531', 'id-3eb3ae5d', 'id-2e853834', 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)
+      RETURNING id INTO conn_db_id;
+    INSERT INTO connections (view_id, uuid, name, relationship_uuid, source_node_uuid, target_node_uuid, line_color_r, line_color_g, line_color_b, line_color_a, line_width, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a)
+      VALUES (view_db_id, 'id-1359bf86', NULL, 'id-0d2c8af1', 'id-2e853834', 'id-a7863852', 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)
+      RETURNING id INTO conn_db_id;
+    INSERT INTO connections (view_id, uuid, name, relationship_uuid, source_node_uuid, target_node_uuid, line_color_r, line_color_g, line_color_b, line_color_a, line_width, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a)
+      VALUES (view_db_id, 'id-aeb3ea72', NULL, 'id-0a4fa37c', 'id-a7863852', 'id-5877e6a2', 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)
+      RETURNING id INTO conn_db_id;
 
 END $$;

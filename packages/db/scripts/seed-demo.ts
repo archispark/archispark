@@ -1,8 +1,10 @@
 /**
- * Demo seed script — loads ArchiMetal + ArchiSurance workspaces into the DB,
- * one per demo organization (packages/db/seeds/demo-orgs.json), owned by the
- * "archi" demo user with "user"/"contrib" as admin/member (swapped between
- * the two organizations, to demonstrate that roles are per-organization).
+ * Demo seed script — loads the ArchiSurance, ArchiMetal and Open Day
+ * workspaces into the DB, grouped into demo organizations
+ * (packages/db/seeds/demo-orgs.json): "Archi" (ArchiSurance + ArchiMetal)
+ * and "Open" (Open Day). Owned by the "archi" demo user with
+ * "user"/"contrib" as admin/member (swapped between the two organizations,
+ * to demonstrate that roles are per-organization).
  * "admin" (the platform_admin demo account) is deliberately never a member
  * of either organization — demonstrates platform/organization isolation
  * from the demo itself.
@@ -16,8 +18,9 @@
  *   KEYCLOAK_ADMIN_CLIENT_SECRET — used to look up the demo users' Keycloak
  *                                  subs (run seed:demo-users first)
  *
- * Destructive reset: deletes existing ArchiSurance/ArchiMetal workspaces (CASCADE)
- * then reimports from the generated SQL. Safe to run multiple times.
+ * Destructive reset: deletes existing ArchiSurance/ArchiMetal/Open Day
+ * workspaces (CASCADE) then reimports from the generated SQL. Safe to run
+ * multiple times.
  */
 
 import { readFileSync } from "fs"
@@ -28,8 +31,12 @@ import { findUserByUsername } from "@workspace/auth"
 interface DemoOrg {
   slug: string
   name: string
-  workspace: string
+  workspaces: string[]
   members: Record<string, string>
+}
+
+function organizationIdPlaceholder(workspace: string): string {
+  return `__${workspace.toUpperCase().replace(/[^A-Z0-9]/g, "")}_ORGANIZATION_ID__`
 }
 
 const SQL_PATH = resolve(import.meta.dirname, "../seeds/demo.sql")
@@ -121,24 +128,23 @@ await client.connect()
 const orgIdByWorkspace = new Map<string, number>()
 for (const org of demoOrgs) {
   const orgId = await getOrCreateOrganization(client, org.slug, org.name)
-  orgIdByWorkspace.set(org.workspace, orgId)
+  for (const workspace of org.workspaces) {
+    orgIdByWorkspace.set(workspace, orgId)
+  }
   for (const [username, role] of Object.entries(org.members)) {
     await upsertMember(client, orgId, userIds.get(username)!, role)
   }
   console.log(
-    `Organization "${org.name}" (id=${orgId}): ${Object.keys(org.members).length} member(s).`
+    `Organization "${org.name}" (id=${orgId}): ${org.workspaces.length} workspace(s), ${Object.keys(org.members).length} member(s).`
   )
 }
 
 // ── 3. Seed the workspaces (elements, views) into their organization ───────
 
-const archisuranceOrgId = orgIdByWorkspace.get("ArchiSurance")!
-const archimetalOrgId = orgIdByWorkspace.get("ArchiMetal")!
-
-const sql = sqlTemplate
-  .replaceAll("__ARCHISURANCE_ORGANIZATION_ID__", String(archisuranceOrgId))
-  .replaceAll("__ARCHIMETAL_ORGANIZATION_ID__", String(archimetalOrgId))
-  .replaceAll("'__CREATED_BY_ID__'", `'${archiId}'`)
+let sql = sqlTemplate.replaceAll("'__CREATED_BY_ID__'", `'${archiId}'`)
+for (const [workspace, orgId] of orgIdByWorkspace) {
+  sql = sql.replaceAll(organizationIdPlaceholder(workspace), String(orgId))
+}
 
 console.log("Seeding workspaces (elements, views)…")
 await client.query(sql)
