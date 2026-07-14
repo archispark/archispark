@@ -92,6 +92,44 @@ export const organizationMembers = pgTable(
 )
 
 // ---------------------------------------------------------------------------
+// Organization invitations — email + token, one active per (org, email)
+// ---------------------------------------------------------------------------
+
+export const organizationInvitations = pgTable(
+  "organization_invitations",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    email: text("email").notNull(), // lowercase
+    role: text("role").notNull(), // "owner" | "admin" | "member"
+    // sha256 of the invitation token — the clear-text token is never
+    // persisted, only emailed; lookups hash the received token and compare.
+    tokenHash: text("token_hash").notNull(),
+    // Keycloak `sub` of the inviter (no FK: identities live in Keycloak).
+    invitedByUserId: text("invited_by_user_id").notNull(),
+    createdAt: integer("created_at")
+      .notNull()
+      .default(sql`extract(epoch from now())::int`),
+    expiresAt: integer("expires_at").notNull(),
+    sentAt: integer("sent_at"), // NULL if the SMTP send failed
+    acceptedAt: integer("accepted_at"),
+    revokedAt: integer("revoked_at"),
+  },
+  (t) => [
+    uniqueIndex("org_invitations_token_hash_uniq").on(t.tokenHash),
+    // Only one active (not accepted, not revoked) invitation per (org, email)
+    // — enforced by Postgres itself so two concurrent creates can't both
+    // succeed past an application-level check.
+    uniqueIndex("org_invitations_org_email_active_uniq")
+      .on(t.organizationId, t.email)
+      .where(sql`accepted_at IS NULL AND revoked_at IS NULL`),
+    index("org_invitations_org_idx").on(t.organizationId),
+  ]
+)
+
+// ---------------------------------------------------------------------------
 // Per-user "active organization" — which organization the user is currently in
 // ---------------------------------------------------------------------------
 

@@ -93,3 +93,75 @@ seed devient alors auto-cicatrisant au lieu de nécessiter une correction
 manuelle en production comme ici. Le garde-fou "zéro workspace" est
 volontairement strict : jamais de suppression aveugle par simple absence
 dans la liste courante, seulement par slug explicitement retiré.
+
+## 2026-07-14 — Invitations d'organisation par e-mail (offre SaaS mutualisée)
+
+**Contexte** : `addMember` (`apps/api/src/organizations-store.ts`) exigeait
+un username Keycloak déjà existant — limitation documentée du v1. Ça
+cassait l'onboarding self-service de l'offre SaaS mutualisée : un `owner`
+ne pouvait ajouter que quelqu'un qui avait déjà un compte, et le realm
+`archispark` avait `registrationAllowed: false`, donc personne ne pouvait
+créer de compte tout seul.
+
+**Décision** : auto-inscription Keycloak activée sur le realm mutualisé
+uniquement + invitation par **token** (pas par username). Points clés,
+chacun avec un "pourquoi" qu'une prochaine session ne doit pas défaire par
+inadvertance :
+
+- **Username → email + token** plutôt que de simplement assouplir
+  `addMember` : l'invité n'a par définition pas encore de compte, il faut
+  donc un identifiant qui ne dépend pas d'un compte existant (l'e-mail) et
+  une preuve d'intention côté organisation (le token), pas juste un
+  contrôle a posteriori.
+- **Le token est hashé (SHA-256) en base, jamais stocké en clair** —
+  contrairement à `apiTokens.token` (relu/affiché à l'utilisateur), un
+  token d'invitation n'est jamais relu, seulement comparé au hash reçu.
+  Coût nul, réduit l'impact d'une fuite de base/logs/sauvegarde.
+- **Pas de création de compte Keycloak déclenchée par l'API par défaut** —
+  l'invité s'inscrit via le flux Keycloak normal (auto-inscription +
+  e-mail/mot de passe ; SSO plus tard, voir point ouvert ci-dessous).
+  `packages/auth/src/admin-users.ts` a déjà `createKeycloakUser`, mais ce
+  chemin n'est délibérément pas utilisé ici : la vérification native
+  Keycloak de l'e-mail à l'inscription est plus solide qu'un provisioning
+  API suivi d'un envoi de mot de passe.
+- **`access.ts`/`assertOrgAccess` n'est pas utilisé pour la preview
+  (`GET /invitations/:token`) ni l'acceptation
+  (`POST /invitations/:token/accept`)** — exception délibérée au principe
+  "toute autorisation passe par access.ts" : l'invité n'est par définition
+  pas encore membre, donc rien à vérifier côté `organization_members`. La
+  garde est le triplet authentification (toujours `requireAuth`, mounté
+  globalement — un appelant non authentifié reçoit 401 avant même que le
+  token soit examiné) + token valide/non expiré + e-mail Keycloak
+  **vérifié** et identique à l'e-mail invité. `access.ts` reste seul point
+  de passage pour ce qui _est_ déjà une vérification d'appartenance
+  (création/liste/révocation/renvoi, qui passent par
+  `assertOrgAccess(..., "manage_members")`).
+- **`KEYCLOAK_SELF_REGISTRATION`/`KEYCLOAK_VERIFY_EMAIL` sont des flags de
+  provisioning (env vars lues par `setup-realm.ts`), pas des valeurs
+  statiques de `realm-export.json`** — ce fichier provisionne
+  indifféremment le realm mutualisé et chaque realm dédié client ; un flag
+  statique `registrationAllowed: true` dedans aurait activé
+  l'auto-inscription publique sur _tous_ les realms dédiés provisionnés
+  avec ce script, ce qui contredit le modèle d'isolation "instance
+  dédiée". `duplicateEmailsAllowed: false` suit `KEYCLOAK_SELF_REGISTRATION`
+  plutôt que d'être un réglage indépendant, car c'est précisément
+  l'auto-inscription qui crée le risque de doublon d'email.
+
+**Conséquences** : une seule invitation active par (organisation, email),
+garantie par un index unique partiel Postgres
+(`org_invitations_org_email_active_uniq`), pas seulement une révocation
+applicative — ferme la course entre deux créations concurrentes. Points
+ouverts, explicitement hors scope de cette implémentation :
+
+- Quand Google/Microsoft seront activés (chantier séparé), la stratégie de
+  _First Broker Login_/liaison de compte devra être définie et testée
+  avant d'exposer ces IdP — `duplicateEmailsAllowed: false` empêche la
+  création d'un doublon mais ne résout pas, à lui seul, le cas d'un compte
+  local existant qui se connecte ensuite via un IdP avec le même email.
+- `registrationAllowed` sur le realm mutualisé expose un formulaire
+  d'inscription public, donc un vecteur de spam/robots. Pas bloquant pour
+  ce lancement (pas de trafic public significatif à ce stade), mais à
+  traiter avant une exposition large : au minimum un rate limiting
+  applicatif ou au niveau du reverse proxy sur
+  `/realms/archispark/protocol/openid-connect/registrations`, et si
+  nécessaire un CAPTCHA/anti-bot Keycloak.

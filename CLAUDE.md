@@ -77,7 +77,7 @@ Human-triggered only — see [.claude/skills/release/SKILL.md](.claude/skills/re
 ## Project conventions
 
 - **Code style**: enforced by Prettier (no semicolons, double quotes, 2-space indent, 80-column) and the shared `@workspace/eslint-config`. TypeScript runs in `strict` mode with `noUncheckedIndexedAccess`.
-- **File size**: ESLint enforces a 250-line max per file (`max-lines`, error, blank lines/comments excluded) — split large modules rather than disabling the rule.
+- **File size**: `max-lines` (`@workspace/eslint-config`) flags files over 250 lines (blank lines/comments excluded) — it's configured as `"error"` but `eslint-plugin-only-warn` downgrades every rule repo-wide to a non-blocking warning, so it never fails `pnpm lint`/CI. Treat it as a strong convention, not a gate: split large modules rather than disabling the rule, and don't let a file grow past the limit on a change you're already making — but don't assume `pnpm lint` will catch it for you.
 - **Type validation**: element and relationship types must belong to the ArchiMate 3.1 sets defined in `models/xsd`.
 - **Reference PNG components**: all components (PNG) go to `models/img/archimate`. Never write generated images to `models/img/archimate/` or any other directory.
 - **Reference SVG views**: `models/img/views/` contains SVGs exported directly by the Archi tool — these are the ground truth. When improving the renderer (`apps/api/src/renderer.ts`), compare generated output against the matching file in `models/img/views/` and minimize visual differences (shapes, colors, layout, connectors, labels, fonts).

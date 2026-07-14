@@ -14,6 +14,13 @@ WASM, in-memory) — full Postgres fidelity, no Docker required.
 `isPersonal`, `enabled` — a suspension flag settable only by a
 `platform_admin`), `organizationMembers` (`organizationId`, `userId` — a
 Keycloak `sub` — and `role`: `"owner" | "admin" | "member"`),
+`organizationInvitations` (email-based invitations — `email`, `role`,
+`tokenHash` (SHA-256 of a random token, the clear-text token itself is
+never persisted), `expiresAt`/`sentAt`/`acceptedAt`/`revokedAt`; a partial
+unique index on `(organizationId, email)` restricted to rows where
+`acceptedAt IS NULL AND revokedAt IS NULL` enforces at most one active
+invitation per organization/e-mail pair — see
+[Organization invitations by e-mail](authentication.md#organization-invitations-by-e-mail)),
 `userActiveOrganization` (per-user pointer to the organization currently in
 use), `siteSettings` (login/banner messages), `apiTokens` (personal API
 tokens, each scoped to one `organizationId` and optionally pinned to one

@@ -15,6 +15,12 @@
  *   - if it already exists, roles/clients/the api service account
  *     are applied via `partialImport` with `ifResourceExists: "SKIP"` —
  *     idempotent, only adds what's missing.
+ *   - finally, a handful of realm settings (self-registration, email
+ *     verification, SMTP) are patched field-by-field, but *only* when the
+ *     corresponding env var is explicitly set — see patchRealmSettings()
+ *     below. This keeps realm-export.json's checked-in defaults (safe for
+ *     every dedicated client realm) untouched unless a deployment opts in,
+ *     which today is only the shared/pooled realm.
  *
  * Usage:
  *   pnpm --filter @workspace/db setup:realm
@@ -28,90 +34,176 @@
  * KEYCLOAK_SETUP_USERNAME/KEYCLOAK_SETUP_PASSWORD to a realm-admin user.
  */
 
-import { readFileSync } from "fs";
-import { resolve } from "path";
+import { readFileSync } from "fs"
+import { resolve } from "path"
 
-const url = process.env["KEYCLOAK_URL"];
-const realm = process.env["KEYCLOAK_REALM"];
+const url = process.env["KEYCLOAK_URL"]
+const realm = process.env["KEYCLOAK_REALM"]
 if (!url) {
-  console.error("Error: KEYCLOAK_URL is required.");
-  process.exit(1);
+  console.error("Error: KEYCLOAK_URL is required.")
+  process.exit(1)
 }
 if (!realm) {
-  console.error("Error: KEYCLOAK_REALM is required.");
-  process.exit(1);
+  console.error("Error: KEYCLOAK_REALM is required.")
+  process.exit(1)
 }
 
-const authRealm = process.env["KEYCLOAK_SETUP_AUTH_REALM"] || "master";
-const authClientId = process.env["KEYCLOAK_SETUP_CLIENT_ID"] || "admin-cli";
-const username = process.env["KEYCLOAK_SETUP_USERNAME"] || process.env["KEYCLOAK_ADMIN"];
-const password = process.env["KEYCLOAK_SETUP_PASSWORD"] || process.env["KEYCLOAK_ADMIN_PASSWORD"];
+const authRealm = process.env["KEYCLOAK_SETUP_AUTH_REALM"] || "master"
+const authClientId = process.env["KEYCLOAK_SETUP_CLIENT_ID"] || "admin-cli"
+const username =
+  process.env["KEYCLOAK_SETUP_USERNAME"] || process.env["KEYCLOAK_ADMIN"]
+const password =
+  process.env["KEYCLOAK_SETUP_PASSWORD"] ||
+  process.env["KEYCLOAK_ADMIN_PASSWORD"]
 if (!username || !password) {
-  console.error("Error: KEYCLOAK_SETUP_USERNAME/KEYCLOAK_SETUP_PASSWORD (or KEYCLOAK_ADMIN/KEYCLOAK_ADMIN_PASSWORD) are required.");
-  process.exit(1);
+  console.error(
+    "Error: KEYCLOAK_SETUP_USERNAME/KEYCLOAK_SETUP_PASSWORD (or KEYCLOAK_ADMIN/KEYCLOAK_ADMIN_PASSWORD) are required."
+  )
+  process.exit(1)
 }
 
-const REALM_JSON_PATH = resolve(import.meta.dirname, "../../../.docker/keycloak/realm-export.json");
+const REALM_JSON_PATH = resolve(
+  import.meta.dirname,
+  "../../../.docker/keycloak/realm-export.json"
+)
 const realmJson = JSON.parse(readFileSync(REALM_JSON_PATH, "utf-8")) as {
-  roles: unknown;
-  clients: unknown;
-  users: { serviceAccountClientId?: string }[];
-};
-
-const tokenRes = await fetch(`${url}/realms/${authRealm}/protocol/openid-connect/token`, {
-  method: "POST",
-  headers: { "content-type": "application/x-www-form-urlencoded" },
-  body: new URLSearchParams({
-    grant_type: "password",
-    client_id: authClientId,
-    username,
-    password,
-  }).toString(),
-});
-if (!tokenRes.ok) {
-  throw new Error(`Admin token request failed: ${tokenRes.status} ${await tokenRes.text()}`);
+  roles: unknown
+  clients: unknown
+  users: { serviceAccountClientId?: string }[]
 }
-const { access_token: token } = (await tokenRes.json()) as { access_token: string };
+
+const tokenRes = await fetch(
+  `${url}/realms/${authRealm}/protocol/openid-connect/token`,
+  {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "password",
+      client_id: authClientId,
+      username,
+      password,
+    }).toString(),
+  }
+)
+if (!tokenRes.ok) {
+  throw new Error(
+    `Admin token request failed: ${tokenRes.status} ${await tokenRes.text()}`
+  )
+}
+const { access_token: token } = (await tokenRes.json()) as {
+  access_token: string
+}
 
 function adminFetch(path: string, init?: RequestInit): Promise<Response> {
   return fetch(`${url}/admin${path}`, {
     ...init,
     headers: { ...(init?.headers ?? {}), authorization: `Bearer ${token}` },
-  });
+  })
 }
 
-const existing = await adminFetch(`/realms/${realm}`);
+const existing = await adminFetch(`/realms/${realm}`)
 
 if (existing.status === 404) {
-  console.log(`Realm "${realm}" does not exist — creating from realm-export.json…`);
+  console.log(
+    `Realm "${realm}" does not exist — creating from realm-export.json…`
+  )
   const res = await adminFetch("/realms", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ ...realmJson, realm }),
-  });
+  })
   if (!res.ok) {
-    throw new Error(`POST /admin/realms -> ${res.status} ${await res.text()}`);
+    throw new Error(`POST /admin/realms -> ${res.status} ${await res.text()}`)
   }
-  console.log(`Realm "${realm}" created.`);
+  console.log(`Realm "${realm}" created.`)
 } else if (existing.ok) {
-  console.log(`Realm "${realm}" exists — applying roles/clients via partialImport (ifResourceExists=SKIP)…`);
+  console.log(
+    `Realm "${realm}" exists — applying roles/clients via partialImport (ifResourceExists=SKIP)…`
+  )
   const payload = {
     ifResourceExists: "SKIP",
     roles: realmJson.roles,
     clients: realmJson.clients,
     users: realmJson.users.filter((u) => u.serviceAccountClientId),
-  };
+  }
   const res = await adminFetch(`/realms/${realm}/partialImport`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(payload),
-  });
+  })
   if (!res.ok) {
-    throw new Error(`POST /admin/realms/${realm}/partialImport -> ${res.status} ${await res.text()}`);
+    throw new Error(
+      `POST /admin/realms/${realm}/partialImport -> ${res.status} ${await res.text()}`
+    )
   }
-  console.log(JSON.stringify(await res.json(), null, 2));
+  console.log(JSON.stringify(await res.json(), null, 2))
 } else {
-  throw new Error(`GET /admin/realms/${realm} -> ${existing.status} ${await existing.text()}`);
+  throw new Error(
+    `GET /admin/realms/${realm} -> ${existing.status} ${await existing.text()}`
+  )
 }
 
-console.log("Done.");
+await patchRealmSettings()
+
+console.log("Done.")
+
+/**
+ * Patches a handful of realm settings field-by-field, but only for the
+ * fields whose env var is explicitly set — an unset var leaves that field
+ * exactly as it is today (realm-export.json default, or a value set by
+ * hand in the admin console), so a dedicated client realm provisioned
+ * without these vars is never touched.
+ */
+async function patchRealmSettings(): Promise<void> {
+  const patch: Record<string, unknown> = {}
+
+  const selfRegistration = process.env["KEYCLOAK_SELF_REGISTRATION"]
+  if (selfRegistration !== undefined) {
+    const enabled = selfRegistration === "true"
+    patch["registrationAllowed"] = enabled
+    // Self-registration creates accounts without prior verification of
+    // email ownership — only guard against duplicate emails when it's on;
+    // this must not be a separate always-applied setting (see
+    // docs/decisions.md).
+    if (enabled) {
+      patch["duplicateEmailsAllowed"] = false
+    }
+  }
+
+  const verifyEmail = process.env["KEYCLOAK_VERIFY_EMAIL"]
+  if (verifyEmail !== undefined) {
+    patch["verifyEmail"] = verifyEmail === "true"
+  }
+
+  const smtpHost = process.env["SMTP_HOST"]
+  if (smtpHost) {
+    patch["smtpServer"] = {
+      host: smtpHost,
+      port: process.env["SMTP_PORT"] || "587",
+      from: process.env["SMTP_FROM"] || "",
+      auth: process.env["SMTP_USER"] ? "true" : "false",
+      user: process.env["SMTP_USER"] || "",
+      password: process.env["SMTP_PASSWORD"] || "",
+      starttls: "true",
+    }
+  }
+
+  if (Object.keys(patch).length === 0) {
+    return
+  }
+
+  console.log(
+    `Patching realm "${realm}" settings: ${Object.keys(patch).join(", ")}…`
+  )
+  const res = await adminFetch(`/realms/${realm}`, {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(patch),
+  })
+  if (!res.ok) {
+    throw new Error(
+      `PUT /admin/realms/${realm} -> ${res.status} ${await res.text()}`
+    )
+  }
+  console.log("Realm settings patched.")
+}

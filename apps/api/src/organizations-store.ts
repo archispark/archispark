@@ -237,7 +237,7 @@ export async function listMembers(
   )
 }
 
-/** owner-only. Adding a member requires an existing Keycloak user (no email invitation in v1). */
+/** owner-only. Requires an existing Keycloak user — to invite someone without one yet, see invitations-store.ts. */
 export async function addMember(
   user: AccessUser,
   organizationId: number,

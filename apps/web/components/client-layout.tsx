@@ -59,7 +59,11 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const pathname = usePathname()
-  const isLogin = pathname === "/login"
+  // An invitee accepting an invitation isn't a member of any organization
+  // yet, so the org-scoped nav/sidebar would just error or look empty —
+  // same full-bleed chrome as /login.
+  const isChromeless =
+    pathname === "/login" || !!pathname?.startsWith("/invitations")
   // platform_admin has no workspace access, but IS meant to reach
   // /platform/* (organization administration, metadata only) — see
   // apps/web/app/platform/organizations/page.tsx.
@@ -69,7 +73,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
   // chrome-light pages (no model context), so they hide the sidebar —
   // only the top nav stays.
   const hideSidebar =
-    isLogin || pathname === "/workspaces" || pathname === "/organizations"
+    isChromeless || pathname === "/workspaces" || pathname === "/organizations"
 
   useEffect(() => {
     setSidebarCollapsed(localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "1")
@@ -83,7 +87,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
     })
   }, [])
 
-  if (!isLogin && isPlatformAdmin && !isPlatformRoute) {
+  if (!isChromeless && isPlatformAdmin && !isPlatformRoute) {
     return (
       <ThemeProvider>
         <PlatformAdminBlock />
@@ -94,7 +98,9 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <ThemeProvider>
-      {!isLogin && <Nav onToggleSidebar={() => setSidebarOpen((v) => !v)} />}
+      {!isChromeless && (
+        <Nav onToggleSidebar={() => setSidebarOpen((v) => !v)} />
+      )}
       {!hideSidebar && (
         <Sidebar
           open={sidebarOpen}
@@ -105,7 +111,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
       )}
       <main
         className={
-          isLogin
+          isChromeless
             ? ""
             : `mt-[var(--nav-h)] min-h-[calc(100vh-var(--nav-h))] transition-[margin-left] duration-200 ${
                 hideSidebar
@@ -116,7 +122,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
               }`
         }
       >
-        {!isLogin && <SiteBanner />}
+        {!isChromeless && <SiteBanner />}
         {children}
       </main>
       <Toaster richColors position="bottom-right" />

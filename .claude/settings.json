@@ -19,24 +19,6 @@
       }
     }
   },
-  "permissions": {
-    "allow": [
-      "mcp__vercel__*",
-      "mcp__playwright__*",
-      "mcp__archimate-vercel__*",
-      "WebFetch(domain:github.com)",
-      "WebFetch(domain:vercel.com)",
-      "Bash(git *)",
-      "Bash(curl *)",
-      "Bash(pnpm *)",
-      "Bash(make *)"
-    ],
-    "deny": [
-      "Bash(rm -rf*)",
-      "Read(./.env)",
-      "Read(./.env.*)"
-    ]
-  },
   "hooks": {
     "PostToolUse": [
       {

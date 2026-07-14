@@ -16,7 +16,13 @@ import {
 const PLATFORM_ADMIN_ROLE = "platform_admin"
 
 export interface AuthRequest extends Request {
-  user?: { id: string; username: string; role: string }
+  user?: {
+    id: string
+    username: string
+    role: string
+    email?: string
+    emailVerified?: boolean
+  }
   /** Set by requireAuth for Bearer-token requests (api_tokens row). */
   tokenContext?: { organizationId: number; workspaceId: number | null }
 }
@@ -25,6 +31,8 @@ export interface TokenUser {
   id: string
   username: string
   role: string
+  email?: string
+  emailVerified?: boolean
   organizationId: number
   workspaceId: number | null
 }
@@ -58,6 +66,8 @@ export async function lookupApiToken(token: string): Promise<TokenUser | null> {
     id: kcUser.id!,
     username: kcUser.username,
     role,
+    email: kcUser.email,
+    emailVerified: kcUser.emailVerified,
     organizationId: row.organizationId,
     workspaceId: row.workspaceId,
   }
@@ -74,6 +84,8 @@ function resolveKeycloakUser(claims: KeycloakClaims): {
   id: string
   username: string
   role: string
+  email?: string
+  emailVerified?: boolean
 } {
   return {
     id: claims.sub,
@@ -81,6 +93,8 @@ function resolveKeycloakUser(claims: KeycloakClaims): {
     role: claims.realm_access?.roles?.includes("platform_admin")
       ? "platform_admin"
       : "user",
+    email: claims.email,
+    emailVerified: claims.email_verified,
   }
 }
 
@@ -114,6 +128,8 @@ export function requireAuth(
             id: tokenUser.id,
             username: tokenUser.username,
             role: tokenUser.role,
+            email: tokenUser.email,
+            emailVerified: tokenUser.emailVerified,
           }
           req.tokenContext = {
             organizationId: tokenUser.organizationId,

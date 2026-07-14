@@ -43,6 +43,36 @@ spec:
                   key: DB_PASSWORD
             - name: DATABASE_URL
               value: "postgresql://archispark:$(DB_PASSWORD)@{{ include "archispark.fullname" . }}-postgres:5432/archispark?sslmode=disable"
+            - name: KEYCLOAK_URL
+              value: {{ .Values.keycloak.url | required "keycloak.url is required" | quote }}
+            - name: KEYCLOAK_REALM
+              value: {{ .Values.keycloak.realm | required "keycloak.realm is required" | quote }}
+            - name: KEYCLOAK_ADMIN_CLIENT_ID
+              value: {{ .Values.keycloak.adminClientId | quote }}
+            - name: KEYCLOAK_ADMIN_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "archispark.secretName" . }}
+                  key: KEYCLOAK_ADMIN_CLIENT_SECRET
+            {{- if .Values.archisparkUrl }}
+            - name: ARCHISPARK_URL
+              value: {{ .Values.archisparkUrl | quote }}
+            {{- end }}
+            {{- if .Values.smtp.host }}
+            - name: SMTP_HOST
+              value: {{ .Values.smtp.host | quote }}
+            - name: SMTP_PORT
+              value: {{ .Values.smtp.port | quote }}
+            - name: SMTP_USER
+              value: {{ .Values.smtp.user | quote }}
+            - name: SMTP_FROM
+              value: {{ .Values.smtp.from | quote }}
+            - name: SMTP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "archispark.secretName" . }}
+                  key: SMTP_PASSWORD
+            {{- end }}
           livenessProbe:
             httpGet:
               path: /health

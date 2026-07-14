@@ -33,6 +33,7 @@ import {
   OrganizationUpdateSchema,
   OrganizationMemberCreateSchema,
   OrganizationMemberUpdateSchema,
+  OrganizationInvitationCreateSchema,
   PlatformOrganizationUpdateSchema,
   ApiTokenCreateSchema as ApiTokenCreateInputSchema,
 } from "./validation.js"
@@ -292,6 +293,52 @@ const OrganizationMemberOutSchema = registry.register(
     .openapi("OrganizationMemberOut")
 )
 
+const OrganizationInvitationOutSchema = registry.register(
+  "OrganizationInvitationOut",
+  z
+    .object({
+      id: z.string(),
+      email: z.string(),
+      role: z.enum(["owner", "admin", "member"]),
+      created_at: z
+        .number()
+        .int()
+        .openapi({ description: "Timestamp Unix (secondes)" }),
+      expires_at: z
+        .number()
+        .int()
+        .openapi({ description: "Timestamp Unix (secondes)" }),
+      sent_at: z
+        .number()
+        .int()
+        .nullable()
+        .openapi({ description: "null si l'envoi SMTP a échoué" }),
+      expired: z.boolean(),
+    })
+    .openapi("OrganizationInvitationOut")
+)
+
+const InvitationPreviewOutSchema = registry.register(
+  "InvitationPreviewOut",
+  z
+    .object({
+      organization_name: z.string(),
+      role: z.enum(["owner", "admin", "member"]),
+      email: z.string(),
+    })
+    .openapi("InvitationPreviewOut")
+)
+
+const AcceptInvitationOutSchema = registry.register(
+  "AcceptInvitationOut",
+  z
+    .object({
+      organization_id: z.string(),
+      role: z.enum(["owner", "admin", "member"]),
+    })
+    .openapi("AcceptInvitationOut")
+)
+
 const PlatformOrganizationOutSchema = registry.register(
   "PlatformOrganizationOut",
   z
@@ -452,6 +499,12 @@ const OrganizationMemberCreateInput = registry.register(
 const OrganizationMemberUpdateInput = registry.register(
   "OrganizationMemberUpdateInput",
   OrganizationMemberUpdateSchema.openapi("OrganizationMemberUpdateInput")
+)
+const OrganizationInvitationCreateInput = registry.register(
+  "OrganizationInvitationCreateInput",
+  OrganizationInvitationCreateSchema.openapi(
+    "OrganizationInvitationCreateInput"
+  )
 )
 const PlatformOrganizationUpdateInput = registry.register(
   "PlatformOrganizationUpdateInput",
@@ -1249,11 +1302,11 @@ registry.registerPath({
   method: "post",
   path: "/organizations/{id}/members",
   tags: ["Organizations"],
-  summary: "Ajouter un membre (owner uniquement)",
+  summary: "Ajouter un membre par username (owner uniquement)",
   operationId: "addOrganizationMember",
   security: BothAuth,
   description:
-    "L'utilisateur doit déjà exister dans Keycloak — pas d'invitation par e-mail en v1.",
+    "L'utilisateur doit déjà exister dans Keycloak. Pour inviter quelqu'un qui n'a pas encore de compte, voir POST /organizations/{id}/invitations.",
   request: {
     params: z.object({ id: z.string() }),
     body: {
@@ -1315,6 +1368,145 @@ registry.registerPath({
     204: { description: "Membre retiré" },
     401: Unauthorized,
     403: Forbidden,
+    404: NotFound,
+    422: UnprocessableType,
+  },
+})
+
+registry.registerPath({
+  method: "get",
+  path: "/organizations/{id}/invitations",
+  tags: ["Organizations"],
+  summary: "Lister les invitations en attente d'une organisation",
+  operationId: "listOrganizationInvitations",
+  security: BothAuth,
+  request: { params: z.object({ id: z.string() }) },
+  responses: {
+    200: {
+      description: "Invitations en attente",
+      content: {
+        "application/json": {
+          schema: z.array(OrganizationInvitationOutSchema),
+        },
+      },
+    },
+    401: Unauthorized,
+    404: NotFound,
+  },
+})
+
+registry.registerPath({
+  method: "post",
+  path: "/organizations/{id}/invitations",
+  tags: ["Organizations"],
+  summary: "Inviter par e-mail (owner uniquement)",
+  operationId: "createOrganizationInvitation",
+  security: BothAuth,
+  description:
+    "Crée (ou remplace une invitation active existante pour le même e-mail) et envoie un e-mail avec un lien d'acceptation. sent_at reste null si l'envoi SMTP a échoué — l'invitation existe mais doit être renvoyée.",
+  request: {
+    params: z.object({ id: z.string() }),
+    body: {
+      required: true,
+      content: {
+        "application/json": { schema: OrganizationInvitationCreateInput },
+      },
+    },
+  },
+  responses: {
+    201: {
+      description: "Invitation créée",
+      content: {
+        "application/json": { schema: OrganizationInvitationOutSchema },
+      },
+    },
+    401: Unauthorized,
+    403: Forbidden,
+    404: NotFound,
+    422: UnprocessableType,
+  },
+})
+
+registry.registerPath({
+  method: "delete",
+  path: "/organizations/{id}/invitations/{invitationId}",
+  tags: ["Organizations"],
+  summary: "Révoquer une invitation (owner uniquement)",
+  operationId: "revokeOrganizationInvitation",
+  security: BothAuth,
+  request: {
+    params: z.object({ id: z.string(), invitationId: z.string() }),
+  },
+  responses: {
+    204: { description: "Invitation révoquée" },
+    401: Unauthorized,
+    403: Forbidden,
+    404: NotFound,
+  },
+})
+
+registry.registerPath({
+  method: "post",
+  path: "/organizations/{id}/invitations/{invitationId}/resend",
+  tags: ["Organizations"],
+  summary: "Renvoyer une invitation (owner uniquement)",
+  operationId: "resendOrganizationInvitation",
+  security: BothAuth,
+  description:
+    "Révoque l'invitation existante et en émet une nouvelle avec le même e-mail/rôle — même mécanisme que la création.",
+  request: {
+    params: z.object({ id: z.string(), invitationId: z.string() }),
+  },
+  responses: {
+    201: {
+      description: "Invitation renvoyée",
+      content: {
+        "application/json": { schema: OrganizationInvitationOutSchema },
+      },
+    },
+    401: Unauthorized,
+    403: Forbidden,
+    404: NotFound,
+  },
+})
+
+registry.registerPath({
+  method: "get",
+  path: "/invitations/{token}",
+  tags: ["Organizations"],
+  summary: "Prévisualiser une invitation par token",
+  operationId: "getInvitationPreview",
+  security: BothAuth,
+  description:
+    "Authentification requise (comme toute route de l'API) mais pas de contrôle d'appartenance à l'organisation — l'appelant n'est par définition pas encore membre.",
+  request: { params: z.object({ token: z.string() }) },
+  responses: {
+    200: {
+      description: "Détails de l'invitation",
+      content: { "application/json": { schema: InvitationPreviewOutSchema } },
+    },
+    401: Unauthorized,
+    404: NotFound,
+    422: UnprocessableType,
+  },
+})
+
+registry.registerPath({
+  method: "post",
+  path: "/invitations/{token}/accept",
+  tags: ["Organizations"],
+  summary: "Accepter une invitation",
+  operationId: "acceptInvitation",
+  security: BothAuth,
+  description:
+    "Nécessite un e-mail Keycloak vérifié et identique à l'e-mail invité, en plus d'un token valide et non expiré.",
+  request: { params: z.object({ token: z.string() }) },
+  responses: {
+    200: {
+      description: "Invitation acceptée — membre ajouté",
+      content: { "application/json": { schema: AcceptInvitationOutSchema } },
+    },
+    401: Unauthorized,
     404: NotFound,
     422: UnprocessableType,
   },

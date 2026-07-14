@@ -23,6 +23,11 @@
  *   POST /organizations/:id/activate
  *   GET|POST /organizations/:id/members
  *   PUT|DELETE /organizations/:id/members/:userId
+ *   GET|POST /organizations/:id/invitations
+ *   DELETE /organizations/:id/invitations/:invitationId
+ *   POST /organizations/:id/invitations/:invitationId/resend
+ *   GET /invitations/:token
+ *   POST /invitations/:token/accept
  *   GET /platform/organizations
  *   PUT|DELETE /platform/organizations/:id
  *   GET /openapi.json
@@ -94,6 +99,14 @@ import {
   removeMember,
 } from "./organizations-store.js"
 import {
+  createOrReplaceInvitation,
+  listInvitations,
+  revokeInvitation,
+  resendInvitation,
+  getInvitationPreview,
+  acceptInvitation,
+} from "./invitations-store.js"
+import {
   listAllOrganizations,
   setOrganizationEnabled,
   deleteOrganizationAsPlatformAdmin,
@@ -151,6 +164,7 @@ import {
   OrganizationUpdateSchema,
   OrganizationMemberCreateSchema,
   OrganizationMemberUpdateSchema,
+  OrganizationInvitationCreateSchema,
   PlatformOrganizationUpdateSchema,
   ApiTokenCreateSchema,
 } from "./validation.js"
@@ -557,6 +571,103 @@ app.delete(
     }
     await removeMember(accessUser(req), id, req.params["userId"] as string)
     res.status(204).send()
+  }
+)
+
+// ---------------------------------------------------------------------------
+// Organization invitations — owner-only management (email, not username;
+// see organizations-store.ts's addMember for the legacy username path)
+// ---------------------------------------------------------------------------
+
+app.get(
+  "/organizations/:id/invitations",
+  async (req: AuthRequest, res: Response) => {
+    const id = parseInt(req.params["id"] as string, 10)
+    if (isNaN(id)) {
+      res.status(422).json({ detail: "ID invalide." })
+      return
+    }
+    res.json(await listInvitations(accessUser(req), id))
+  }
+)
+
+app.post(
+  "/organizations/:id/invitations",
+  async (req: AuthRequest, res: Response) => {
+    const body = parseBody(OrganizationInvitationCreateSchema, req.body, res)
+    if (!body) return
+    const id = parseInt(req.params["id"] as string, 10)
+    if (isNaN(id)) {
+      res.status(422).json({ detail: "ID invalide." })
+      return
+    }
+    res
+      .status(201)
+      .json(
+        await createOrReplaceInvitation(
+          accessUser(req),
+          id,
+          body.email,
+          body.role
+        )
+      )
+  }
+)
+
+app.delete(
+  "/organizations/:id/invitations/:invitationId",
+  async (req: AuthRequest, res: Response) => {
+    const id = parseInt(req.params["id"] as string, 10)
+    const invitationId = parseInt(req.params["invitationId"] as string, 10)
+    if (isNaN(id) || isNaN(invitationId)) {
+      res.status(422).json({ detail: "ID invalide." })
+      return
+    }
+    await revokeInvitation(accessUser(req), id, invitationId)
+    res.status(204).send()
+  }
+)
+
+app.post(
+  "/organizations/:id/invitations/:invitationId/resend",
+  async (req: AuthRequest, res: Response) => {
+    const id = parseInt(req.params["id"] as string, 10)
+    const invitationId = parseInt(req.params["invitationId"] as string, 10)
+    if (isNaN(id) || isNaN(invitationId)) {
+      res.status(422).json({ detail: "ID invalide." })
+      return
+    }
+    res
+      .status(201)
+      .json(await resendInvitation(accessUser(req), id, invitationId))
+  }
+)
+
+// ---------------------------------------------------------------------------
+// Invitation acceptance — token-gated, not access.ts-gated (see
+// invitations-store.ts's module doc: the invitee isn't a member yet).
+// requireAuth still applies (mounted globally above), so an unauthenticated
+// caller gets 401 before the token is ever examined.
+// ---------------------------------------------------------------------------
+
+app.get("/invitations/:token", async (req: AuthRequest, res: Response) => {
+  res.json(await getInvitationPreview(req.params["token"] as string))
+})
+
+app.post(
+  "/invitations/:token/accept",
+  async (req: AuthRequest, res: Response) => {
+    res.json(
+      await acceptInvitation(
+        {
+          id: req.user!.id,
+          role: req.user!.role,
+          email: req.user!.email,
+          emailVerified: req.user!.emailVerified,
+        },
+        req.params["token"] as string
+      )
+    )
   }
 )
 

@@ -19,6 +19,17 @@ image:
   pullPolicy: IfNotPresent
   # pullSecrets: []
 
+# ── Keycloak (self-hosted, deployed separately from this chart) ────────────────
+# ArchiSpark authenticates against a Keycloak instance that this chart does
+# NOT provision — see docs/deployment.md#onboarding-dun-nouveau-client-un-realm-keycloak-dédié.
+# All four values below are required for login to work (api and web both
+# read them at runtime); the admin client secret goes in secrets.keycloakAdminClientSecret.
+keycloak:
+  url: ""             # Requis — ex. https://keycloak.example.com
+  realm: ""           # Requis — ex. archispark ou archispark-<tenant>
+  clientIdWeb: archispark-web
+  adminClientId: archispark-api
+
 # ── API (Express) ─────────────────────────────────────────────────────────────
 api:
   image: archispark/archispark-api
@@ -73,6 +84,23 @@ postgres:
       cpu: 500m
       memory: 512Mi
 
+# ── Invitations par e-mail ───────────────────────────────────────────────────
+# URL publique du déploiement — utilisée pour construire le lien d'invitation
+# (${archisparkUrl}/invitations/<token>), jamais reconstruite depuis l'en-tête
+# Host de la requête. Laisser vide désactive la construction du lien (l'API
+# refuse alors l'envoi — voir docs/authentication.md#organization-invitations-by-e-mail).
+archisparkUrl: ""
+
+# SMTP utilisé par l'API pour l'e-mail "vous êtes invité". Laisser smtp.host
+# vide désactive l'envoi (l'invitation reste créée avec sent_at=null,
+# à renvoyer une fois le SMTP configuré) — voir secrets.smtpPassword ci-dessous
+# pour le mot de passe.
+smtp:
+  host: ""
+  port: 587
+  user: ""
+  from: "no-reply@archispark.local"
+
 # ── Ingress (NGINX Ingress Controller) ───────────────────────────────────────
 ingress:
   enabled: true
@@ -92,3 +120,5 @@ secrets:
   existingSecret: ""
   # Clés attendues dans le Secret (ou valeurs inline si existingSecret est vide)
   dbPassword: ""         # Requis — mot de passe PostgreSQL
+  keycloakAdminClientSecret: ""  # Requis — secret du client confidentiel keycloak.adminClientId
+  smtpPassword: ""       # Optionnel — requis seulement si smtp.host est défini

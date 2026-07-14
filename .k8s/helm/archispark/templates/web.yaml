@@ -39,6 +39,12 @@ spec:
             # Vide intentionnellement : le frontend appelle /api via l'Ingress
             - name: ARCHIMATE_API_URL
               value: ""
+            - name: KEYCLOAK_URL
+              value: {{ .Values.keycloak.url | required "keycloak.url is required" | quote }}
+            - name: KEYCLOAK_REALM
+              value: {{ .Values.keycloak.realm | required "keycloak.realm is required" | quote }}
+            - name: KEYCLOAK_CLIENT_ID_WEB
+              value: {{ .Values.keycloak.clientIdWeb | quote }}
           livenessProbe:
             httpGet:
               path: /

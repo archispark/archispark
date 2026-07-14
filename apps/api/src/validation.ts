@@ -171,6 +171,11 @@ export const OrganizationMemberUpdateSchema = z.object({
   role: orgRole,
 })
 
+export const OrganizationInvitationCreateSchema = z.object({
+  email: z.string().email("Adresse e-mail invalide."),
+  role: orgRole,
+})
+
 export const PlatformOrganizationUpdateSchema = z.object({
   enabled: z.boolean(),
 })

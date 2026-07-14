@@ -134,6 +134,13 @@
       "when": 1783900000000,
       "tag": "0018_organizations_expand",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1784033308570,
+      "tag": "0019_organization_invitations",
+      "breakpoints": true
     }
   ]
 }

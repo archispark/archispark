@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Building2, Plus, Pencil, Trash2, Check, Users } from "lucide-react"
+import { Building2, Pencil, Trash2, Check, Users } from "lucide-react"
 import { useT } from "@/lib/i18n"
 import { type OrganizationOut } from "@/lib/api"
 import {
@@ -13,19 +13,12 @@ import {
 } from "@/lib/queries"
 import { useFormModal } from "@/hooks/use-form-modal"
 import { OrganizationMembers } from "@/components/organization-members"
-import { Input } from "@workspace/ui/components/input"
-import { Button } from "@workspace/ui/components/button"
-import { Label } from "@workspace/ui/components/label"
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-  DialogClose,
-  DialogTrigger,
-} from "@workspace/ui/components/dialog"
+  CreateOrganizationDialog,
+  EditOrganizationDialog,
+  DeleteOrganizationDialog,
+} from "@/components/organization-dialogs"
+import { Button } from "@workspace/ui/components/button"
 
 export default function OrganizationsPage() {
   const { t } = useT()
@@ -86,65 +79,17 @@ export default function OrganizationsPage() {
           </p>
         </div>
 
-        <Dialog
-          open={createModal.open}
-          onOpenChange={(o) => !o && createActions.close()}
-        >
-          <DialogTrigger
-            render={
-              <Button
-                size="sm"
-                onClick={() => {
-                  setNewName("")
-                  createActions.openNew()
-                }}
-              />
-            }
-          >
-            <Plus className="size-4" /> {t("settings.org.org_new_btn")}
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>{t("settings.org.org_new_title")}</DialogTitle>
-              <DialogDescription>
-                {t("settings.org.org_new_desc")}
-              </DialogDescription>
-            </DialogHeader>
-            <div className="flex flex-col gap-1.5 py-2">
-              <Label htmlFor="new-org-name">
-                {t("settings.org.org_name")} *
-              </Label>
-              <Input
-                id="new-org-name"
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") handleCreate()
-                }}
-                autoFocus
-                autoComplete="off"
-              />
-            </div>
-            {createModal.error && (
-              <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                {createModal.error}
-              </div>
-            )}
-            <DialogFooter>
-              <DialogClose render={<Button variant="outline" />}>
-                {t("common.cancel")}
-              </DialogClose>
-              <Button
-                onClick={handleCreate}
-                disabled={createModal.isPending || !newName.trim()}
-              >
-                {createModal.isPending
-                  ? t("common.creating")
-                  : t("common.create")}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        <CreateOrganizationDialog
+          modal={createModal}
+          actions={createActions}
+          name={newName}
+          onNameChange={setNewName}
+          onOpenNew={() => {
+            setNewName("")
+            createActions.openNew()
+          }}
+          onCreate={handleCreate}
+        />
       </div>
 
       {isLoading ? (
@@ -228,78 +173,19 @@ export default function OrganizationsPage() {
         </div>
       )}
 
-      <Dialog
-        open={editModal.open}
-        onOpenChange={(o) => !o && editActions.close()}
-      >
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>{t("settings.org.org_edit_title")}</DialogTitle>
-          </DialogHeader>
-          <div className="flex flex-col gap-1.5 py-2">
-            <Label htmlFor="edit-org-name">
-              {t("settings.org.org_name")} *
-            </Label>
-            <Input
-              id="edit-org-name"
-              value={editName}
-              onChange={(e) => setEditName(e.target.value)}
-              autoComplete="off"
-            />
-          </div>
-          {editModal.error && (
-            <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-              {editModal.error}
-            </div>
-          )}
-          <DialogFooter>
-            <DialogClose render={<Button variant="outline" />}>
-              {t("common.cancel")}
-            </DialogClose>
-            <Button
-              onClick={handleEditSave}
-              disabled={editModal.isPending || !editName.trim()}
-            >
-              {editModal.isPending ? t("common.saving") : t("common.save")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <EditOrganizationDialog
+        modal={editModal}
+        actions={editActions}
+        name={editName}
+        onNameChange={setEditName}
+        onSave={handleEditSave}
+      />
 
-      <Dialog
-        open={deleteModal.open}
-        onOpenChange={(o) => !o && deleteActions.close()}
-      >
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle>{t("settings.org.delete_org_title")}</DialogTitle>
-            <DialogDescription>
-              {t("settings.org.delete_org_desc", {
-                name: deleteModal.target?.name ?? "",
-              })}
-            </DialogDescription>
-          </DialogHeader>
-          {deleteModal.error && (
-            <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-              {deleteModal.error}
-            </div>
-          )}
-          <DialogFooter>
-            <DialogClose render={<Button variant="outline" />}>
-              {t("common.cancel")}
-            </DialogClose>
-            <Button
-              variant="destructive"
-              onClick={handleDelete}
-              disabled={deleteModal.isPending}
-            >
-              {deleteModal.isPending
-                ? t("common.deleting")
-                : t("common.delete")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <DeleteOrganizationDialog
+        modal={deleteModal}
+        actions={deleteActions}
+        onConfirm={handleDelete}
+      />
 
       {membersOrg && (
         <OrganizationMembers
