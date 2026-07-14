@@ -37,6 +37,8 @@ The workflow **Actions → Restore demo data** can be triggered manually from Gi
 
 The workflow offers a **reset** checkbox (on by default): when checked it deletes the existing ArchiMetal, ArchiSurance and Open Day workspaces (all child data is removed via CASCADE) before re-seeding. Uncheck it to seed only if those workspaces do not yet exist.
 
+The workflow runs `seed:demo-users` (creates/updates the 5 Keycloak demo accounts on the target realm) before `seed:demo` — so adding a new demo account (like `open`) to `.docker/keycloak/demo-users.json` needs no manual Keycloak step on the Vercel/remote side; the next workflow run provisions it automatically.
+
 ### Retiring/renaming a demo organization slug
 
 `packages/db/seeds/demo-orgs.json` upserts organizations by `slug`. Because the reset step above deletes workspaces **by name only** (not scoped to an organization), renaming a demo org's slug (as happened for `archisurance`/`archimetal` → `archi`/`open`) can leave the old, now-empty organization behind — and if a demo user's `user_active_organization` still points at it, they'll see "no workspace" even though their data moved to the new organization (see [decisions.md](decisions.md#2026-07-13--nettoyage-auto-cicatrisant-des-organisations-démo-retirées)).
