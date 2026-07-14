@@ -2,7 +2,9 @@
 
 Three sample ArchiMate models are available for demo or local testing: **ArchiMetal** (294 elements, 476 relationships, 33 views), **ArchiSurance** (257 elements, 402 relationships, 40 views), and **Open Day** (27 elements, 37 relationships, 4 views).
 
-The workspaces are grouped into two demo organizations (`packages/db/seeds/demo-orgs.json`): **Archi** (ArchiSurance + ArchiMetal) and **Open** (Open Day). Within each organization, `archi` is `owner`, `user`/`contrib` hold swapped `admin`/`member` roles between the two organizations — demonstrating that roles are per-organization. The `admin` demo account (`platform_admin`) is deliberately a member of neither, demonstrating platform/organization isolation from the demo itself.
+The workspaces are grouped into two demo organizations (`packages/db/seeds/demo-orgs.json`): **Archi** (ArchiSurance + ArchiMetal) and **Open** (Open Day). The two organizations are deliberately isolated from each other — no shared members: within Archi, `archi` is `owner`, `contrib` is `admin`, `user` is `member`; within Open, `open` is the sole `owner`. The `admin` demo account (`platform_admin`) is deliberately a member of neither, demonstrating platform/organization isolation from the demo itself.
+
+Membership is authoritative on every reseed: narrowing an organization's `members` in `demo-orgs.json` removes any now-unlisted `organization_members` row on the next `pnpm seed:demo` run rather than leaving it behind (see `removeStaleMembers` in `seed-demo.ts`) — this is how `archi`/`user`/`contrib` lost access to Open when it was split off into its own, single-owner organization.
 
 The seed is **idempotent** — re-running it replaces the matching workspace's content.
 
@@ -12,16 +14,16 @@ pnpm seed:demo-users   # equivalent to `make seed-demo-users`
 pnpm seed:demo         # equivalent to `make seed-demo`
 ```
 
-**`pnpm seed:demo-users`** creates/updates the 4 Keycloak demo accounts
-(`admin`/`user`/`contrib`/`archi`, passwords match usernames, see
+**`pnpm seed:demo-users`** creates/updates the 5 Keycloak demo accounts
+(`admin`/`user`/`contrib`/`archi`/`open`, passwords match usernames, see
 `.docker/keycloak/demo-users.json`) via the Keycloak Admin API — requires
 `KEYCLOAK_URL`, `KEYCLOAK_REALM`, `KEYCLOAK_ADMIN_CLIENT_ID`,
 `KEYCLOAK_ADMIN_CLIENT_SECRET`.
 
 **`pnpm seed:demo`** seeds the two demo organizations, their memberships,
 and the ArchiMate demo data (ArchiMetal/ArchiSurance/Open Day) — requires
-`DATABASE_URL` and looks up `archi`/`user`/`contrib`'s Keycloak `sub`s
-(same Keycloak env vars as above; run `seed:demo-users` first).
+`DATABASE_URL` and looks up `archi`/`user`/`contrib`/`open`'s Keycloak
+`sub`s (same Keycloak env vars as above; run `seed:demo-users` first).
 `packages/db/seeds/demo.sql` itself is a template — its
 `__ARCHISURANCE_ORGANIZATION_ID__`/`__ARCHIMETAL_ORGANIZATION_ID__`/`__OPENDAY_ORGANIZATION_ID__`/`__CREATED_BY_ID__`
 placeholders are only substituted by `seed-demo.ts`, so run it via `pnpm

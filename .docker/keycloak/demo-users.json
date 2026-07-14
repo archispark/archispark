@@ -27,5 +27,12 @@
     "firstName": "Archi",
     "lastName": "Archispark",
     "password": "archi"
+  },
+  {
+    "username": "open",
+    "email": "open@archispark.internal",
+    "firstName": "Open",
+    "lastName": "Archispark",
+    "password": "open"
   }
 ]

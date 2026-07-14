@@ -10,7 +10,7 @@
       "slug": "open",
       "name": "Open",
       "workspaces": ["Open Day"],
-      "members": { "archi": "owner", "user": "admin", "contrib": "member" }
+      "members": { "open": "owner" }
     }
   ],
   "legacySlugs": ["archisurance", "archimetal"]

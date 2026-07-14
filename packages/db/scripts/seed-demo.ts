@@ -1,13 +1,22 @@
 /**
  * Demo seed script — loads the ArchiSurance, ArchiMetal and Open Day
  * workspaces into the DB, grouped into demo organizations
- * (packages/db/seeds/demo-orgs.json): "Archi" (ArchiSurance + ArchiMetal)
- * and "Open" (Open Day). Owned by the "archi" demo user with
- * "user"/"contrib" as admin/member (swapped between the two organizations,
- * to demonstrate that roles are per-organization).
- * "admin" (the platform_admin demo account) is deliberately never a member
- * of either organization — demonstrates platform/organization isolation
- * from the demo itself.
+ * (packages/db/seeds/demo-orgs.json): "Archi" (ArchiSurance + ArchiMetal),
+ * owned by "archi" with "contrib"/"user" as admin/member, and "Open" (Open
+ * Day), owned solely by "open" — the two organizations are deliberately
+ * isolated from each other (no shared members), to demonstrate
+ * organization-scoped access. "admin" (the platform_admin demo account) is
+ * deliberately never a member of either organization — demonstrates
+ * platform/organization isolation from the demo itself.
+ *
+ * Membership is authoritative, not additive: for each organization, any
+ * `organization_members` row for a user not listed in `demo-orgs.json` is
+ * removed (see `removeStaleMembers`) — so narrowing an organization's
+ * `members` (e.g. dropping a demo user's access) takes effect on rerun
+ * instead of leaving stale rows behind. Stale `user_active_organization`
+ * rows self-heal automatically on the affected user's next request
+ * (`resolveActiveOrganizationId` in `apps/api/src/access.ts` falls back to
+ * another organization they're still a member of).
  *
  * Self-healing legacy cleanup: `demo-orgs.json`'s `legacySlugs` lists slugs
  * retired by a past org restructuring (e.g. the `archisurance`/`archimetal`
@@ -137,6 +146,18 @@ async function upsertMember(
   )
 }
 
+async function removeStaleMembers(
+  client: pg.Client,
+  organizationId: number,
+  keepUserIds: string[]
+): Promise<void> {
+  await client.query(
+    `DELETE FROM organization_members
+     WHERE organization_id = $1 AND user_id <> ALL($2::text[])`,
+    [organizationId, keepUserIds]
+  )
+}
+
 // ── 1. Resolve demo users' Keycloak subs ────────────────────────────────────
 
 const usernames = new Set(demoOrgs.flatMap((org) => Object.keys(org.members)))
@@ -168,6 +189,11 @@ for (const org of demoOrgs) {
   for (const [username, role] of Object.entries(org.members)) {
     await upsertMember(client, orgId, userIds.get(username)!, role)
   }
+  await removeStaleMembers(
+    client,
+    orgId,
+    Object.keys(org.members).map((username) => userIds.get(username)!)
+  )
   console.log(
     `Organization "${org.name}" (id=${orgId}): ${org.workspaces.length} workspace(s), ${Object.keys(org.members).length} member(s).`
   )

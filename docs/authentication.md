@@ -44,7 +44,7 @@ Keycloak username.
 |--------|------|------|-------------|
 | `GET` | `/me` | user | Returns current user |
 
-Default credentials: `admin` / `admin` (`platform_admin`, no organization membership by design), `user` / `user`, `contrib` / `contrib`, `archi` / `archi`. The demo seed creates two organizations, one per demo workspace, with `archi` as `owner` of both and `user`/`contrib` swapped between `admin`/`member` — see [Demo seed](demo-data.md#demo-seed).
+Default credentials: `admin` / `admin` (`platform_admin`, no organization membership by design), `user` / `user`, `contrib` / `contrib`, `archi` / `archi`, `open` / `open`. The demo seed creates two organizations, deliberately isolated from each other: `Archi` (`archi` as `owner`, `contrib`/`user` as `admin`/`member`) and `Open` (`open` as sole `owner`) — see [Demo seed](demo-data.md#demo-seed).
 
 ## Keycloak login
 
