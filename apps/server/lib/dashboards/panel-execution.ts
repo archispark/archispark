@@ -1,7 +1,7 @@
 /**
  * Résolution des paramètres et exécution d'un panneau — porté de
  * `panel-execution.ts` (ofr-archimate-reports/apps/portal), scopé par
- * organisation.
+ * workspace.
  */
 import { getLatestRevision } from "./repository"
 import { executeDatasourceQuery, classifyDatasourceFailure } from "./datasource-executors"
@@ -34,7 +34,11 @@ export function resolveParameterValues(
 ): Record<string, ParameterValue> {
   const resolved: Record<string, ParameterValue> = {}
   for (const parameter of parameters) {
-    const value = provided[parameter.name] ?? parameter.defaultValue
+    const providedValue = provided[parameter.name]
+    // An empty query-string field (for example `?driverId=`) means the
+    // selector has not been filled in. Treat it as absent rather than as a
+    // valid string so required panels never execute with an empty identifier.
+    const value = providedValue === "" ? parameter.defaultValue : providedValue ?? parameter.defaultValue
     if (value === undefined) {
       if (parameter.required) {
         throw new PanelExecutionError("compilation", `Le paramètre « ${parameter.name} » est obligatoire.`)
@@ -103,12 +107,13 @@ export interface RunPanelResult {
 
 /** Resolves the panel instance embedded in the given dashboard, its query, then runs it and normalizes the result. */
 export async function runPanel(
+  workspaceId: number,
   organizationId: number,
   dashboardId: string,
   panelInstanceId: string,
   parameterValues: Readonly<Record<string, string | number | boolean>> = {}
 ): Promise<RunPanelResult> {
-  const dashboard = await getLatestRevision(organizationId, dashboardId)
+  const dashboard = await getLatestRevision(workspaceId, dashboardId)
   if (!dashboard) throw new PanelNotFoundError(dashboardId, panelInstanceId)
   const instance = dashboard.definition.panels.find((candidate) => candidate.id === panelInstanceId)
   if (!instance) throw new PanelNotFoundError(dashboardId, panelInstanceId)
@@ -212,6 +217,7 @@ export async function runPanel(
         organizationId,
         code,
         durationMs: Math.round(performance.now() - startedAt),
+        error: message,
       })
     )
     throw new PanelExecutionError(code, `Échec d'exécution du panneau « ${label} ».`)

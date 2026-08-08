@@ -19,6 +19,12 @@ export function withErrorHandling<Args extends unknown[]>(
           { status: err.statusCode }
         )
       }
+      console.error("[api] unhandled request error", {
+        method: req.method,
+        url: req.url,
+        error: err instanceof Error ? err.message : String(err),
+        stack: err instanceof Error ? err.stack : undefined,
+      })
       const detail =
         err instanceof Error ? err.message : "Erreur interne du serveur."
       return NextResponse.json({ detail }, { status: 500 })

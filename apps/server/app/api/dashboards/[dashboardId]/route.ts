@@ -14,9 +14,9 @@ type Ctx = { params: Promise<{ dashboardId: string }> }
 
 export const GET = withErrorHandling(
   withAuth(async (_req: NextRequest, auth, { params }: Ctx) => {
-    const { organizationId } = await resolveActiveContext(auth.user, "read", auth.tokenContext)
+    const { workspaceId } = await resolveActiveContext(auth.user, "read", auth.tokenContext)
     const { dashboardId } = await params
-    const revision = await getLatestRevision(organizationId, dashboardId)
+    const revision = await getLatestRevision(workspaceId, dashboardId)
     if (!revision) throw new NotFoundError(`Dashboard introuvable : ${dashboardId}`)
     return NextResponse.json(revision)
   })
@@ -25,9 +25,9 @@ export const GET = withErrorHandling(
 /** Creates a new revision of an existing dashboard. Preserves the original `createdAt`/`createdBy` from the current latest revision; `updatedAt`/`updatedBy` are set to the acting user. */
 export const PUT = withErrorHandling(
   withAuth(async (req: NextRequest, auth, { params }: Ctx) => {
-    const { organizationId } = await resolveActiveContext(auth.user, "write", auth.tokenContext)
+    const { workspaceId } = await resolveActiveContext(auth.user, "write", auth.tokenContext)
     const { dashboardId } = await params
-    const existing = await getLatestRevision(organizationId, dashboardId)
+    const existing = await getLatestRevision(workspaceId, dashboardId)
     if (!existing) throw new NotFoundError(`Dashboard introuvable : ${dashboardId}`)
     const raw = (await req.json()) as Record<string, unknown>
     const definition = parseBody(dashboardDefinitionSchema, {
@@ -43,16 +43,16 @@ export const PUT = withErrorHandling(
     } catch (error) {
       throw new ValidationError(error instanceof Error ? error.message : String(error))
     }
-    const revision = await createRevision(organizationId, dashboardId, definition, auth.user.id)
+    const revision = await createRevision(workspaceId, dashboardId, definition, auth.user.id)
     return NextResponse.json(revision)
   })
 )
 
 export const DELETE = withErrorHandling(
   withAuth(async (_req: NextRequest, auth, { params }: Ctx) => {
-    const { organizationId } = await resolveActiveContext(auth.user, "write", auth.tokenContext)
+    const { workspaceId } = await resolveActiveContext(auth.user, "write", auth.tokenContext)
     const { dashboardId } = await params
-    await deleteDashboard(organizationId, dashboardId)
+    await deleteDashboard(workspaceId, dashboardId)
     return new NextResponse(null, { status: 204 })
   })
 )

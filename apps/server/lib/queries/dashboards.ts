@@ -28,10 +28,16 @@ export function usePanelVisualizations() {
   return useQuery({ queryKey: queryKeys.panelVisualizations(), queryFn: fetchPanelVisualizations })
 }
 
-export function usePanelResult(dashboardId: string, panelInstanceId: string, parameters: Record<string, string>) {
+export function usePanelResult(
+  dashboardId: string,
+  panelInstanceId: string,
+  parameters: Record<string, string>,
+  enabled = true
+) {
   return useQuery({
     queryKey: queryKeys.panelResult(dashboardId, panelInstanceId, parameters),
     queryFn: () => fetchPanelResult(dashboardId, panelInstanceId, parameters),
+    enabled,
   })
 }
 

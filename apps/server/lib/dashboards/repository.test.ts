@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto"
 import { beforeAll, describe, expect, it } from "vitest"
-import { db, organizations } from "@workspace/db"
+import { db, organizations, workspaces } from "@workspace/db"
 import {
   createRevision,
   deleteDashboard,
@@ -12,8 +12,8 @@ import {
 } from "./repository"
 import type { DashboardDefinition } from "./contracts"
 
-let orgId: number
-let otherOrgId: number
+let workspaceId: number
+let otherWorkspaceId: number
 const AUTHOR = "test-user"
 
 beforeAll(async () => {
@@ -21,13 +21,21 @@ beforeAll(async () => {
     .insert(organizations)
     .values({ slug: `dashboards-test-${randomUUID()}`, name: "Dashboards Test Org" })
     .returning()
-  orgId = org!.id
+  const [workspace] = await db
+    .insert(workspaces)
+    .values({ uuid: randomUUID(), name: `Dashboards Test Workspace ${randomUUID()}`, createdById: AUTHOR, organizationId: org!.id })
+    .returning()
+  workspaceId = workspace!.id
 
   const [other] = await db
     .insert(organizations)
     .values({ slug: `dashboards-test-other-${randomUUID()}`, name: "Other Org" })
     .returning()
-  otherOrgId = other!.id
+  const [otherWorkspace] = await db
+    .insert(workspaces)
+    .values({ uuid: randomUUID(), name: `Other Dashboards Test Workspace ${randomUUID()}`, createdById: AUTHOR, organizationId: other!.id })
+    .returning()
+  otherWorkspaceId = otherWorkspace!.id
 })
 
 function definition(id: string, overrides: Partial<DashboardDefinition> = {}): DashboardDefinition {
@@ -68,65 +76,65 @@ function definition(id: string, overrides: Partial<DashboardDefinition> = {}): D
 
 describe("createRevision / getLatestRevision", () => {
   it("creates revision 1 for a new dashboard", async () => {
-    const revision = await createRevision(orgId, "premier-dashboard", definition("premier-dashboard"), AUTHOR)
+    const revision = await createRevision(workspaceId, "premier-dashboard", definition("premier-dashboard"), AUTHOR)
     expect(revision.revision).toBe(1)
 
-    const latest = await getLatestRevision(orgId, "premier-dashboard")
+    const latest = await getLatestRevision(workspaceId, "premier-dashboard")
     expect(latest?.revision).toBe(1)
     expect(latest?.definition.title).toBe("Dashboard premier-dashboard")
   })
 
   it("increments the revision on a second edit and keeps history", async () => {
-    await createRevision(orgId, "edite", definition("edite"), AUTHOR)
-    await createRevision(orgId, "edite", definition("edite", { title: "Titre modifié" }), AUTHOR)
+    await createRevision(workspaceId, "edite", definition("edite"), AUTHOR)
+    await createRevision(workspaceId, "edite", definition("edite", { title: "Titre modifié" }), AUTHOR)
 
-    const latest = await getLatestRevision(orgId, "edite")
+    const latest = await getLatestRevision(workspaceId, "edite")
     expect(latest?.revision).toBe(2)
     expect(latest?.definition.title).toBe("Titre modifié")
 
-    const first = await getRevision(orgId, "edite", 1)
+    const first = await getRevision(workspaceId, "edite", 1)
     expect(first?.definition.title).toBe("Dashboard edite")
   })
 
   it("rejects a mismatch between dashboardId and definition.id", async () => {
-    await expect(createRevision(orgId, "un-id", definition("un-autre-id"), AUTHOR)).rejects.toThrow()
+    await expect(createRevision(workspaceId, "un-id", definition("un-autre-id"), AUTHOR)).rejects.toThrow()
   })
 })
 
-describe("organization scoping", () => {
-  it("does not leak a dashboard across organizations", async () => {
-    await createRevision(orgId, "prive", definition("prive"), AUTHOR)
+describe("workspace scoping", () => {
+  it("does not leak a dashboard across workspaces", async () => {
+    await createRevision(workspaceId, "prive", definition("prive"), AUTHOR)
 
-    expect(await getLatestRevision(otherOrgId, "prive")).toBeUndefined()
-    expect((await listLatestRevisions(otherOrgId)).some((d) => d.dashboardId === "prive")).toBe(false)
-    expect((await listLatestRevisions(orgId)).some((d) => d.dashboardId === "prive")).toBe(true)
+    expect(await getLatestRevision(otherWorkspaceId, "prive")).toBeUndefined()
+    expect((await listLatestRevisions(otherWorkspaceId)).some((d) => d.dashboardId === "prive")).toBe(false)
+    expect((await listLatestRevisions(workspaceId)).some((d) => d.dashboardId === "prive")).toBe(true)
   })
 })
 
 describe("deleteDashboard", () => {
   it("soft-deletes a dashboard: hidden from catalogue, absent from getLatestRevision", async () => {
-    await createRevision(orgId, "a-supprimer", definition("a-supprimer"), AUTHOR)
-    await deleteDashboard(orgId, "a-supprimer")
+    await createRevision(workspaceId, "a-supprimer", definition("a-supprimer"), AUTHOR)
+    await deleteDashboard(workspaceId, "a-supprimer")
 
-    expect(await getLatestRevision(orgId, "a-supprimer")).toBeUndefined()
-    expect((await listLatestRevisions(orgId)).some((d) => d.dashboardId === "a-supprimer")).toBe(false)
+    expect(await getLatestRevision(workspaceId, "a-supprimer")).toBeUndefined()
+    expect((await listLatestRevisions(workspaceId)).some((d) => d.dashboardId === "a-supprimer")).toBe(false)
 
-    const admin = await listForAdministration(orgId)
+    const admin = await listForAdministration(workspaceId)
     const entry = admin.find((e) => e.revision.dashboardId === "a-supprimer")
     expect(entry?.deletedAt).not.toBeNull()
   })
 
   it("throws when deleting an unknown dashboard", async () => {
-    await expect(deleteDashboard(orgId, "inconnu")).rejects.toThrow()
+    await expect(deleteDashboard(workspaceId, "inconnu")).rejects.toThrow()
   })
 
   it("resurrects a deleted dashboard on a new revision", async () => {
-    await createRevision(orgId, "ressuscite", definition("ressuscite"), AUTHOR)
-    await deleteDashboard(orgId, "ressuscite")
-    expect(await getLatestRevision(orgId, "ressuscite")).toBeUndefined()
+    await createRevision(workspaceId, "ressuscite", definition("ressuscite"), AUTHOR)
+    await deleteDashboard(workspaceId, "ressuscite")
+    expect(await getLatestRevision(workspaceId, "ressuscite")).toBeUndefined()
 
-    await createRevision(orgId, "ressuscite", definition("ressuscite", { title: "De retour" }), AUTHOR)
-    const latest = await getLatestRevision(orgId, "ressuscite")
+    await createRevision(workspaceId, "ressuscite", definition("ressuscite", { title: "De retour" }), AUTHOR)
+    const latest = await getLatestRevision(workspaceId, "ressuscite")
     expect(latest?.definition.title).toBe("De retour")
     expect(latest?.revision).toBe(2)
   })
@@ -134,11 +142,11 @@ describe("deleteDashboard", () => {
 
 describe("isProvisioned", () => {
   it("defaults to false for a dashboard created from the admin UI", async () => {
-    await createRevision(orgId, "non-provisionne", definition("non-provisionne"), AUTHOR)
-    expect(await isProvisioned(orgId, "non-provisionne")).toBe(false)
+    await createRevision(workspaceId, "non-provisionne", definition("non-provisionne"), AUTHOR)
+    expect(await isProvisioned(workspaceId, "non-provisionne")).toBe(false)
   })
 
   it("returns false for an unknown dashboard", async () => {
-    expect(await isProvisioned(orgId, "jamais-cree")).toBe(false)
+    expect(await isProvisioned(workspaceId, "jamais-cree")).toBe(false)
   })
 })

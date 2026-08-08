@@ -4,7 +4,7 @@
  * happens to have create/update/delete covering all three verbs).
  */
 import { describe, it, expect, afterEach, vi } from "vitest"
-import { createElement, updateElement, deleteElement } from "./elements"
+import { createElement, updateElement, deleteElement, fetchElements } from "./elements"
 
 describe("POST error handling — json parse failure", () => {
   afterEach(() => vi.unstubAllGlobals())
@@ -37,6 +37,23 @@ describe("POST error handling — json parse failure", () => {
     await expect(
       createElement({ name: "App", type: "ApplicationComponent" })
     ).rejects.toThrow("API error: 400")
+  })
+})
+
+describe("session refresh", () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it("refreshes an expired session and retries a GET once", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: false, status: 401 })
+      .mockResolvedValueOnce({ ok: true, status: 204 })
+      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => [] })
+    vi.stubGlobal("fetch", fetchMock)
+
+    await expect(fetchElements()).resolves.toEqual([])
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+    expect(fetchMock.mock.calls[1]![0]).toBe("/api/auth/refresh")
   })
 })
 

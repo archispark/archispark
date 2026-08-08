@@ -214,4 +214,7 @@ console.log("Seeding workspaces (elements, views)…")
 await client.query(sql)
 await client.end()
 
+console.log("Seeding dashboards for each workspace…")
+await import("./seed-dashboards.js")
+
 console.log("Done.")

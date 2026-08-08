@@ -36,9 +36,9 @@ function toHttpError(error: unknown): AppError {
 /** Executes one panel instance of a dashboard's latest revision. Query-string values are declared-type-coerced against the panel's parameters before execution. */
 export const GET = withErrorHandling(
   withAuth(async (req: NextRequest, auth, { params }: Ctx) => {
-    const { organizationId } = await resolveActiveContext(auth.user, "read", auth.tokenContext)
+    const { organizationId, workspaceId } = await resolveActiveContext(auth.user, "read", auth.tokenContext)
     const { dashboardId, panelInstanceId } = await params
-    const dashboard = await getLatestRevision(organizationId, dashboardId)
+    const dashboard = await getLatestRevision(workspaceId, dashboardId)
     if (!dashboard) throw new NotFoundError(`Dashboard introuvable : ${dashboardId}`)
     const instance = dashboard.definition.panels.find((candidate) => candidate.id === panelInstanceId)
     if (!instance) throw new NotFoundError(`Panneau introuvable : ${panelInstanceId}`)
@@ -46,8 +46,8 @@ export const GET = withErrorHandling(
     const rawValues = Object.fromEntries(req.nextUrl.searchParams)
     try {
       const parameterValues = coerceParameterValues(rawValues, instance.panel.parameters)
-      const result = await runPanel(organizationId, dashboardId, panelInstanceId, parameterValues)
-      return NextResponse.json(result)
+      const result = await runPanel(workspaceId, organizationId, dashboardId, panelInstanceId, parameterValues)
+      return NextResponse.json(result.result)
     } catch (error) {
       throw toHttpError(error)
     }

@@ -50,6 +50,11 @@ describe("resolveParameterValues", () => {
     expect(() => resolveParameterValues(required, {})).toThrow(/obligatoire/)
   })
 
+  it("rejects an empty required string parameter", () => {
+    const required: PanelContent["parameters"] = [{ name: "driverId", label: "Driver", type: "string", required: true }]
+    expect(() => resolveParameterValues(required, { driverId: "" })).toThrow(/obligatoire/)
+  })
+
   it("rejects a disallowed enum value", () => {
     expect(() => resolveParameterValues(parameters, { couche: "Inconnue" })).toThrow(/valeurs autorisées/)
   })

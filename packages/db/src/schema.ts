@@ -487,7 +487,7 @@ export const bendpoints = pgTable(
 )
 
 // ---------------------------------------------------------------------------
-// Dashboards  (configurable reporting dashboards, org-scoped — see
+// Dashboards  (configurable reporting dashboards, workspace-scoped — see
 // apps/server/lib/dashboards/). Each edit creates a new immutable revision
 // in dashboardRevisions rather than mutating one in place; dashboards.
 // latestRevision points at the current one. Deletion is a soft delete
@@ -498,10 +498,10 @@ export const dashboards = pgTable(
   "dashboards",
   {
     id: serial("id").primaryKey(),
-    organizationId: integer("organization_id")
+    workspaceId: integer("workspace_id")
       .notNull()
-      .references(() => organizations.id, { onDelete: "cascade" }),
-    dashboardId: text("dashboard_id").notNull(), // kebab-case slug, unique per organization
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    dashboardId: text("dashboard_id").notNull(), // kebab-case slug, unique per workspace
     isProvisioned: boolean("is_provisioned").notNull().default(false),
     latestRevision: integer("latest_revision").notNull(),
     createdById: text("created_by_id").notNull(), // Keycloak sub — traceability only
@@ -511,11 +511,11 @@ export const dashboards = pgTable(
     deletedAt: integer("deleted_at"),
   },
   (t) => [
-    uniqueIndex("dashboards_org_dashboard_id_uniq").on(
-      t.organizationId,
+    uniqueIndex("dashboards_workspace_dashboard_id_uniq").on(
+      t.workspaceId,
       t.dashboardId
     ),
-    index("dashboards_org_idx").on(t.organizationId),
+    index("dashboards_workspace_idx").on(t.workspaceId),
   ]
 )
 

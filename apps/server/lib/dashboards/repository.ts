@@ -1,9 +1,8 @@
 /**
  * Dashboard CRUD — porté de `dashboard-repository.ts` (ofr-archimate-reports/
  * apps/portal), réécrit sur Drizzle (`@workspace/db`) au lieu de `pg` brut.
- * Toutes les méthodes prennent `organizationId` en premier paramètre : c'est
- * le point d'application du scoping par organisation (voir
- * docs/architecture.md#dashboards) — l'appelant (routes API) le résout via
+ * Toutes les méthodes prennent `workspaceId` en premier paramètre : c'est
+ * le point d'application du scoping par workspace — l'appelant (routes API) le résout via
  * `resolveActiveContext`/`assertOrgAccess` (lib/archimate/access.ts), jamais
  * lu depuis le payload client.
  */
@@ -42,7 +41,7 @@ function toRevision(row: {
   })
 }
 
-async function selectLatestRevisions(organizationId: number, includeDeleted: boolean) {
+async function selectLatestRevisions(workspaceId: number, includeDeleted: boolean) {
   return db
     .select({
       dashboardId: dashboards.dashboardId,
@@ -63,20 +62,20 @@ async function selectLatestRevisions(organizationId: number, includeDeleted: boo
     )
     .where(
       includeDeleted
-        ? eq(dashboards.organizationId, organizationId)
-        : and(eq(dashboards.organizationId, organizationId), isNull(dashboards.deletedAt))
+        ? eq(dashboards.workspaceId, workspaceId)
+        : and(eq(dashboards.workspaceId, workspaceId), isNull(dashboards.deletedAt))
     )
 }
 
-export async function listLatestRevisions(organizationId: number): Promise<DashboardRevision[]> {
-  const rows = await selectLatestRevisions(organizationId, false)
+export async function listLatestRevisions(workspaceId: number): Promise<DashboardRevision[]> {
+  const rows = await selectLatestRevisions(workspaceId, false)
   return rows.map(toRevision)
 }
 
 export async function listForAdministration(
-  organizationId: number
+  workspaceId: number
 ): Promise<DashboardAdministrationEntry[]> {
-  const rows = await selectLatestRevisions(organizationId, true)
+  const rows = await selectLatestRevisions(workspaceId, true)
   return rows.map((row) => ({
     revision: toRevision(row),
     isProvisioned: row.isProvisioned,
@@ -84,19 +83,19 @@ export async function listForAdministration(
   }))
 }
 
-async function findHead(organizationId: number, dashboardId: string) {
+async function findHead(workspaceId: number, dashboardId: string) {
   const [head] = await db
     .select()
     .from(dashboards)
-    .where(and(eq(dashboards.organizationId, organizationId), eq(dashboards.dashboardId, dashboardId)))
+    .where(and(eq(dashboards.workspaceId, workspaceId), eq(dashboards.dashboardId, dashboardId)))
   return head
 }
 
 export async function getLatestRevision(
-  organizationId: number,
+  workspaceId: number,
   dashboardId: string
 ): Promise<DashboardRevision | undefined> {
-  const head = await findHead(organizationId, dashboardId)
+  const head = await findHead(workspaceId, dashboardId)
   if (!head || head.deletedAt !== null) return undefined
   const [row] = await db
     .select({
@@ -111,11 +110,11 @@ export async function getLatestRevision(
 }
 
 export async function getRevision(
-  organizationId: number,
+  workspaceId: number,
   dashboardId: string,
   revision: number
 ): Promise<DashboardRevision | undefined> {
-  const head = await findHead(organizationId, dashboardId)
+  const head = await findHead(workspaceId, dashboardId)
   if (!head) return undefined
   const [row] = await db
     .select({
@@ -129,8 +128,8 @@ export async function getRevision(
   return row ? toRevision({ ...row, dashboardId }) : undefined
 }
 
-export async function isProvisioned(organizationId: number, dashboardId: string): Promise<boolean> {
-  const head = await findHead(organizationId, dashboardId)
+export async function isProvisioned(workspaceId: number, dashboardId: string): Promise<boolean> {
+  const head = await findHead(workspaceId, dashboardId)
   return head?.isProvisioned ?? false
 }
 
@@ -141,7 +140,7 @@ export async function isProvisioned(organizationId: number, dashboardId: string)
  * précédemment supprimé est ressuscité (deletedAt remis à NULL).
  */
 export async function createRevision(
-  organizationId: number,
+  workspaceId: number,
   dashboardId: string,
   definition: DashboardDefinition,
   authorId: string
@@ -155,7 +154,7 @@ export async function createRevision(
     const [head] = await tx
       .select()
       .from(dashboards)
-      .where(and(eq(dashboards.organizationId, organizationId), eq(dashboards.dashboardId, dashboardId)))
+      .where(and(eq(dashboards.workspaceId, workspaceId), eq(dashboards.dashboardId, dashboardId)))
       .for("update")
 
     const revision = head ? head.latestRevision + 1 : 1
@@ -170,7 +169,7 @@ export async function createRevision(
       const [inserted] = await tx
         .insert(dashboards)
         .values({
-          organizationId,
+          workspaceId,
           dashboardId,
           isProvisioned: false,
           latestRevision: revision,
@@ -197,8 +196,8 @@ export async function createRevision(
   })
 }
 
-export async function deleteDashboard(organizationId: number, dashboardId: string): Promise<void> {
-  const head = await findHead(organizationId, dashboardId)
+export async function deleteDashboard(workspaceId: number, dashboardId: string): Promise<void> {
+  const head = await findHead(workspaceId, dashboardId)
   if (!head || head.deletedAt !== null) throw new NotFoundError(`Dashboard introuvable : ${dashboardId}`)
   await db
     .update(dashboards)

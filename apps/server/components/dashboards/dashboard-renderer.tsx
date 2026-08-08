@@ -8,6 +8,7 @@ import { getPanelVisualizationComponent } from "@/components/dashboards/panel-re
 import { PanelVisualizationBoundary } from "@/components/dashboards/panel-visualization-boundary"
 import { PanelFrame } from "@/components/dashboards/panel-frame"
 import { usePanelResult } from "@/lib/queries/dashboards"
+import { useElements } from "@/lib/queries/elements"
 import { useT } from "@/lib/i18n"
 import { Button } from "@workspace/ui/components/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@workspace/ui/components/tabs"
@@ -27,7 +28,15 @@ function DashboardPanel({
   height: number
 }) {
   const { t } = useT()
-  const { data: result, error } = usePanelResult(dashboardId, panelInstanceId, values)
+  const hasMissingRequiredParameter = definition.parameters.some(
+    (parameter) => parameter.required && !values[parameter.name]?.trim()
+  )
+  const { data: result, error } = usePanelResult(
+    dashboardId,
+    panelInstanceId,
+    values,
+    !hasMissingRequiredParameter
+  )
 
   const Visualization = useMemo(
     () => getPanelVisualizationComponent(definition.visualization.type),
@@ -39,8 +48,11 @@ function DashboardPanel({
       title={definition.title}
       description={definition.description}
       error={error ? (error as Error).message : undefined}
-      loading={!result && !error}
+      loading={!hasMissingRequiredParameter && !result && !error}
     >
+      {hasMissingRequiredParameter && (
+        <p className="text-sm text-muted-foreground">Renseignez les paramètres requis pour afficher ce panneau.</p>
+      )}
       {result && !Visualization && (
         <p className="text-sm text-destructive">
           {t("dashboards.unknown_visualization", { type: definition.visualization.type })}
@@ -67,6 +79,7 @@ export function DashboardRenderer({
   canEdit: boolean
 }) {
   const { t } = useT()
+  const { data: elements = [] } = useElements()
   const [parameters, setParameters] = useState<Record<string, string>>(() =>
     Object.fromEntries(
       dashboard.parameters.map((parameter) => [
@@ -119,7 +132,23 @@ export function DashboardRenderer({
           {dashboard.parameters.map((parameter) => (
             <label key={parameter.name} className="flex min-w-56 flex-col gap-1 text-sm">
               <span className="font-medium text-foreground">{parameter.label}</span>
-              {parameter.allowedValues ? (
+              {parameter.selector ? (
+                <select
+                  value={parameters[parameter.name]}
+                  onChange={(event) => setParameters((current) => ({ ...current, [parameter.name]: event.target.value }))}
+                  className="rounded-md border border-border bg-background px-3 py-1.5"
+                >
+                  <option value="">Sélectionnez un élément…</option>
+                  {elements
+                    .filter((element) => parameter.selector!.elementTypes.includes(element.type))
+                    .sort((a, b) => a.name.localeCompare(b.name))
+                    .map((element) => (
+                      <option key={element.identifier} value={element.identifier}>
+                        {element.name} ({element.type})
+                      </option>
+                    ))}
+                </select>
+              ) : parameter.allowedValues ? (
                 <select
                   value={parameters[parameter.name]}
                   onChange={(event) => setParameters((current) => ({ ...current, [parameter.name]: event.target.value }))}

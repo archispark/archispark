@@ -11,11 +11,28 @@ export interface Property {
   value: string
 }
 
+/** Replays one API request after silently renewing an expired session cookie. */
+async function fetchWithSessionRefresh(
+  path: string,
+  init: RequestInit
+): Promise<Response> {
+  const response = await fetch(`${BASE}${path}`, init)
+  if (response.status !== 401) return response
+
+  const refresh = await fetch(`${BASE}/auth/refresh`, {
+    method: "POST",
+    credentials: "include",
+  })
+  if (!refresh.ok) return response
+
+  return fetch(`${BASE}${path}`, init)
+}
+
 export async function get<T>(
   path: string,
   headers: HeadersInit = {}
 ): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, { credentials: "include", headers })
+  const res = await fetchWithSessionRefresh(path, { credentials: "include", headers })
   if (!res.ok) throw new Error(`API error: ${res.status}`)
   return res.json()
 }
@@ -25,7 +42,7 @@ export async function post<T>(
   body: unknown,
   headers: HeadersInit = {}
 ): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
+  const res = await fetchWithSessionRefresh(path, {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json", ...headers },
@@ -43,7 +60,7 @@ export async function put<T>(
   body: unknown,
   headers: HeadersInit = {}
 ): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
+  const res = await fetchWithSessionRefresh(path, {
     method: "PUT",
     credentials: "include",
     headers: { "Content-Type": "application/json", ...headers },
@@ -60,7 +77,7 @@ export async function del(
   path: string,
   headers: HeadersInit = {}
 ): Promise<void> {
-  const res = await fetch(`${BASE}${path}`, {
+  const res = await fetchWithSessionRefresh(path, {
     method: "DELETE",
     credentials: "include",
     headers,

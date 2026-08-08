@@ -136,10 +136,11 @@ export async function executeNeo4jQuery(
     if (resultType === "graph") {
       const nodeIds = rows[0]?.nodeIds
       if (Array.isArray(nodeIds) && nodeIds.every((value) => typeof value === "string")) {
-        ;[edges, nodes] = await Promise.all([
-          inducedEdges(session, nodeIds as string[], organizationId),
-          nodeMetadata(session, nodeIds as string[], organizationId),
-        ])
+        // neo4j-driver permits only one in-flight query per session. Keep
+        // these hydration queries sequential; running them in Promise.all
+        // causes "session with ongoing work" failures.
+        edges = await inducedEdges(session, nodeIds as string[], organizationId)
+        nodes = await nodeMetadata(session, nodeIds as string[], organizationId)
       }
     }
     return { rows, nodes, edges }

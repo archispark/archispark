@@ -12,15 +12,15 @@ export const dynamic = "force-dynamic"
 
 export const GET = withErrorHandling(
   withAuth(async (_req: NextRequest, auth) => {
-    const { organizationId } = await resolveActiveContext(auth.user, "read", auth.tokenContext)
-    return NextResponse.json(await listLatestRevisions(organizationId))
+    const { workspaceId } = await resolveActiveContext(auth.user, "read", auth.tokenContext)
+    return NextResponse.json(await listLatestRevisions(workspaceId))
   })
 )
 
 /** Creates a new dashboard (revision 1). `createdAt`/`updatedAt`/`createdBy`/`updatedBy` are server-authoritative — any value sent by the client is overwritten. */
 export const POST = withErrorHandling(
   withAuth(async (req: NextRequest, auth) => {
-    const { organizationId } = await resolveActiveContext(auth.user, "write", auth.tokenContext)
+    const { workspaceId } = await resolveActiveContext(auth.user, "write", auth.tokenContext)
     const raw = (await req.json()) as Record<string, unknown>
     const now = new Date().toISOString()
     const definition = parseBody(dashboardDefinitionSchema, {
@@ -35,7 +35,7 @@ export const POST = withErrorHandling(
     } catch (error) {
       throw new ValidationError(error instanceof Error ? error.message : String(error))
     }
-    const revision = await createRevision(organizationId, definition.id, definition, auth.user.id)
+    const revision = await createRevision(workspaceId, definition.id, definition, auth.user.id)
     return NextResponse.json(revision, { status: 201 })
   })
 )
