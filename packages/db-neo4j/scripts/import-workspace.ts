@@ -75,7 +75,7 @@ if (!process.env["DATABASE_URL"]) {
 // Dynamic import (not a static top-level import): @workspace/db reads
 // DATABASE_URL at module-init time, so the import must happen after the env
 // file is loaded above.
-const { db, workspaces, modelFromDb } = await import("@workspace/db");
+const { db, workspaces, organizations, modelFromDb } = await import("@workspace/db");
 const { eq } = await import("drizzle-orm");
 const { importModelToNeo4j } = await import("../src/import-model.js");
 
@@ -84,11 +84,20 @@ if (!ws) {
   console.error(`Workspace '${workspaceUuid}' introuvable.`);
   process.exit(1);
 }
+if (ws.organizationId === null) {
+  console.error(`Workspace '${workspaceUuid}' n'a pas d'organisation associée.`);
+  process.exit(1);
+}
+const [org] = await db.select().from(organizations).where(eq(organizations.id, ws.organizationId));
+if (!org) {
+  console.error(`Organisation '${ws.organizationId}' introuvable.`);
+  process.exit(1);
+}
 
 console.log(`Importing workspace "${ws.name}" (${workspaceUuid}) into Neo4j...`);
 try {
   const model = await modelFromDb(ws.id);
-  const result = await importModelToNeo4j(model);
+  const result = await importModelToNeo4j(model, org);
   console.log(JSON.stringify(result, null, 2));
   // The shared @workspace/db Pool and the Neo4j driver both keep the event
   // loop alive with no clean way to close them from here — force exit

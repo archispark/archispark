@@ -18,6 +18,10 @@ function emptyModel(): ArchiModel {
   };
 }
 
+function testOrg() {
+  return { id: 1, slug: "acme", name: "Acme" };
+}
+
 describe("importModelToNeo4j", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -30,7 +34,7 @@ describe("importModelToNeo4j", () => {
     vi.mocked(getDriver).mockReturnValue({ session: () => ({ run, close }) } as never);
     const { ensureNeo4jSchema } = await import("./schema/migrate.js");
 
-    const result = await importModelToNeo4j(emptyModel());
+    const result = await importModelToNeo4j(emptyModel(), testOrg());
 
     expect(ensureNeo4jSchema).toHaveBeenCalledOnce();
     expect(run.mock.calls[0]![0]).toContain("DETACH DELETE p, n, m");
@@ -72,12 +76,57 @@ describe("importModelToNeo4j", () => {
       views: [{ uuid: "view-1", name: "Overview", desc: null, primary_viewpoint: null, nodes: [], conns: [] }],
     };
 
-    const result = await importModelToNeo4j(model);
+    const result = await importModelToNeo4j(model, testOrg());
 
     const relationshipQueries = run.mock.calls.filter((call) => (call[0] as string).includes("MERGE (s)-[r:"));
     expect(relationshipQueries).toHaveLength(1);
     expect(relationshipQueries[0]![0]).toContain("MERGE (s)-[r:SERVING");
     expect(result).toMatchObject({ elements: 1, relationships: 1, views: 1, properties: 2 });
+  });
+
+  it("tags the organization node, links it to the model, and stamps organizationId on every write", async () => {
+    const run = vi.fn().mockResolvedValue({ records: [] });
+    const close = vi.fn().mockResolvedValue(undefined);
+    const { getDriver } = await import("./connection.js");
+    vi.mocked(getDriver).mockReturnValue({ session: () => ({ run, close }) } as never);
+
+    const model: ArchiModel = {
+      ...emptyModel(),
+      elements: [{ uuid: "el-1", name: "A", type: "ApplicationComponent", desc: null, props: { "pd-1": "x" } }],
+      propertyDefinitions: [{ uuid: "pd-1", name: "Owner", type: "string" }],
+      relationships: [
+        {
+          uuid: "rel-1",
+          name: null,
+          type: "Serving",
+          source: "el-1",
+          target: "el-1",
+          desc: null,
+          props: {},
+          access_type: null,
+          is_directed: null,
+          influence_strength: null,
+        },
+      ],
+      views: [{ uuid: "view-1", name: "Overview", desc: null, primary_viewpoint: null, nodes: [], conns: [] }],
+    };
+
+    await importModelToNeo4j(model, testOrg());
+
+    const orgCall = run.mock.calls.find((call) => (call[0] as string).includes("MERGE (o:Organization"));
+    expect(orgCall![1]).toEqual({ id: 1, slug: "acme", name: "Acme" });
+
+    const modelCall = run.mock.calls.find((call) => (call[0] as string).includes("MERGE (o)-[:HAS_MODEL]->(m)"));
+    expect(modelCall![1]).toMatchObject({ organizationId: 1, id: "id-model-1" });
+
+    const elementsCall = run.mock.calls.find((call) => (call[0] as string).includes("MERGE (e:Element"));
+    expect((elementsCall![1] as { elements: { organizationId: number }[] }).elements[0]!.organizationId).toBe(1);
+
+    const relCall = run.mock.calls.find((call) => (call[0] as string).includes("MERGE (s)-[r:SERVING"));
+    expect((relCall![1] as { relationships: { organizationId: number }[] }).relationships[0]!.organizationId).toBe(1);
+
+    const viewsCall = run.mock.calls.find((call) => (call[0] as string).includes("MERGE (view:View"));
+    expect((viewsCall![1] as { views: { organizationId: number }[] }).views[0]!.organizationId).toBe(1);
   });
 
   it("closes the session even when a write fails", async () => {
@@ -86,7 +135,7 @@ describe("importModelToNeo4j", () => {
     const { getDriver } = await import("./connection.js");
     vi.mocked(getDriver).mockReturnValue({ session: () => ({ run, close }) } as never);
 
-    await expect(importModelToNeo4j(emptyModel())).rejects.toThrow("boom");
+    await expect(importModelToNeo4j(emptyModel(), testOrg())).rejects.toThrow("boom");
     expect(close).toHaveBeenCalledOnce();
   });
 });

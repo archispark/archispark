@@ -133,12 +133,15 @@ package mirroring `packages/db`'s shape (driver singleton, versioned schema
 migrations, `migrate:prod` script) but for the Neo4j service instead of
 Postgres:
 
-- `mapping.ts` — pure `ArchiModel → Cypher parameters` transform. Resolves
-  element/relationship property names via `propertyDefinitions` (properties
-  are stored keyed by `propertyDefUuid` in Postgres), flattens each view's
-  node tree into the set of element ids it contains, and rejects any
-  relationship type that wouldn't be safe to interpolate into a Cypher
-  relationship type (relationship types aren't parameterizable in Cypher).
+- `mapping.ts` — pure `(ArchiModel, organization) → Cypher parameters`
+  transform. Resolves element/relationship property names via
+  `propertyDefinitions` (properties are stored keyed by `propertyDefUuid` in
+  Postgres), flattens each view's node tree into the set of element ids it
+  contains, rejects any relationship type that wouldn't be safe to
+  interpolate into a Cypher relationship type (relationship types aren't
+  parameterizable in Cypher), and stamps every element/relationship/view/
+  property param with the workspace's Postgres `organizationId` (multi-tenant
+  tag, see below).
 - `import-model.ts` — writes `Model`/`Element`/`Property`/`View` nodes and
   ArchiMate relationships as native Neo4j relationship types
   (`COMPOSITION`, `AGGREGATION`, `ASSIGNMENT`, `REALIZATION`, `SERVING`,
@@ -153,12 +156,27 @@ Postgres:
   a wipe-and-reload, but scoped to the subgraph reachable from
   `(:Model {id: workspace.uuid})` — importing one workspace never touches
   another workspace's data already in Neo4j.
+- **Multi-tenancy**: `importModelToNeo4j(model, organization)` takes the
+  workspace's Postgres organization (`{id, slug, name}`) as an explicit
+  second argument — it's not part of `ArchiModel`, which stays a pure
+  Postgres representation. Every write merges an `(:Organization {id})` node
+  (shared across that organization's workspaces, `MERGE`d — never deleted by
+  a single workspace's wipe-and-reload) linked to the `:Model` via
+  `HAS_MODEL`, and additionally stamps `organizationId` directly on
+  `Model`/`Element`/`View`/`Property` nodes and on every relationship, so
+  tenant-scoped reporting queries (`MATCH (n:Element {organizationId: $id})`)
+  can filter by index without traversing from `:Model` first. Both call
+  sites (`POST /api/export/neo4j` and the two CLI scripts below) resolve the
+  organization from Postgres before calling `importModelToNeo4j`.
 - `schema/migrations/*.cypher` — versioned, numbered Cypher migration files
   (constraints/indexes), applied in order and tracked via
   `(:SchemaMigration {version})` nodes, the same append-only convention as
   `packages/db/drizzle-pg/`. Neo4j has no `drizzle-kit` equivalent, so
   `schema/migrate.ts` implements this runner directly; `ensureNeo4jSchema()`
   applies pending migrations once per process before every import.
+  `0002_organization_index.cypher` adds the `organizationId` indexes (one
+  per node label plus one per relationship type) and the `Organization.id`
+  uniqueness constraint described above.
 
 Configured via `NEO4J_URI` (defaults to `bolt://localhost:7687`),
 `NEO4J_USER`, `NEO4J_PASSWORD`.

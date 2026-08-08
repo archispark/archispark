@@ -1,0 +1,16 @@
+CREATE CONSTRAINT organization_id IF NOT EXISTS FOR (o:Organization) REQUIRE o.id IS UNIQUE;
+CREATE INDEX model_organization_id IF NOT EXISTS FOR (m:Model) ON (m.organizationId);
+CREATE INDEX element_organization_id IF NOT EXISTS FOR (n:Element) ON (n.organizationId);
+CREATE INDEX view_organization_id IF NOT EXISTS FOR (v:View) ON (v.organizationId);
+CREATE INDEX property_organization_id IF NOT EXISTS FOR (p:Property) ON (p.organizationId);
+CREATE INDEX rel_org_composition IF NOT EXISTS FOR ()-[r:COMPOSITION]-() ON (r.organizationId);
+CREATE INDEX rel_org_aggregation IF NOT EXISTS FOR ()-[r:AGGREGATION]-() ON (r.organizationId);
+CREATE INDEX rel_org_assignment IF NOT EXISTS FOR ()-[r:ASSIGNMENT]-() ON (r.organizationId);
+CREATE INDEX rel_org_realization IF NOT EXISTS FOR ()-[r:REALIZATION]-() ON (r.organizationId);
+CREATE INDEX rel_org_serving IF NOT EXISTS FOR ()-[r:SERVING]-() ON (r.organizationId);
+CREATE INDEX rel_org_access IF NOT EXISTS FOR ()-[r:ACCESS]-() ON (r.organizationId);
+CREATE INDEX rel_org_influence IF NOT EXISTS FOR ()-[r:INFLUENCE]-() ON (r.organizationId);
+CREATE INDEX rel_org_triggering IF NOT EXISTS FOR ()-[r:TRIGGERING]-() ON (r.organizationId);
+CREATE INDEX rel_org_flow IF NOT EXISTS FOR ()-[r:FLOW]-() ON (r.organizationId);
+CREATE INDEX rel_org_specialization IF NOT EXISTS FOR ()-[r:SPECIALIZATION]-() ON (r.organizationId);
+CREATE INDEX rel_org_association IF NOT EXISTS FOR ()-[r:ASSOCIATION]-() ON (r.organizationId);

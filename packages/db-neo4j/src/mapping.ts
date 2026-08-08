@@ -5,6 +5,7 @@ export interface Neo4jElementParam {
   name: string;
   type: string;
   documentation: string | null;
+  organizationId: number;
 }
 
 export interface Neo4jRelationshipParam {
@@ -14,6 +15,7 @@ export interface Neo4jRelationshipParam {
   name: string | null;
   accessType: string | null;
   archiType: string;
+  organizationId: number;
   /**
    * ArchiMate property name -> value, set natively on the relationship via
    * `SET r += rel.properties`. Neo4j relationships can't be the endpoint of
@@ -28,17 +30,27 @@ export interface Neo4jPropertyParam {
   definitionId: string;
   name: string;
   value: string;
+  organizationId: number;
 }
 
 export interface Neo4jViewParam {
   id: string;
   name: string;
   elementIds: string[];
+  organizationId: number;
+}
+
+/** The Postgres organization a workspace belongs to — carried through to Neo4j for tenant tagging (see docs/architecture.md#neo4j-export). */
+export interface Neo4jOrganizationParam {
+  id: number;
+  slug: string;
+  name: string;
 }
 
 export interface Neo4jModelParams {
   modelId: string;
   modelName: string;
+  organization: Neo4jOrganizationParam;
   elements: Neo4jElementParam[];
   relationshipsByType: Map<string, Neo4jRelationshipParam[]>;
   elementProperties: Neo4jPropertyParam[];
@@ -53,7 +65,7 @@ export function toNeo4jRelationshipType(archiType: string): string {
 }
 
 /** Pure transform: ArchiModel (Postgres object graph) -> Neo4j write parameters. Throws on an unsafe relationship type. */
-export function buildNeo4jParams(model: ArchiModel): Neo4jModelParams {
+export function buildNeo4jParams(model: ArchiModel, organization: Neo4jOrganizationParam): Neo4jModelParams {
   const defNameByUuid = new Map(model.propertyDefinitions.map((d) => [d.uuid, d.name]));
 
   const elements: Neo4jElementParam[] = model.elements.map((el) => ({
@@ -61,6 +73,7 @@ export function buildNeo4jParams(model: ArchiModel): Neo4jModelParams {
     name: el.name,
     type: el.type,
     documentation: el.desc,
+    organizationId: organization.id,
   }));
 
   const elementProperties: Neo4jPropertyParam[] = model.elements.flatMap((el) =>
@@ -69,6 +82,7 @@ export function buildNeo4jParams(model: ArchiModel): Neo4jModelParams {
       definitionId: defUuid,
       name: defNameByUuid.get(defUuid) ?? defUuid,
       value,
+      organizationId: organization.id,
     })),
   );
 
@@ -91,6 +105,7 @@ export function buildNeo4jParams(model: ArchiModel): Neo4jModelParams {
       name: rel.name,
       accessType: rel.access_type,
       archiType: rel.type,
+      organizationId: organization.id,
       properties,
     });
     relationshipsByType.set(neo4jType, list);
@@ -100,11 +115,13 @@ export function buildNeo4jParams(model: ArchiModel): Neo4jModelParams {
     id: v.uuid,
     name: v.name,
     elementIds: [...collectElementUuids(v.nodes)],
+    organizationId: organization.id,
   }));
 
   return {
     modelId: model.uuid,
     modelName: model.name,
+    organization,
     elements,
     relationshipsByType,
     elementProperties,

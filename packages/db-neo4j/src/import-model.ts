@@ -1,6 +1,6 @@
 import type { ArchiModel } from "@workspace/db";
 import { getDriver } from "./connection.js";
-import { buildNeo4jParams } from "./mapping.js";
+import { buildNeo4jParams, type Neo4jOrganizationParam } from "./mapping.js";
 import { ensureNeo4jSchema } from "./schema/migrate.js";
 
 export interface Neo4jImportResult {
@@ -16,10 +16,21 @@ export interface Neo4jImportResult {
  * Syncs one workspace's ArchiModel into Neo4j: wipe-and-reload of the subgraph
  * reachable from this workspace's :Model node, then a full rewrite. Scoped to
  * the workspace so it never touches other workspaces already imported.
+ *
+ * `organization` is the Postgres organization the workspace belongs to — it's
+ * tagged onto every node/relationship as `organizationId` (indexed, see
+ * schema/migrations/0002_organization_index.cypher) so tenant-scoped
+ * reporting queries can filter without traversing from :Model, and merged as
+ * an :Organization node (shared across that org's workspaces, never touched
+ * by this workspace's wipe) so the tenant hierarchy is also queryable by
+ * traversal.
  */
-export async function importModelToNeo4j(model: ArchiModel): Promise<Neo4jImportResult> {
+export async function importModelToNeo4j(
+  model: ArchiModel,
+  organization: Neo4jOrganizationParam,
+): Promise<Neo4jImportResult> {
   await ensureNeo4jSchema();
-  const params = buildNeo4jParams(model);
+  const params = buildNeo4jParams(model, organization);
   const session = getDriver().session();
   try {
     await session.run(
@@ -30,16 +41,25 @@ export async function importModelToNeo4j(model: ArchiModel): Promise<Neo4jImport
       { modelId: params.modelId },
     );
 
-    await session.run(`MERGE (m:Model {id: $id}) SET m.name = $name, m.importedAt = datetime()`, {
-      id: params.modelId,
-      name: params.modelName,
+    await session.run(`MERGE (o:Organization {id: $id}) SET o.slug = $slug, o.name = $name`, {
+      id: params.organization.id,
+      slug: params.organization.slug,
+      name: params.organization.name,
     });
+
+    await session.run(
+      `MATCH (o:Organization {id: $organizationId})
+       MERGE (m:Model {id: $id})
+       SET m.name = $name, m.organizationId = $organizationId, m.importedAt = datetime()
+       MERGE (o)-[:HAS_MODEL]->(m)`,
+      { organizationId: params.organization.id, id: params.modelId, name: params.modelName },
+    );
 
     await session.run(
       `MATCH (m:Model {id: $modelId})
        UNWIND $elements AS el
        MERGE (e:Element {id: el.id})
-       SET e.name = el.name, e.type = el.type, e.documentation = el.documentation
+       SET e.name = el.name, e.type = el.type, e.documentation = el.documentation, e.organizationId = el.organizationId
        MERGE (m)-[:CONTAINS]->(e)`,
       { modelId: params.modelId, elements: params.elements },
     );
@@ -52,7 +72,7 @@ export async function importModelToNeo4j(model: ArchiModel): Promise<Neo4jImport
         `UNWIND $relationships AS rel
          MATCH (s:Element {id: rel.sourceId}), (t:Element {id: rel.targetId})
          MERGE (s)-[r:${neo4jType} {id: rel.id}]->(t)
-         SET r += rel.properties, r.name = rel.name, r.accessType = rel.accessType, r.archiType = rel.archiType`,
+         SET r += rel.properties, r.name = rel.name, r.accessType = rel.accessType, r.archiType = rel.archiType, r.organizationId = rel.organizationId`,
         { relationships },
       );
     }
@@ -60,7 +80,7 @@ export async function importModelToNeo4j(model: ArchiModel): Promise<Neo4jImport
     await session.run(
       `UNWIND $properties AS prop
        MATCH (e:Element {id: prop.ownerId})
-       CREATE (p:Property {definitionId: prop.definitionId, name: prop.name, value: prop.value})
+       CREATE (p:Property {definitionId: prop.definitionId, name: prop.name, value: prop.value, organizationId: prop.organizationId})
        MERGE (e)-[:HAS_PROPERTY]->(p)`,
       { properties: params.elementProperties },
     );
@@ -69,7 +89,7 @@ export async function importModelToNeo4j(model: ArchiModel): Promise<Neo4jImport
       `MATCH (m:Model {id: $modelId})
        UNWIND $views AS v
        MERGE (view:View {id: v.id})
-       SET view.name = v.name
+       SET view.name = v.name, view.organizationId = v.organizationId
        MERGE (m)-[:CONTAINS]->(view)
        WITH view, v
        UNWIND v.elementIds AS elId

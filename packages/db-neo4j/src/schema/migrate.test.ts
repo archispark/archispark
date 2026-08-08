@@ -20,7 +20,7 @@ describe("migrationVersion", () => {
 describe("listMigrationFiles", () => {
   it("lists the shipped migrations sorted by filename", () => {
     const files = listMigrationFiles();
-    expect(files).toEqual(["0001_initial_constraints.cypher"]);
+    expect(files).toEqual(["0001_initial_constraints.cypher", "0002_organization_index.cypher"]);
   });
 });
 
@@ -37,9 +37,9 @@ describe("runNeo4jMigrations", () => {
 
     await runNeo4jMigrations();
 
-    // Only the "already applied?" check ran — no CREATE CONSTRAINT / MERGE marker statements.
-    expect(run).toHaveBeenCalledTimes(1);
-    expect(run.mock.calls[0]![0]).toContain("MATCH (sm:SchemaMigration");
+    // Only the "already applied?" check ran for each migration file — no CREATE CONSTRAINT / MERGE marker statements.
+    expect(run).toHaveBeenCalledTimes(listMigrationFiles().length);
+    for (const call of run.mock.calls) expect(call[0]).toContain("MATCH (sm:SchemaMigration");
     expect(close).toHaveBeenCalledOnce();
   });
 

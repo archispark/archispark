@@ -69,7 +69,7 @@ if (!process.env["DATABASE_URL"]) {
 // Dynamic import (not a static top-level import): @workspace/db reads
 // DATABASE_URL at module-init time, so the import must happen after the env
 // file is loaded above.
-const { db, workspaces, modelFromDb } = await import("@workspace/db");
+const { db, workspaces, organizations, modelFromDb } = await import("@workspace/db");
 const { importModelToNeo4j } = await import("../src/import-model.js");
 
 const allWorkspaces = await db.select().from(workspaces);
@@ -78,14 +78,22 @@ if (allWorkspaces.length === 0) {
   process.exit(0);
 }
 
+const orgById = new Map((await db.select().from(organizations)).map((org) => [org.id, org]));
+
 console.log(`Importing ${allWorkspaces.length} workspace(s) into Neo4j...`);
 
 let failures = 0;
 for (const ws of allWorkspaces) {
   console.log(`\n"${ws.name}" (${ws.uuid})`);
+  const org = ws.organizationId === null ? undefined : orgById.get(ws.organizationId);
+  if (!org) {
+    failures++;
+    console.error(`✗ Import failed: aucune organisation associée à ce workspace.`);
+    continue;
+  }
   try {
     const model = await modelFromDb(ws.id);
-    const result = await importModelToNeo4j(model);
+    const result = await importModelToNeo4j(model, org);
     console.log(`✓ ${JSON.stringify(result)}`);
   } catch (err) {
     failures++;

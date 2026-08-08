@@ -35,6 +35,10 @@ function emptyModel(): ArchiModel {
   };
 }
 
+function testOrg() {
+  return { id: 1, slug: "acme", name: "Acme" };
+}
+
 describe("toNeo4jRelationshipType", () => {
   it("uppercases the ArchiMate type name", () => {
     expect(toNeo4jRelationshipType("Composition")).toBe("COMPOSITION");
@@ -61,9 +65,11 @@ describe("buildNeo4jParams", () => {
       },
     ];
 
-    const params = buildNeo4jParams(model);
+    const params = buildNeo4jParams(model, testOrg());
 
-    expect(params.elementProperties).toEqual([{ ownerId: "el-1", definitionId: "pd-1", name: "Owner", value: "Team X" }]);
+    expect(params.elementProperties).toEqual([
+      { ownerId: "el-1", definitionId: "pd-1", name: "Owner", value: "Team X", organizationId: 1 },
+    ]);
     expect(params.relationshipsByType.get("SERVING")![0]!.properties).toEqual({ Owner: "Team Y" });
   });
 
@@ -71,7 +77,7 @@ describe("buildNeo4jParams", () => {
     const model = emptyModel();
     model.elements = [{ uuid: "el-1", name: "App A", type: "ApplicationComponent", desc: null, props: { "pd-missing": "x" } }];
 
-    const params = buildNeo4jParams(model);
+    const params = buildNeo4jParams(model, testOrg());
 
     expect(params.elementProperties[0]!.name).toBe("pd-missing");
   });
@@ -93,11 +99,20 @@ describe("buildNeo4jParams", () => {
       },
     ];
 
-    const params = buildNeo4jParams(model);
+    const params = buildNeo4jParams(model, testOrg());
 
     expect([...params.relationshipsByType.keys()]).toEqual(["FLOW"]);
     expect(params.relationshipsByType.get("FLOW")).toEqual([
-      { id: "rel-1", sourceId: "el-1", targetId: "el-2", name: "flows to", accessType: null, archiType: "Flow", properties: {} },
+      {
+        id: "rel-1",
+        sourceId: "el-1",
+        targetId: "el-2",
+        name: "flows to",
+        accessType: null,
+        archiType: "Flow",
+        organizationId: 1,
+        properties: {},
+      },
     ]);
   });
 
@@ -132,7 +147,7 @@ describe("buildNeo4jParams", () => {
       },
     ];
 
-    const params = buildNeo4jParams(model);
+    const params = buildNeo4jParams(model, testOrg());
 
     const [relObj, relStr] = params.relationshipsByType.get("ASSOCIATION")!;
     expect(relObj).toMatchObject({ sourceId: "el-a", targetId: "el-b" });
@@ -156,7 +171,7 @@ describe("buildNeo4jParams", () => {
       },
     ];
 
-    const params = buildNeo4jParams(model);
+    const params = buildNeo4jParams(model, testOrg());
 
     expect(params.relationshipsByType.get("SERVING")![0]!.properties).toEqual({ "pd-missing": "x" });
   });
@@ -178,7 +193,7 @@ describe("buildNeo4jParams", () => {
       },
     ];
 
-    expect(() => buildNeo4jParams(model)).toThrow(/Type de relation invalide/);
+    expect(() => buildNeo4jParams(model, testOrg())).toThrow(/Type de relation invalide/);
   });
 
   it("flattens nested view nodes, resolving refs to element uuids", () => {
@@ -197,9 +212,11 @@ describe("buildNeo4jParams", () => {
       },
     ];
 
-    const params = buildNeo4jParams(model);
+    const params = buildNeo4jParams(model, testOrg());
 
-    expect(params.views).toEqual([{ id: "view-1", name: "Overview", elementIds: expect.arrayContaining(["el-1", "el-2"]) }]);
+    expect(params.views).toEqual([
+      { id: "view-1", name: "Overview", elementIds: expect.arrayContaining(["el-1", "el-2"]), organizationId: 1 },
+    ]);
     expect(params.views[0]!.elementIds).toHaveLength(2);
   });
 });
