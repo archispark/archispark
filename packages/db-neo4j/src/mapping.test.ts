@@ -73,6 +73,21 @@ describe("buildNeo4jParams", () => {
     expect(params.relationshipsByType.get("SERVING")![0]!.properties).toEqual({ Owner: "Team Y" });
   });
 
+  it("computes each element's ArchiMate layer from its type", () => {
+    const model = emptyModel();
+    model.elements = [
+      { uuid: "el-1", name: "App A", type: "ApplicationComponent", desc: null, props: {} },
+      { uuid: "el-2", name: "Proc B", type: "BusinessProcess", desc: null, props: {} },
+    ];
+
+    const params = buildNeo4jParams(model, testOrg());
+
+    expect(params.elements).toEqual([
+      { id: "el-1", name: "App A", type: "ApplicationComponent", layer: "Application", documentation: null, organizationId: 1 },
+      { id: "el-2", name: "Proc B", type: "BusinessProcess", layer: "Business", documentation: null, organizationId: 1 },
+    ]);
+  });
+
   it("falls back to the raw definition uuid when no propertyDefinition matches", () => {
     const model = emptyModel();
     model.elements = [{ uuid: "el-1", name: "App A", type: "ApplicationComponent", desc: null, props: { "pd-missing": "x" } }];

@@ -90,6 +90,9 @@ importers:
       lucide-react:
         specifier: ^1.17.0
         version: 1.17.0(react@19.2.7)
+      neo4j-driver:
+        specifier: ^6.2.0
+        version: 6.2.0
       next:
         specifier: 16.2.7
         version: 16.2.7(react-dom@19.2.7(react@19.2.7))(react@19.2.7)

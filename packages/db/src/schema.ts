@@ -31,6 +31,7 @@ import {
   index,
   uniqueIndex,
   primaryKey,
+  jsonb,
 } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
 
@@ -483,4 +484,60 @@ export const bendpoints = pgTable(
     sortOrder: integer("sort_order").notNull().default(0),
   },
   (t) => [index("bendpoints_connection_idx").on(t.connectionId)]
+)
+
+// ---------------------------------------------------------------------------
+// Dashboards  (configurable reporting dashboards, org-scoped — see
+// apps/server/lib/dashboards/). Each edit creates a new immutable revision
+// in dashboardRevisions rather than mutating one in place; dashboards.
+// latestRevision points at the current one. Deletion is a soft delete
+// (deletedAt) that preserves revision history.
+// ---------------------------------------------------------------------------
+
+export const dashboards = pgTable(
+  "dashboards",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    dashboardId: text("dashboard_id").notNull(), // kebab-case slug, unique per organization
+    isProvisioned: boolean("is_provisioned").notNull().default(false),
+    latestRevision: integer("latest_revision").notNull(),
+    createdById: text("created_by_id").notNull(), // Keycloak sub — traceability only
+    createdAt: integer("created_at")
+      .notNull()
+      .default(sql`extract(epoch from now())::int`),
+    deletedAt: integer("deleted_at"),
+  },
+  (t) => [
+    uniqueIndex("dashboards_org_dashboard_id_uniq").on(
+      t.organizationId,
+      t.dashboardId
+    ),
+    index("dashboards_org_idx").on(t.organizationId),
+  ]
+)
+
+export const dashboardRevisions = pgTable(
+  "dashboard_revisions",
+  {
+    id: serial("id").primaryKey(),
+    dashboardId: integer("dashboard_id")
+      .notNull()
+      .references(() => dashboards.id, { onDelete: "cascade" }),
+    revision: integer("revision").notNull(),
+    definition: jsonb("definition").notNull(), // DashboardDefinition (see lib/dashboards/contracts.ts)
+    createdById: text("created_by_id").notNull(),
+    createdAt: integer("created_at")
+      .notNull()
+      .default(sql`extract(epoch from now())::int`),
+  },
+  (t) => [
+    uniqueIndex("dashboard_revisions_dashboard_rev_uniq").on(
+      t.dashboardId,
+      t.revision
+    ),
+    index("dashboard_revisions_dashboard_idx").on(t.dashboardId),
+  ]
 )

@@ -1,9 +1,11 @@
 import type { ArchiModel, ArchiNode } from "@workspace/db";
+import { getLayer } from "./layer.js";
 
 export interface Neo4jElementParam {
   id: string;
   name: string;
   type: string;
+  layer: string;
   documentation: string | null;
   organizationId: number;
 }
@@ -72,6 +74,7 @@ export function buildNeo4jParams(model: ArchiModel, organization: Neo4jOrganizat
     id: el.uuid,
     name: el.name,
     type: el.type,
+    layer: getLayer(el.type),
     documentation: el.desc,
     organizationId: organization.id,
   }));

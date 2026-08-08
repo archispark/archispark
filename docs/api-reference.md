@@ -91,3 +91,19 @@ Every workspace belongs to exactly one organization (`organization_id`) — a ca
 | `POST` | `/api/property-definitions` | Create — `{ name, type? }` (types: `string`, `boolean`, `date`, `number`, `enumeration`) |
 | `PUT` | `/api/property-definitions/:id` | Update |
 | `DELETE` | `/api/property-definitions/:id` | Delete |
+
+## Dashboards
+
+Org-scoped — see [docs/architecture.md#dashboards](architecture.md#dashboards). Editing requires the `owner`/`admin` role in the active organization; `member` is read-only.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/dashboards` | List the active organization's latest dashboard revisions |
+| `POST` | `/api/dashboards` | Create a dashboard (revision 1) — body: a `DashboardDefinition` |
+| `GET` | `/api/dashboards/:dashboardId` | Latest revision |
+| `PUT` | `/api/dashboards/:dashboardId` | New revision of an existing dashboard |
+| `DELETE` | `/api/dashboards/:dashboardId` | Soft delete |
+| `GET` | `/api/dashboards/admin` | Administration listing (includes soft-deleted, `isProvisioned`) |
+| `GET` | `/api/dashboards/:dashboardId/panels/:panelInstanceId` | Execute one panel instance — query-string values are the panel's parameters |
+| `GET` | `/api/panel-visualizations` | Static catalogue of panel visualizations (`core/graph`, `core/table`, `core/metric`) |
+| `POST` | `/api/explore` | Ad hoc read-only Cypher query — body: `{ query, parameters }` |

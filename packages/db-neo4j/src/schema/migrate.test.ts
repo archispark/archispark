@@ -20,7 +20,11 @@ describe("migrationVersion", () => {
 describe("listMigrationFiles", () => {
   it("lists the shipped migrations sorted by filename", () => {
     const files = listMigrationFiles();
-    expect(files).toEqual(["0001_initial_constraints.cypher", "0002_organization_index.cypher"]);
+    expect(files).toEqual([
+      "0001_initial_constraints.cypher",
+      "0002_organization_index.cypher",
+      "0003_element_layer_index.cypher",
+    ]);
   });
 });
 

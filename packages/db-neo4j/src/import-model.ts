@@ -59,7 +59,7 @@ export async function importModelToNeo4j(
       `MATCH (m:Model {id: $modelId})
        UNWIND $elements AS el
        MERGE (e:Element {id: el.id})
-       SET e.name = el.name, e.type = el.type, e.documentation = el.documentation, e.organizationId = el.organizationId
+       SET e.name = el.name, e.type = el.type, e.layer = el.layer, e.documentation = el.documentation, e.organizationId = el.organizationId
        MERGE (m)-[:CONTAINS]->(e)`,
       { modelId: params.modelId, elements: params.elements },
     );

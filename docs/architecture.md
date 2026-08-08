@@ -180,3 +180,72 @@ Postgres:
 
 Configured via `NEO4J_URI` (defaults to `bolt://localhost:7687`),
 `NEO4J_USER`, `NEO4J_PASSWORD`.
+
+## Dashboards
+
+Configurable reporting dashboards — composed of panels (graph/table/metric),
+each embedding its own Cypher query, parameters and visualization inline (no
+external panel/query catalogue) — integrated from a companion project
+(`ofr-archimate-reports/apps/portal`) and rebuilt on top of ArchiSpark's own
+data and access model rather than ported as a separate app. Business logic
+lives in `apps/server/lib/dashboards/`:
+
+- `contracts.ts` — Zod schemas for `DashboardDefinition`, `PanelContent`,
+  `PanelResult`, `PanelVisualizationMetadata`. `ELEMENT_TYPES`/layers reuse
+  `lib/archimate-helpers.ts` (`getLayer`, `ALL_ELEMENT_TYPES`) rather than a
+  separate ArchiMate domain module — ArchiSpark already has one.
+- `repository.ts` — CRUD over `dashboards`/`dashboard_revisions`
+  (`packages/db/src/schema.ts`), on Drizzle/Postgres like every other table.
+  Every method takes `organizationId`: dashboards are scoped per
+  organization (not global), edits create a new immutable revision, deletes
+  are soft (`deletedAt`).
+- `panel-execution.ts` — resolves a panel instance's parameters and runs its
+  query, normalizing the result to the `graph`/`table`/`metrics` shape the
+  frontend expects.
+- `datasource-executors.ts` — executes a panel's Cypher against the same
+  Neo4j graph as [the Neo4j export](#neo4j-export) above (`@workspace/db-neo4j`'s
+  driver singleton), instead of a separate Neo4j instance fed by a one-off
+  XML import (the companion project's original design). **Multi-tenant
+  scoping**: `organizationId` is injected into the query's bound parameters
+  by the executor — never trusted from the query text — and
+  `assertPanelQuerySafe` statically requires every panel's Cypher to
+  reference `$organizationId`, checked both when a dashboard revision is
+  saved (`app/api/dashboards/**`) and again before every execution (defense
+  in depth). `Element` nodes also carry a `layer` property (added by the
+  Neo4j export specifically for this — see `packages/db-neo4j/src/layer.ts`)
+  so panels can filter by ArchiMate layer without recomputing it from `type`.
+- `explore.ts` — the ad hoc Cypher query page (`/explore`) runs arbitrary
+  read-only queries, so its text can't be statically validated the way a
+  saved panel's can. Scoping is instead enforced on the *result*: any row
+  containing a Neo4j node or relationship whose `organizationId` doesn't
+  match the caller's is dropped in its entirety, regardless of the query's
+  own `WHERE` clause.
+
+Routes live under `app/api/dashboards/**`, `app/api/explore`, and
+`app/api/panel-visualizations`, gated by the same
+`resolveActiveContext`/`assertOrgAccess` gateway as every other resource —
+editing a dashboard requires the `owner`/`admin` role in the active
+organization, `member` is read-only. There is no separate admin
+login/token — the companion project's single-admin-token session
+(`ARCHIMATE_API_TOKEN`) isn't used here.
+
+Frontend components live under `apps/server/components/dashboards/`,
+restyled to ArchiSpark's shadcn/Tailwind tokens. `graph-view.tsx` is a
+second ReactFlow node style — read-only "bubble" nodes (badge + label,
+dagre auto-layout, click-to-navigate) for exploring/reporting — distinct
+from `view-canvas-node.tsx`'s resizable ArchiMate-notation editing nodes.
+Both already share their layer color palette (`LAYER_HEX_COLORS`,
+`lib/archimate-helpers.ts`), type-icon glyphs
+(`components/archimate-notation-badge.tsx`), and node border radius/font
+size; only the bubble shape (vs. the resizable rectangle) remains
+deliberately different — a read-only exploration node doesn't need to be
+resized like an editing node does.
+
+Not carried over from the companion project: the XML-import worker
+(`apps/worker`) and its Postgres demo datasource (superseded by the live
+Neo4j export above), the single-admin-token auth, the third-party panel
+plugin system (`plugins/`), and the "Reports" pages (legacy redirects to
+specific provisioned dashboards the companion project seeded from its own
+demo data — there's no equivalent seed here). Panel `transformations`
+(client-side result reshaping, e.g. `extractFields`) are accepted by the
+schema for forward-compatibility but not yet applied by the renderer.

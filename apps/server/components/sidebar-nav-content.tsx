@@ -7,6 +7,9 @@ import {
   Tag,
   Settings as SettingsIcon,
   GitBranch,
+  Gauge,
+  SearchCode,
+  Blocks,
 } from "lucide-react"
 import type { ModelInfo } from "@/lib/api"
 import { useT } from "@/lib/i18n"
@@ -137,6 +140,49 @@ export function SidebarNavContent({
                 {model.view_count}
               </span>
             )}
+          </Link>
+        </Section>
+
+        {/* Separator */}
+        <div className="mx-4 mt-2 mb-1 border-t border-border" />
+
+        {/* Dashboards group */}
+        <Section title={t("sidebar.dashboards")}>
+          <Link
+            href="/dashboards"
+            onClick={onClose}
+            className={`flex items-center gap-2 rounded-md px-2 py-1.5 text-sm no-underline transition-colors ${
+              pathname === "/dashboards" || pathname.startsWith("/dashboards/")
+                ? "bg-card font-medium text-foreground shadow-sm"
+                : "text-muted-foreground hover:bg-muted hover:text-foreground"
+            }`}
+          >
+            <Gauge className="size-3.5 shrink-0" />
+            {t("sidebar.dashboards")}
+          </Link>
+          <Link
+            href="/explore"
+            onClick={onClose}
+            className={`flex items-center gap-2 rounded-md px-2 py-1.5 text-sm no-underline transition-colors ${
+              pathname === "/explore"
+                ? "bg-card font-medium text-foreground shadow-sm"
+                : "text-muted-foreground hover:bg-muted hover:text-foreground"
+            }`}
+          >
+            <SearchCode className="size-3.5 shrink-0" />
+            {t("sidebar.explore")}
+          </Link>
+          <Link
+            href="/panel-visualizations"
+            onClick={onClose}
+            className={`flex items-center gap-2 rounded-md px-2 py-1.5 text-sm no-underline transition-colors ${
+              pathname === "/panel-visualizations"
+                ? "bg-card font-medium text-foreground shadow-sm"
+                : "text-muted-foreground hover:bg-muted hover:text-foreground"
+            }`}
+          >
+            <Blocks className="size-3.5 shrink-0" />
+            {t("sidebar.panel_catalog")}
           </Link>
         </Section>
 

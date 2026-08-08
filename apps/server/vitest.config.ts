@@ -11,7 +11,12 @@ import { resolve } from "path"
 // would itself become a served endpoint at build time (it happened once —
 // see lib/mcp/mcp-route.test.ts, which tests pages/api/mcp.ts from outside
 // pages/). Keep any future Pages Router route tests out of pages/ entirely.
-const serverTestDirs = ["lib/archimate/**", "lib/mcp/**", "lib/http/**"]
+const serverTestDirs = [
+  "lib/archimate/**",
+  "lib/mcp/**",
+  "lib/http/**",
+  "lib/dashboards/**",
+]
 
 export default defineConfig({
   test: {
@@ -47,6 +52,10 @@ export default defineConfig({
             "@workspace/db": resolve(
               __dirname,
               "../../packages/db/src/index.ts"
+            ),
+            "@workspace/db-neo4j": resolve(
+              __dirname,
+              "../../packages/db-neo4j/src/index.ts"
             ),
             "@workspace/auth": resolve(
               __dirname,

@@ -121,6 +121,8 @@ describe("importModelToNeo4j", () => {
 
     const elementsCall = run.mock.calls.find((call) => (call[0] as string).includes("MERGE (e:Element"));
     expect((elementsCall![1] as { elements: { organizationId: number }[] }).elements[0]!.organizationId).toBe(1);
+    expect(elementsCall![0]).toContain("e.layer = el.layer");
+    expect((elementsCall![1] as { elements: { layer: string }[] }).elements[0]!.layer).toBe("Application");
 
     const relCall = run.mock.calls.find((call) => (call[0] as string).includes("MERGE (s)-[r:SERVING"));
     expect((relCall![1] as { relationships: { organizationId: number }[] }).relationships[0]!.organizationId).toBe(1);
