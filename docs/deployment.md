@@ -16,6 +16,27 @@ three queries in `plan.md`'s Phase 2 before ever generating
 intentionally not shipped in this release — see that file for the full
 rationale).
 
+## Neo4j schema migrations (production)
+
+`packages/db-neo4j` (see [Neo4j export](architecture.md#neo4j-export)) ships
+its own versioned Cypher migrations, separate from `packages/db`'s Postgres
+migrations — Neo4j has no `drizzle-kit` equivalent, so these are applied with
+a dedicated script rather than automatically on cold start:
+
+```bash
+NEO4J_URI=<uri> NEO4J_USER=<user> NEO4J_PASSWORD=<password> \
+  pnpm --filter @workspace/db-neo4j migrate:prod
+# or, with an env file:
+pnpm --filter @workspace/db-neo4j migrate:prod /tmp/neo4j-prod.env
+```
+
+Idempotent — already-applied migrations (tracked via `:SchemaMigration`
+nodes) are skipped, so it's safe to re-run after every deployment that adds a
+new `packages/db-neo4j/src/schema/migrations/*.cypher` file. Self-hosted
+Docker Compose deployments run it against the `neo4j` service added to
+`.docker/docker-compose.yml` (`NEO4J_URI=bolt://neo4j:7687`, credentials from
+`NEO4J_PASSWORD` in `.env.prod`).
+
 ## Kubernetes (Helm)
 
 A Helm chart is available in `.k8s/helm/archispark/`. It deploys the full stack (server, postgres) with an NGINX Ingress — the same topology as the Docker Compose setup.

@@ -6,9 +6,9 @@ ArchiMate 3.1 modeling tool — a single Next.js app serving the web UI, REST AP
 
 | Topic | Description |
 |---|---|
-| [Installation & local development](docs/installation.md) | Stack, quick start, Docker & Makefile |
+| [Installation & local development](docs/installation.md) | Stack, quick start, Docker & pnpm scripts |
 | [Deployment](docs/deployment.md) | Kubernetes (Helm), Vercel |
-| [Architecture](docs/architecture.md) | Persistence, database schema, `apps/server` |
+| [Architecture](docs/architecture.md) | Persistence, database schema, `apps/server`, dashboards |
 | [Authentication](docs/authentication.md) | Keycloak login, tokens, access control |
 | [Administration](docs/administration.md) | Platform super admin, user provisioning |
 | [API reference](docs/api-reference.md) | Workspaces, elements, relationships, views, property definitions |

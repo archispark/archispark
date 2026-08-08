@@ -38,7 +38,6 @@ export function CreateElementDialog({
   onDocChange,
   props,
   onPropsChange,
-  layerFilter,
   grouped,
   error,
   creating,
@@ -54,7 +53,6 @@ export function CreateElementDialog({
   onDocChange: (v: string) => void
   props: Property[]
   onPropsChange: (p: Property[]) => void
-  layerFilter: string | null
   grouped: Record<string, string[]>
   error: string | null
   creating: boolean
@@ -89,22 +87,16 @@ export function CreateElementDialog({
                 <SelectValue placeholder={t("elements.choose_type")} />
               </SelectTrigger>
               <SelectContent>
-                {layerFilter
-                  ? (grouped[layerFilter] ?? []).map((typ) => (
+                {Object.entries(grouped).map(([layer, typs]) => (
+                  <SelectGroup key={layer}>
+                    <SelectLabel>{layer}</SelectLabel>
+                    {typs.map((typ) => (
                       <SelectItem key={typ} value={typ}>
                         {typ}
                       </SelectItem>
-                    ))
-                  : Object.entries(grouped).map(([layer, typs]) => (
-                      <SelectGroup key={layer}>
-                        <SelectLabel>{layer}</SelectLabel>
-                        {typs.map((typ) => (
-                          <SelectItem key={typ} value={typ}>
-                            {typ}
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
                     ))}
+                  </SelectGroup>
+                ))}
               </SelectContent>
             </Select>
           </div>

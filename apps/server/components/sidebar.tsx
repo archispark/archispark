@@ -1,8 +1,7 @@
 "use client"
 
-import { usePathname, useSearchParams } from "next/navigation"
+import { usePathname } from "next/navigation"
 import { Suspense, useEffect, useState, useMemo } from "react"
-import { getLayer } from "@/lib/archimate-helpers"
 import { allowedRelationships } from "@/lib/archimate-rules"
 import {
   useModel,
@@ -48,11 +47,9 @@ function SidebarInner({
   collapsed: boolean
   onToggleCollapse: () => void
 }) {
-  // usePathname()/useSearchParams() are typed nullable only for pages/-router
-  // compat (this app only calls them from app/ client components, where
-  // they're always populated).
+  // usePathname() is typed nullable only for pages/-router compat (this app
+  // only calls it from app/ client components, where it's always populated).
   const pathname = usePathname()!
-  const searchParams = useSearchParams()!
   const { t } = useT()
   // React Query so the sidebar reflects mutations (e.g. a newly created element
   // bumps the counts) as soon as their queries are invalidated.
@@ -72,15 +69,6 @@ function SidebarInner({
   )
   const inViewsSet = useMemo(() => new Set(inViews), [inViews])
 
-  const layerCounts = useMemo(() => {
-    const counts: Record<string, number> = {}
-    for (const el of elements) {
-      const layer = getLayer(el.type)
-      counts[layer] = (counts[layer] || 0) + 1
-    }
-    return counts
-  }, [elements])
-
   const absentCount = useMemo(
     () => elements.filter((e) => !inViewsSet.has(e.identifier)).length,
     [elements, inViewsSet]
@@ -95,9 +83,6 @@ function SidebarInner({
       }).length,
     [relationships, byId]
   )
-
-  const currentLayer =
-    pathname === "/elements" ? searchParams.get("layer") : null
 
   return (
     <>
@@ -117,11 +102,9 @@ function SidebarInner({
         <div className={collapsed ? "contents md:hidden" : "contents"}>
           <SidebarNavContent
             pathname={pathname}
-            currentLayer={currentLayer}
             onClose={onClose}
             model={model}
             absentCount={absentCount}
-            layerCounts={layerCounts}
             relConflictCount={relConflictCount}
             t={t}
           />

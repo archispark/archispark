@@ -4,7 +4,8 @@ import { useContext } from "react"
 import type React from "react"
 import { NodeResizer, Handle, Position, type NodeProps } from "@xyflow/react"
 import { updateViewNode } from "@/lib/api"
-import { iconForType, type IconPrim } from "@/lib/archimate/archimate-icons"
+import { iconForType } from "@/lib/archimate/archimate-icons"
+import { renderIconPrim } from "@/components/archimate-notation-badge"
 import { colorFor } from "@/components/view-canvas-colors"
 import { ViewIdContext } from "@/components/view-canvas-context"
 
@@ -16,36 +17,6 @@ const HANDLE_STYLE: React.CSSProperties = {
   borderRadius: "50%",
   opacity: 0,
   transition: "opacity 0.15s",
-}
-
-function renderIconPrim(p: IconPrim, i: number) {
-  const fill = "fill" in p && p.fill ? "currentColor" : "none"
-  switch (p.tag) {
-    case "path":
-      return <path key={i} d={p.d} fill={fill} />
-    case "polygon":
-      return <polygon key={i} points={p.points.join(" ")} fill={fill} />
-    case "polyline":
-      return <polyline key={i} points={p.points.join(" ")} fill="none" />
-    case "circle":
-      return <circle key={i} cx={p.cx} cy={p.cy} r={p.r} fill={fill} />
-    case "ellipse":
-      return (
-        <ellipse key={i} cx={p.cx} cy={p.cy} rx={p.rx} ry={p.ry} fill={fill} />
-      )
-    case "rect":
-      return (
-        <rect
-          key={i}
-          x={p.x}
-          y={p.y}
-          width={p.width}
-          height={p.height}
-          rx={p.rx}
-          fill={fill}
-        />
-      )
-  }
 }
 
 // The ArchiMate type icon, drawn in the element's top-right corner. The glyph

@@ -1,10 +1,9 @@
 "use client"
 
-import { Suspense, useState, useMemo, useEffect, useRef } from "react"
-import { useSearchParams } from "next/navigation"
+import { useState, useMemo, useRef } from "react"
 import { useDebounce } from "use-debounce"
 import { type ElementOut } from "@/lib/api"
-import { getLayer, LAYER_LABELS } from "@/lib/archimate-helpers"
+import { getLayer } from "@/lib/archimate-helpers"
 import {
   useElements,
   useElementTypes,
@@ -28,21 +27,9 @@ import { useKeyboardShortcut } from "@/hooks/use-keyboard-shortcut"
 import { useT } from "@/lib/i18n"
 
 export default function ElementsPage() {
-  return (
-    <Suspense>
-      <ElementsPageInner />
-    </Suspense>
-  )
-}
-
-function ElementsPageInner() {
   const { t } = useT()
   // Every workspace has exactly one owner (the authenticated user) — always write-enabled.
   const isAdmin = true
-  // useSearchParams() is typed nullable only for pages/-router compat (this
-  // app only calls it from app/ client components, where it's always populated).
-  const searchParams = useSearchParams()!
-  const layerFilter = searchParams.get("layer")
 
   const [search, setSearch] = useState("")
   const [debouncedSearch] = useDebounce(search, 300)
@@ -72,7 +59,6 @@ function ElementsPageInner() {
     allRelationships,
     byId,
     inViewsSet,
-    layerFilter,
     statusFilter,
   })
 
@@ -108,16 +94,6 @@ function ElementsPageInner() {
     }
     return groups
   }, [types])
-
-  useEffect(() => {
-    if (
-      layerFilter &&
-      typeFilter &&
-      !(grouped[layerFilter] ?? []).includes(typeFilter)
-    ) {
-      setTypeFilter(null)
-    }
-  }, [layerFilter, typeFilter, grouped])
 
   const searchRef = useRef<HTMLInputElement>(null)
   useKeyboardShortcut(
@@ -164,24 +140,6 @@ function ElementsPageInner() {
     onDeleteClick: deleteActions.openWith,
   })
 
-  const layerLabel = layerFilter
-    ? t(`layer.${layerFilter}` as Parameters<typeof t>[0]) ||
-      LAYER_LABELS[layerFilter] ||
-      layerFilter
-    : ""
-
-  const pageTitle = layerFilter
-    ? t("elements.title_layer", { layer: layerLabel })
-    : t("elements.title")
-
-  const pageDesc = layerFilter
-    ? t("elements.layer_count", {
-        n: filteredElements.length,
-        s: filteredElements.length !== 1 ? "s" : "",
-        layer: layerLabel,
-      })
-    : t("elements.browse_all")
-
   if (error) {
     return (
       <div className="p-7">
@@ -196,8 +154,10 @@ function ElementsPageInner() {
     <div className="space-y-5 p-7">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-lg font-semibold">{pageTitle}</h1>
-          <p className="mt-0.5 text-[13px] text-muted-foreground">{pageDesc}</p>
+          <h1 className="text-lg font-semibold">{t("elements.title")}</h1>
+          <p className="mt-0.5 text-[13px] text-muted-foreground">
+            {t("elements.browse_all")}
+          </p>
         </div>
         {isAdmin && (
           <CreateElementDialog
@@ -211,7 +171,6 @@ function ElementsPageInner() {
             onDocChange={setNewDoc}
             props={newProps}
             onPropsChange={setNewProps}
-            layerFilter={layerFilter}
             grouped={grouped}
             error={
               createMutation.error
@@ -230,11 +189,7 @@ function ElementsPageInner() {
         onSearchChange={setSearch}
         typeFilter={typeFilter}
         onTypeFilterChange={setTypeFilter}
-        typeOptions={
-          layerFilter
-            ? (grouped[layerFilter] ?? [])
-            : Object.values(grouped).flat()
-        }
+        typeOptions={Object.values(grouped).flat()}
         statusFilter={statusFilter}
         onStatusFilterChange={setStatusFilter}
       />
