@@ -47,11 +47,9 @@ pnpm vitest run lib/archimate/store.test.ts
 pnpm vitest run -t "creates a workspace with empty model"
 ```
 
-`vitest.config.ts` runs two `test.projects`: `web` (jsdom, React components/pages) and `server` (node, `lib/archimate/`+`lib/http/`+`lib/mcp/` business logic and Route Handler tests) — add `--project server` or `--project web` to target one only. **Never** put a `*.test.ts` inside `apps/server/pages/api/` — Next.js's Pages Router treats every file there as a live route (see `.claude/rules/testing.md`).
+`vitest.config.ts` runs two `test.projects`: `web` (jsdom, React components/pages) and `server` (node, `lib/archimate/`+`lib/http/`+`lib/mcp/` business logic and Route Handler tests) — add `--project server` or `--project web` to target one only. **Never** put a `*.test.ts` inside `apps/server/pages/api/` — Next.js's Pages Router treats every file there as a live route.
 
 Tests run against [PGlite](https://pglite.dev) (in-memory Postgres) — no Docker required.
-
-Database migrations: see [.claude/rules/db.md](.claude/rules/db.md).
 
 For Docker/Helm/Vercel workflows, see [docs/installation.md](docs/installation.md) and [docs/deployment.md](docs/deployment.md).
 
@@ -64,7 +62,7 @@ ArchiSpark is a Turborepo/pnpm monorepo (Node >=22.13):
 - `packages/auth` — shared Keycloak auth helpers (`@workspace/auth`).
 - `packages/ui`, `packages/types` — shared React components and types.
 
-Detailed design docs live in [`docs/`](docs/) — in particular [docs/architecture.md](docs/architecture.md) (database schema, `apps/server`) and [docs/authentication.md](docs/authentication.md) (Keycloak login, tokens). Read these before making cross-cutting changes to auth or the database layer — they cover invariants that span many files. Past architecture decisions: [docs/decisions.md](docs/decisions.md).
+Detailed design docs live in [`docs/`](docs/) — in particular [docs/architecture.md](docs/architecture.md) (database schema, `apps/server`) and [docs/authentication.md](docs/authentication.md) (Keycloak login, tokens). Read these before making cross-cutting changes to auth or the database layer — they cover invariants that span many files.
 
 ## After every code change
 
@@ -81,9 +79,3 @@ Human-triggered only — see [.claude/skills/release/SKILL.md](.claude/skills/re
 - **Type validation**: element and relationship types must belong to the ArchiMate 3.1 sets defined in `models/xsd`.
 - **Reference PNG components**: all components (PNG) go to `models/img/archimate`. Never write generated images to `models/img/archimate/` or any other directory.
 - **Reference SVG views**: `models/img/views/` contains SVGs exported directly by the Archi tool — these are the ground truth. When improving the renderer (`apps/server/lib/archimate/renderer.ts`), compare generated output against the matching file in `models/img/views/` and minimize visual differences (shapes, colors, layout, connectors, labels, fonts).
-
-## Amélioration continue
-
-- Si l'utilisateur te corrige deux fois sur le même sujet, propose-lui explicitement d'ajouter une règle dans CLAUDE.md ou `.claude/rules/` (avec le texte exact de la règle). N'ajoute jamais une règle sans son accord.
-- Après toute décision d'architecture significative (choix de librairie, changement de pattern, refonte de module), propose une entrée dans [docs/decisions.md](docs/decisions.md).
-- Si tu découvres qu'une règle existante est obsolète ou contredite par le code actuel, signale-le au lieu de l'appliquer silencieusement.

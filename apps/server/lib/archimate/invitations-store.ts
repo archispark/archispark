@@ -5,8 +5,7 @@
  * functions: an invitee isn't a member yet, so there's nothing in
  * organization_members to check. Their guard is authentication (requireAuth,
  * mounted globally — see app.ts) + a valid token + a verified Keycloak email
- * matching the invited address, not assertOrgAccess. See
- * docs/decisions.md for the full rationale.
+ * matching the invited address, not assertOrgAccess.
  */
 
 import { createHash, randomUUID } from "crypto"

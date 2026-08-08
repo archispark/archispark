@@ -5,7 +5,7 @@ import { resolve } from "path"
 // Two projects: "web" runs the existing React component/page tests under
 // jsdom; "server" runs the migrated apps/api + apps/mcp-server business
 // logic and route-handler tests under Node (PGlite via test-setup.ts, same
-// as apps/api before the merge — see .claude/rules/testing.md).
+// as apps/api before the merge).
 // pages/api/ is deliberately excluded: Next.js's Pages Router treats every
 // file under pages/api/ as a live route, so a colocated `*.test.ts` there
 // would itself become a served endpoint at build time (it happened once —
@@ -59,7 +59,7 @@ export default defineConfig({
           environment: "node",
           pool: "forks",
           // PGlite (WASM Postgres) round-trips are slower than a mocked DB —
-          // see apps/api's former vitest.config.ts / .claude/rules/testing.md.
+          // see apps/api's former vitest.config.ts / .
           testTimeout: 90000,
           include: serverTestDirs.map((dir) => `${dir}/*.test.ts`),
           setupFiles: ["./lib/archimate/test-setup.ts"],

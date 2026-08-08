@@ -4,8 +4,7 @@ import { AppError } from "@/lib/archimate/errors"
 /**
  * Wraps a Route Handler so any thrown `AppError` (or unknown error) becomes
  * a JSON `{ detail }` response — the single error-handling point that used
- * to be `apps/api/src/app.ts`'s global Express error middleware. Error
- * envelope and French error strings follow `.claude/rules/api.md`.
+ * to be `apps/api/src/app.ts`'s global Express error middleware.
  */
 export function withErrorHandling<Args extends unknown[]>(
   handler: (req: NextRequest, ...args: Args) => Promise<Response>

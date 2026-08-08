@@ -1,8 +1,7 @@
 /**
  * Organization + member CRUD, gated exclusively through access.ts
- * (assertOrgAccess) — see .claude/rules/api.md for the NotFoundError vs
- * ForbiddenError convention. Split out of registry.ts to keep it under the
- * ESLint max-lines limit.
+ * (assertOrgAccess) — for the NotFoundError vs ForbiddenError convention. 
+ * Split out of registry.ts to keep it under the ESLint max-lines limit.
  */
 
 import { and, asc, eq } from "drizzle-orm"

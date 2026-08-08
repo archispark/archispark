@@ -163,8 +163,7 @@ async function patchRealmSettings(): Promise<void> {
     patch["registrationAllowed"] = enabled
     // Self-registration creates accounts without prior verification of
     // email ownership — only guard against duplicate emails when it's on;
-    // this must not be a separate always-applied setting (see
-    // docs/decisions.md).
+    // this must not be a separate always-applied setting.
     if (enabled) {
       patch["duplicateEmailsAllowed"] = false
     }

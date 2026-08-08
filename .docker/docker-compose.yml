@@ -89,11 +89,6 @@ services:
       - "traefik.http.middlewares.security-headers.headers.referrerPolicy=strict-origin-when-cross-origin"
       # Supprime l'en-tête Server pour ne pas exposer la stack technique
       - "traefik.http.middlewares.security-headers.headers.customResponseHeaders.Server="
-      # Plafond de taille de body — Next.js Route Handlers n'en imposent pas
-      # (contrairement à l'ancien express.json() par défaut à 100kb) ; voir la
-      # décision documentée dans .claude/rules/api.md. /api/import et /api/mcp
-      # transportent du XML/JSON volumineux, d'où un plafond généreux (64mb)
-      # plutôt qu'une valeur serrée par route.
       - "traefik.http.middlewares.body-limit.buffering.maxRequestBodyBytes=67108864"
       # Routeur catch-all unique : tout le trafic va au process Next.js, qui
       # route lui-même /api/*, /mcp/* et les pages via son propre routing.

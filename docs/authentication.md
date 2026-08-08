@@ -80,8 +80,7 @@ revoked_at IS NULL … RETURNING *` inside a transaction, so two concurrent
   (`duplicateEmailsAllowed: false`, applied only when self-registration is
   on) — but this alone doesn't resolve what happens when a _local_ account
   later signs in via an SSO identity provider (Google/Microsoft) with the
-  same e-mail. That's an open point for when those IdPs are enabled — see
-  `docs/decisions.md`.
+  same e-mail.
 
 `/api/settings/messages` (`PUT`) is restricted to users holding the global `platform_admin` realm role (`requireSuperAdmin`).
 

@@ -87,7 +87,7 @@ ingress:
     # secretName: archispark-tls  # Secret TLS à créer manuellement ou via cert-manager
   annotations:
     # Next.js Route Handlers impose no JSON body size limit by default
-    # (unlike the old Express app.ts's 100kb) — see .claude/rules/api.md.
+    # (unlike the old Express app.ts's 100kb).
     # /api/import and /api/mcp transport large XML/JSON, hence a generous
     # ceiling rather than a per-route value.
     nginx.ingress.kubernetes.io/proxy-body-size: "64m"

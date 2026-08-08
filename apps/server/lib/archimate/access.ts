@@ -5,7 +5,7 @@
  * resolveActiveContext/assertOrgAccess/assertWorkspaceAccess; nothing else
  * queries organization_members directly for authorization decisions.
  *
- * Two-level error convention (see .claude/rules/api.md):
+ * Two-level error convention:
  *   - NotFoundError (404): no membership row for this org (or the org/
  *     workspace id doesn't exist) — deliberately disguises "not a member" as
  *     "not found" to avoid leaking existence to non-members.
