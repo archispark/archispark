@@ -1,6 +1,6 @@
 # ArchiSpark
 
-ArchiMate 3.1 modeling tool — REST API, MCP server, and web UI.
+ArchiMate 3.1 modeling tool — a single Next.js app serving the web UI, REST API, and MCP server.
 
 ## Documentation
 
@@ -8,7 +8,7 @@ ArchiMate 3.1 modeling tool — REST API, MCP server, and web UI.
 |---|---|
 | [Installation & local development](docs/installation.md) | Stack, quick start, Docker & Makefile |
 | [Deployment](docs/deployment.md) | Kubernetes (Helm), Vercel |
-| [Architecture](docs/architecture.md) | Persistence, database schema, `apps/api` |
+| [Architecture](docs/architecture.md) | Persistence, database schema, `apps/server` |
 | [Authentication](docs/authentication.md) | Keycloak login, tokens, access control |
 | [Administration](docs/administration.md) | Platform super admin, user provisioning |
 | [API reference](docs/api-reference.md) | Workspaces, elements, relationships, views, property definitions |

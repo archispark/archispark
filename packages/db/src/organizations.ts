@@ -1,7 +1,7 @@
 /**
  * Shared organization helpers used by both the startup backfill
  * (backfill-organizations.ts) and the app-level "auto-create a personal
- * organization on first workspace" invariant (apps/api/src/organizations-store.ts).
+ * organization on first workspace" invariant (apps/server/lib/archimate/organizations-store.ts).
  * Keeping this in @workspace/db avoids duplicating the idempotent
  * get-or-create logic between the two call sites.
  */

@@ -28,26 +28,27 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build native addons
-        run: pnpm --filter api build
+        run: pnpm --filter server build
         env:
           NODE_ENV: production
+          DB_CLIENT: pglite
 
       - name: Run CI Tasks (Lint, Typecheck, Test)
-        run: pnpm turbo run lint typecheck test:coverage --filter=api --filter=mcp-server --filter=web
+        run: pnpm turbo run lint typecheck test:coverage --filter=server
         env:
           NODE_ENV: test
 
-      - name: Upload api coverage report
+      - name: Upload server coverage report
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: coverage-api
-          path: apps/api/coverage/
+          name: coverage-server
+          path: apps/server/coverage/
           retention-days: 7
 
-      - name: api coverage summary
+      - name: server coverage summary
         uses: davelosert/vitest-coverage-report-action@v2
         if: github.event_name == 'pull_request'
         with:
-          name: api
-          working-directory: apps/api
+          name: server
+          working-directory: apps/server

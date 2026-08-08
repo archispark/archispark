@@ -1,8 +1,7 @@
 # Persistence & Architecture
 
-All data lives in a single shared PostgreSQL database, used by `apps/api` and
-`apps/mcp-server`. Schema follows ArchiMate 3 Open Exchange XSDs
-(`models/xsd/`).
+All data lives in a single shared PostgreSQL database, used by `apps/server`.
+Schema follows ArchiMate 3 Open Exchange XSDs (`models/xsd/`).
 
 The test suite runs against [PGlite](https://pglite.dev) (Postgres compiled to
 WASM, in-memory) — full Postgres fidelity, no Docker required.
@@ -35,11 +34,11 @@ with cascading foreign keys.
 
 A fourth role, `platform_admin`, is a Keycloak **realm** role (not an
 `organization_members` row) — it administers organizations
-(`/platform/organizations*`, metadata only) but is structurally denied any
-access to organization content, enforced once in
-[`apps/api/src/access.ts`](../apps/api/src/access.ts) rather than left to be
-remembered at every call site. See [Authentication](authentication.md) for
-the full role matrix.
+(`/api/platform/organizations*`, metadata only) but is structurally denied
+any access to organization content, enforced once in
+[`apps/server/lib/archimate/access.ts`](../apps/server/lib/archimate/access.ts)
+rather than left to be remembered at every call site. See
+[Authentication](authentication.md) for the full role matrix.
 
 There is no local `users` table — identities live entirely in Keycloak.
 `apiTokens.userId`/`organizationMembers.userId`/`workspaces.createdById` are
@@ -59,27 +58,34 @@ cd packages/db
 npx drizzle-kit generate   # writes to drizzle-pg/
 ```
 
-## `apps/api`
+## `apps/server`
 
-`apps/api` is the single backend service — it owns authentication
-(`requireAuth`, verifying a Keycloak access token via JWKS or a personal API
-token), personal settings (`/me`, `/settings/api-tokens`,
-`/settings/messages`), organization/member management (`/organizations*`,
-`/platform/organizations*`), and every ArchiMate modeling route
-(`/workspaces`, `/elements`, `/relationships`, `/views`,
-`/property-definitions`, `/export`, `/import`, `/openapi.json`, `/docs`).
-Every workspace/organization route resolves access through the single
+`apps/server` is the single application — a Next.js app combining the
+workspace UI, the REST API, and the MCP server in one process and one
+deployment. It owns authentication (`requireAuth`, verifying a Keycloak
+access token via JWKS or a personal API token), personal settings (`/api/me`,
+`/api/settings/api-tokens`, `/api/settings/messages`), organization/member
+management (`/api/organizations*`, `/api/platform/organizations*`), every
+ArchiMate modeling route (`/api/workspaces`, `/api/elements`,
+`/api/relationships`, `/api/views`, `/api/property-definitions`,
+`/api/export`, `/api/import`, `/api/openapi.json`, `/api/docs`), and the MCP
+transport (`/mcp/`, ~38 tools). REST routes are Next.js App Router Route
+Handlers (`app/api/**/route.ts`); the MCP transport is a Pages Router route
+(`pages/api/mcp.ts`) — the only exception, required because the MCP SDK's
+`StreamableHTTPServerTransport` needs a raw Node `http.IncomingMessage`/
+`ServerResponse`, which only the Pages Router exposes. Every
+workspace/organization route resolves access through the single
 authorization gateway,
-[`apps/api/src/access.ts`](../apps/api/src/access.ts)
+[`apps/server/lib/archimate/access.ts`](../apps/server/lib/archimate/access.ts)
 (`resolveActiveContext`/`assertOrgAccess`/`assertWorkspaceAccess`) — a user
 sees and acts on every workspace of every organization they belong to,
 subject to their role (`owner`/`admin`: read+write, `member`: read-only).
 
-`apps/mcp-server` reads/writes the same database directly (in-process import
-of `apps/api`'s `store`/`registry` modules, not an HTTP call), authenticated
-via the same personal API tokens as the REST API.
+The MCP tools (`apps/server/lib/mcp/`) import `lib/archimate/store.ts`/
+`registry.ts` directly — same process, same module graph, no HTTP hop and no
+package boundary to cross — authenticated via the same personal API tokens
+as the REST API.
 
-Self-hosted Docker: `apps/api` runs as the only backend Compose service,
-reached by `web` and `mcp-server` over the `archispark` network. Vercel:
-`apps/api` is its own project (`archispark-api`, root directory `apps/api`)
-— see [Vercel](deployment.md#vercel).
+Self-hosted Docker: `apps/server` is the only application Compose service,
+reached through Traefik. Vercel: `apps/server` is its own project (root
+directory `apps/server`) — see [Vercel](deployment.md#vercel).

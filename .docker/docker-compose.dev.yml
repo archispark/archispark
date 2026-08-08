@@ -5,7 +5,7 @@
 #  L'application tourne en local via pnpm :
 #
 #    make up          # démarre Postgres + Keycloak, puis pnpm dev
-#                      # (api, web et mcp-server avec hot-reload)
+#                      # (apps/server avec hot-reload : web, API REST et MCP)
 #
 #  Arrêt (en conservant les données) :
 #    docker compose -f .docker/docker-compose.dev.yml down

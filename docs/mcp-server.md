@@ -1,18 +1,18 @@
 # MCP Server
 
-Endpoint: `http://localhost:3001/mcp/`  
+Endpoint: `http://localhost:8000/mcp/` (same origin, same process as the web UI and REST API — see [Architecture](architecture.md#apps-server); the transport itself lives at `apps/server/pages/api/mcp.ts`, reached through a `/mcp/:path*` → `/api/mcp` rewrite that preserves the pre-fusion external URL).  
 Transport: Streamable HTTP (MCP 2025-03-26), stateless (no session id — each request gets a fresh server instance, safe for serverless).
 
 **Authentication:** every request requires `Authorization: Bearer <token>`, where `<token>` is a personal API token (`api_tokens` table, same tokens used for the REST API). Generate one from **Mon profil → Tokens API → Nouveau token** in the web UI, then configure your client:
 
 ```bash
 claude mcp add archimate \
-  http://localhost:3001/mcp/ \
+  http://localhost:8000/mcp/ \
   --transport http \
   --header "Authorization: Bearer <token>"
 ```
 
-The token resolves the calling user's identity and its pinned organization/workspace scope (set at token creation, see [Authentication](authentication.md#organizations-and-roles)) — every tool resolves access through the same `apps/api/src/access.ts` gateway used by the REST API, honouring the caller's `owner`/`admin`/`member` role (read-only tools work for any role; mutating tools like `create_element` or `import_model` require `owner`/`admin`).
+The token resolves the calling user's identity and its pinned organization/workspace scope (set at token creation, see [Authentication](authentication.md#organizations-and-roles)) — every tool resolves access through the same `apps/server/lib/archimate/access.ts` gateway used by the REST API, honouring the caller's `owner`/`admin`/`member` role (read-only tools work for any role; mutating tools like `create_element` or `import_model` require `owner`/`admin`).
 
 **Available tools (38), 2 prompts, 2 resources:**
 
@@ -33,4 +33,4 @@ The token resolves the calling user's identity and its pinned organization/works
 **Prompts:** `archimate-modeling-guide` (load ArchiMate 3.1 rules — call first), `create-viewpoint-view` (step-by-step view creation for a given viewpoint).  
 **Resources:** `archimate://layers`, `archimate://relationships`.
 
-Interactive docs: `GET /docs` — OpenAPI spec: `GET /openapi.json`.
+Interactive docs: `GET /api/docs` — OpenAPI spec: `GET /api/openapi.json`.

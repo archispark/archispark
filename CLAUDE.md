@@ -16,9 +16,9 @@ make keycloak-setup  # provision the Keycloak realm
 ### Develop
 
 ```bash
-make up                # Postgres + Keycloak (Docker), then turbo dev — API :3000 · Web :8000 · MCP :3001
-pnpm dev                # turbo dev only (infra already running)
-pnpm --filter api dev   # run a single app (api, mcp-server, web)
+make up                  # Postgres + Keycloak (Docker), then turbo dev — server on :8000 (web + API + MCP)
+pnpm dev                  # turbo dev only (infra already running)
+pnpm --filter server dev  # run the app directly
 ```
 
 ### Build / lint / typecheck / format
@@ -33,19 +33,21 @@ pnpm format     # turbo format (prettier)
 ### Tests
 
 ```bash
-pnpm run -w test                # full coverage suite (api, mcp-server, web, @workspace/db)
-pnpm --filter api test          # one package, vitest run
-pnpm --filter api test:watch    # watch mode
-pnpm --filter api test:coverage # with coverage
+pnpm run -w test                   # full coverage suite (server, @workspace/db)
+pnpm --filter server test          # one package, vitest run
+pnpm --filter server test:watch    # watch mode
+pnpm --filter server test:coverage # with coverage
 ```
 
 Run a single test file or test name with vitest directly from the app directory:
 
 ```bash
-cd apps/api
-pnpm vitest run src/registry.test.ts
+cd apps/server
+pnpm vitest run lib/archimate/store.test.ts
 pnpm vitest run -t "creates a workspace with empty model"
 ```
+
+`vitest.config.ts` runs two `test.projects`: `web` (jsdom, React components/pages) and `server` (node, `lib/archimate/`+`lib/http/`+`lib/mcp/` business logic and Route Handler tests) — add `--project server` or `--project web` to target one only. **Never** put a `*.test.ts` inside `apps/server/pages/api/` — Next.js's Pages Router treats every file there as a live route (see `.claude/rules/testing.md`).
 
 Tests run against [PGlite](https://pglite.dev) (in-memory Postgres) — no Docker required.
 
@@ -57,14 +59,12 @@ For Docker/Helm/Vercel workflows, see [docs/installation.md](docs/installation.m
 
 ArchiSpark is a Turborepo/pnpm monorepo (Node >=22.13):
 
-- `apps/api` — the single backend service: auth (Keycloak), sessions, API tokens, personal settings, organization/member management, and every ArchiMate route (workspaces, elements/relationships/views, property definitions, model import/export, OpenAPI/docs). Workspaces belong to an Organization (`owner`/`admin`/`member` roles, plus a `platform_admin` realm role with no access to organization content) — see `apps/api/src/access.ts`, the single authorization gateway.
-- `apps/mcp-server` — MCP server exposing the ArchiMate model as tools for AI agents, authenticated via the same personal API tokens as the REST API.
-- `apps/web` — Next.js workspace UI (port 8000).
+- `apps/server` — the single application: a Next.js app combining the workspace UI, the REST API (auth via Keycloak, sessions, API tokens, personal settings, organization/member management, and every ArchiMate route — workspaces, elements/relationships/views, property definitions, model import/export, OpenAPI/docs, all under `app/api/**` as App Router Route Handlers), and the MCP server (`pages/api/mcp.ts`, Pages Router — the MCP SDK's `StreamableHTTPServerTransport` needs a raw Node `http.IncomingMessage`/`ServerResponse`, which only the Pages Router exposes). Workspaces belong to an Organization (`owner`/`admin`/`member` roles, plus a `platform_admin` realm role with no access to organization content) — see `apps/server/lib/archimate/access.ts`, the single authorization gateway. Business logic lives under `lib/archimate/` (store, registry, auth, validation, rendering, OXF parse/serialize) and `lib/mcp/` (the ~38 MCP tools, split by resource, plus prompts/resources); both are imported directly by `app/api/**` and `pages/api/mcp.ts` — no separate package boundary between them.
 - `packages/db` — Drizzle ORM schema (`schema.ts`, single shared database) and seed/migration scripts.
 - `packages/auth` — shared Keycloak auth helpers (`@workspace/auth`).
 - `packages/ui`, `packages/types` — shared React components and types.
 
-Detailed design docs live in [`docs/`](docs/) — in particular [docs/architecture.md](docs/architecture.md) (database schema, `apps/api`) and [docs/authentication.md](docs/authentication.md) (Keycloak login, tokens). Read these before making cross-cutting changes to auth or the database layer — they cover invariants that span many files. Past architecture decisions: [docs/decisions.md](docs/decisions.md).
+Detailed design docs live in [`docs/`](docs/) — in particular [docs/architecture.md](docs/architecture.md) (database schema, `apps/server`) and [docs/authentication.md](docs/authentication.md) (Keycloak login, tokens). Read these before making cross-cutting changes to auth or the database layer — they cover invariants that span many files. Past architecture decisions: [docs/decisions.md](docs/decisions.md).
 
 ## After every code change
 
@@ -80,7 +80,7 @@ Human-triggered only — see [.claude/skills/release/SKILL.md](.claude/skills/re
 - **File size**: `max-lines` (`@workspace/eslint-config`) flags files over 250 lines (blank lines/comments excluded) — it's configured as `"error"` but `eslint-plugin-only-warn` downgrades every rule repo-wide to a non-blocking warning, so it never fails `pnpm lint`/CI. Treat it as a strong convention, not a gate: split large modules rather than disabling the rule, and don't let a file grow past the limit on a change you're already making — but don't assume `pnpm lint` will catch it for you.
 - **Type validation**: element and relationship types must belong to the ArchiMate 3.1 sets defined in `models/xsd`.
 - **Reference PNG components**: all components (PNG) go to `models/img/archimate`. Never write generated images to `models/img/archimate/` or any other directory.
-- **Reference SVG views**: `models/img/views/` contains SVGs exported directly by the Archi tool — these are the ground truth. When improving the renderer (`apps/api/src/renderer.ts`), compare generated output against the matching file in `models/img/views/` and minimize visual differences (shapes, colors, layout, connectors, labels, fonts).
+- **Reference SVG views**: `models/img/views/` contains SVGs exported directly by the Archi tool — these are the ground truth. When improving the renderer (`apps/server/lib/archimate/renderer.ts`), compare generated output against the matching file in `models/img/views/` and minimize visual differences (shapes, colors, layout, connectors, labels, fonts).
 
 ## Amélioration continue
 

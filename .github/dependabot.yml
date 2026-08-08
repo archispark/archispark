@@ -11,28 +11,18 @@ updates:
       dev-tooling:
         patterns: ["turbo", "typescript", "prettier*", "@workspace/*"]
 
-  # API
+  # Server (web + API REST + MCP)
   - package-ecosystem: npm
-    directory: /apps/api
+    directory: /apps/server
     schedule:
       interval: weekly
       day: monday
     groups:
-      api-deps:
+      server-deps:
         patterns: ["*"]
         exclude-patterns: ["@types/*"]
-      api-types:
+      server-types:
         patterns: ["@types/*"]
-
-  # Web
-  - package-ecosystem: npm
-    directory: /apps/web
-    schedule:
-      interval: weekly
-      day: monday
-    groups:
-      web-deps:
-        patterns: ["*"]
 
   # GitHub Actions
   - package-ecosystem: github-actions

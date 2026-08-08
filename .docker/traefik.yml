@@ -1,11 +1,10 @@
 # ─────────────────────────────────────────────────────────────────────────────
 #  ArchiSpark — Traefik v3 (configuration statique)
 #
-#  Routage centralisé via labels Docker :
-#    /api/*   → Express API   :3000  (préfixe /api retiré)
-#    /auth/*  → Express API   :3000  (préfixe complet conservé)
-#    /mcp/*   → MCP Server    :3001  (Streamable HTTP / SSE)
-#    /*       → Next.js Web   :8000
+#  Un seul service applicatif désormais (apps/server, Next.js) : web, API REST
+#  et transport MCP sont tous servis par le même process sur :8000. Traefik
+#  route donc tout le trafic catch-all vers ce service — voir le label
+#  `traefik.http.routers.server.rule` dans docker-compose.yml.
 #
 #  TLS Let's Encrypt :
 #    Décommentez la section certificatesResolvers, puis sur chaque routeur :

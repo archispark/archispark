@@ -24,18 +24,18 @@ paths:
   `organizationMembers`) and `workspaces.createdById` are bare `text` —
   identities live in Keycloak, not this database. Every workspace belongs
   to exactly one **organization** via `workspaces.organizationId`
-  (enforced by `apps/api/src/access.ts`, not by app-level query scoping on
-  a user id); `createdById` is traceability only, never used for access
-  control.
+  (enforced by `apps/server/lib/archimate/access.ts`, not by app-level
+  query scoping on a user id); `createdById` is traceability only, never
+  used for access control.
 - **Idempotent startup backfill, not a one-shot data migration.** When a
   schema change needs to populate a new NOT-NULL-eventually column across
   existing rows (e.g. `workspaces.organization_id`,
   `packages/db/src/backfill-organizations.ts`), prefer a small function
   that's safe to call on every app startup — guarded entirely by `WHERE
   <col> IS NULL` — over a single migration-time data fix. Called right
-  after `runMigrations()` in both `apps/api/src/main.ts` and
-  `apps/api/api/index.ts`, and exposed as a standalone
-  `pnpm --filter @workspace/db backfill:prod` script
+  after `runMigrations()` in `apps/server/instrumentation.ts` (Next.js's
+  `register()` hook, guarded by `NEXT_RUNTIME === "nodejs"`), and exposed
+  as a standalone `pnpm --filter @workspace/db backfill:prod` script
   (`packages/db/scripts/backfill-prod.ts`) for manual runs against a
   target database — see `docs/deployment.md`. This is the expand phase's
   companion: the DDL (migration) adds a nullable column, the backfill

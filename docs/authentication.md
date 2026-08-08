@@ -15,7 +15,7 @@ organization has members with one of three roles:
 
 Every organization/workspace route resolves the caller's role through the
 single authorization gateway,
-[`apps/api/src/access.ts`](../apps/api/src/access.ts) — never a per-route
+[`apps/server/lib/archimate/access.ts`](../apps/server/lib/archimate/access.ts) — never a per-route
 check. Two-level error convention: `404 Not Found` if the caller has no
 membership in the target organization (deliberately masks "not a member"
 as "not found"), `403 Forbidden` if the caller **is** a recognized member
@@ -24,7 +24,7 @@ suspended by a `platform_admin`.
 
 A fourth role, **`platform_admin`**, is a Keycloak _realm_ role (set on the
 Keycloak user, not an `organization_members` row) — it administers
-organizations from `/platform/organizations*` (metadata only: list,
+organizations from `/api/platform/organizations*` (metadata only: list,
 suspend/reactivate, delete) but is **structurally denied** any access to
 organization content (workspaces, elements, …), even if a stray
 `organization_members` row happened to exist for that user — `access.ts`
@@ -33,16 +33,16 @@ rejects `platform_admin` unconditionally, before ever checking membership.
 Every user gets a personal organization (`is_personal = true`)
 auto-created the first time they create a workspace with no organization
 selected — this preserves frictionless solo use. Creating a "team"
-organization (`POST /organizations`) shared with other members is a
+organization (`POST /api/organizations`) shared with other members is a
 separate, explicit action. Adding a member by username
-(`POST /organizations/:id/members`) requires an existing Keycloak account —
+(`POST /api/organizations/:id/members`) requires an existing Keycloak account —
 to invite someone who doesn't have one yet, see
 [Organization invitations by e-mail](#organization-invitations-by-e-mail)
 below.
 
 ## Organization invitations by e-mail
 
-An `owner` can invite anyone by e-mail (`POST /organizations/:id/invitations`,
+An `owner` can invite anyone by e-mail (`POST /api/organizations/:id/invitations`,
 `email` + `role`), even if they have no Keycloak account yet. This is only
 enabled on the shared/pooled Keycloak realm — see
 [One Keycloak realm per client](#one-keycloak-realm-per-client) — since it
@@ -51,7 +51,7 @@ requires self-registration to be turned on for that realm.
 - Creating an invitation for an e-mail that already has an active one in the
   same organization revokes the old one and issues a new token — this is
   also how "resend" works (`POST
-/organizations/:id/invitations/:invitationId/resend`), there's no separate
+/api/organizations/:id/invitations/:invitationId/resend`), there's no separate
   code path. Only one active invitation per (organization, e-mail) can exist
   at a time, enforced by a partial unique index in Postgres
   (`packages/db/src/schema.ts`), not just an application-level check.
@@ -61,7 +61,7 @@ requires self-registration to be turned on for that realm.
   e-mail aren't atomic (SMTP isn't part of the DB transaction): the row's
   `sent_at` stays `null` if the send fails, and the invitation must be
   resent — it isn't lost.
-- `GET /invitations/:token` (preview) and `POST /invitations/:token/accept`
+- `GET /api/invitations/:token` (preview) and `POST /api/invitations/:token/accept`
   both still require an authenticated caller (`requireAuth`, mounted
   globally — see the routes table above) — an unauthenticated GET returns
   `401` before the token is ever looked up. They deliberately bypass
@@ -83,11 +83,11 @@ revoked_at IS NULL … RETURNING *` inside a transaction, so two concurrent
   same e-mail. That's an open point for when those IdPs are enabled — see
   `docs/decisions.md`.
 
-`/settings/messages` (`PUT`) is restricted to users holding the global `platform_admin` realm role (`requireSuperAdmin`).
+`/api/settings/messages` (`PUT`) is restricted to users holding the global `platform_admin` realm role (`requireSuperAdmin`).
 
-| Method | Path  | Auth | Description          |
-| ------ | ----- | ---- | -------------------- |
-| `GET`  | `/me` | user | Returns current user |
+| Method | Path      | Auth | Description          |
+| ------ | --------- | ---- | -------------------- |
+| `GET`  | `/api/me` | user | Returns current user |
 
 Default credentials: `admin` / `admin` (`platform_admin`, no organization membership by design), `user` / `user`, `contrib` / `contrib`, `archi` / `archi`, `open` / `open`. The demo seed creates two organizations, deliberately isolated from each other: `Archi` (`archi` as `owner`, `contrib`/`user` as `admin`/`member`) and `Open` (`open` as sole `owner`) — see [Demo seed](demo-data.md#demo-seed).
 
@@ -130,7 +130,7 @@ includes the realm name. A token issued for `archispark-acme` is therefore
 automatically rejected by a deployment configured with
 `KEYCLOAK_REALM=archispark-other`.
 
-Each client's `apps/api`/`apps/web` deployment simply points at its own
+Each client's `apps/server` deployment simply points at its own
 realm via env vars — `KEYCLOAK_URL` (the shared Keycloak instance),
 `KEYCLOAK_REALM=archispark-<tenant>`, `KEYCLOAK_CLIENT_ID_WEB=archispark-web`,
 `KEYCLOAK_ADMIN_CLIENT_ID`/`KEYCLOAK_ADMIN_CLIENT_SECRET` (the service
@@ -146,25 +146,25 @@ is configured per realm via the admin console's _Identity providers_ menu
 [Deployment](deployment.md#onboarding-dun-nouveau-client-un-realm-keycloak-dédié)
 for the full onboarding runbook.
 
-**Bearer token:** `apps/api` (via `@workspace/auth`, `packages/auth`)
+**Bearer token:** `apps/server` (via `@workspace/auth`, `packages/auth`)
 accepts a Keycloak-issued access token as a Bearer token, verified against
-the realm's JWKS (`KEYCLOAK_URL`/`KEYCLOAK_REALM`). `req.user` is built
-directly from the verified claims — `id: claims.sub`,
+the realm's JWKS (`KEYCLOAK_URL`/`KEYCLOAK_REALM`). The resolved `AuthContext.user`
+is built directly from the verified claims — `id: claims.sub`,
 `username: claims.preferred_username`, and `role: "platform_admin"` if
 `realm_access.roles` includes `platform_admin` (`"user"` otherwise).
 A request may alternatively present a personal API token
 (`apiTokens` table) as the Bearer value — `lookupApiToken` resolves it to
-the same `req.user` shape via the Keycloak Admin API. A token is created
+the same `AuthContext.user` shape via the Keycloak Admin API. A token is created
 scoped to one organization (`organization_id`, required) and optionally
 pinned to one workspace of that organization (`workspace_id`); this scope
-is carried as `req.tokenContext` and takes priority over interactive
+is carried as `AuthContext.tokenContext` and takes priority over interactive
 active-organization/workspace selection in `resolveActiveContext`. The
 token's `owner`/`admin`/`member` role is **never** frozen on the token
 itself — it's re-resolved live from `organization_members` on every
 request, so a revoked or demoted membership takes effect immediately even
 for an existing token.
 
-**Browser login for `apps/web`:** the app signs in via the OIDC
+**Browser login for `apps/server`:** the app signs in via the OIDC
 authorization-code + PKCE flow against Keycloak. `/login` is a single "Se
 connecter" link to `/api/auth/login`, using the `KEYCLOAK_CLIENT_ID_WEB`
 client (`archispark-web`).
@@ -183,8 +183,8 @@ using the `refresh_token` cookie and forwards the resulting `Set-Cookie`s
 before continuing, and only redirects to `/api/auth/login?from=<path>` if the
 refresh also fails.
 
-`apps/api`'s `requireAuth` also accepts the `access_token` cookie —
-verified and bridged the same way as the Bearer path above. A
-cookie-authenticated request forwarded by `apps/web`'s `/api/*` rewrite
-therefore resolves to the same `req.user` as a Bearer token for the same
-person.
+`apps/server`'s `requireAuth` also accepts the `access_token` cookie —
+verified and bridged the same way as the Bearer path above, resolving to
+the same `AuthContext.user` as a Bearer token for the same person. Same-origin
+since the apps/web + apps/api + apps/mcp-server fusion, so no cross-app
+rewrite is involved anymore.

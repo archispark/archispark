@@ -8,12 +8,12 @@ beyond organization metadata.
 ## Platform super admin
 
 A user with the global `role: "platform_admin"` Keycloak realm role can
-update the site-wide login message and banner (`PUT /settings/messages`,
+update the site-wide login message and banner (`PUT /api/settings/messages`,
 `requireSuperAdmin`) and administer organizations from
-`/platform/organizations*` — list, suspend/reactivate, delete — **metadata
+`/api/platform/organizations*` — list, suspend/reactivate, delete — **metadata
 only**, never organization content (workspaces, elements, …); this
-isolation is structural (`apps/api/src/access.ts` rejects `platform_admin`
-unconditionally before ever checking a membership row). `apps/web` blocks
+isolation is structural (`apps/server/lib/archimate/access.ts` rejects `platform_admin`
+unconditionally before ever checking a membership row). `apps/server` blocks
 `platform_admin` sessions from the normal workspace UI (they have no
 organization membership by design): instead of the nav/sidebar/content, it
 shows a notice screen (`PlatformAdminBlock`) with a link to

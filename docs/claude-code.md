@@ -36,7 +36,7 @@ pnpm install --frozen-lockfile
 - `pnpm install --frozen-lockfile` is enough to run `pnpm lint`, `pnpm
   typecheck`, `pnpm test`, and `pnpm build`: the test suites run against
   PGlite (in-memory Postgres) and fake Keycloak responses
-  (`apps/*/src/test-setup.ts`), so **no `.env`, database, or Docker is needed**
+  (`apps/server/lib/archimate/test-setup.ts`), so **no `.env`, database, or Docker is needed**
   for the normal dev loop.
 
 ### Environment variables
@@ -59,7 +59,7 @@ launches its own headless browser.
 
 | Server | Provides |
 |---|---|
-| `archimate-vercel` | This project's own [MCP server](mcp-server.md), against the production deployment at `mcp.archispark.cloud`. |
+| `archimate-vercel` | This project's own [MCP server](mcp-server.md), against the production deployment at `archispark.cloud` (`/mcp/`). |
 
 The secret is referenced as a `${VAR}` placeholder — Claude Code expands
 environment variables when loading `.mcp.json`, so no token is committed:
@@ -110,9 +110,10 @@ for when to promote a recurring Codex finding into a rule.
 ## Rules (`.claude/rules/`)
 
 Path-scoped conventions, loaded only when Claude touches matching
-files: `testing.md` (`**/*.test.ts(x)`), `api.md` (`apps/api/src/**`),
-`db.md` (`packages/db/**`), `frontend.md` (`apps/web/**`,
-`packages/ui/**`).
+files: `testing.md` (`**/*.test.ts(x)`), `api.md` (`apps/server/app/api/**`,
+`apps/server/lib/archimate/**`, `apps/server/lib/http/**`,
+`apps/server/pages/api/**`), `db.md` (`packages/db/**`), `frontend.md`
+(`apps/server/**`, `packages/ui/**`).
 
 ## Skills (`.claude/skills/`)
 
@@ -123,6 +124,6 @@ files: `testing.md` (`**/*.test.ts(x)`), `api.md` (`apps/api/src/**`),
 
 ## What's intentionally left out
 
-- `archimate-local` (MCP server against `localhost:3001`) and `sonarqube`
+- `archimate-local` (MCP server against `localhost:8000`) and `sonarqube`
   (runs via `docker run`) are personal/local-dev tools that don't fit a
   cloud sandbox — keep those in your own `~/.claude.json` if needed.

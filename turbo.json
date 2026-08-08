@@ -6,7 +6,7 @@
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
       "outputs": [".next/**", "!.next/cache/**", "dist/**"],
-      "env": ["ARCHIMATE_API_URL", "NEXT_PUBLIC_MCP_SERVER_URL"]
+      "env": ["DB_CLIENT"]
     },
     "test": {
       "cache": false
@@ -33,7 +33,6 @@
         "KEYCLOAK_CLIENT_ID_WEB",
         "KEYCLOAK_ADMIN_CLIENT_ID",
         "KEYCLOAK_ADMIN_CLIENT_SECRET",
-        "ARCHIMATE_API_URL",
         "NODE_OPTIONS",
         "PORT",
         "HOST"

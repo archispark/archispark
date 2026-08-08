@@ -18,7 +18,7 @@ rationale).
 
 ## Kubernetes (Helm)
 
-A Helm chart is available in `.k8s/helm/archispark/`. It deploys the full stack (api, web, mcp-server, postgres) with an NGINX Ingress — the same topology as the Docker Compose setup.
+A Helm chart is available in `.k8s/helm/archispark/`. It deploys the full stack (server, postgres) with an NGINX Ingress — the same topology as the Docker Compose setup.
 
 ### Prerequisites
 
@@ -85,8 +85,8 @@ echo "$(minikube ip) archispark.local" | sudo tee -a /etc/hosts
 | `secrets.dbPassword`                | —                        | **Required** — PostgreSQL password                                        |
 | `keycloak.url`                      | —                        | **Required** — self-hosted Keycloak base URL (not deployed by this chart) |
 | `keycloak.realm`                    | —                        | **Required** — target realm (shared or per-client dedicated)              |
-| `keycloak.clientIdWeb`              | `archispark-web`         | Public OIDC client id used by `apps/web`                                  |
-| `keycloak.adminClientId`            | `archispark-api`         | Confidential service-account client id used by `apps/api`                 |
+| `keycloak.clientIdWeb`              | `archispark-web`         | Public OIDC client id used by `apps/server`                               |
+| `keycloak.adminClientId`            | `archispark-api`         | Confidential service-account client id used by `apps/server`              |
 | `secrets.keycloakAdminClientSecret` | —                        | **Required** — secret of `keycloak.adminClientId`                         |
 | `secrets.existingSecret`            | `""`                     | Name of a pre-existing K8s Secret (Sealed Secrets, ESO…)                  |
 | `postgres.storage`                  | `5Gi`                    | PostgreSQL PVC size                                                       |
@@ -109,11 +109,10 @@ kubectl delete pvc -n archispark --all
 
 ### Routing
 
-| Path     | Backend               | Notes                                       |
-| -------- | --------------------- | ------------------------------------------- |
-| `/api/*` | `archispark-api:3000` | `/api` prefix stripped before forwarding    |
-| `/mcp/*` | `archispark-mcp:3001` | MCP Streamable HTTP (Bearer token required) |
-| `/`      | `archispark-web:8000` | Next.js catch-all                           |
+A single Ingress rule sends all traffic to `archispark-server:8000` — the
+Next.js app itself routes `/api/*` (REST), `/mcp/*` (MCP Streamable HTTP,
+Bearer token required) and every UI page, so there's no path-based
+split/rewrite at the Ingress level anymore.
 
 ### MCP Server on Kubernetes
 
@@ -128,13 +127,19 @@ claude mcp add archimate \
 
 ## Vercel
 
-1. **Create the `archispark-api` project** — import the repo as a Vercel
-   project with root directory `apps/api`.
+A single Vercel project (`archispark-server`, root directory `apps/server`)
+serves the UI, the REST API and the MCP transport — there is no longer a
+separate API or MCP-server project. `apps/server/vercel.json` overrides
+`buildCommand` to build `@workspace/db` and `@workspace/auth` first (Vercel's
+zero-config Next.js detection doesn't build workspace dependencies on its
+own).
+
+1. **Create the `archispark-server` project** — import the repo as a Vercel
+   project with root directory `apps/server`.
 
 2. **Add Neon** — In Vercel → Storage, add a Neon Postgres database
-   (`archispark`), attached to `archispark-api` and `archispark-mcp-server`.
-   Neon auto-injects `DATABASE_URL` (pooled) and `DATABASE_URL_UNPOOLED`
-   (direct) into both projects.
+   (`archispark`), attached to `archispark-server`. Neon auto-injects
+   `DATABASE_URL` (pooled) and `DATABASE_URL_UNPOOLED` (direct).
 
 3. **Apply database migrations, then the organization backfill** using the
    manual GitHub Actions workflow **Run production migrations**
@@ -151,27 +156,27 @@ DATABASE_URL="<neon-unpooled>" pnpm --filter @workspace/db backfill:prod
 `backfill:prod` populates `workspaces.organization_id`/`api_tokens.organization_id`
 (left `NULL` by the DDL alone) — required once after any `migrate:prod` run
 that includes `0018_organizations_expand.sql` or later; a no-op on a fresh
-database, and safe to re-run. `apps/api`/`apps/api/api/index.ts` also run it
-automatically on every cold start, but running it explicitly here avoids
-the very first request after a migration hitting an unbackfilled row.
+database, and safe to re-run. `apps/server/instrumentation.ts` (Next.js's
+`register()` hook) also runs it automatically on every cold start, but
+running it explicitly here avoids the very first request after a migration
+hitting an unbackfilled row.
 
-4. **Set environment variables** — `DATABASE_URL` (from Neon, above),
-   `KEYCLOAK_URL`, `KEYCLOAK_REALM`, `KEYCLOAK_ADMIN_CLIENT_ID`,
+4. **Set environment variables** on `archispark-server` — `DATABASE_URL`
+   (from Neon, above), `KEYCLOAK_URL`, `KEYCLOAK_REALM`,
+   `KEYCLOAK_CLIENT_ID_WEB`, `KEYCLOAK_ADMIN_CLIENT_ID`,
    `KEYCLOAK_ADMIN_CLIENT_SECRET`, `ARCHISPARK_URL`, and (only on the pooled
-   realm's deployment) `SMTP_HOST`/`SMTP_PORT`/`SMTP_USER`/`SMTP_PASSWORD`/`SMTP_FROM`
-   on `archispark-api`; `ARCHIMATE_API_URL`
-   (the `archispark-api` deployment URL) on `archispark-web`. Authentication
-   itself (Keycloak realm, client ids/secrets) is configured via each
-   project's Vercel dashboard — see [Keycloak login](authentication.md#keycloak-login).
-   SMTP config is also detailed in
-   [Invitations par e-mail (SMTP)](#invitations-par-e-mail-smtp).
+   realm's deployment) `SMTP_HOST`/`SMTP_PORT`/`SMTP_USER`/`SMTP_PASSWORD`/`SMTP_FROM`.
+   Authentication itself (Keycloak realm, client ids/secrets) is configured
+   via the project's Vercel dashboard — see
+   [Keycloak login](authentication.md#keycloak-login). SMTP config is also
+   detailed in [Invitations par e-mail (SMTP)](#invitations-par-e-mail-smtp).
 
-5. **Redeploy** `archispark-api`, `archispark-web`, and `archispark-mcp-server`.
+5. **Redeploy** `archispark-server`.
 
 ## Onboarding d'un nouveau client (un realm Keycloak dédié)
 
-ArchiSpark se déploie comme une plateforme **dédiée par client** (API +
-web + Postgres séparés) sur un **Keycloak self-hosté partagé** (image
+ArchiSpark se déploie comme une plateforme **dédiée par client** (application
+`apps/server` + Postgres séparés) sur un **Keycloak self-hosté partagé** (image
 `quay.io/keycloak/keycloak` "classic", la même que celle utilisée en dev —
 déployée séparément de ce chart Helm, par exemple via le chart Keycloak
 officiel ou un conteneur dédié ; le chart `.k8s/helm/archispark/` ne
@@ -217,8 +222,8 @@ d'environnement du déploiement.
    — no-op sur une base neuve, voir
    [Organizations migration](#organizations-migration-releases-including-0018_organizations_expandsql)).
 
-4. **Déployer** `archispark-api`/`archispark-web` du client (Helm — voir
-   [Kubernetes (Helm)](#kubernetes-helm) — ou Vercel), pointés vers le
+4. **Déployer** `archispark-server` du client (Helm — voir
+   [Kubernetes (Helm)](#kubernetes-helm) — ou Vercel), pointé vers le
    Keycloak partagé, avec : `DATABASE_URL`
    (DB du client), `KEYCLOAK_URL` (le Keycloak partagé),
    `KEYCLOAK_REALM=archispark-<tenant>`, `KEYCLOAK_CLIENT_ID_WEB=archispark-web`,
@@ -250,7 +255,7 @@ Deux jeux de variables, un seul SMTP :
   absentes = comportement inchangé, voir l'étape 1 ci-dessus pour un realm
   dédié.
 - `SMTP_HOST`/`SMTP_PORT`/`SMTP_USER`/`SMTP_PASSWORD`/`SMTP_FROM` — utilisées
-  à la fois par `apps/api` (nodemailer, l'e-mail "vous êtes invité") et par
+  à la fois par `apps/server` (nodemailer, l'e-mail "vous êtes invité") et par
   Keycloak lui-même (e-mail natif de vérification d'adresse, `smtpServer`
   patché par `setup-realm.ts` uniquement si `SMTP_HOST` est définie). Laisser
   `SMTP_HOST` vide désactive l'envoi — l'invitation reste créée avec
@@ -259,6 +264,6 @@ Deux jeux de variables, un seul SMTP :
   le lien d'invitation (`${ARCHISPARK_URL}/invitations/<token>`), jamais
   reconstruite depuis l'en-tête `Host` de la requête.
 
-À passer à `archispark-api` (Helm : `secrets.smtp*`/`env.archispark_url`
+À passer à `archispark-server` (Helm : `secrets.smtp*`/`env.archispark_url`
 dans `values.yaml` — voir [Kubernetes (Helm)](#kubernetes-helm) ; Vercel :
-variables du projet `archispark-api`, voir [Vercel](#vercel)).
+variables du projet `archispark-server`, voir [Vercel](#vercel)).

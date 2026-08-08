@@ -22,54 +22,30 @@ image:
 # ── Keycloak (self-hosted, deployed separately from this chart) ────────────────
 # ArchiSpark authenticates against a Keycloak instance that this chart does
 # NOT provision — see docs/deployment.md#onboarding-dun-nouveau-client-un-realm-keycloak-dédié.
-# All four values below are required for login to work (api and web both
-# read them at runtime); the admin client secret goes in secrets.keycloakAdminClientSecret.
+# All four values below are required for login to work (read by server at
+# runtime); the admin client secret goes in secrets.keycloakAdminClientSecret.
 keycloak:
   url: ""             # Requis — ex. https://keycloak.example.com
   realm: ""           # Requis — ex. archispark ou archispark-<tenant>
   clientIdWeb: archispark-web
   adminClientId: archispark-api
 
-# ── API (Express) ─────────────────────────────────────────────────────────────
-api:
-  image: archispark/archispark-api
-  replicas: 1
-  port: 3000
-  resources:
-    requests:
-      cpu: 100m
-      memory: 128Mi
-    limits:
-      cpu: 500m
-      memory: 512Mi
-
-# ── MCP Server ────────────────────────────────────────────────────────────────
-mcpServer:
-  image: archispark/archispark-mcp-server
-  replicas: 1
-  port: 3001
-  resources:
-    requests:
-      cpu: 50m
-      memory: 64Mi
-    limits:
-      cpu: 250m
-      memory: 256Mi
-
-# ── Web (Next.js) ─────────────────────────────────────────────────────────────
-web:
-  image: archispark/archispark-web
+# ── Server (Next.js — web + API REST + transport MCP) ──────────────────────────
+# Un seul déploiement depuis la fusion apps/web + apps/api + apps/mcp-server :
+# UI, REST (/api/*) et MCP (/mcp/*) sont servis par le même process.
+server:
+  image: archispark/archispark-server
   replicas: 1
   port: 8000
-  # NEXT_PUBLIC_MCP_SERVER_URL est inlinée au build — modifiez l'image si besoin.
-  # mcpServerUrl: ""
+  # Sum of the three former Deployments' requests/limits (api + mcpServer +
+  # web) — same total resource footprint, now on one pod instead of three.
   resources:
     requests:
-      cpu: 100m
-      memory: 128Mi
+      cpu: 250m
+      memory: 320Mi
     limits:
-      cpu: 500m
-      memory: 512Mi
+      cpu: 1250m
+      memory: 1280Mi
 
 # ── PostgreSQL ────────────────────────────────────────────────────────────────
 postgres:
@@ -109,7 +85,12 @@ ingress:
   tls:
     enabled: false
     # secretName: archispark-tls  # Secret TLS à créer manuellement ou via cert-manager
-  annotations: {}
+  annotations:
+    # Next.js Route Handlers impose no JSON body size limit by default
+    # (unlike the old Express app.ts's 100kb) — see .claude/rules/api.md.
+    # /api/import and /api/mcp transport large XML/JSON, hence a generous
+    # ceiling rather than a per-route value.
+    nginx.ingress.kubernetes.io/proxy-body-size: "64m"
 
 # ── Secrets ───────────────────────────────────────────────────────────────────
 # En production, préférez un gestionnaire de secrets externe

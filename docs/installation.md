@@ -2,21 +2,25 @@
 
 ## Stack
 
+A single Next.js app (`apps/server`) serves the UI, the REST API and the MCP
+transport, all in one process:
+
 | Layer | Tech |
 |-------|------|
-| API | Express + TypeScript ESM, PostgreSQL (Drizzle ORM), Keycloak (auth) |
-| MCP | `@modelcontextprotocol/sdk` — Streamable HTTP transport, Bearer token auth |
-| Web | Next.js 16, React, shadcn/ui, Vercel Analytics + Speed Insights |
+| Web + API | Next.js 16 App Router (Route Handlers under `app/api/**`), React, shadcn/ui, Vercel Analytics + Speed Insights |
+| MCP | `pages/api/mcp.ts` (Pages Router — the MCP SDK's transport needs raw Node `http` objects), `@modelcontextprotocol/sdk` Streamable HTTP transport, Bearer token auth |
+| Data | PostgreSQL (Drizzle ORM), Keycloak (auth) |
 
 ## Quick start
 
 ```bash
 make install      # pnpm install
-make up           # postgres + keycloak (Docker), then pnpm dev — API :3000 · Web :8000 · MCP :3001 · all bound to 0.0.0.0
+make up           # postgres + keycloak (Docker), then pnpm dev — server on :8000 (web + API + MCP), bound to 0.0.0.0
 ```
 
-On first run, `apps/api` applies pending PostgreSQL migrations
-(`packages/db/drizzle-pg/`). Demo users and workspaces are not seeded
+On first run, `apps/server`'s `instrumentation.ts` (Next.js's `register()`
+hook) applies pending PostgreSQL migrations (`packages/db/drizzle-pg/`).
+Demo users and workspaces are not seeded
 automatically — run `make setup-demo` (or the individual `make
 keycloak-setup` / `seed-demo-users` / `seed-demo` targets, see
 [Demo seed](demo-data.md#demo-seed)).
@@ -32,7 +36,7 @@ Two Docker Compose files cover every deployment mode, selected via `ENV` (defaul
 
 | File | Purpose |
 |------|---------|
-| `docker-compose.yml` | **Production** (`ENV=prod`) — pulls published images from Docker Hub (Traefik, api, mcp-server, web, PostgreSQL) |
+| `docker-compose.yml` | **Production** (`ENV=prod`) — pulls published images from Docker Hub (Traefik, server, PostgreSQL) |
 | `docker-compose.dev.yml` | **Development infra** (`ENV=dev`, default) — PostgreSQL + Keycloak, started by `make up`, which also runs `pnpm dev` for hot-reload |
 
 The `Makefile` wraps the most common operations and loads `.env.$(ENV)` (`.env.dev` or `.env.prod`, via `-include`). Run `make` or `make help` for the full list.
@@ -63,9 +67,8 @@ make logs ENV=prod
 make pull ENV=prod  # update images
 
 # Build images from source (OS=alpine|trixie-slim, VERSION auto-read from package.json)
-make build          # build all images for current OS variant
+make build          # build the server image for current OS variant
 make build-all      # build both alpine and trixie-slim
-make build-api      # build a single service
 make build OS=trixie-slim VERSION=1.2.3
 
 # Utilities

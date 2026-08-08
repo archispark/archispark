@@ -1,8 +1,8 @@
 /**
  * Idempotent data backfill for the Organization → Workspace migration
  * (expand→backfill→verify→contract, see plan.md Phase 2). Runs automatically
- * right after `runMigrations()` at every app startup (apps/api/src/main.ts,
- * apps/api/api/index.ts) — a no-op once every workspace/token has an
+ * right after `runMigrations()` at every app startup
+ * (apps/server/instrumentation.ts) — a no-op once every workspace/token has an
  * organization. Safe to run more than once (WHERE organization_id IS NULL
  * guards every write) and safe to run concurrently across instances (the
  * `organizations.personal_owner_id` unique constraint arbitrates races).

@@ -15,7 +15,7 @@
  * `members` (e.g. dropping a demo user's access) takes effect on rerun
  * instead of leaving stale rows behind. Stale `user_active_organization`
  * rows self-heal automatically on the affected user's next request
- * (`resolveActiveOrganizationId` in `apps/api/src/access.ts` falls back to
+ * (`resolveActiveOrganizationId` in `apps/server/lib/archimate/access.ts` falls back to
  * another organization they're still a member of).
  *
  * Self-healing legacy cleanup: `demo-orgs.json`'s `legacySlugs` lists slugs

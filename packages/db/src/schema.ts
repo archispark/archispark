@@ -6,7 +6,7 @@
  * identities live in Keycloak; see `@workspace/auth`. An Organization groups
  * Workspaces and members with one of four roles — `platform_admin`
  * (administers organizations, no access to their data, enforced structurally
- * in `apps/api/src/access.ts`), `owner`, `admin`, `member` (see
+ * in `apps/server/lib/archimate/access.ts`), `owner`, `admin`, `member` (see
  * `organization_members.role`). Every user gets a personal organization
  * (`is_personal = true`) the first time they create a workspace; creating a
  * "team" organization is a separate explicit action.
@@ -153,7 +153,7 @@ export const apiTokens = pgTable(
     // Keycloak `sub` of the token's owner (no FK: identities live in Keycloak).
     userId: text("user_id").notNull(),
     // Organization this token is scoped to (required at creation — see
-    // apps/api/src/access.ts). Nullable at the DB level only during the
+    // apps/server/lib/archimate/access.ts). Nullable at the DB level only during the
     // expand→backfill→contract migration window (packages/db/src/
     // backfill-organizations.ts); every row is guaranteed non-null once the
     // backfill has run. workspaceId optionally pins the token to one

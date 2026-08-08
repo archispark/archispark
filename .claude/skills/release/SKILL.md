@@ -15,9 +15,9 @@ this:
    everything since the last release. Address blocking findings before
    continuing.
 2. `/codex:rescue --background` with an explicit task: run
-   `pnpm turbo run lint typecheck test:coverage --filter=api
-   --filter=mcp-server --filter=web` (the same command CI runs — see
-   `.github/workflows/ci.yml`), close any coverage gaps by writing
+   `pnpm turbo run lint typecheck test:coverage --filter=server` (the
+   same command CI runs — see `.github/workflows/ci.yml`), close any
+   coverage gaps by writing
    tests (AAA pattern, reuse existing fixtures/helpers from
    `.claude/rules/testing.md`, never weaken an assertion just to make
    it pass), and iterate until lint/typecheck/test:coverage all

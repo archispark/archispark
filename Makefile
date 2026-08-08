@@ -25,7 +25,7 @@ ENV_FILE  := .env.$(ENV)
 
 -include $(ENV_FILE)
 
-SERVICES  := api web mcp-server
+SERVICES  := server
 
 DC        := $(shell if docker compose version >/dev/null 2>&1; then echo "docker compose"; else echo "docker-compose"; fi)
 DC_PROD   := $(DC) -f .docker/docker-compose.yml
@@ -60,9 +60,7 @@ help:
 	@printf "  \033[36mseed-demo\033[0m        Charger les workspaces de démo (ArchiMetal/ArchiSurance)\n"
 	@printf "\n\033[4mBuild\033[0m (OS=$(OS) VERSION=$(VERSION))\n"
 	@printf "  \033[36mbuild\033[0m           Builder toutes les images pour l'OS courant\n"
-	@printf "  \033[36mbuild-api\033[0m       Builder l'image API\n"
-	@printf "  \033[36mbuild-web\033[0m       Builder l'image web\n"
-	@printf "  \033[36mbuild-mcp\033[0m       Builder l'image mcp-server\n"
+	@printf "  \033[36mbuild-server\033[0m    Builder l'image server\n"
 	@printf "  \033[36mbuild-all\033[0m       Builder toutes les images (alpine + trixie-slim)\n"
 	@printf "\n\033[4mUtilitaires\033[0m\n"
 	@printf "  \033[36minstall\033[0m         Installer les dépendances (pnpm install)\n"
@@ -140,18 +138,12 @@ define build-image
 		.
 endef
 
-.PHONY: build build-api build-web build-mcp build-all
+.PHONY: build build-server build-all
 
-build: build-api build-web build-mcp
+build: build-server
 
-build-api:
-	$(call build-image,api,$(OS))
-
-build-web:
-	$(call build-image,web,$(OS))
-
-build-mcp:
-	$(call build-image,mcp-server,$(OS))
+build-server:
+	$(call build-image,server,$(OS))
 
 build-all:
 	@for os in alpine trixie-slim; do \

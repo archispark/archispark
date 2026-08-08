@@ -15,8 +15,8 @@
 services:
 
   # ── Reverse proxy ─────────────────────────────────────────────────────────
-  # Traefik écoute sur les ports 80/443 et route le trafic vers les services
-  # via les labels Docker. Il démarre après que l'API et le web soient sains.
+  # Traefik écoute sur les ports 80/443 et route tout le trafic vers `server`
+  # (web, API REST et transport MCP servis par le même process Next.js).
   proxy-traefik:
     image: traefik:v3
     restart: unless-stopped
@@ -31,34 +31,48 @@ services:
       # Stockage persistant des certificats Let's Encrypt
       - traefik_certs:/letsencrypt
     depends_on:
-      api:
+      server:
         condition: service_healthy
-      web:
-        condition: service_healthy
-      mcp-server:
-        condition: service_started
     networks:
       - archispark
 
-
-  # ── REST API ─────────────────────────────────────────────────────────────
-  # Auth (Keycloak), tokens API personnels, et modélisation ArchiMate
-  # (elements, relationships, views, workspaces, import/export). Chaque
-  # workspace appartient à un seul utilisateur — pas de notion d'organisation.
-  api:
-    image: archispark/archispark-api:${ARCHISPARK_OS:-alpine}-${ARCHISPARK_VERSION:-latest}
+  # ── Application ────────────────────────────────────────────────────────────
+  # Next.js unique : UI, API REST (auth, tokens, organisations, workspaces,
+  # modélisation ArchiMate — elements/relationships/views/import-export) et
+  # transport MCP (/mcp/), qui se partagent le même process. Un workspace
+  # appartient à une organisation, dont les membres ont un rôle owner/admin/member.
+  server:
+    image: archispark/archispark-server:${ARCHISPARK_OS:-alpine}-${ARCHISPARK_VERSION:-latest}
     restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
     environment:
-      NODE_ENV:            production
-      PORT:                "3000"
-      HOST:                "0.0.0.0"
+      NODE_ENV:    production
+      PORT:        "8000"
+      HOSTNAME:    "0.0.0.0"
       # Connexion PostgreSQL (réseau Docker interne) — base unique partagée
-      DATABASE_URL:        "postgresql://archispark:${DB_PASSWORD}@postgres:5432/archispark"
+      DATABASE_URL: "postgresql://archispark:${DB_PASSWORD}@postgres:5432/archispark"
+      # Keycloak self-hosté partagé — voir docs/deployment.md pour le modèle
+      # multi-tenant (un realm par déploiement).
+      KEYCLOAK_URL:                 "${KEYCLOAK_URL:?Set KEYCLOAK_URL in .env.prod}"
+      KEYCLOAK_REALM:               "${KEYCLOAK_REALM:?Set KEYCLOAK_REALM in .env.prod}"
+      KEYCLOAK_CLIENT_ID_WEB:       "${KEYCLOAK_CLIENT_ID_WEB:-archispark-web}"
+      KEYCLOAK_ADMIN_CLIENT_ID:     "${KEYCLOAK_ADMIN_CLIENT_ID:?Set KEYCLOAK_ADMIN_CLIENT_ID in .env.prod}"
+      KEYCLOAK_ADMIN_CLIENT_SECRET: "${KEYCLOAK_ADMIN_CLIENT_SECRET:?Set KEYCLOAK_ADMIN_CLIENT_SECRET in .env.prod}"
+      # URL publique du déploiement — construit le lien d'invitation
+      # (${ARCHISPARK_URL}/invitations/<token>), jamais dérivée d'un en-tête
+      # client (Host/X-Forwarded-Host, spoofables).
+      ARCHISPARK_URL: "${ARCHISPARK_URL:?Set ARCHISPARK_URL in .env.prod}"
+      # SMTP optionnel — laisser SMTP_HOST vide désactive l'envoi (l'invitation
+      # reste créée avec sent_at: null, à renvoyer une fois SMTP configuré).
+      SMTP_HOST:     "${SMTP_HOST:-}"
+      SMTP_PORT:     "${SMTP_PORT:-}"
+      SMTP_USER:     "${SMTP_USER:-}"
+      SMTP_PASSWORD: "${SMTP_PASSWORD:-}"
+      SMTP_FROM:     "${SMTP_FROM:-}"
     healthcheck:
-      test:     ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/health"]
+      test:     ["CMD", "wget", "-qO-", "http://127.0.0.1:8000/api/health"]
       interval: 10s
       timeout:  5s
       retries:  5
@@ -67,9 +81,7 @@ services:
       - archispark
     labels:
       - "traefik.enable=true"
-      # Middleware : supprime le préfixe /api avant de transmettre la requête
-      - "traefik.http.middlewares.strip-api.stripprefix.prefixes=/api"
-      # Middleware : en-têtes de sécurité HTTP (HSTS, X-Content-Type, etc.)
+      # En-têtes de sécurité HTTP (HSTS, X-Content-Type, etc.)
       - "traefik.http.middlewares.security-headers.headers.stsSeconds=31536000"
       - "traefik.http.middlewares.security-headers.headers.stsIncludeSubdomains=true"
       - "traefik.http.middlewares.security-headers.headers.contentTypeNosniff=true"
@@ -77,77 +89,19 @@ services:
       - "traefik.http.middlewares.security-headers.headers.referrerPolicy=strict-origin-when-cross-origin"
       # Supprime l'en-tête Server pour ne pas exposer la stack technique
       - "traefik.http.middlewares.security-headers.headers.customResponseHeaders.Server="
-      # Routeur /api → strip préfixe puis forwarde sur le port 3000
-      - "traefik.http.routers.api.rule=PathPrefix(`/api`)"
-      - "traefik.http.routers.api.entrypoints=web"
-      - "traefik.http.routers.api.middlewares=strip-api,security-headers"
-      - "traefik.http.routers.api.service=api"
-      - "traefik.http.services.api.loadbalancer.server.port=3000"
-      # Routeur /auth → pas de strip (chemin complet transmis à l'API)
-      - "traefik.http.routers.auth.rule=PathPrefix(`/auth`)"
-      - "traefik.http.routers.auth.entrypoints=web"
-      - "traefik.http.routers.auth.middlewares=security-headers"
-      - "traefik.http.routers.auth.service=api"
-
-  # ── MCP Server ─────────────────────────────────────────────────────────────
-  # Serveur Model Context Protocol — expose les outils ArchiMate aux agents IA.
-  # Démarre uniquement après que l'API soit saine (dépend de api:healthy).
-  mcp-server:
-    image: archispark/archispark-mcp-server:${ARCHISPARK_OS:-alpine}-${ARCHISPARK_VERSION:-latest}
-    restart: unless-stopped
-    environment:
-      NODE_ENV:        production
-      MCP_PORT:        "3001"
-      HOST:            "0.0.0.0"
-      # Connexion directe à PostgreSQL — même base unique que l'API
-      DATABASE_URL:    "postgresql://archispark:${DB_PASSWORD}@postgres:5432/archispark"
-    depends_on:
-      api:
-        condition: service_healthy
-    networks:
-      - archispark
-    labels:
-      - "traefik.enable=true"
-      # Toutes les requêtes /mcp sont routées vers le serveur MCP
-      - "traefik.http.routers.mcp.rule=PathPrefix(`/mcp`)"
-      - "traefik.http.routers.mcp.entrypoints=web"
-      - "traefik.http.routers.mcp.middlewares=security-headers"
-      - "traefik.http.routers.mcp.service=mcp"
-      - "traefik.http.services.mcp.loadbalancer.server.port=3001"
-
-  # ── Next.js Web ────────────────────────────────────────────────────────────
-  # Interface utilisateur Next.js. ARCHIMATE_API_URL est vide : les appels API
-  # passent par le proxy Traefik (chemin relatif /api) plutôt que directement.
-  web:
-    image: archispark/archispark-web:${ARCHISPARK_OS:-alpine}-${ARCHISPARK_VERSION:-latest}
-    restart: unless-stopped
-    environment:
-      NODE_ENV:          production
-      PORT:              "8000"
-      HOSTNAME:          "0.0.0.0"
-      # Vide intentionnellement : le frontend appelle /api via Traefik
-      ARCHIMATE_API_URL: ""
-      # Note : NEXT_PUBLIC_MCP_SERVER_URL est inlinée au build — non modifiable ici.
-      # Pour la changer, rebuilder l'image avec docker-compose.build.yml.
-    depends_on:
-      api:
-        condition: service_healthy
-    healthcheck:
-      test:     ["CMD", "wget", "-qO-", "http://127.0.0.1:8000/"]
-      interval: 10s
-      timeout:  5s
-      retries:  5
-      start_period: 30s
-    networks:
-      - archispark
-    labels:
-      - "traefik.enable=true"
-      # Route catch-all : tout ce qui n'est ni /api ni /auth ni /mcp
-      - "traefik.http.routers.web.rule=PathPrefix(`/`)"
-      - "traefik.http.routers.web.entrypoints=web"
-      - "traefik.http.routers.web.middlewares=security-headers"
-      - "traefik.http.routers.web.service=web"
-      - "traefik.http.services.web.loadbalancer.server.port=8000"
+      # Plafond de taille de body — Next.js Route Handlers n'en imposent pas
+      # (contrairement à l'ancien express.json() par défaut à 100kb) ; voir la
+      # décision documentée dans .claude/rules/api.md. /api/import et /api/mcp
+      # transportent du XML/JSON volumineux, d'où un plafond généreux (64mb)
+      # plutôt qu'une valeur serrée par route.
+      - "traefik.http.middlewares.body-limit.buffering.maxRequestBodyBytes=67108864"
+      # Routeur catch-all unique : tout le trafic va au process Next.js, qui
+      # route lui-même /api/*, /mcp/* et les pages via son propre routing.
+      - "traefik.http.routers.server.rule=PathPrefix(`/`)"
+      - "traefik.http.routers.server.entrypoints=web"
+      - "traefik.http.routers.server.middlewares=security-headers,body-limit"
+      - "traefik.http.routers.server.service=server"
+      - "traefik.http.services.server.loadbalancer.server.port=8000"
 
   # ── Base de données ────────────────────────────────────────────────────────
   # PostgreSQL 17 — base unique et partagée de l'application (auth/tokens et
