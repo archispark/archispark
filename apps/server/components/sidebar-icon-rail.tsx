@@ -6,6 +6,7 @@ import {
   Tag,
   Settings as SettingsIcon,
   GitBranch,
+  Gauge,
   List,
 } from "lucide-react"
 import { useT } from "@/lib/i18n"
@@ -72,6 +73,17 @@ export function SidebarIconRail({
           icon={Tag}
           label={t("sidebar.properties")}
           active={pathname === "/properties"}
+          onClick={onClose}
+        />
+        <RailLink
+          href="/dashboards"
+          icon={Gauge}
+          label={t("sidebar.dashboards")}
+          active={
+            pathname.startsWith("/dashboards") ||
+            pathname === "/explore" ||
+            pathname === "/panel-visualizations"
+          }
           onClick={onClose}
         />
       </div>

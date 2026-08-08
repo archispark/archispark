@@ -20,7 +20,7 @@ export default function DashboardsPage() {
           <p className="mt-1 text-muted-foreground">{t("dashboards.subtitle")}</p>
         </div>
         {canEdit && (
-          <Button render={<Link href="/dashboards/admin/new" />} size="sm">
+          <Button render={<Link href="/dashboards/admin/new" />} nativeButton={false} size="sm">
             <Plus /> {t("dashboards.create_btn")}
           </Button>
         )}

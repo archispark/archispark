@@ -107,7 +107,7 @@ export function DashboardRenderer({
         </div>
         {canEdit && (
           <div className="flex items-center gap-2">
-            <Button render={<Link href={`/dashboards/admin/${dashboardId}/edit`} />} variant="outline" size="sm">
+            <Button render={<Link href={`/dashboards/admin/${dashboardId}/edit`} />} nativeButton={false} variant="outline" size="sm">
               <Pencil /> {t("common.edit")}
             </Button>
             <DeleteDashboardButton dashboardId={dashboardId} />

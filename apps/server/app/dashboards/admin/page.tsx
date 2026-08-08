@@ -29,7 +29,7 @@ export default function DashboardsAdminPage() {
           <h1 className="text-2xl font-bold text-foreground">{t("dashboards.admin_title")}</h1>
           <p className="mt-1 text-muted-foreground">{t("dashboards.admin_subtitle")}</p>
         </div>
-        <Button render={<Link href="/dashboards/admin/new" />} size="sm">
+        <Button render={<Link href="/dashboards/admin/new" />} nativeButton={false} size="sm">
           <Plus /> {t("dashboards.create_btn")}
         </Button>
       </div>
@@ -55,7 +55,7 @@ export default function DashboardsAdminPage() {
             </div>
             {!deletedAt && (
               <div className="flex items-center gap-2">
-                <Button render={<Link href={`/dashboards/admin/${revision.dashboardId}/edit`} />} variant="outline" size="sm">
+                <Button render={<Link href={`/dashboards/admin/${revision.dashboardId}/edit`} />} nativeButton={false} variant="outline" size="sm">
                   <Pencil /> {t("common.edit")}
                 </Button>
                 <DeleteDashboardButton dashboardId={revision.dashboardId} />
