@@ -13,7 +13,7 @@
     "env": "[ -f .env.dev ] || (cp .env.example .env.dev && echo 'Fichier .env.dev créé depuis .env.example — modifiez-le avant `pnpm up`.')",
     "env:prod": "[ -f .env.prod ] || (cp .env.example .env.prod && echo 'Fichier .env.prod créé depuis .env.example — modifiez-le avant `pnpm up:prod`.')",
 
-    "up": "pnpm run env && docker compose -f .docker/docker-compose.dev.yml --env-file .env.dev up -d --wait && pnpm dev",
+    "up": "pnpm run env && docker compose -f .docker/docker-compose.dev.yml --env-file .env.dev up -d --wait && set -a && . ./.env.dev && set +a && pnpm dev",
     "down": "docker compose -f .docker/docker-compose.dev.yml --env-file .env.dev down",
     "restart": "docker compose -f .docker/docker-compose.dev.yml --env-file .env.dev restart",
     "logs": "docker compose -f .docker/docker-compose.dev.yml --env-file .env.dev logs -f",
