@@ -240,6 +240,20 @@ const SaveResultSchema = registry.register(
     .openapi("SaveResult")
 )
 
+const Neo4jImportResultSchema = registry.register(
+  "Neo4jImportResult",
+  z
+    .object({
+      modelId: z.string().openapi({ description: "uuid du workspace, id du nœud :Model" }),
+      elements: z.number().int(),
+      relationships: z.number().int(),
+      views: z.number().int(),
+      properties: z.number().int(),
+      importedAt: z.string().datetime(),
+    })
+    .openapi("Neo4jImportResult")
+)
+
 const ErrorDetailSchema = registry.register(
   "ErrorDetail",
   z
@@ -575,6 +589,27 @@ registry.registerPath({
       description: "Erreur d'écriture",
       content: { "application/json": { schema: ErrorDetailSchema } },
     },
+  },
+})
+
+registry.registerPath({
+  method: "post",
+  path: "/export/neo4j",
+  tags: ["Neo4j"],
+  summary: "Synchroniser le modèle vers Neo4j",
+  operationId: "exportModelToNeo4j",
+  security: BothAuth,
+  description:
+    "Lit le modèle du workspace actif depuis PostgreSQL et le réécrit dans Neo4j " +
+    "(labels Model/Element/Property/View, relations ArchiMate typées) pour le reporting en graphe. " +
+    "Wipe-and-reload limité au sous-graphe de ce workspace — les autres workspaces déjà importés ne sont pas affectés.",
+  responses: {
+    200: {
+      description: "Modèle synchronisé — compteurs des entités écrites",
+      content: { "application/json": { schema: Neo4jImportResultSchema } },
+    },
+    401: Unauthorized,
+    404: NotFound,
   },
 })
 
@@ -1747,6 +1782,7 @@ const _doc: Record<string, any> = generator.generateDocument({
     { name: "Views", description: "Vues et diagrammes" },
     { name: "PropertyDefinitions", description: "Définitions de propriétés" },
     { name: "Settings", description: "Tokens API personnels" },
+    { name: "Neo4j", description: "Export du modèle vers Neo4j pour le reporting en graphe" },
     { name: "MCP", description: "Transport MCP (streamable-http)" },
   ],
 })

@@ -103,11 +103,11 @@ account (`archispark-api`, `manage-users`/`view-users`/`query-users`/`view-realm
 The 4 demo accounts (`admin`/`user`/`contrib`/`archi`, passwords match
 usernames) are **not** part of `realm-export.json` — they live in
 `.docker/keycloak/demo-users.json` and are created/updated via the Keycloak
-Admin API by `pnpm seed:demo-users` (`make seed-demo-users`, see
+Admin API by `pnpm seed:demo-users` (`pnpm seed-demo-users` locally, see
 [Demo seed](demo-data.md#demo-seed)). Unlike `--import-realm`, this works against any
 Keycloak instance, including a client's dedicated realm on a remote server.
 
-`make keycloak-setup` (`pnpm setup:realm`) creates or updates the realm
+`pnpm keycloak-setup` (`pnpm setup:realm`) creates or updates the realm
 itself (roles, clients, service account) from the same
 `realm-export.json` via the Admin REST API — an alternative to
 `--import-realm` for environments where the Keycloak container isn't

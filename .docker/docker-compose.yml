@@ -47,12 +47,18 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      neo4j:
+        condition: service_healthy
     environment:
       NODE_ENV:    production
       PORT:        "8000"
       HOSTNAME:    "0.0.0.0"
       # Connexion PostgreSQL (réseau Docker interne) — base unique partagée
       DATABASE_URL: "postgresql://archispark:${DB_PASSWORD}@postgres:5432/archispark"
+      # Connexion Neo4j (réseau Docker interne) — export du modèle pour reporting
+      NEO4J_URI:      "bolt://neo4j:7687"
+      NEO4J_USER:     "neo4j"
+      NEO4J_PASSWORD: "${NEO4J_PASSWORD}"
       # Keycloak self-hosté partagé — voir docs/deployment.md pour le modèle
       # multi-tenant (un realm par déploiement).
       KEYCLOAK_URL:                 "${KEYCLOAK_URL:?Set KEYCLOAK_URL in .env.prod}"
@@ -124,6 +130,25 @@ services:
     networks:
       - archispark
 
+  # ── Base de données (Neo4j) ────────────────────────────────────────────────
+  # Export du modèle ArchiMate (lu depuis Postgres) pour le reporting en graphe.
+  # Reconstructible à tout moment depuis Postgres via POST /api/export/neo4j —
+  # aucune donnée sensible ni source de vérité ici.
+  neo4j:
+    image: neo4j:5-community
+    restart: unless-stopped
+    environment:
+      NEO4J_AUTH: "neo4j/${NEO4J_PASSWORD:?Set NEO4J_PASSWORD in .env.prod}"
+    volumes:
+      - neo4j_data:/data
+    healthcheck:
+      test:     ["CMD-SHELL", "wget -q -O - http://localhost:7474 >/dev/null"]
+      interval: 5s
+      timeout:  3s
+      retries:  30
+    networks:
+      - archispark
+
 # ── Réseau ─────────────────────────────────────────────────────────────────
 # Réseau bridge nommé partagé par tous les services.
 # Le nom explicite "archispark" permet aux stacks externes de s'y attacher.
@@ -134,4 +159,5 @@ networks:
 # ── Volumes ────────────────────────────────────────────────────────────────
 volumes:
   postgres_data:   # Données PostgreSQL
+  neo4j_data:      # Données Neo4j (reconstructible depuis Postgres)
   traefik_certs:   # Certificats TLS Let's Encrypt gérés par Traefik

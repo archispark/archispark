@@ -7,16 +7,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### Setup
 
 ```bash
-make install        # pnpm install
-make env            # copy .env.example → .env.dev (edit DB_PASSWORD, KEYCLOAK_ADMIN_CLIENT_SECRET)
-docker compose -f .docker/docker-compose.dev.yml up -d --wait  # start Postgres + Keycloak (Docker)
-make keycloak-setup  # provision the Keycloak realm
+pnpm install         # Node >=22.13 required (.nvmrc pins 24)
+pnpm env             # copy .env.example → .env.dev (edit DB_PASSWORD, KEYCLOAK_ADMIN_CLIENT_SECRET)
+docker compose -f .docker/docker-compose.dev.yml up -d --wait  # start Postgres + Keycloak + Neo4j (Docker)
+pnpm keycloak-setup  # provision the Keycloak realm
 ```
 
 ### Develop
 
 ```bash
-make up                  # Postgres + Keycloak (Docker), then turbo dev — server on :8000 (web + API + MCP)
+pnpm up                   # Postgres + Keycloak + Neo4j (Docker), then turbo dev — server on :8000 (web + API + MCP)
 pnpm dev                  # turbo dev only (infra already running)
 pnpm --filter server dev  # run the app directly
 ```
@@ -59,6 +59,7 @@ ArchiSpark is a Turborepo/pnpm monorepo (Node >=22.13):
 
 - `apps/server` — the single application: a Next.js app combining the workspace UI, the REST API (auth via Keycloak, sessions, API tokens, personal settings, organization/member management, and every ArchiMate route — workspaces, elements/relationships/views, property definitions, model import/export, OpenAPI/docs, all under `app/api/**` as App Router Route Handlers), and the MCP server (`pages/api/mcp.ts`, Pages Router — the MCP SDK's `StreamableHTTPServerTransport` needs a raw Node `http.IncomingMessage`/`ServerResponse`, which only the Pages Router exposes). Workspaces belong to an Organization (`owner`/`admin`/`member` roles, plus a `platform_admin` realm role with no access to organization content) — see `apps/server/lib/archimate/access.ts`, the single authorization gateway. Business logic lives under `lib/archimate/` (store, registry, auth, validation, rendering, OXF parse/serialize) and `lib/mcp/` (the ~38 MCP tools, split by resource, plus prompts/resources); both are imported directly by `app/api/**` and `pages/api/mcp.ts` — no separate package boundary between them.
 - `packages/db` — Drizzle ORM schema (`schema.ts`, single shared database) and seed/migration scripts.
+- `packages/db-neo4j` — Neo4j export of the ArchiMate model for reporting (`@workspace/db-neo4j`): driver singleton, versioned Cypher schema migrations (`src/schema/migrations/`), and `ArchiModel → Cypher` mapping/write logic, called from `POST /api/export/neo4j`. See [docs/architecture.md](docs/architecture.md#neo4j-export).
 - `packages/auth` — shared Keycloak auth helpers (`@workspace/auth`).
 - `packages/ui`, `packages/types` — shared React components and types.
 

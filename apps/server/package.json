@@ -25,6 +25,7 @@
     "@vercel/speed-insights": "^2.0.0",
     "@workspace/auth": "workspace:*",
     "@workspace/db": "workspace:*",
+    "@workspace/db-neo4j": "workspace:*",
     "@workspace/ui": "workspace:*",
     "@xyflow/react": "^12.11.0",
     "archiver": "^8.0.0",
