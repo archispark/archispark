@@ -112,7 +112,7 @@ session/token, via two scripts:
 
 Both read `DATABASE_URL`/`NEO4J_*` from the environment, falling back to
 `.env.$ENV` at the repo root if not already set (`.env.dev` by default, same
-default as the root `pnpm env`/`pnpm up` scripts) — so `pnpm import:workspaces`
+default as the root `pnpm env`/`pnpm start` scripts) — so `pnpm import:workspaces`
 just works against the local dev stack with no extra flags. Pass an explicit
 env file as the last
 argument to target another environment (`pnpm import:workspace --

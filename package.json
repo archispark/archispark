@@ -10,10 +10,10 @@
     "typecheck": "turbo typecheck",
     "test": "turbo run test:coverage --filter=server --filter=@workspace/db --filter=@workspace/db-neo4j",
 
-    "env": "[ -f .env.dev ] || (cp .env.example .env.dev && echo 'Fichier .env.dev créé depuis .env.example — modifiez-le avant `pnpm up`.')",
+    "env": "[ -f .env.dev ] || (cp .env.example .env.dev && echo 'Fichier .env.dev créé depuis .env.example — modifiez-le avant `pnpm start`.')",
     "env:prod": "[ -f .env.prod ] || (cp .env.example .env.prod && echo 'Fichier .env.prod créé depuis .env.example — modifiez-le avant `pnpm up:prod`.')",
 
-    "up": "pnpm run env && docker compose -f .docker/docker-compose.dev.yml --env-file .env.dev up -d --wait && set -a && . ./.env.dev && set +a && pnpm dev",
+    "start": "pnpm run env && docker compose -f .docker/docker-compose.dev.yml --env-file .env.dev up -d --wait && set -a && . ./.env.dev && set +a && pnpm dev",
     "down": "docker compose -f .docker/docker-compose.dev.yml --env-file .env.dev down",
     "restart": "docker compose -f .docker/docker-compose.dev.yml --env-file .env.dev restart",
     "logs": "docker compose -f .docker/docker-compose.dev.yml --env-file .env.dev logs -f",
@@ -46,9 +46,9 @@
   "devDependencies": {
     "@workspace/eslint-config": "workspace:*",
     "@workspace/typescript-config": "workspace:*",
-    "prettier": "^3.8.4",
-    "prettier-plugin-tailwindcss": "^0.8.0",
-    "turbo": "^2.9.17",
+    "prettier": "^3.9.6",
+    "prettier-plugin-tailwindcss": "^0.8.1",
+    "turbo": "^2.10.8",
     "typescript": "6.0.3"
   },
   "packageManager": "pnpm@11.5.1",

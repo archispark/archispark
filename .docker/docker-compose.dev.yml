@@ -4,7 +4,7 @@
 #  Lance uniquement l'infrastructure (Postgres + Keycloak).
 #  L'application tourne en local via pnpm :
 #
-#    pnpm up          # démarre Postgres + Keycloak, puis pnpm dev
+#    pnpm start       # démarre Postgres + Keycloak, puis pnpm dev
 #                      # (apps/server avec hot-reload : web, API REST et MCP)
 #
 #  Arrêt (en conservant les données) :

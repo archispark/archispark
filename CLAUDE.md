@@ -16,7 +16,7 @@ pnpm keycloak-setup  # provision the Keycloak realm
 ### Develop
 
 ```bash
-pnpm up                   # Postgres + Keycloak + Neo4j (Docker), then turbo dev — server on :8000 (web + API + MCP)
+pnpm start                # Postgres + Keycloak + Neo4j (Docker), then turbo dev — server on :8000 (web + API + MCP)
 pnpm dev                  # turbo dev only (infra already running)
 pnpm --filter server dev  # run the app directly
 ```

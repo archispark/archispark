@@ -15,7 +15,7 @@ transport, all in one process:
 
 ```bash
 pnpm install      # Node >=22.13 required (.nvmrc pins 24 — `nvm use` if you use nvm)
-pnpm up           # postgres + keycloak + neo4j (Docker), then pnpm dev — server on :8000 (web + API + MCP), bound to 0.0.0.0
+pnpm start        # postgres + keycloak + neo4j (Docker), then pnpm dev — server on :8000 (web + API + MCP), bound to 0.0.0.0
 ```
 
 On first run, `apps/server`'s `instrumentation.ts` (Next.js's `register()`
@@ -26,7 +26,7 @@ keycloak-setup` / `seed-demo-users` / `seed-demo` scripts, see
 [Demo seed](demo-data.md#demo-seed)).
 
 `DATABASE_URL` is **required** — there is no hardcoded
-default. For local development, `pnpm up` sources `.env.dev`, which sets
+default. For local development, `pnpm start` sources `.env.dev`, which sets
 `DATABASE_URL=postgresql://archispark:${DB_PASSWORD}@localhost:5432/archispark`
 to match the Postgres container started by the same command.
 
@@ -37,7 +37,7 @@ Two Docker Compose files cover every deployment mode:
 | File | Purpose |
 |------|---------|
 | `docker-compose.yml` | **Production** — pulls published images from Docker Hub (Traefik, server, PostgreSQL, Neo4j), driven by the `*:prod` scripts below |
-| `docker-compose.dev.yml` | **Development infra** — PostgreSQL + Keycloak + Neo4j, started by `pnpm up`, which also runs `pnpm dev` for hot-reload |
+| `docker-compose.dev.yml` | **Development infra** — PostgreSQL + Keycloak + Neo4j, started by `pnpm start`, which also runs `pnpm dev` for hot-reload |
 
 Root `package.json` scripts wrap the most common operations and load
 `.env.dev` (dev) / `.env.prod` (prod). Run `pnpm run` (no script name) to
@@ -50,7 +50,7 @@ pnpm env             # copy .env.example → .env.dev (edit DB_PASSWORD, KEYCLOA
 pnpm env:prod        # ... or → .env.prod, for a production deployment
 
 # Development
-pnpm up              # postgres + keycloak + neo4j (Docker), then pnpm dev (hot-reload)
+pnpm start           # postgres + keycloak + neo4j (Docker), then pnpm dev (hot-reload)
 pnpm down
 pnpm logs
 # Note: on a Postgres volume that pre-dates Keycloak, .docker/initdb/02-create-keycloak-db.sql
