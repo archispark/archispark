@@ -8,10 +8,11 @@ import {
   GitBranch,
   Gauge,
   List,
+  SearchCode,
+  Blocks,
 } from "lucide-react"
 import { useT } from "@/lib/i18n"
 import { RailLink } from "@/components/sidebar-section"
-import { ImportExportControls } from "@/components/sidebar-import-export"
 import { CollapseToggle } from "@/components/sidebar-collapse-toggle"
 
 /** Icon-only rail shown on desktop when the sidebar is collapsed, plus the collapse/expand toggle. */
@@ -35,7 +36,7 @@ export function SidebarIconRail({
   return (
     <>
       <div
-        className={`hidden flex-1 flex-col items-center gap-1 py-3 ${collapsed ? "md:flex" : ""}`}
+        className={`hidden flex-1 flex-col items-center gap-1 overflow-y-auto py-3 ${collapsed ? "md:flex" : ""}`}
       >
         <RailLink
           href="/"
@@ -75,15 +76,26 @@ export function SidebarIconRail({
           active={pathname === "/properties"}
           onClick={onClose}
         />
+        <div className="my-1 w-6 border-t border-border" />
         <RailLink
           href="/dashboards"
           icon={Gauge}
           label={t("sidebar.dashboards")}
-          active={
-            pathname.startsWith("/dashboards") ||
-            pathname === "/explore" ||
-            pathname === "/panel-visualizations"
-          }
+          active={pathname.startsWith("/dashboards")}
+          onClick={onClose}
+        />
+        <RailLink
+          href="/explore"
+          icon={SearchCode}
+          label={t("sidebar.explore")}
+          active={pathname === "/explore"}
+          onClick={onClose}
+        />
+        <RailLink
+          href="/panel-visualizations"
+          icon={Blocks}
+          label={t("sidebar.panel_catalog")}
+          active={pathname === "/panel-visualizations"}
           onClick={onClose}
         />
       </div>
@@ -91,7 +103,6 @@ export function SidebarIconRail({
       <div
         className={`hidden flex-col items-center gap-1 border-t border-border py-2 ${collapsed ? "md:flex" : ""}`}
       >
-        <ImportExportControls collapsed={true} onClose={onClose} t={t} />
         <RailLink
           href="/settings"
           icon={SettingsIcon}

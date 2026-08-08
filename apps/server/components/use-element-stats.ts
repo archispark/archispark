@@ -1,6 +1,5 @@
 import { useMemo } from "react"
 import { type ElementOut, type RelationshipOut } from "@/lib/api"
-import { getLayer } from "@/lib/archimate-helpers"
 import { isRelationshipAllowed } from "@/lib/archimate-rules"
 
 export type ElementStatusFilter = "all" | "ok" | "conflict" | "absent"
@@ -11,14 +10,12 @@ export function useElementStats({
   allRelationships,
   byId,
   inViewsSet,
-  layerFilter,
   statusFilter,
 }: {
   elements: ElementOut[]
   allRelationships: RelationshipOut[]
   byId: Map<string, ElementOut>
   inViewsSet: Set<string>
-  layerFilter: string | null
   statusFilter: ElementStatusFilter
 }) {
   const relStats = useMemo(() => {
@@ -38,9 +35,7 @@ export function useElementStats({
   }, [allRelationships, byId])
 
   const filteredElements = useMemo(() => {
-    let result = layerFilter
-      ? elements.filter((el) => getLayer(el.type) === layerFilter)
-      : elements
+    let result = elements
     if (statusFilter !== "all") {
       result = result.filter((el) => {
         const stats = relStats.get(el.identifier)
@@ -51,7 +46,7 @@ export function useElementStats({
       })
     }
     return result
-  }, [elements, layerFilter, statusFilter, relStats, inViewsSet])
+  }, [elements, statusFilter, relStats, inViewsSet])
 
   const elementStats = useMemo(() => {
     let ok = 0,

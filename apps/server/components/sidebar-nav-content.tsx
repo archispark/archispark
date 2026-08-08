@@ -3,10 +3,7 @@
 import Link from "next/link"
 import {
   LayoutDashboard,
-  LayoutGrid,
-  Tag,
   Settings as SettingsIcon,
-  GitBranch,
   Gauge,
   SearchCode,
   Blocks,
@@ -15,25 +12,20 @@ import type { ModelInfo } from "@/lib/api"
 import { useT } from "@/lib/i18n"
 import { Section } from "@/components/sidebar-section"
 import { ElementsNavSection } from "@/components/sidebar-elements-nav"
-import { ImportExportControls } from "@/components/sidebar-import-export"
 
 /** Full sidebar nav content (overview, layer sections, settings) — hidden on desktop when collapsed to an icon rail. */
 export function SidebarNavContent({
   pathname,
-  currentLayer,
   onClose,
   model,
   absentCount,
-  layerCounts,
   relConflictCount,
   t,
 }: {
   pathname: string
-  currentLayer: string | null
   onClose: () => void
   model: ModelInfo | undefined
   absentCount: number
-  layerCounts: Record<string, number>
   relConflictCount: number
   t: ReturnType<typeof useT>["t"]
 }) {
@@ -76,72 +68,12 @@ export function SidebarNavContent({
         {/* Layer sections */}
         <ElementsNavSection
           pathname={pathname}
-          currentLayer={currentLayer}
           onClose={onClose}
           model={model}
           absentCount={absentCount}
-          layerCounts={layerCounts}
+          relConflictCount={relConflictCount}
           t={t}
         />
-
-        {/* Separator */}
-        <div className="mx-4 mt-2 mb-1 border-t border-border" />
-
-        {/* Relations group */}
-        <Section title={t("sidebar.relationships")}>
-          <Link
-            href="/relationships"
-            onClick={onClose}
-            className={`flex items-center justify-between gap-2 rounded-md px-2 py-1.5 text-sm no-underline transition-colors ${
-              pathname === "/relationships"
-                ? "bg-card font-medium text-foreground shadow-sm"
-                : "text-muted-foreground hover:bg-muted hover:text-foreground"
-            }`}
-          >
-            <span className="flex items-center gap-2">
-              <GitBranch className="size-3.5 shrink-0" />
-              {t("sidebar.list")}
-            </span>
-            <span className="flex items-center gap-1">
-              {model && (
-                <span className="text-[11px] text-muted-foreground">
-                  {model.relationship_count}
-                </span>
-              )}
-              {relConflictCount > 0 && (
-                <span className="rounded-full bg-destructive/15 px-1 text-[10px] font-bold text-destructive">
-                  {relConflictCount}
-                </span>
-              )}
-            </span>
-          </Link>
-        </Section>
-
-        {/* Separator */}
-        <div className="mx-4 mt-2 mb-1 border-t border-border" />
-
-        {/* Vues group */}
-        <Section title={t("sidebar.views")}>
-          <Link
-            href="/views"
-            onClick={onClose}
-            className={`flex items-center justify-between gap-2 rounded-md px-2 py-1.5 text-sm no-underline transition-colors ${
-              pathname === "/views" || pathname.startsWith("/views/")
-                ? "bg-card font-medium text-foreground shadow-sm"
-                : "text-muted-foreground hover:bg-muted hover:text-foreground"
-            }`}
-          >
-            <span className="flex items-center gap-2">
-              <LayoutGrid className="size-3.5 shrink-0" />
-              {t("sidebar.list")}
-            </span>
-            {model && (
-              <span className="text-[11px] text-muted-foreground">
-                {model.view_count}
-              </span>
-            )}
-          </Link>
-        </Section>
 
         {/* Separator */}
         <div className="mx-4 mt-2 mb-1 border-t border-border" />
@@ -185,37 +117,10 @@ export function SidebarNavContent({
             {t("sidebar.panel_catalog")}
           </Link>
         </Section>
-
-        {/* Separator */}
-        <div className="mx-4 mt-2 mb-1 border-t border-border" />
-
-        {/* Propriétés group */}
-        <Section title={t("sidebar.properties")}>
-          <Link
-            href="/properties"
-            onClick={onClose}
-            className={`flex items-center justify-between gap-2 rounded-md px-2 py-1.5 text-sm no-underline transition-colors ${
-              pathname === "/properties"
-                ? "bg-card font-medium text-foreground shadow-sm"
-                : "text-muted-foreground hover:bg-muted hover:text-foreground"
-            }`}
-          >
-            <span className="flex items-center gap-2">
-              <Tag className="size-3.5 shrink-0" />
-              {t("sidebar.list")}
-            </span>
-            {model && (
-              <span className="text-[11px] text-muted-foreground">
-                {model.property_definition_count}
-              </span>
-            )}
-          </Link>
-        </Section>
       </div>
 
       {/* Settings — bottom */}
       <div className="flex flex-col gap-1 border-t border-border px-2 py-2">
-        <ImportExportControls collapsed={false} onClose={onClose} t={t} />
         <Link
           href="/settings"
           onClick={onClose}
