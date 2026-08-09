@@ -32,20 +32,25 @@ nvm use
 pnpm install
 pnpm env
 # Set DB_PASSWORD and KEYCLOAK_ADMIN_CLIENT_SECRET in .env.dev
-pnpm start
+pnpm dev
 ```
 
-`pnpm start` starts PostgreSQL, Keycloak, and Neo4j through Docker Compose,
+`pnpm dev` starts PostgreSQL, Keycloak, and Neo4j through Docker Compose,
 then launches Turbo development tasks. The main application listens on port
 8000 and the documentation on port 3000.
 
-To run only code after infrastructure is already ready:
+To run a single application after infrastructure is already ready, load
+`.env.dev` in your shell first, then use its workspace script:
 
 ```bash
 pnpm dev
 pnpm --filter server dev
 pnpm --filter @archispark/docs dev
 ```
+
+`pnpm start` has the standard production role: it runs the already-built main
+application on port 8000. Run `pnpm build` first; it neither builds the
+application nor starts Docker services.
 
 Database migrations are applied by `apps/server/instrumentation.ts` before the
 server accepts traffic. Keycloak setup and demo content remain explicit:

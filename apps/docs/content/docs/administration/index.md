@@ -42,7 +42,7 @@ expire after the configured validity period.
 The recipient must authenticate with a Keycloak account whose e-mail matches
 the invitation, then open `/invitations/<token>` and accept it. Acceptance adds
 the membership and cannot be repeated. SMTP settings and delivery behavior are
-described in [Deployment](../development/deployment.md#invitations-par-e-mail-smtp).
+described in [Deployment](../development/deployment.md#e-mail-invitations-smtp).
 
 ## Platform administration
 

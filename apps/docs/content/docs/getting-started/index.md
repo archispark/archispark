@@ -18,7 +18,7 @@ transport, all in one process:
 
 ```bash
 pnpm install      # Node >=22.13 required (.nvmrc pins 24 — `nvm use` if you use nvm)
-pnpm start        # postgres + keycloak + neo4j (Docker), then pnpm dev — server on :8000 (web + API + MCP), bound to 0.0.0.0
+pnpm dev          # Docker development infrastructure, then hot-reload — server on :8000 (web + API + MCP), docs on :3000
 ```
 
 On first run, `apps/server`'s `instrumentation.ts` (Next.js's `register()`
@@ -29,7 +29,7 @@ keycloak-setup` / `seed-demo-users` / `seed-demo` scripts, see
 [Demo seed](demo-data.md#demo-seed)).
 
 `DATABASE_URL` is **required** — there is no hardcoded
-default. For local development, `pnpm start` sources `.env.dev`, which sets
+default. For local development, `pnpm dev` sources `.env.dev`, which sets
 `DATABASE_URL=postgresql://archispark:${DB_PASSWORD}@localhost:5432/archispark`
 to match the Postgres container started by the same command.
 
@@ -37,47 +37,40 @@ to match the Postgres container started by the same command.
 
 Two Docker Compose files cover every deployment mode:
 
-| File                     | Purpose                                                                                                                            |
-| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `docker-compose.yml`     | **Production** — pulls published images from Docker Hub (Traefik, server, PostgreSQL, Neo4j), driven by the `*:prod` scripts below |
-| `docker-compose.dev.yml` | **Development infra** — PostgreSQL + Keycloak + Neo4j, started by `pnpm start`, which also runs `pnpm dev` for hot-reload          |
+| File                     | Purpose                                                                                      |
+| ------------------------ | -------------------------------------------------------------------------------------------- |
+| `docker-compose.yml`     | **Production** — pulls published images from Docker Hub (Traefik, server, PostgreSQL, Neo4j) |
+| `docker-compose.dev.yml` | **Development infra** — PostgreSQL + Keycloak + Neo4j, started by `pnpm dev`                 |
 
-Root `package.json` scripts wrap the most common operations and load
-`.env.dev` (dev) / `.env.prod` (prod). Run `pnpm run` (no script name) to
-list every script.
+Root `package.json` scripts load `.env.dev` for local development. Run
+`pnpm run` (no script name) to list every script.
 
 ```bash
 # First-time setup
 pnpm install         # pnpm install (Node >=22.13 — see .nvmrc)
 pnpm env             # copy .env.example → .env.dev (edit DB_PASSWORD, KEYCLOAK_ADMIN_CLIENT_SECRET)
-pnpm env:prod        # ... or → .env.prod, for a production deployment
 
 # Development
-pnpm start           # postgres + keycloak + neo4j (Docker), then pnpm dev (hot-reload)
+pnpm dev              # starts Docker infrastructure, then hot-reload: server on :8000 and docs on :3000
 pnpm down
-pnpm logs
+docker compose -f .docker/docker-compose.dev.yml --env-file .env.dev logs -f
 # Note: on a Postgres volume that pre-dates Keycloak, .docker/initdb/02-create-keycloak-db.sql
 # won't run (it only fires on first init). Create the DB once manually:
 #   docker exec <postgres-container> psql -U archispark -d postgres -c "CREATE DATABASE archispark_keycloak;"
 #   docker exec <postgres-container> psql -U archispark -d postgres -c "GRANT ALL PRIVILEGES ON DATABASE archispark_keycloak TO archispark;"
 
 pnpm keycloak-setup  # create/update the Keycloak realm (roles, clients, service account) via the Admin API — works on any Keycloak instance
-pnpm seed-demo-users # create/update the 4 Keycloak demo accounts (admin/user/contrib/archi)
-pnpm seed-demo       # seed demo ArchiMate data (ArchiMetal/ArchiSurance/Open Day, see Demo seed)
+pnpm seed:demo-users # create/update the 5 Keycloak demo accounts (admin/user/contrib/archi/open)
+pnpm seed:demo       # seed demo ArchiMate data (ArchiMetal/ArchiSurance/Open Day, see Demo seed)
 pnpm setup-demo      # all three above, in order
 
+# Run the built main application (infrastructure must already be available)
+pnpm build
+pnpm start
+
 # Production (Hub images)
-pnpm up:prod         # docker compose up -d
-pnpm down:prod
-pnpm logs:prod
-pnpm pull:prod       # update images
-
-# Build images from source (OS=alpine|trixie-slim via env var, VERSION auto-read from package.json)
-pnpm docker:build             # build the server image for current OS variant (alpine by default)
-pnpm docker:build:all         # build both alpine and trixie-slim
-OS=trixie-slim REGISTRY=myorg pnpm docker:build
-
-# Utilities
-pnpm docker:clean    # remove local ArchiSpark images
-pnpm pkg get version # print version from package.json
+cp .env.example .env.prod # edit the production values before continuing
+docker compose -f .docker/docker-compose.yml --env-file .env.prod up -d
+docker compose -f .docker/docker-compose.yml --env-file .env.prod logs -f
+docker compose -f .docker/docker-compose.yml --env-file .env.prod down
 ```

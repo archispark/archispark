@@ -4,48 +4,24 @@
   "private": true,
   "scripts": {
     "build": "turbo build",
-    "dev": "pnpm run env && set -a && . ./.env.dev && set +a && turbo dev",
+    "dev": "pnpm run env && docker compose -f .docker/docker-compose.dev.yml --env-file .env.dev up -d --wait && pnpm run env && set -a && . ./.env.dev && set +a && turbo dev",
     "lint": "turbo lint",
     "format": "turbo format",
     "typecheck": "turbo typecheck",
     "test": "turbo run test:coverage --filter=server --filter=@workspace/db --filter=@workspace/db-neo4j",
-
-    "env": "[ -f .env.dev ] || (cp .env.example .env.dev && echo 'Fichier .env.dev créé depuis .env.example — modifiez-le avant `pnpm start`.')",
-    "env:prod": "[ -f .env.prod ] || (cp .env.example .env.prod && echo 'Fichier .env.prod créé depuis .env.example — modifiez-le avant `pnpm up:prod`.')",
-
-    "start": "pnpm run env && docker compose -f .docker/docker-compose.dev.yml --env-file .env.dev up -d --wait && set -a && . ./.env.dev && set +a && pnpm dev",
+    "env": "[ -f .env.dev ] || (cp .env.example .env.dev && echo 'Fichier .env.dev créé depuis .env.example — modifiez-le avant de lancer l’application.')",
+    "start": "pnpm run env && set -a && . ./.env.dev && set +a && pnpm --filter server start",
     "down": "docker compose -f .docker/docker-compose.dev.yml --env-file .env.dev down",
-    "restart": "docker compose -f .docker/docker-compose.dev.yml --env-file .env.dev restart",
-    "logs": "docker compose -f .docker/docker-compose.dev.yml --env-file .env.dev logs -f",
-    "ps": "docker compose -f .docker/docker-compose.dev.yml --env-file .env.dev ps",
-
-    "up:prod": "pnpm run env:prod && docker compose -f .docker/docker-compose.yml --env-file .env.prod up -d",
-    "down:prod": "docker compose -f .docker/docker-compose.yml --env-file .env.prod down",
-    "restart:prod": "docker compose -f .docker/docker-compose.yml --env-file .env.prod restart",
-    "logs:prod": "docker compose -f .docker/docker-compose.yml --env-file .env.prod logs -f",
-    "ps:prod": "docker compose -f .docker/docker-compose.yml --env-file .env.prod ps",
-    "pull:prod": "docker compose -f .docker/docker-compose.yml --env-file .env.prod pull",
-
+    "restart": "pnpm run down && pnpm run start",
     "keycloak-setup": "pnpm run env && set -a && . ./.env.dev && set +a && pnpm setup:realm",
-    "seed-demo-users": "pnpm seed:demo-users",
-    "seed-demo": "pnpm seed:demo",
-    "seed-dashboards": "pnpm seed:dashboards",
-    "migrate": "pnpm migrate:db",
     "setup-demo": "pnpm run keycloak-setup && pnpm run seed-demo-users && pnpm run seed-demo",
-
     "migrate:db": "pnpm run env && set -a && . ./.env.dev && set +a && pnpm --filter @workspace/db migrate:prod",
     "seed:demo": "pnpm run env && set -a && . ./.env.dev && set +a && pnpm --filter @workspace/db seed:demo",
     "seed:dashboards": "pnpm run env && set -a && . ./.env.dev && set +a && pnpm --filter @workspace/db seed:dashboards",
     "seed:demo-users": "pnpm run env && set -a && . ./.env.dev && set +a && pnpm --filter @workspace/db seed:demo-users",
     "setup:realm": "pnpm --filter @workspace/db setup:realm",
     "import:workspace": "pnpm --filter @workspace/db-neo4j import:workspace",
-    "import:workspaces": "pnpm --filter @workspace/db-neo4j import:workspaces",
-
-    "docker:build": "docker build --file .docker/server/${OS:-alpine}/Dockerfile --tag ${REGISTRY:-archispark}/archispark-server:${OS:-alpine}-$(pnpm pkg get version) --tag ${REGISTRY:-archispark}/archispark-server:${OS:-alpine}-latest .",
-    "docker:build:trixie-slim": "OS=trixie-slim pnpm run docker:build",
-    "docker:build:all": "pnpm run docker:build && OS=trixie-slim pnpm run docker:build",
-    "docker:clean": "docker images --filter reference=\"${REGISTRY:-archispark}/archispark-*\" -q | xargs -r docker rmi -f",
-    "docker:prune": "docker system prune -f"
+    "import:workspaces": "pnpm --filter @workspace/db-neo4j import:workspaces"
   },
   "devDependencies": {
     "@workspace/eslint-config": "workspace:*",

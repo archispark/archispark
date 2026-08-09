@@ -106,8 +106,7 @@ account (`archispark-api`, `manage-users`/`view-users`/`query-users`/`view-realm
 The 4 demo accounts (`admin`/`user`/`contrib`/`archi`, passwords match
 usernames) are **not** part of `realm-export.json` — they live in
 `.docker/keycloak/demo-users.json` and are created/updated via the Keycloak
-Admin API by `pnpm seed:demo-users` (`pnpm seed-demo-users` locally, see
-[Demo seed](../getting-started/demo-data.md#demo-seed)). Unlike `--import-realm`, this works against any
+Admin API by `pnpm seed:demo-users` (see [Demo seed](../getting-started/demo-data.md#demo-seed)). Unlike `--import-realm`, this works against any
 Keycloak instance, including a client's dedicated realm on a remote server.
 
 `pnpm keycloak-setup` (`pnpm setup:realm`) creates or updates the realm
@@ -115,7 +114,7 @@ itself (roles, clients, service account) from the same
 `realm-export.json` via the Admin REST API — an alternative to
 `--import-realm` for environments where the Keycloak container isn't
 recreated from scratch (e.g. onboarding a new client's realm on a shared
-remote Keycloak — see [Deployment](../development/deployment.md#onboarding-dun-nouveau-client-un-realm-keycloak-dédié)).
+remote Keycloak — see [Deployment](../development/deployment.md#onboard-a-new-customer-with-a-dedicated-keycloak-realm)).
 
 ## One Keycloak realm per client
 
@@ -145,7 +144,7 @@ env vars for `pnpm setup:realm` (see
 today only the shared/pooled realm turns them on. SSO (Google/Microsoft/other OIDC or SAML)
 is configured per realm via the admin console's _Identity providers_ menu
 — a client's SSO configuration is never visible to another client. See
-[Deployment](../development/deployment.md#onboarding-dun-nouveau-client-un-realm-keycloak-dédié)
+[Deployment](../development/deployment.md#onboard-a-new-customer-with-a-dedicated-keycloak-realm)
 for the full onboarding runbook.
 
 **Bearer token:** `apps/server` (via `@workspace/auth`, `packages/auth`)

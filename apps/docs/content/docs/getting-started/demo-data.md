@@ -13,11 +13,8 @@ The seed is **idempotent** — re-running it replaces the matching workspace's c
 
 ```bash
 # First-time setup: create the demo Keycloak accounts, then load the demo data.
-pnpm seed-demo-users   # sources .env.dev automatically
-pnpm seed-demo         # sources .env.dev automatically
-# or, with the required env vars already exported (e.g. CI) — see below:
-pnpm seed:demo-users
-pnpm seed:demo
+pnpm seed:demo-users   # sources .env.dev automatically
+pnpm seed:demo         # sources .env.dev automatically
 ```
 
 **`pnpm seed:demo-users`** creates/updates the 5 Keycloak demo accounts

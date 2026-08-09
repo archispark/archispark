@@ -65,10 +65,10 @@ minikube start --driver=docker --cpus=4 --memory=6g --addons=ingress
 helm install archispark .k8s/helm/archispark \
   --namespace archispark --create-namespace \
   --set ingress.host=archispark.local \
-  --set secrets.dbPassword=<motdepasse> \
-  --set keycloak.url=<url du Keycloak self-hosté partagé> \
+  --set secrets.dbPassword=<password> \
+  --set keycloak.url=<shared self-hosted Keycloak URL> \
   --set keycloak.realm=archispark \
-  --set secrets.keycloakAdminClientSecret=<secret du client archispark-api>
+  --set secrets.keycloakAdminClientSecret=<archispark-api client secret>
 ```
 
 With TLS (cert-manager or manual secret):
@@ -79,17 +79,17 @@ helm install archispark .k8s/helm/archispark \
   --set ingress.host=archispark.example.com \
   --set ingress.tls.enabled=true \
   --set ingress.tls.secretName=archispark-tls \
-  --set secrets.dbPassword=<motdepasse> \
-  --set keycloak.url=<url du Keycloak self-hosté partagé> \
+  --set secrets.dbPassword=<password> \
+  --set keycloak.url=<shared self-hosted Keycloak URL> \
   --set keycloak.realm=archispark \
-  --set secrets.keycloakAdminClientSecret=<secret du client archispark-api>
+  --set secrets.keycloakAdminClientSecret=<archispark-api client secret>
 ```
 
-Keycloak lui-même n'est **pas** provisionné par ce chart (instance
-self-hostée séparée) — voir [One Keycloak realm per
-client](../reference/authentication.md#one-keycloak-realm-per-client) et
-[Onboarding d'un nouveau client](#onboarding-dun-nouveau-client-un-realm-keycloak-dédié)
-pour créer le realm/client au préalable via `pnpm setup:realm`.
+Keycloak itself is **not** provisioned by this chart; it runs as a separate
+self-hosted service. See [One Keycloak realm per
+client](../reference/authentication.md#one-keycloak-realm-per-client) and
+[Onboard a new customer](#onboard-a-new-customer-with-a-dedicated-keycloak-realm)
+to create the realm and clients beforehand with `pnpm setup:realm`.
 
 **minikube local DNS** (add Ingress IP to `/etc/hosts`):
 
@@ -140,7 +140,8 @@ split/rewrite at the Ingress level anymore.
 
 ### MCP Server on Kubernetes
 
-Once deployed, generate a personal API token in the web UI (**Mon profil → Tokens API → Nouveau token**) and configure Claude Code:
+Once deployed, generate a personal API token in the web UI (**Profile → API
+Tokens → New token**) and configure Claude Code:
 
 ```bash
 claude mcp add archimate \
@@ -193,101 +194,89 @@ hitting an unbackfilled row.
    Authentication itself (Keycloak realm, client ids/secrets) is configured
    via the project's Vercel dashboard — see
    [Keycloak login](../reference/authentication.md#keycloak-login). SMTP config is also
-   detailed in [Invitations par e-mail (SMTP)](#invitations-par-e-mail-smtp).
+   detailed in [E-mail invitations](#e-mail-invitations-smtp).
 
 5. **Redeploy** `archispark-server`.
 
-## Onboarding d'un nouveau client (un realm Keycloak dédié)
+## Onboard a new customer with a dedicated Keycloak realm
 
-ArchiSpark se déploie comme une plateforme **dédiée par client** (application
-`apps/server` + Postgres séparés) sur un **Keycloak self-hosté partagé** (image
-`quay.io/keycloak/keycloak` "classic", la même que celle utilisée en dev —
-déployée séparément de ce chart Helm, par exemple via le chart Keycloak
-officiel ou un conteneur dédié ; le chart `.k8s/helm/archispark/` ne
-provisionne pas Keycloak lui-même). L'isolation entre clients vient du
-**realm Keycloak** : chaque client a le sien
-(`archispark-<tenant>`), un namespace d'identité totalement séparé
-(utilisateurs, rôles, Identity Providers, JWKS/issuer) — voir
-[One Keycloak realm per client](../reference/authentication.md#one-keycloak-realm-per-client).
-Aucune modification de code applicatif n'est nécessaire pour ajouter un
-client : tout se joue dans la configuration Keycloak et les variables
-d'environnement du déploiement.
+ArchiSpark can run as a **dedicated platform per customer**: a separate
+`apps/server` deployment and PostgreSQL database use a **shared self-hosted
+Keycloak**. The Helm chart does not provision Keycloak itself. Customer
+isolation comes from Keycloak realms: each customer has a separate
+`archispark-<tenant>` identity namespace for users, roles, identity providers,
+JWKS, and issuer. See [One Keycloak realm per
+client](../reference/authentication.md#one-keycloak-realm-per-client).
+Onboarding requires configuration only; no application code changes.
 
-1. **Créer le realm du client**, via le script déjà existant
+1. **Create the customer realm** with the existing
    [`packages/db/scripts/setup-realm.ts`](https://github.com/archispark/archispark/blob/main/packages/db/scripts/setup-realm.ts)
-   (aucun script dédié n'est requis — il n'a jamais fait d'hypothèse sur un
-   nom de realm fixe) :
+   script. It does not assume a fixed realm name:
 
    ```bash
-   KEYCLOAK_URL=<url du Keycloak self-hosté partagé> \
+   KEYCLOAK_URL=<shared self-hosted Keycloak URL> \
    KEYCLOAK_REALM=archispark-<tenant> \
    KEYCLOAK_SETUP_AUTH_REALM=master \
-   KEYCLOAK_SETUP_USERNAME=<admin master> \
-   KEYCLOAK_SETUP_PASSWORD=<mot de passe> \
+   KEYCLOAK_SETUP_USERNAME=<master administrator> \
+   KEYCLOAK_SETUP_PASSWORD=<password> \
    pnpm --filter @workspace/db setup:realm
    ```
 
-   (ou `KEYCLOAK_SETUP_AUTH_REALM=archispark-<tenant>` + un admin de ce
-   realm si le compte ne donne pas accès à `master` — voir les commentaires
-   en tête de `setup-realm.ts`.)
+   Alternatively, use `KEYCLOAK_SETUP_AUTH_REALM=archispark-<tenant>` and an
+   administrator of that realm when the account cannot access `master`.
 
-   **Ne définissez pas** `KEYCLOAK_SELF_REGISTRATION`/`KEYCLOAK_VERIFY_EMAIL`
-   pour ce realm dédié — l'absence de ces variables laisse la configuration
-   du realm inchangée (`registrationAllowed: false` par défaut). Ce sont des
-   flags du realm mutualisé uniquement — voir
-   [Invitations par e-mail (SMTP)](#invitations-par-e-mail-smtp) ci-dessous.
+   **Do not set** `KEYCLOAK_SELF_REGISTRATION` or `KEYCLOAK_VERIFY_EMAIL` for a
+   dedicated realm. Omitting them leaves the realm configuration unchanged,
+   with `registrationAllowed: false` by default. They are intended only for
+   the pooled realm described under [E-mail invitations](#e-mail-invitations-smtp).
 
-2. **Récupérer le secret** du service account `archispark-api` généré dans
-   ce realm (console admin → Clients → `archispark-api` → Credentials).
+2. **Retrieve the secret** for the generated `archispark-api` service account
+   from Admin Console → Clients → `archispark-api` → Credentials.
 
-3. **Provisionner la base Postgres dédiée** du client et appliquer les
-   migrations (`pnpm --filter @workspace/db migrate:prod`), puis le
-   backfill des organisations (`pnpm --filter @workspace/db backfill:prod`
-   — no-op sur une base neuve, voir
+3. **Provision the dedicated PostgreSQL database**, apply migrations with
+   `pnpm --filter @workspace/db migrate:prod`, then run
+   `pnpm --filter @workspace/db backfill:prod`. The backfill is a no-op on a
+   new database; see
    [Organizations migration](#organizations-migration-releases-including-0018_organizations_expandsql)).
 
-4. **Déployer** `archispark-server` du client (Helm — voir
-   [Kubernetes (Helm)](#kubernetes-helm) — ou Vercel), pointé vers le
-   Keycloak partagé, avec : `DATABASE_URL`
-   (DB du client), `KEYCLOAK_URL` (le Keycloak partagé),
+4. **Deploy** the customer's `archispark-server` with Helm or Vercel and point
+   it at the shared Keycloak. Configure `DATABASE_URL` for the customer
+   database, `KEYCLOAK_URL` for shared Keycloak,
    `KEYCLOAK_REALM=archispark-<tenant>`, `KEYCLOAK_CLIENT_ID_WEB=archispark-web`,
    `KEYCLOAK_ADMIN_CLIENT_ID`/`KEYCLOAK_ADMIN_CLIENT_SECRET`.
 
-5. **(Optionnel) Peupler des comptes initiaux** :
+5. **Optionally seed initial accounts**:
    `KEYCLOAK_REALM=archispark-<tenant> pnpm --filter @workspace/db seed:demo-users`,
-   ou créer les vrais utilisateurs via la console admin/API.
+   or create real users through the Keycloak Admin Console or API.
 
-6. **(Optionnel) Configurer le SSO du client** : console admin → Identity
-   providers → Google / Microsoft (Entra ID) / autre OIDC-SAML, propre à ce
-   realm — invisible des autres clients.
+6. **Optionally configure customer SSO** under Admin Console → Identity
+   providers. Google, Microsoft Entra ID, and other OIDC or SAML providers are
+   scoped to this realm and invisible to other customers.
 
-7. **Tester** la connexion de bout en bout, puis vérifier l'isolation :
-   un token obtenu sur le realm d'un client doit être rejeté (401) par le
-   déploiement d'un autre client (`verifyAccessToken` rejette sur
-   l'`issuer`, sans rien à coder — voir
+7. **Test** sign-in end to end and verify isolation. A token issued by one
+   customer realm must receive `401` from another customer's deployment;
+   `verifyAccessToken` rejects the mismatched issuer. See
    [One Keycloak realm per client](../reference/authentication.md#one-keycloak-realm-per-client)).
 
-## Invitations par e-mail (SMTP)
+## E-mail invitations (SMTP)
 
-Le realm mutualisé (offre SaaS, pas un realm dédié client) active
-l'auto-inscription Keycloak et les invitations par e-mail — voir
+The pooled SaaS realm, unlike a dedicated customer realm, enables Keycloak
+self-registration and e-mail invitations. See
 [Organization invitations by e-mail](../reference/authentication.md#organization-invitations-by-e-mail).
-Deux jeux de variables, un seul SMTP :
+Two sets of variables share one SMTP service:
 
-- `KEYCLOAK_SELF_REGISTRATION=true`, `KEYCLOAK_VERIFY_EMAIL=true` — passées
-  à `pnpm setup:realm` (ou au job qui l'exécute) pour ce realm uniquement ;
-  absentes = comportement inchangé, voir l'étape 1 ci-dessus pour un realm
-  dédié.
-- `SMTP_HOST`/`SMTP_PORT`/`SMTP_USER`/`SMTP_PASSWORD`/`SMTP_FROM` — utilisées
-  à la fois par `apps/server` (nodemailer, l'e-mail "vous êtes invité") et par
-  Keycloak lui-même (e-mail natif de vérification d'adresse, `smtpServer`
-  patché par `setup-realm.ts` uniquement si `SMTP_HOST` est définie). Laisser
-  `SMTP_HOST` vide désactive l'envoi — l'invitation reste créée avec
-  `sent_at: null`, à renvoyer une fois le SMTP configuré.
-- `ARCHISPARK_URL` — l'URL publique du déploiement, utilisée pour construire
-  le lien d'invitation (`${ARCHISPARK_URL}/invitations/<token>`), jamais
-  reconstruite depuis l'en-tête `Host` de la requête.
+- `KEYCLOAK_SELF_REGISTRATION=true` and `KEYCLOAK_VERIFY_EMAIL=true` are passed
+  to `pnpm setup:realm` only for the pooled realm. When absent, configuration
+  remains unchanged, as required for dedicated realms.
+- `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, and `SMTP_FROM` are
+  used both by `apps/server` for invitation mail and by Keycloak for address
+  verification. `setup-realm.ts` patches `smtpServer` only when `SMTP_HOST` is
+  set. Leaving it empty disables delivery; the invitation remains stored with
+  `sent_at: null` and can be resent after SMTP is configured.
+- `ARCHISPARK_URL` is the public deployment URL used to build
+  `${ARCHISPARK_URL}/invitations/<token>`. It is never inferred from the
+  request's `Host` header.
 
-À passer à `archispark-server` (Helm : `secrets.smtp*`/`env.archispark_url`
-dans `values.yaml` — voir [Kubernetes (Helm)](#kubernetes-helm) ; Vercel :
-variables du projet `archispark-server`, voir [Vercel](#vercel)).
+Pass these variables to `archispark-server`. For Helm, use `secrets.smtp*` and
+`env.archispark_url` in `values.yaml`; for Vercel, configure them on the
+`archispark-server` project.

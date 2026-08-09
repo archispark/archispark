@@ -82,12 +82,11 @@ sur les [tableaux de bord](docs/architecture.md#dashboards) et
 ```bash
 pnpm install
 pnpm env
-docker compose -f .docker/docker-compose.dev.yml up -d --wait
-pnpm keycloak-setup
+pnpm dev    # infrastructure Docker + Turbo en hot reload : serveur :8000, documentation :3000
+pnpm down   # arrête l'infrastructure de développement
 
-pnpm start                # infrastructure Docker + turbo dev, port 8000
-pnpm dev                  # turbo dev, infrastructure déjà démarrée
-pnpm --filter server dev  # application principale uniquement
+pnpm build  # compile tous les workspaces avant le démarrage de production local
+pnpm start  # application principale compilée sur :8000 ; ne démarre pas Docker
 ```
 
 Après `pnpm env`, renseigner au minimum `DB_PASSWORD` et
@@ -161,6 +160,9 @@ une route active.
 
 La documentation fait partie du produit. Dans le même changement que le code :
 
+- rédiger en anglais tout le contenu de `apps/docs/content/docs/` ainsi que la
+  landing page `apps/docs/app/(home)/page.tsx`, y compris les titres,
+  descriptions, libellés, exemples et textes alternatifs ;
 - mettre à jour les guides, références API/MCP, exemples et schémas affectés ;
 - modifier `README.md` si le démarrage rapide, les prérequis ou la navigation
   changent ;
@@ -171,12 +173,12 @@ La documentation fait partie du produit. Dans le même changement que le code :
 
 Utiliser cette table pour trouver la documentation concernée :
 
-| Changement | Emplacement à vérifier |
-| --- | --- |
-| Positionnement produit, fonctionnalités, captures, liens ou connexion MCP | `apps/docs/app/(home)/page.tsx` |
-| Structure et parcours de la documentation | `apps/docs/content/docs/index.mdx` |
-| Prérequis, installation, configuration ou usage | `apps/docs/content/docs/getting-started/`, `apps/docs/content/docs/usage/` |
-| API, MCP, authentification ou ArchiMate | `apps/docs/content/docs/reference/` |
-| Architecture, déploiement ou contribution | `apps/docs/content/docs/development/` |
-| Administration, configuration ou permissions | `apps/docs/content/docs/administration/` |
-| Ajout, déplacement ou suppression d'une page | `meta.json` du dossier concerné |
+| Changement                                                                | Emplacement à vérifier                                                     |
+| ------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| Positionnement produit, fonctionnalités, captures, liens ou connexion MCP | `apps/docs/app/(home)/page.tsx`                                            |
+| Structure et parcours de la documentation                                 | `apps/docs/content/docs/index.mdx`                                         |
+| Prérequis, installation, configuration ou usage                           | `apps/docs/content/docs/getting-started/`, `apps/docs/content/docs/usage/` |
+| API, MCP, authentification ou ArchiMate                                   | `apps/docs/content/docs/reference/`                                        |
+| Architecture, déploiement ou contribution                                 | `apps/docs/content/docs/development/`                                      |
+| Administration, configuration ou permissions                              | `apps/docs/content/docs/administration/`                                   |
+| Ajout, déplacement ou suppression d'une page                              | `meta.json` du dossier concerné                                            |
