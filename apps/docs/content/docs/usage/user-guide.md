@@ -7,8 +7,8 @@ URL: `http://localhost:8000`
 
 ## Sign in
 
-The interface displays a sign-in form on startup. Enter your username and
-password, then submit the form.
+The application redirects to Keycloak. Select **Se connecter**, authenticate
+there, then return to ArchiSpark. Passwords are never submitted to ArchiSpark.
 
 **Demo accounts:**
 
@@ -19,7 +19,7 @@ password, then submit the form.
 | `contrib` | `contrib` |
 | `archi`   | `archi`   |
 
-> See [Authentication and authorization](/authentication#demo-accounts) for a
+> See [Authentication and authorization](../reference/authentication.md) for a
 > complete breakdown of roles (platform role versus organization role) and the
 > `SEED_ADMIN_PASSWORD` / `SEED_USER_PASSWORD` / `SEED_CONTRIB_PASSWORD` /
 > `SEED_ARCHI_PASSWORD` environment variables used to override these passwords
@@ -48,26 +48,28 @@ The left sidebar provides access to every section. At the top, it displays the
 name of the **active** model and its global counters (elements · relationships ·
 views).
 
-| Section                 | Route               | Description                                                                                                                     |
-| ----------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| Overview                | `/`                 | Summary dashboard                                                                                                               |
-| Workspaces              | `/workspaces`       | List, create, and switch between ArchiMate models (workspaces)                                                                  |
-| —                       | —                   | —                                                                                                                               |
-| **Elements**            |                     |                                                                                                                                 |
-| List                    | `/elements`         | All elements, with a badge for elements that do not appear in any view                                                          |
-| _(one entry per layer)_ | `/elements?layer=X` | Quick filter by ArchiMate layer, with counts per layer                                                                          |
-| —                       | —                   | —                                                                                                                               |
-| **Relationships**       |                     |                                                                                                                                 |
-| List                    | `/relationships`    | All relationships, with a conflict count badge                                                                                  |
-| —                       | —                   | —                                                                                                                               |
-| **Views**               |                     |                                                                                                                                 |
-| List                    | `/views`            | All diagrams                                                                                                                    |
-| —                       | —                   | —                                                                                                                               |
-| **Properties**          |                     |                                                                                                                                 |
-| List                    | `/properties`       | Property definitions                                                                                                            |
-| —                       | —                   | —                                                                                                                               |
-| Organization            | `/organization`     | Workspace, member, invitation, and team management — shown only to organization `owner`/`admin` users or `platform_admin` users |
-| Settings                | `/settings`         | Import or export the active model                                                                                               |
+| Section                 | Route                   | Description                                                            |
+| ----------------------- | ----------------------- | ---------------------------------------------------------------------- |
+| Overview                | `/`                     | Summary dashboard                                                      |
+| Workspaces              | `/workspaces`           | List, create, and switch between ArchiMate models (workspaces)         |
+| —                       | —                       | —                                                                      |
+| **Elements**            |                         |                                                                        |
+| List                    | `/elements`             | All elements, with a badge for elements that do not appear in any view |
+| _(one entry per layer)_ | `/elements?layer=X`     | Quick filter by ArchiMate layer, with counts per layer                 |
+| —                       | —                       | —                                                                      |
+| **Relationships**       |                         |                                                                        |
+| List                    | `/relationships`        | All relationships, with a conflict count badge                         |
+| —                       | —                       | —                                                                      |
+| **Views**               |                         |                                                                        |
+| List                    | `/views`                | All diagrams                                                           |
+| —                       | —                       | —                                                                      |
+| **Properties**          |                         |                                                                        |
+| List                    | `/properties`           | Property definitions                                                   |
+| —                       | —                       | —                                                                      |
+| Dashboards              | `/dashboards`           | Dashboards for the active organization                                 |
+| Explore                 | `/explore`              | Ad hoc read-only Cypher queries                                        |
+| Panel catalogue         | `/panel-visualizations` | Available graph, table, and metric renderers                           |
+| Settings                | `/settings`             | Rename, export, or delete the active workspace                         |
 
 > On desktop, the sidebar can be **collapsed to an icon-only rail** using the
 > toggle at the bottom (panel icon). All sections remain accessible as icons
@@ -140,9 +142,8 @@ Click anywhere on a workspace row to **activate** it (unless it is already
 active) and open its Overview. The active workspace determines which elements,
 relationships, views, and properties are displayed throughout the application.
 
-> Renaming a workspace, assigning it to specific teams, or deleting it is done
-> from [Organization → Workspace management](#workspace-management), available
-> to organization `owner`/`admin` users.
+> Renaming, exporting, or deleting the active workspace is done from
+> [Settings](#settings-settings), with `owner` or `admin` access.
 
 ---
 
@@ -184,7 +185,8 @@ required. Deletion cascades: **all relationships** referencing the element and
 **all its nodes in views** are also deleted.
 
 > Creating, editing, and deleting elements requires write access — see
-> [Authentication and authorization](/authentication) for the role model.
+> [Authentication and authorization](../reference/authentication.md) for the
+> role model.
 
 ---
 
@@ -391,47 +393,31 @@ forms (in the “Properties” section) as a key/value pair.
 
 ---
 
-## Organization (`/organization`)
+## Organizations (`/organizations`)
 
-Shown in the sidebar only to organization `owner`/`admin` users or
-`platform_admin` users (see
-[Authentication and authorization](/authentication) for the role model).
-
-### Workspace management
-
-Lists all workspaces in the organization:
-
-- **Create** a new workspace (name and optional description)
-- **Activate** a workspace that is not currently active
-- **Rename** a workspace and **assign it to one or more teams** — a workspace
-  with assigned teams is visible only to members of those teams (plus owners
-  and administrators); a workspace without a team is visible to the entire
-  organization
-- **Delete** a workspace (with confirmation)
+Open this page from the user menu. It lists every organization in which the
+current user is a member, its role, active state, and suspension state. A
+`platform_admin` uses `/platform/organizations` instead and cannot open
+organization content.
 
 ### Members
 
-Manage the organization's members, invitations, and teams:
+Manage the organization's members and invitations:
 
 - **Members** — list all organization members and their organization role
   (`owner` / `admin` / `member`).
-- **Invitations** — invite a new member by email, choosing their initial role
-  and, optionally, a team. Pending invitations are listed with their expiration
-  date and can be canceled.
-- **Teams** — create, rename, or delete a team, and add organization members to
-  or remove them from it. Teams control which workspaces a member can see
-  (through the workspace assignment described above).
+- **Invitations** — owners and admins invite by e-mail and choose the initial
+  role. Pending invitations can be resent or revoked.
+- **Roles** — only owners can change roles or remove members. The last owner
+  cannot be demoted or removed.
 
 ---
 
 ## Settings (`/settings`)
 
-The Settings page covers **importing and exporting** the active workspace model:
-
-- **Import a model** — drag and drop or click to select an `.xml` file (Open
-  Exchange Format / AOEF). This replaces the active workspace model.
-- **Export the model** — downloads the active workspace model as Open Exchange
-  XML.
+The Settings page lets an owner or admin rename the active workspace, edit its
+description, export it, or delete it. Export offers Open Exchange XML and a ZIP
+containing the XML plus every view as SVG.
 
 > Workspace creation, renaming, activation, assignment, and deletion are
 > managed from [Workspaces](#workspaces-workspaces) and
@@ -444,12 +430,12 @@ The Settings page covers **importing and exporting** the active workspace model:
 
 Click your name in the top bar's user menu to open your profile.
 
-- **Personal information** — update your display name, view your username and
-  email address, and change your password.
+- **Personal information** — view the identity supplied by Keycloak.
+- **Localization** — select one of the five interface languages.
 - **API tokens** — generate personal API tokens for the REST API and MCP server.
   Click **New token**, give it a name and an optional expiration date, then copy
   the token — it is shown only once. See
-  [Authentication and authorization → API tokens](/authentication#api-tokens)
+  [Authentication and authorization → API tokens](../reference/authentication.md#api-tokens)
   to learn how these tokens are scoped and used.
 
 ---
@@ -463,6 +449,6 @@ Click your name in the top bar's user menu to open your profile.
 | Detect inconsistencies     | Relationships page → “Conflicts” filter                                    |
 | See the complete model     | Overview → layer stat cards and donut charts                               |
 | Check a diagram's validity | Open a view → Validator panel below the canvas                             |
-| Manage members and teams   | [Organization](/organization) (organization `owner`/`admin` only)          |
+| Manage members             | [Organizations](/organizations), then the members button                   |
 | Export for Archi           | Settings → Export model (`.xml`, AOEF format compatible with Archi)        |
 | Generate an API/MCP token  | Profile → API Tokens → “New token”                                         |

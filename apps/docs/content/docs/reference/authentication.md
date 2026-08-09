@@ -18,7 +18,7 @@ organization has members with one of three roles:
 
 Every organization/workspace route resolves the caller's role through the
 single authorization gateway,
-[`apps/server/lib/archimate/access.ts`](../apps/server/lib/archimate/access.ts) — never a per-route
+[`apps/server/lib/archimate/access.ts`](https://github.com/archispark/archispark/blob/main/apps/server/lib/archimate/access.ts) — never a per-route
 check. Two-level error convention: `404 Not Found` if the caller has no
 membership in the target organization (deliberately masks "not a member"
 as "not found"), `403 Forbidden` if the caller **is** a recognized member
@@ -126,7 +126,7 @@ on a shared, self-hosted **classic Keycloak** instance (the same
 identity namespace — its own users, roles, Identity Providers, sessions,
 and JWKS/issuer — so this gives complete tenant isolation with **no
 application code involved**:
-[`verifyAccessToken`](../packages/auth/src/verify.ts) already validates the
+[`verifyAccessToken`](https://github.com/archispark/archispark/blob/main/packages/auth/src/verify.ts) already validates the
 token's `issuer` (`${KEYCLOAK_URL}/realms/${KEYCLOAK_REALM}`), which
 includes the realm name. A token issued for `archispark-acme` is therefore
 automatically rejected by a deployment configured with
@@ -188,5 +188,5 @@ refresh also fails.
 `apps/server`'s `requireAuth` also accepts the `access_token` cookie —
 verified and bridged the same way as the Bearer path above, resolving to
 the same `AuthContext.user` as a Bearer token for the same person. Same-origin
-since the apps/web + apps/api + apps/mcp-server fusion, so no cross-app
-rewrite is involved anymore.
+Because UI, REST API, and MCP now share `apps/server`, no cross-application
+rewrite is involved.

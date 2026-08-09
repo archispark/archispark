@@ -39,7 +39,7 @@ A fourth role, `platform_admin`, is a Keycloak **realm** role (not an
 `organization_members` row) — it administers organizations
 (`/api/platform/organizations*`, metadata only) but is structurally denied
 any access to organization content, enforced once in
-[`apps/server/lib/archimate/access.ts`](../apps/server/lib/archimate/access.ts)
+[`apps/server/lib/archimate/access.ts`](https://github.com/archispark/archispark/blob/main/apps/server/lib/archimate/access.ts)
 rather than left to be remembered at every call site. See
 [Authentication](../reference/authentication.md) for the full role matrix.
 
@@ -50,7 +50,7 @@ plain Keycloak `sub` values.
 `apiTokens.organizationId`/`workspaces.organizationId` are nullable at the
 DB level only during the expand→backfill→contract
 migration window (see
-[`packages/db/src/backfill-organizations.ts`](../packages/db/src/backfill-organizations.ts));
+[`packages/db/src/backfill-organizations.ts`](https://github.com/archispark/archispark/blob/main/packages/db/src/backfill-organizations.ts));
 the backfill runs automatically right after migrations, before the app
 serves any traffic, so every row the application ever reads has one.
 
@@ -80,7 +80,7 @@ Handlers (`app/api/**/route.ts`); the MCP transport is a Pages Router route
 `ServerResponse`, which only the Pages Router exposes. Every
 workspace/organization route resolves access through the single
 authorization gateway,
-[`apps/server/lib/archimate/access.ts`](../apps/server/lib/archimate/access.ts)
+[`apps/server/lib/archimate/access.ts`](https://github.com/archispark/archispark/blob/main/apps/server/lib/archimate/access.ts)
 (`resolveActiveContext`/`assertOrgAccess`/`assertWorkspaceAccess`) — a user
 sees and acts on every workspace of every organization they belong to,
 subject to their role (`owner`/`admin`: read+write, `member`: read-only).
@@ -98,7 +98,7 @@ directory `apps/server`) — see [Vercel](deployment.md#vercel).
 
 `POST /api/export/neo4j` (`apps/server/app/api/export/neo4j/route.ts`) reads
 the active workspace's model from PostgreSQL (`loadModel` /
-[`modelFromDb`](../packages/db/src/model-io.ts)) and rewrites it into a Neo4j
+[`modelFromDb`](https://github.com/archispark/archispark/blob/main/packages/db/src/model-io.ts)) and rewrites it into a Neo4j
 graph, for reporting use cases that need graph queries rather than the
 relational model. Postgres stays the single source of truth — Neo4j is a
 disposable read-side copy, rebuilt on demand by calling this route again.

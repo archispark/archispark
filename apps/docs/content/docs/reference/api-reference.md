@@ -19,6 +19,12 @@ Workspaces belong to an organization — see [Authentication](authentication.md#
 | `PUT`    | `/api/organizations/:id/members/:userId` | owner       | Change a member's role — body: `{ role }`; refuses to demote the last `owner`                                  |
 | `DELETE` | `/api/organizations/:id/members/:userId` | owner       | Remove a member, including self-removal; refuses to remove the last `owner`                                    |
 
+Invitation routes complement direct member management: `POST` and `GET`
+`/api/organizations/:id/invitations`, `DELETE`
+`/api/organizations/:id/invitations/:invitationId`, `POST` on its `/resend`
+suffix, plus public token inspection and authenticated acceptance through
+`GET /api/invitations/:token` and `POST /api/invitations/:token/accept`.
+
 ## Platform administration
 
 `platform_admin`-only, metadata only — never organization content.
@@ -43,47 +49,57 @@ Every workspace belongs to exactly one organization (`organization_id`) — a ca
 
 ## Model routes
 
-| Method | Path              | Description                                                      |
-| ------ | ----------------- | ---------------------------------------------------------------- |
-| `GET`  | `/api`            | Active workspace info + model metadata                           |
-| `POST` | `/api/save`       | No-op (writes are persisted immediately); kept for compatibility |
-| `GET`  | `/api/export`     | Download model as Open Exchange XML                              |
-| `GET`  | `/api/export/zip` | Download model XML + all view SVGs as a ZIP archive              |
-| `POST` | `/api/import`     | Replace the active workspace model from an XML body              |
+| Method | Path                | Description                                                      |
+| ------ | ------------------- | ---------------------------------------------------------------- |
+| `GET`  | `/api`              | Active workspace info + model metadata                           |
+| `POST` | `/api/save`         | No-op (writes are persisted immediately); kept for compatibility |
+| `GET`  | `/api/export`       | Download model as Open Exchange XML                              |
+| `GET`  | `/api/export/zip`   | Download model XML + all view SVGs as a ZIP archive              |
+| `POST` | `/api/import`       | Replace the active workspace model from an XML body              |
+| `POST` | `/api/export/neo4j` | Rebuild the active workspace's Neo4j read model                  |
 
 ## Elements
 
-| Method   | Path                  | Description                                                    |
-| -------- | --------------------- | -------------------------------------------------------------- |
-| `GET`    | `/api/elements/types` | Sorted list of element types present in model                  |
-| `GET`    | `/api/elements`       | List elements (`?type=`, `?name=`)                             |
-| `GET`    | `/api/elements/:id`   | Get element                                                    |
-| `POST`   | `/api/elements`       | Create element — `{ name, type, documentation?, properties? }` |
-| `PUT`    | `/api/elements/:id`   | Update element (partial)                                       |
-| `DELETE` | `/api/elements/:id`   | Delete element (cascades to relationships and view nodes)      |
+| Method   | Path                              | Description                                                    |
+| -------- | --------------------------------- | -------------------------------------------------------------- |
+| `GET`    | `/api/elements/types`             | Sorted list of element types present in model                  |
+| `GET`    | `/api/elements`                   | List elements (`?type=`, `?name=`)                             |
+| `GET`    | `/api/elements/:id`               | Get element                                                    |
+| `POST`   | `/api/elements`                   | Create element — `{ name, type, documentation?, properties? }` |
+| `PUT`    | `/api/elements/:id`               | Update element (partial)                                       |
+| `DELETE` | `/api/elements/:id`               | Delete element (cascades to relationships and view nodes)      |
+| `GET`    | `/api/elements/:id/relationships` | Relationships touching one element                             |
+| `GET`    | `/api/elements/:id/views`         | Views containing one element                                   |
+| `GET`    | `/api/elements/in-views`          | Identifiers of elements used by at least one view              |
 
 ## Relationships
 
-| Method   | Path                       | Description                                                                                                 |
-| -------- | -------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `GET`    | `/api/relationships/types` | Sorted list of relationship types present                                                                   |
-| `GET`    | `/api/relationships`       | List (`?type=`, `?source_id=`, `?target_id=`)                                                               |
-| `GET`    | `/api/relationships/:id`   | Get relationship                                                                                            |
-| `POST`   | `/api/relationships`       | Create — `{ type, source, target, name?, documentation?, is_directed?, access_type?, influence_strength? }` |
-| `PUT`    | `/api/relationships/:id`   | Update (partial)                                                                                            |
-| `DELETE` | `/api/relationships/:id`   | Delete                                                                                                      |
+| Method   | Path                           | Description                                                                                                 |
+| -------- | ------------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| `GET`    | `/api/relationships/types`     | Sorted list of relationship types present                                                                   |
+| `GET`    | `/api/relationships`           | List (`?type=`, `?source_id=`, `?target_id=`)                                                               |
+| `GET`    | `/api/relationships/:id`       | Get relationship                                                                                            |
+| `POST`   | `/api/relationships`           | Create — `{ type, source, target, name?, documentation?, is_directed?, access_type?, influence_strength? }` |
+| `PUT`    | `/api/relationships/:id`       | Update (partial)                                                                                            |
+| `DELETE` | `/api/relationships/:id`       | Delete                                                                                                      |
+| `GET`    | `/api/relationships/:id/views` | Views containing the relationship as a connection                                                           |
 
 ## Views
 
-| Method   | Path                   | Description                                                   |
-| -------- | ---------------------- | ------------------------------------------------------------- |
-| `GET`    | `/api/views`           | List views                                                    |
-| `GET`    | `/api/views/:id`       | View detail (nodes + connections)                             |
-| `POST`   | `/api/views`           | Create — `{ name, viewpoint?, documentation? }`               |
-| `PUT`    | `/api/views/:id`       | Update (partial)                                              |
-| `DELETE` | `/api/views/:id`       | Delete                                                        |
-| `POST`   | `/api/views/:id/nodes` | Add node — `{ element_id, x?, y?, w?, h? }`                   |
-| `GET`    | `/api/views/:id/image` | Render view as SVG (`?format=svg`; PNG export is client-side) |
+| Method           | Path                                       | Description                                                   |
+| ---------------- | ------------------------------------------ | ------------------------------------------------------------- |
+| `GET`            | `/api/views`                               | List views                                                    |
+| `GET`            | `/api/views/:id`                           | View detail (nodes + connections)                             |
+| `POST`           | `/api/views`                               | Create — `{ name, viewpoint?, documentation? }`               |
+| `PUT`            | `/api/views/:id`                           | Update (partial)                                              |
+| `DELETE`         | `/api/views/:id`                           | Delete                                                        |
+| `POST`           | `/api/views/:id/nodes`                     | Add node — `{ element_id, x?, y?, w?, h? }`                   |
+| `GET`            | `/api/views/:id/image`                     | Render view as SVG (`?format=svg`; PNG export is client-side) |
+| `PUT` / `DELETE` | `/api/views/:id/nodes/:nodeId`             | Update or delete a node                                       |
+| `POST`           | `/api/views/:id/connections`               | Add a connection between view nodes                           |
+| `PUT` / `DELETE` | `/api/views/:id/connections/:connectionId` | Update or delete a connection                                 |
+
+`GET /api/viewpoints` returns the ArchiMate viewpoint catalogue.
 
 ## Property definitions
 
@@ -110,3 +126,18 @@ Org-scoped — see [docs/../development/architecture.md#dashboards](../developme
 | `GET`    | `/api/dashboards/:dashboardId/panels/:panelInstanceId` | Execute one panel instance — query-string values are the panel's parameters          |
 | `GET`    | `/api/panel-visualizations`                            | Static catalogue of panel visualizations (`core/graph`, `core/table`, `core/metric`) |
 | `POST`   | `/api/explore`                                         | Ad hoc read-only Cypher query — body: `{ query, parameters }`                        |
+
+## Session, profile, and service routes
+
+| Method         | Path                                                        | Description                               |
+| -------------- | ----------------------------------------------------------- | ----------------------------------------- |
+| `GET`          | `/api/auth/login`, `/api/auth/callback`, `/api/auth/logout` | Browser OIDC flow                         |
+| `POST`         | `/api/auth/refresh`                                         | Refresh browser token cookies             |
+| `GET`          | `/api/auth/me`                                              | Current verified Keycloak identity        |
+| `GET`          | `/api/me`                                                   | Read the current profile and memberships  |
+| `GET` / `POST` | `/api/settings/api-tokens`                                  | List or create personal tokens            |
+| `DELETE`       | `/api/settings/api-tokens/:id`                              | Revoke a personal token                   |
+| `GET` / `PUT`  | `/api/settings/messages`                                    | Read messages; update as `platform_admin` |
+| `GET`          | `/api/health`                                               | Service health                            |
+| `GET`          | `/api/openapi.json`                                         | OpenAPI document                          |
+| `GET`          | `/api/docs`                                                 | Interactive API reference                 |

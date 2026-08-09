@@ -115,7 +115,7 @@ echo "$(minikube ip) archispark.local" | sudo tee -a /etc/hosts
 | `secrets.existingSecret`            | `""`                     | Name of a pre-existing K8s Secret (Sealed Secrets, ESO…)                  |
 | `postgres.storage`                  | `5Gi`                    | PostgreSQL PVC size                                                       |
 
-See [`.k8s/helm/archispark/values.yaml`](../.k8s/helm/archispark/values.yaml) for the full list.
+See [`.k8s/helm/archispark/values.yaml`](https://github.com/archispark/archispark/blob/main/.k8s/helm/archispark/values.yaml) for the full list.
 
 ### Upgrade / uninstall
 
@@ -214,7 +214,7 @@ client : tout se joue dans la configuration Keycloak et les variables
 d'environnement du déploiement.
 
 1. **Créer le realm du client**, via le script déjà existant
-   [`packages/db/scripts/setup-realm.ts`](../packages/db/scripts/setup-realm.ts)
+   [`packages/db/scripts/setup-realm.ts`](https://github.com/archispark/archispark/blob/main/packages/db/scripts/setup-realm.ts)
    (aucun script dédié n'est requis — il n'a jamais fait d'hypothèse sur un
    nom de realm fixe) :
 
