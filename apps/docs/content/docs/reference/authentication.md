@@ -23,15 +23,16 @@ check. Two-level error convention: `404 Not Found` if the caller has no
 membership in the target organization (deliberately masks "not a member"
 as "not found"), `403 Forbidden` if the caller **is** a recognized member
 but their role is insufficient for the action, or the organization has been
-suspended by a `platform_admin`.
+suspended by an Admin.
 
-A fourth role, **`platform_admin`**, is a Keycloak _realm_ role (set on the
+A fourth role, **Admin** (Keycloak identifier `platform_admin`), is a Keycloak
+_realm_ role (set on the
 Keycloak user, not an `organization_members` row) — it administers
 organizations from `/api/platform/organizations*` (metadata only: list,
 suspend/reactivate, delete) but is **structurally denied** any access to
 organization content (workspaces, elements, …), even if a stray
 `organization_members` row happened to exist for that user — `access.ts`
-rejects `platform_admin` unconditionally, before ever checking membership.
+rejects Admin unconditionally, before ever checking membership.
 
 Every user gets a personal organization (`is_personal = true`)
 auto-created the first time they create a workspace with no organization
@@ -85,13 +86,14 @@ revoked_at IS NULL … RETURNING *` inside a transaction, so two concurrent
   later signs in via an SSO identity provider (Google/Microsoft) with the
   same e-mail.
 
-`/api/settings/messages` (`PUT`) is restricted to users holding the global `platform_admin` realm role (`requireSuperAdmin`).
+`/api/settings/messages` (`PUT`) is restricted to users holding the global
+Admin realm role (`platform_admin`; `requireSuperAdmin`).
 
 | Method | Path      | Auth | Description          |
 | ------ | --------- | ---- | -------------------- |
 | `GET`  | `/api/me` | user | Returns current user |
 
-Default credentials: `admin` / `admin` (`platform_admin`, no organization membership by design), `user` / `user`, `contrib` / `contrib`, `archi` / `archi`, `open` / `open`. The demo seed creates two organizations, deliberately isolated from each other: `Archi` (`archi` as `owner`, `contrib`/`user` as `admin`/`member`) and `Open` (`open` as sole `owner`) — see [Demo seed](../getting-started/demo-data.md#demo-seed).
+Default credentials: `admin` / `admin` (Admin, no organization membership by design), `user` / `user`, `contrib` / `contrib`, `archi` / `archi`, `open` / `open`. The demo seed creates two organizations, deliberately isolated from each other: `Archi` (`archi` as `owner`, `contrib`/`user` as `admin`/`member`) and `Open` (`open` as sole `owner`) — see [Demo seed](../getting-started/demo-data.md#demo-seed).
 
 ## Keycloak login
 
@@ -100,7 +102,7 @@ Default credentials: `admin` / `admin` (`platform_admin`, no organization member
 `http://localhost:8080`, admin console login from `KEYCLOAK_ADMIN`/`KEYCLOAK_ADMIN_PASSWORD`
 in `.env.dev`), pre-loaded via `--import-realm` from
 `.docker/keycloak/realm-export.json` with realm `archispark`, the client
-`archispark-web`, the `platform_admin` realm role, and the api service
+`archispark-web`, the Admin realm role (`platform_admin`), and the api service
 account (`archispark-api`, `manage-users`/`view-users`/`query-users`/`view-realm`).
 
 The 4 demo accounts (`admin`/`user`/`contrib`/`archi`, passwords match

@@ -63,6 +63,8 @@ pnpm keycloak-setup  # create/update the Keycloak realm (roles, clients, service
 pnpm seed:demo-users # create/update the 5 Keycloak demo accounts (admin/user/contrib/archi/open)
 pnpm seed:demo       # seed demo ArchiMate data (ArchiMetal/ArchiSurance/Open Day, see Demo seed)
 pnpm setup-demo      # all three above, in order
+pnpm reset           # delete all ArchiSpark PostgreSQL and Neo4j data (no seed)
+pnpm reset:demo      # migrate, replace demo data, and export all workspaces to Neo4j
 
 # Run the built main application (infrastructure must already be available)
 pnpm build

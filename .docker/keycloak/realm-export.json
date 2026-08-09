@@ -8,7 +8,7 @@
     "realm": [
       {
         "name": "platform_admin",
-        "description": "ArchiSpark platform administrator",
+        "description": "ArchiSpark Admin",
         "composite": false,
         "clientRole": false
       }

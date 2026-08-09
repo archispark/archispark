@@ -5,12 +5,12 @@ description: Organizations, invitations, roles, platform administration, and use
 
 ArchiSpark separates organization administration from platform administration.
 An organization contains its members, API tokens, workspaces, models, and
-dashboards. The `platform_admin` realm role manages organization metadata only
-and grants no access to that content.
+dashboards. The Admin role (Keycloak identifier `platform_admin`) manages
+organization metadata only and grants no access to that content.
 
 ## Organization roles
 
-| Capability                     | owner | admin | member |
+| Capability                     | Owner | Editor | Viewer |
 | ------------------------------ | ----- | ----- | ------ |
 | Read organization workspaces   | yes   | yes   | yes    |
 | Modify models and dashboards   | yes   | yes   | no     |
@@ -19,34 +19,37 @@ and grants no access to that content.
 | Change roles or remove members | yes   | no    | no     |
 | Delete the organization        | yes   | no    | no     |
 
-The last owner cannot be demoted or removed. Suspending an organization blocks
+The last Owner cannot be demoted or removed. Suspending an organization blocks
 its normal use without changing memberships or deleting data.
 
 ## Manage organizations
 
 Open **Organizations** from the user menu. Any authenticated user can create a
-team organization and becomes its owner. Select **Activate** to switch context;
+team organization and becomes its Owner. Select **Activate** to switch context;
 the workspace list then follows the active organization.
 
-Owners and admins can rename an organization. Only owners can delete it. That
+Owners and Editors can rename an organization. Only Owners can delete it. That
 deletion cascades to its workspaces, memberships, invitations, dashboards, and
 organization-scoped tokens, so export required models first.
 
 ## Invite members
 
-From an organization's members dialog, an owner or admin enters an e-mail and
-chooses `owner`, `admin`, or `member`. ArchiSpark stores only a SHA-256 hash of
+From an organization's members dialog, an Owner or Editor enters an e-mail and
+chooses Owner, Editor, or Viewer. ArchiSpark stores only a SHA-256 hash of
 the random invitation token. Pending invitations can be resent or revoked and
 expire after the configured validity period.
+
+The API and database retain the stable role identifiers `owner`, `admin`, and
+`member`; the application presents them as Owner, Editor, and Viewer.
 
 The recipient must authenticate with a Keycloak account whose e-mail matches
 the invitation, then open `/invitations/<token>` and accept it. Acceptance adds
 the membership and cannot be repeated. SMTP settings and delivery behavior are
 described in [Deployment](../development/deployment.md#e-mail-invitations-smtp).
 
-## Platform administration
+## Admin administration
 
-Assign the Keycloak realm role `platform_admin` directly, or use the helpers in
+Assign the Admin Keycloak realm role (`platform_admin`) directly, or use the helpers in
 `packages/auth/src/admin-users.ts`. These users are redirected away from the
 workspace UI to `/platform/organizations`, where they can:
 

@@ -33,7 +33,7 @@ La documentation Fumadocs vit dans [`apps/docs`](apps/docs) et se lance avec
 | [Deployment](docs/deployment.md)                         | Kubernetes (Helm), Vercel                                          |
 | [Architecture](docs/architecture.md)                     | Persistence, database schema, `apps/server`, dashboards            |
 | [Authentication](docs/authentication.md)                 | Keycloak login, tokens, access control                             |
-| [Administration](docs/administration.md)                 | Platform super admin, user provisioning                            |
+| [Administration](docs/administration.md)                 | Admin, user provisioning                                           |
 | [API reference](docs/api-reference.md)                   | Workspaces, elements, relationships, views, property definitions   |
 | [MCP server](docs/mcp-server.md)                         | Model Context Protocol tools for AI agents                         |
 | [Demo data](docs/demo-data.md)                           | Seeding demo accounts and workspaces                               |

@@ -34,8 +34,8 @@ there, then return to ArchiSpark. Passwords are never submitted to ArchiSpark.
 The top bar contains:
 
 - **Menu button** — opens the sidebar on mobile
-- **Breadcrumb** — Organization (if you are an `owner`, `admin`, or
-  `platform_admin`) / Workspaces / Active workspace name / Current section
+- **Breadcrumb** — Organization (if you are an Owner, Editor, or Admin) /
+  Workspaces / Active workspace name / Current section
 - **Organization switcher** — visible when your account belongs to more than
   one organization
 - **Language selector** — switches the interface language (see below)
@@ -143,7 +143,7 @@ active) and open its Overview. The active workspace determines which elements,
 relationships, views, and properties are displayed throughout the application.
 
 > Renaming, exporting, or deleting the active workspace is done from
-> [Settings](#settings-settings), with `owner` or `admin` access.
+> [Settings](#settings-settings), with Owner or Editor access.
 
 ---
 
@@ -397,7 +397,7 @@ forms (in the “Properties” section) as a key/value pair.
 
 Open this page from the user menu. It lists every organization in which the
 current user is a member, its role, active state, and suspension state. A
-`platform_admin` uses `/platform/organizations` instead and cannot open
+An Admin uses `/platform/organizations` instead and cannot open
 organization content.
 
 ### Members
@@ -405,17 +405,17 @@ organization content.
 Manage the organization's members and invitations:
 
 - **Members** — list all organization members and their organization role
-  (`owner` / `admin` / `member`).
-- **Invitations** — owners and admins invite by e-mail and choose the initial
+  (Owner / Editor / Viewer).
+- **Invitations** — Owners and Editors invite by e-mail and choose the initial
   role. Pending invitations can be resent or revoked.
-- **Roles** — only owners can change roles or remove members. The last owner
+- **Roles** — only Owners can change roles or remove members. The last Owner
   cannot be demoted or removed.
 
 ---
 
 ## Settings (`/settings`)
 
-The Settings page lets an owner or admin rename the active workspace, edit its
+The Settings page lets an Owner or Editor rename the active workspace, edit its
 description, export it, or delete it. Export offers Open Exchange XML and a ZIP
 containing the XML plus every view as SVG.
 

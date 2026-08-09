@@ -17,6 +17,7 @@
     "typecheck": "tsc --noEmit",
     "seed:demo": "tsx scripts/seed-demo.ts",
     "seed:dashboards": "tsx scripts/seed-dashboards.ts",
+    "reset": "tsx scripts/reset.ts",
     "seed:demo-users": "tsx scripts/seed-demo-users.ts",
     "setup:realm": "tsx scripts/setup-realm.ts",
     "migrate:prod": "tsx scripts/migrate-prod.ts",

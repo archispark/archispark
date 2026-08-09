@@ -13,8 +13,8 @@ WASM, in-memory) — full Postgres fidelity, no Docker required.
 
 `packages/db/src/schema.ts` defines every table in one place, following an
 **Organisation → Workspace** hierarchy: `organizations` (`slug`, `name`,
-`isPersonal`, `enabled` — a suspension flag settable only by a
-`platform_admin`), `organizationMembers` (`organizationId`, `userId` — a
+`isPersonal`, `enabled` — a suspension flag settable only by an Admin
+(`platform_admin`)), `organizationMembers` (`organizationId`, `userId` — a
 Keycloak `sub` — and `role`: `"owner" | "admin" | "member"`),
 `organizationInvitations` (email-based invitations — `email`, `role`,
 `tokenHash` (SHA-256 of a random token, the clear-text token itself is
@@ -35,8 +35,8 @@ ArchiMate content tables (`elements`, `relationships`,
 `views`, `nodes`, `connections`, `bendpoints`), all keyed by `workspace_id`
 with cascading foreign keys.
 
-A fourth role, `platform_admin`, is a Keycloak **realm** role (not an
-`organization_members` row) — it administers organizations
+A fourth role, Admin (Keycloak identifier `platform_admin`), is a Keycloak
+**realm** role (not an `organization_members` row) — it administers organizations
 (`/api/platform/organizations*`, metadata only) but is structurally denied
 any access to organization content, enforced once in
 [`apps/server/lib/archimate/access.ts`](https://github.com/archispark/archispark/blob/main/apps/server/lib/archimate/access.ts)

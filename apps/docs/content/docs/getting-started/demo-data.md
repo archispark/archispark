@@ -5,7 +5,7 @@ description: Create demo Keycloak accounts and sample ArchiMate workspaces.
 
 Three sample ArchiMate models are available for demo or local testing: **ArchiMetal** (294 elements, 476 relationships, 33 views), **ArchiSurance** (257 elements, 402 relationships, 40 views), and **Open Day** (27 elements, 37 relationships, 4 views).
 
-The workspaces are grouped into two demo organizations (`packages/db/seeds/demo-orgs.json`): **Archi** (ArchiSurance + ArchiMetal) and **Open** (Open Day). The two organizations are deliberately isolated from each other — no shared members: within Archi, `archi` is `owner`, `contrib` is `admin`, `user` is `member`; within Open, `open` is the sole `owner`. The `admin` demo account (`platform_admin`) is deliberately a member of neither, demonstrating platform/organization isolation from the demo itself.
+The workspaces are grouped into two demo organizations (`packages/db/seeds/demo-orgs.json`): **Archi** (ArchiSurance + ArchiMetal) and **Open** (Open Day). The two organizations are deliberately isolated from each other — no shared members: within Archi, `archi` is `owner`, `contrib` is `admin`, `user` is `member`; within Open, `open` is the sole `owner`. The `admin` demo account (Admin; Keycloak identifier `platform_admin`) is deliberately a member of neither, demonstrating platform/organization isolation from the demo itself.
 
 Membership is authoritative on every reseed: narrowing an organization's `members` in `demo-orgs.json` removes any now-unlisted `organization_members` row on the next `pnpm seed:demo` run rather than leaving it behind (see `removeStaleMembers` in `seed-demo.ts`) — this is how `archi`/`user`/`contrib` lost access to Open when it was split off into its own, single-owner organization.
 
@@ -31,6 +31,22 @@ and the ArchiMate demo data (ArchiMetal/ArchiSurance/Open Day) — requires
 `__ARCHISURANCE_ORGANIZATION_ID__`/`__ARCHIMETAL_ORGANIZATION_ID__`/`__OPENDAY_ORGANIZATION_ID__`/`__CREATED_BY_ID__`
 placeholders are only substituted by `seed-demo.ts`, so run it via `pnpm
 seed:demo` rather than `psql -f` directly.
+
+To reproduce **Actions → Restore demo data** locally, run:
+
+```bash
+pnpm reset:demo
+```
+
+It applies pending PostgreSQL and Neo4j migrations, runs the organization
+backfill, creates or updates the demo Keycloak accounts, replaces the three
+demo workspaces, and exports every workspace to Neo4j. The reset deletes only
+ArchiMetal, ArchiSurance, and Open Day (with their child rows through
+PostgreSQL cascades); it does not erase other organizations or workspaces.
+
+To remove all ArchiSpark PostgreSQL and Neo4j data without loading demo data,
+run `pnpm reset`. It preserves database schemas and migration histories, as
+well as the separate Keycloak database and its users.
 
 ## Restore demo data on Vercel (GitHub Actions)
 

@@ -5,11 +5,11 @@ description: REST API endpoints for organizations, ArchiMate models and dashboar
 
 ## Organizations
 
-Workspaces belong to an organization — see [Authentication](authentication.md#organizations-and-roles) for the full role matrix (`owner`/`admin`/`member`) and the `platform_admin` isolation guarantee.
+Workspaces belong to an organization — see [Authentication](authentication.md#organizations-and-roles) for the full role matrix (`owner`/`admin`/`member`) and the Admin isolation guarantee.
 
 | Method   | Path                                     | Auth        | Description                                                                                                    |
 | -------- | ---------------------------------------- | ----------- | -------------------------------------------------------------------------------------------------------------- |
-| `GET`    | `/api/organizations`                     | member+     | List organizations the caller belongs to, with their role and which one is active (empty for `platform_admin`) |
+| `GET`    | `/api/organizations`                     | member+     | List organizations the caller belongs to, with their role and which one is active (empty for an Admin) |
 | `POST`   | `/api/organizations`                     | any user    | Create a "team" organization — body: `{ name }`; caller becomes `owner`                                        |
 | `PUT`    | `/api/organizations/:id`                 | owner/admin | Rename — body: `{ name }`                                                                                      |
 | `DELETE` | `/api/organizations/:id`                 | owner       | Delete (cascades to workspaces/members/tokens)                                                                 |
@@ -27,7 +27,8 @@ suffix, plus public token inspection and authenticated acceptance through
 
 ## Platform administration
 
-`platform_admin`-only, metadata only — never organization content.
+Admin-only (Keycloak identifier `platform_admin`), metadata only — never
+organization content.
 
 | Method   | Path                              | Description                                                                      |
 | -------- | --------------------------------- | -------------------------------------------------------------------------------- |
@@ -137,7 +138,7 @@ Org-scoped — see [docs/../development/architecture.md#dashboards](../developme
 | `GET`          | `/api/me`                                                   | Read the current profile and memberships  |
 | `GET` / `POST` | `/api/settings/api-tokens`                                  | List or create personal tokens            |
 | `DELETE`       | `/api/settings/api-tokens/:id`                              | Revoke a personal token                   |
-| `GET` / `PUT`  | `/api/settings/messages`                                    | Read messages; update as `platform_admin` |
+| `GET` / `PUT`  | `/api/settings/messages`                                    | Read messages; update as an Admin |
 | `GET`          | `/api/health`                                               | Service health                            |
 | `GET`          | `/api/openapi.json`                                         | OpenAPI document                          |
 | `GET`          | `/api/docs`                                                 | Interactive API reference                 |
