@@ -1,7 +1,10 @@
-# Administration
+---
+title: Administration
+description: Platform administration and user provisioning.
+---
 
 ArchiSpark groups workspaces into Organizations (`owner`/`admin`/`member`
-roles — see [Authentication](authentication.md#organizations-and-roles)),
+roles — see [Authentication](../reference/authentication.md#organizations-and-roles)),
 plus a single global platform administration role with no admin console
 beyond organization metadata.
 

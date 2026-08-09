@@ -1,4 +1,7 @@
-# Persistence & Architecture
+---
+title: Persistence & Architecture
+description: Database schema, application architecture, Neo4j export and deployment model.
+---
 
 All data lives in a single shared PostgreSQL database, used by `apps/server`.
 Schema follows ArchiMate 3 Open Exchange XSDs (`models/xsd/`).
@@ -19,7 +22,7 @@ never persisted), `expiresAt`/`sentAt`/`acceptedAt`/`revokedAt`; a partial
 unique index on `(organizationId, email)` restricted to rows where
 `acceptedAt IS NULL AND revokedAt IS NULL` enforces at most one active
 invitation per organization/e-mail pair — see
-[Organization invitations by e-mail](authentication.md#organization-invitations-by-e-mail)),
+[Organization invitations by e-mail](../reference/authentication.md#organization-invitations-by-e-mail)),
 `userActiveOrganization` (per-user pointer to the organization currently in
 use), `siteSettings` (login/banner messages), `apiTokens` (personal API
 tokens, each scoped to one `organizationId` and optionally pinned to one
@@ -38,7 +41,7 @@ A fourth role, `platform_admin`, is a Keycloak **realm** role (not an
 any access to organization content, enforced once in
 [`apps/server/lib/archimate/access.ts`](../apps/server/lib/archimate/access.ts)
 rather than left to be remembered at every call site. See
-[Authentication](authentication.md) for the full role matrix.
+[Authentication](../reference/authentication.md) for the full role matrix.
 
 There is no local `users` table — identities live entirely in Keycloak.
 `apiTokens.userId`/`organizationMembers.userId`/`workspaces.createdById` are
@@ -216,7 +219,7 @@ lives in `apps/server/lib/dashboards/`:
   so panels can filter by ArchiMate layer without recomputing it from `type`.
 - `explore.ts` — the ad hoc Cypher query page (`/explore`) runs arbitrary
   read-only queries, so its text can't be statically validated the way a
-  saved panel's can. Scoping is instead enforced on the *result*: any row
+  saved panel's can. Scoping is instead enforced on the _result_: any row
   containing a Neo4j node or relationship whose `organizationId` doesn't
   match the caller's is dropped in its entirety, regardless of the query's
   own `WHERE` clause.

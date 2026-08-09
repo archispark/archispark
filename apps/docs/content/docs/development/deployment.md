@@ -1,4 +1,7 @@
-# Deployment
+---
+title: Deployment
+description: Deploy ArchiSpark with Docker, Helm or Vercel.
+---
 
 ## Organizations migration (releases including `0018_organizations_expand.sql`)
 
@@ -84,7 +87,7 @@ helm install archispark .k8s/helm/archispark \
 
 Keycloak lui-même n'est **pas** provisionné par ce chart (instance
 self-hostée séparée) — voir [One Keycloak realm per
-client](authentication.md#one-keycloak-realm-per-client) et
+client](../reference/authentication.md#one-keycloak-realm-per-client) et
 [Onboarding d'un nouveau client](#onboarding-dun-nouveau-client-un-realm-keycloak-dédié)
 pour créer le realm/client au préalable via `pnpm setup:realm`.
 
@@ -189,7 +192,7 @@ hitting an unbackfilled row.
    realm's deployment) `SMTP_HOST`/`SMTP_PORT`/`SMTP_USER`/`SMTP_PASSWORD`/`SMTP_FROM`.
    Authentication itself (Keycloak realm, client ids/secrets) is configured
    via the project's Vercel dashboard — see
-   [Keycloak login](authentication.md#keycloak-login). SMTP config is also
+   [Keycloak login](../reference/authentication.md#keycloak-login). SMTP config is also
    detailed in [Invitations par e-mail (SMTP)](#invitations-par-e-mail-smtp).
 
 5. **Redeploy** `archispark-server`.
@@ -205,7 +208,7 @@ provisionne pas Keycloak lui-même). L'isolation entre clients vient du
 **realm Keycloak** : chaque client a le sien
 (`archispark-<tenant>`), un namespace d'identité totalement séparé
 (utilisateurs, rôles, Identity Providers, JWKS/issuer) — voir
-[One Keycloak realm per client](authentication.md#one-keycloak-realm-per-client).
+[One Keycloak realm per client](../reference/authentication.md#one-keycloak-realm-per-client).
 Aucune modification de code applicatif n'est nécessaire pour ajouter un
 client : tout se joue dans la configuration Keycloak et les variables
 d'environnement du déploiement.
@@ -262,13 +265,13 @@ d'environnement du déploiement.
    un token obtenu sur le realm d'un client doit être rejeté (401) par le
    déploiement d'un autre client (`verifyAccessToken` rejette sur
    l'`issuer`, sans rien à coder — voir
-   [One Keycloak realm per client](authentication.md#one-keycloak-realm-per-client)).
+   [One Keycloak realm per client](../reference/authentication.md#one-keycloak-realm-per-client)).
 
 ## Invitations par e-mail (SMTP)
 
 Le realm mutualisé (offre SaaS, pas un realm dédié client) active
 l'auto-inscription Keycloak et les invitations par e-mail — voir
-[Organization invitations by e-mail](authentication.md#organization-invitations-by-e-mail).
+[Organization invitations by e-mail](../reference/authentication.md#organization-invitations-by-e-mail).
 Deux jeux de variables, un seul SMTP :
 
 - `KEYCLOAK_SELF_REGISTRATION=true`, `KEYCLOAK_VERIFY_EMAIL=true` — passées

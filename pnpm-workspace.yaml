@@ -9,6 +9,7 @@ allowBuilds:
   esbuild: true
   msw: true
   sharp: true
+  unrs-resolver: true
 minimumReleaseAgeExclude:
   - shadcn@4.8.1
   - eslint-plugin-turbo@2.9.16

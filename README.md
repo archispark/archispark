@@ -4,6 +4,9 @@ ArchiMate 3.1 modeling tool — a single Next.js app serving the web UI, REST AP
 
 ## Documentation
 
+La documentation Fumadocs vit dans [`apps/docs`](apps/docs) et se lance avec
+`pnpm --filter @archispark/docs dev`.
+
 | Topic | Description |
 |---|---|
 | [Installation & local development](docs/installation.md) | Stack, quick start, Docker & pnpm scripts |

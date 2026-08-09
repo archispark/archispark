@@ -1,15 +1,18 @@
-# Installation & Local Development
+---
+title: Installation & Local Development
+description: Set up and run ArchiSpark locally with pnpm, Docker, PostgreSQL, Keycloak and Neo4j.
+---
 
 ## Stack
 
 A single Next.js app (`apps/server`) serves the UI, the REST API and the MCP
 transport, all in one process:
 
-| Layer | Tech |
-|-------|------|
-| Web + API | Next.js 16 App Router (Route Handlers under `app/api/**`), React, shadcn/ui, Vercel Analytics + Speed Insights |
-| MCP | `pages/api/mcp.ts` (Pages Router — the MCP SDK's transport needs raw Node `http` objects), `@modelcontextprotocol/sdk` Streamable HTTP transport, Bearer token auth |
-| Data | PostgreSQL (Drizzle ORM), Keycloak (auth), Neo4j (optional graph export for reporting, see [Neo4j export](architecture.md#neo4j-export)) |
+| Layer     | Tech                                                                                                                                                                |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Web + API | Next.js 16 App Router (Route Handlers under `app/api/**`), React, shadcn/ui, Vercel Analytics + Speed Insights                                                      |
+| MCP       | `pages/api/mcp.ts` (Pages Router — the MCP SDK's transport needs raw Node `http` objects), `@modelcontextprotocol/sdk` Streamable HTTP transport, Bearer token auth |
+| Data      | PostgreSQL (Drizzle ORM), Keycloak (auth), Neo4j (optional graph export for reporting, see [Neo4j export](../development/architecture.md#neo4j-export))             |
 
 ## Quick start
 
@@ -34,10 +37,10 @@ to match the Postgres container started by the same command.
 
 Two Docker Compose files cover every deployment mode:
 
-| File | Purpose |
-|------|---------|
-| `docker-compose.yml` | **Production** — pulls published images from Docker Hub (Traefik, server, PostgreSQL, Neo4j), driven by the `*:prod` scripts below |
-| `docker-compose.dev.yml` | **Development infra** — PostgreSQL + Keycloak + Neo4j, started by `pnpm start`, which also runs `pnpm dev` for hot-reload |
+| File                     | Purpose                                                                                                                            |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `docker-compose.yml`     | **Production** — pulls published images from Docker Hub (Traefik, server, PostgreSQL, Neo4j), driven by the `*:prod` scripts below |
+| `docker-compose.dev.yml` | **Development infra** — PostgreSQL + Keycloak + Neo4j, started by `pnpm start`, which also runs `pnpm dev` for hot-reload          |
 
 Root `package.json` scripts wrap the most common operations and load
 `.env.dev` (dev) / `.env.prod` (prod). Run `pnpm run` (no script name) to

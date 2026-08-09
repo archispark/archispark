@@ -1,4 +1,7 @@
-# Claude Code configuration
+---
+title: Claude Code Configuration
+description: Configure Claude Code and Claude Code Web for ArchiSpark.
+---
 
 This repo ships a project-scoped Claude Code configuration (`.mcp.json` and
 `.claude/`) so that opening it in Claude Code — CLI or [Claude Code
@@ -34,17 +37,17 @@ pnpm install --frozen-lockfile
   `packageManager` — `corepack` activates the matching pnpm version without a
   global install. Cloud sessions already provide Node 22 via `nvm`.
 - `pnpm install --frozen-lockfile` is enough to run `pnpm lint`, `pnpm
-  typecheck`, `pnpm test`, and `pnpm build`: the test suites run against
+typecheck`, `pnpm test`, and `pnpm build`: the test suites run against
   PGlite (in-memory Postgres) and fake Keycloak responses
   (`apps/server/lib/archimate/test-setup.ts`), so **no `.env`, database, or Docker is needed**
   for the normal dev loop.
 
 ### Environment variables
 
-| Variable | Required for | Notes |
-|---|---|---|
-| `ARCHISPARK_MCP_TOKEN` | `archimate-vercel` MCP server (`.mcp.json`) | Personal API token — generate from **Mon profil → Tokens API → Nouveau token** on `archispark.cloud` (see [MCP server](mcp-server.md)) |
-| `GITHUB_PERSONAL_ACCESS_TOKEN` | `github` plugin MCP server | See [Plugins & skills](#plugins--skills-claudesettingsjson) below |
+| Variable                       | Required for                                | Notes                                                                                                                                              |
+| ------------------------------ | ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ARCHISPARK_MCP_TOKEN`         | `archimate-vercel` MCP server (`.mcp.json`) | Personal API token — generate from **Mon profil → Tokens API → Nouveau token** on `archispark.cloud` (see [MCP server](../reference/mcp-tools.md)) |
+| `GITHUB_PERSONAL_ACCESS_TOKEN` | `github` plugin MCP server                  | See [Plugins & skills](#plugins--skills-claudesettingsjson) below                                                                                  |
 
 Mark both as secrets. Nothing else is required: the `vercel` plugin
 authenticates via OAuth through the Claude Code Web UI, and `playwright`
@@ -57,9 +60,9 @@ launches its own headless browser.
 
 ## MCP servers (`.mcp.json`)
 
-| Server | Provides |
-|---|---|
-| `archimate-vercel` | This project's own [MCP server](mcp-server.md), against the production deployment at `archispark.cloud` (`/mcp/`). |
+| Server             | Provides                                                                                                                       |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
+| `archimate-vercel` | This project's own [MCP server](../reference/mcp-tools.md), against the production deployment at `archispark.cloud` (`/mcp/`). |
 
 The secret is referenced as a `${VAR}` placeholder — Claude Code expands
 environment variables when loading `.mcp.json`, so no token is committed:
@@ -67,7 +70,7 @@ environment variables when loading `.mcp.json`, so no token is committed:
 - `ARCHISPARK_MCP_TOKEN` — a personal API token for the ArchiSpark MCP
   server, generated from **Mon profil → Tokens API → Nouveau token** on
   `archispark.cloud` (same kind of token as `MCP_AUTH_TOKEN` in
-  `.env.example`, see [MCP server](mcp-server.md)).
+  `.env.example`, see [MCP server](../reference/mcp-tools.md)).
 
 On Claude Code Web, configure this as a project secret/environment variable.
 Locally, export it in your shell before running `claude`.

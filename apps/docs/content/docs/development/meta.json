@@ -1,0 +1,10 @@
+{
+  "title": "Development",
+  "pages": [
+    "architecture",
+    "development",
+    "deployment",
+    "contributing",
+    "claude-code"
+  ]
+}

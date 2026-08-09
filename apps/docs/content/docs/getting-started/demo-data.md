@@ -1,4 +1,7 @@
-# Demo seed
+---
+title: Demo Seed
+description: Create demo Keycloak accounts and sample ArchiMate workspaces.
+---
 
 Three sample ArchiMate models are available for demo or local testing: **ArchiMetal** (294 elements, 476 relationships, 33 views), **ArchiSurance** (257 elements, 402 relationships, 40 views), and **Open Day** (27 elements, 37 relationships, 4 views).
 
