@@ -1,7 +1,7 @@
 "use client"
 
 import { ThemeProvider } from "@/components/theme-provider"
-import { Nav } from "@/components/nav"
+import { PanelHeader } from "@/components/panel-header"
 import { Sidebar } from "@/components/sidebar"
 import { PlatformAdminBlock } from "@/components/platform-admin-block"
 import { useIsAdmin } from "@/hooks/use-current-user"
@@ -98,22 +98,18 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <ThemeProvider>
-      {!isChromeless && (
-        <Nav onToggleSidebar={() => setSidebarOpen((v) => !v)} />
-      )}
       {!hideSidebar && (
         <Sidebar
           open={sidebarOpen}
           onClose={() => setSidebarOpen(false)}
           collapsed={sidebarCollapsed}
-          onToggleCollapse={toggleSidebarCollapsed}
         />
       )}
       <main
         className={
           isChromeless
             ? ""
-            : `mt-[var(--nav-h)] min-h-[calc(100vh-var(--nav-h))] transition-[margin-left] duration-200 ${
+            : `min-h-screen bg-muted/40 p-2 transition-[margin-left] duration-200 ${
                 hideSidebar
                   ? ""
                   : sidebarCollapsed
@@ -122,8 +118,20 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
               }`
         }
       >
-        {!isChromeless && <SiteBanner />}
-        {children}
+        {isChromeless ? (
+          children
+        ) : (
+          <section className="relative flex min-h-[calc(100vh-1rem)] flex-col overflow-hidden rounded-xl border border-border bg-background shadow-sm">
+            <PanelHeader
+              showSidebarToggle={!hideSidebar}
+              sidebarCollapsed={sidebarCollapsed}
+              onToggleSidebar={toggleSidebarCollapsed}
+              onToggleMobileSidebar={() => setSidebarOpen((open) => !open)}
+            />
+            <SiteBanner />
+            <div className="min-h-0 flex-1 overflow-auto">{children}</div>
+          </section>
+        )}
       </main>
       <Toaster richColors position="bottom-right" />
     </ThemeProvider>

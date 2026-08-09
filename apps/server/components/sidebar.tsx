@@ -4,7 +4,6 @@ import { usePathname } from "next/navigation"
 import { Suspense, useEffect, useState, useMemo } from "react"
 import { allowedRelationships } from "@/lib/archimate-rules"
 import {
-  useModel,
   useElements,
   useRelationships,
   useElementsInViews,
@@ -17,21 +16,14 @@ export function Sidebar({
   open,
   onClose,
   collapsed,
-  onToggleCollapse,
 }: {
   open: boolean
   onClose: () => void
   collapsed: boolean
-  onToggleCollapse: () => void
 }) {
   return (
     <Suspense>
-      <SidebarInner
-        open={open}
-        onClose={onClose}
-        collapsed={collapsed}
-        onToggleCollapse={onToggleCollapse}
-      />
+      <SidebarInner open={open} onClose={onClose} collapsed={collapsed} />
     </Suspense>
   )
 }
@@ -40,12 +32,10 @@ function SidebarInner({
   open,
   onClose,
   collapsed,
-  onToggleCollapse,
 }: {
   open: boolean
   onClose: () => void
   collapsed: boolean
-  onToggleCollapse: () => void
 }) {
   // usePathname() is typed nullable only for pages/-router compat (this app
   // only calls it from app/ client components, where it's always populated).
@@ -53,7 +43,6 @@ function SidebarInner({
   const { t } = useT()
   // React Query so the sidebar reflects mutations (e.g. a newly created element
   // bumps the counts) as soon as their queries are invalidated.
-  const { data: model } = useModel()
   const { data: elements = [] } = useElements()
   const { data: relationships = [] } = useRelationships()
   const { data: inViews = [] } = useElementsInViews()
@@ -94,7 +83,7 @@ function SidebarInner({
       )}
 
       <aside
-        className={`fixed top-[var(--nav-h)] bottom-0 left-0 z-40 w-[var(--sidebar-w)] ${collapsed ? "md:w-[var(--sidebar-w-collapsed,56px)]" : ""} flex flex-col overflow-y-auto border-r border-border bg-secondary transition-[width,transform] duration-200 ${
+        className={`fixed top-0 bottom-0 left-0 z-40 w-[var(--sidebar-w)] ${collapsed ? "md:w-[var(--sidebar-w-collapsed,56px)]" : ""} flex flex-col overflow-y-auto border-r border-border bg-secondary transition-[width,transform] duration-200 ${
           open ? "translate-x-0" : "-translate-x-full"
         } md:translate-x-0`}
       >
@@ -103,9 +92,6 @@ function SidebarInner({
           <SidebarNavContent
             pathname={pathname}
             onClose={onClose}
-            model={model}
-            absentCount={absentCount}
-            relConflictCount={relConflictCount}
             t={t}
           />
         </div>
@@ -114,7 +100,6 @@ function SidebarInner({
           pathname={pathname}
           onClose={onClose}
           collapsed={collapsed}
-          onToggleCollapse={onToggleCollapse}
           absentCount={absentCount}
           relConflictCount={relConflictCount}
           t={t}

@@ -346,6 +346,8 @@
   "profile.token_org_label": "Organisation",
   "profile.token_ws_label": "Workspace (optional)",
   "profile.token_ws_any": "Beliebiger aktiver Workspace der Organisation",
+  "profile.localization": "Lokalisierung",
+  "profile.localization_description": "Wählen Sie die Sprache der Anwendung aus.",
   "dashboards.admin_empty": "Keine Dashboards für diese Organisation.",
   "dashboards.admin_forbidden": "Nur die Rollen Eigentümer oder Administrator der Organisation können Dashboards verwalten.",
   "dashboards.admin_subtitle": "Liste, Erstellung, Bearbeitung und Löschung.",

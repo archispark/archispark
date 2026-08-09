@@ -33,19 +33,8 @@ vi.mock("@/components/platform-admin-block", () => ({
   ),
 }))
 
-vi.mock("@/components/nav", () => ({
-  Nav: ({ onToggleSidebar }: { onToggleSidebar: () => void }) => (
-    <div data-testid="nav">
-      nav
-      <button
-        type="button"
-        data-testid="toggle-mobile-sidebar"
-        onClick={onToggleSidebar}
-      >
-        toggle sidebar
-      </button>
-    </div>
-  ),
+vi.mock("@/components/panel-header", () => ({
+  PanelHeader: () => <div data-testid="panel-header">panel header</div>,
 }))
 
 vi.mock("@/components/sidebar", () => ({
@@ -53,22 +42,13 @@ vi.mock("@/components/sidebar", () => ({
     open,
     onClose,
     collapsed,
-    onToggleCollapse,
   }: {
     open: boolean
     onClose: () => void
     collapsed: boolean
-    onToggleCollapse: () => void
   }) => (
     <div data-testid="sidebar" data-open={open} data-collapsed={collapsed}>
       sidebar
-      <button
-        type="button"
-        data-testid="toggle-collapse"
-        onClick={onToggleCollapse}
-      >
-        toggle
-      </button>
       <button type="button" data-testid="close-sidebar" onClick={onClose}>
         close
       </button>

@@ -33,16 +33,28 @@ vi.mock("@/components/platform-admin-block", () => ({
   ),
 }))
 
-vi.mock("@/components/nav", () => ({
-  Nav: ({ onToggleSidebar }: { onToggleSidebar: () => void }) => (
-    <div data-testid="nav">
-      nav
+vi.mock("@/components/panel-header", () => ({
+  PanelHeader: ({
+    onToggleSidebar,
+    onToggleMobileSidebar,
+  }: {
+    onToggleSidebar: () => void
+    onToggleMobileSidebar: () => void
+  }) => (
+    <div data-testid="panel-header">
+      <button
+        type="button"
+        data-testid="toggle-collapse"
+        onClick={onToggleSidebar}
+      >
+        toggle collapse
+      </button>
       <button
         type="button"
         data-testid="toggle-mobile-sidebar"
-        onClick={onToggleSidebar}
+        onClick={onToggleMobileSidebar}
       >
-        toggle sidebar
+        toggle mobile sidebar
       </button>
     </div>
   ),
@@ -53,22 +65,13 @@ vi.mock("@/components/sidebar", () => ({
     open,
     onClose,
     collapsed,
-    onToggleCollapse,
   }: {
     open: boolean
     onClose: () => void
     collapsed: boolean
-    onToggleCollapse: () => void
   }) => (
     <div data-testid="sidebar" data-open={open} data-collapsed={collapsed}>
       sidebar
-      <button
-        type="button"
-        data-testid="toggle-collapse"
-        onClick={onToggleCollapse}
-      >
-        toggle
-      </button>
       <button type="button" data-testid="close-sidebar" onClick={onClose}>
         close
       </button>
@@ -160,7 +163,7 @@ describe("ClientLayout", () => {
   })
 
   describe("normal layout", () => {
-    it("renders Nav, Sidebar and children when not a platform admin and not on /login", () => {
+    it("renders the panel header, Sidebar and children when not a platform admin and not on /login", () => {
       // Arrange
       mockUsePathname.mockReturnValue("/dashboard")
       mockUseIsAdmin.mockReturnValue(false)
@@ -176,7 +179,7 @@ describe("ClientLayout", () => {
       expect(
         screen.queryByTestId("platform-admin-block")
       ).not.toBeInTheDocument()
-      expect(screen.getByTestId("nav")).toBeInTheDocument()
+      expect(screen.getByTestId("panel-header")).toBeInTheDocument()
       expect(screen.getByTestId("sidebar")).toBeInTheDocument()
       expect(screen.getByTestId("page-content")).toBeInTheDocument()
       expect(screen.getByTestId("toaster")).toBeInTheDocument()
@@ -200,7 +203,7 @@ describe("ClientLayout", () => {
       expect(screen.getByTestId("page-content")).toBeInTheDocument()
     })
 
-    it("hides the Sidebar on /workspaces while still showing Nav", () => {
+    it("hides the Sidebar on /workspaces while keeping the panel header", () => {
       // Arrange
       mockUsePathname.mockReturnValue("/workspaces")
       mockUseIsAdmin.mockReturnValue(false)
@@ -213,11 +216,11 @@ describe("ClientLayout", () => {
       )
 
       // Assert
-      expect(screen.getByTestId("nav")).toBeInTheDocument()
+      expect(screen.getByTestId("panel-header")).toBeInTheDocument()
       expect(screen.queryByTestId("sidebar")).not.toBeInTheDocument()
     })
 
-    it("toggles the mobile sidebar open state via Nav and closes it via Sidebar", () => {
+    it("toggles the mobile sidebar open state via the panel header and closes it via Sidebar", () => {
       // Arrange
       mockUsePathname.mockReturnValue("/dashboard")
       mockUseIsAdmin.mockReturnValue(false)
@@ -232,7 +235,7 @@ describe("ClientLayout", () => {
       // Assert — closed by default
       expect(screen.getByTestId("sidebar").dataset.open).toBe("false")
 
-      // Act — open via Nav's toggle
+      // Act — open via the panel header's toggle
       fireEvent.click(screen.getByTestId("toggle-mobile-sidebar"))
 
       // Assert — sidebar is now open

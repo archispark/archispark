@@ -2,17 +2,20 @@
 
 import { useState } from "react"
 import { InfoTab } from "@/components/profile-info-tab"
+import { LocalizationTab } from "@/components/profile-localization-tab"
 import { TokensTab } from "@/components/profile-tokens-tab"
+import { useT } from "@/lib/i18n"
 
-type Tab = "info" | "tokens"
-
-const TABS: { id: Tab; label: string }[] = [
-  { id: "info", label: "Informations personnelles" },
-  { id: "tokens", label: "Tokens API" },
-]
+type Tab = "info" | "localization" | "tokens"
 
 export default function ProfilePage() {
   const [tab, setTab] = useState<Tab>("info")
+  const { t } = useT()
+  const tabs: { id: Tab; label: string }[] = [
+    { id: "info", label: "Informations personnelles" },
+    { id: "localization", label: t("profile.localization") },
+    { id: "tokens", label: "Tokens API" },
+  ]
 
   return (
     <div className="max-w-2xl p-7">
@@ -25,7 +28,7 @@ export default function ProfilePage() {
 
       {/* Tabs */}
       <div className="mb-6 flex gap-0 border-b border-border">
-        {TABS.map((t) => (
+        {tabs.map((t) => (
           <button
             key={t.id}
             type="button"
@@ -42,6 +45,7 @@ export default function ProfilePage() {
       </div>
 
       {tab === "info" && <InfoTab />}
+      {tab === "localization" && <LocalizationTab />}
       {tab === "tokens" && <TokensTab />}
     </div>
   )

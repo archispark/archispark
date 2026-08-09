@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import {
   LayoutDashboard,
   LayoutGrid,
@@ -13,14 +14,13 @@ import {
 } from "lucide-react"
 import { useT } from "@/lib/i18n"
 import { RailLink } from "@/components/sidebar-section"
-import { CollapseToggle } from "@/components/sidebar-collapse-toggle"
+import { UserMenu } from "@/components/user-menu"
 
-/** Icon-only rail shown on desktop when the sidebar is collapsed, plus the collapse/expand toggle. */
+/** Icon-only rail shown on desktop when the sidebar is collapsed. */
 export function SidebarIconRail({
   pathname,
   onClose,
   collapsed,
-  onToggleCollapse,
   absentCount,
   relConflictCount,
   t,
@@ -28,7 +28,6 @@ export function SidebarIconRail({
   pathname: string
   onClose: () => void
   collapsed: boolean
-  onToggleCollapse: () => void
   absentCount: number
   relConflictCount: number
   t: ReturnType<typeof useT>["t"]
@@ -38,6 +37,41 @@ export function SidebarIconRail({
       <div
         className={`hidden flex-1 flex-col items-center gap-1 overflow-y-auto py-3 ${collapsed ? "md:flex" : ""}`}
       >
+        <Link
+          href="/workspaces"
+          onClick={onClose}
+          title="ArchiSpark"
+          aria-label="ArchiSpark"
+          className="mb-2 flex size-8 shrink-0 items-center justify-center rounded-md transition-colors hover:bg-muted"
+        >
+          <svg
+            width="22"
+            height="22"
+            viewBox="0 0 24 24"
+            xmlns="http://www.w3.org/2000/svg"
+            aria-hidden="true"
+          >
+            <defs>
+              <linearGradient
+                id="archispark-rail-logo"
+                x1="0"
+                y1="0"
+                x2="24"
+                y2="24"
+                gradientUnits="userSpaceOnUse"
+              >
+                <stop offset="0%" stopColor="#FF1D5D" />
+                <stop offset="50%" stopColor="#892FE8" />
+                <stop offset="100%" stopColor="#1A87FF" />
+              </linearGradient>
+            </defs>
+            <path
+              d="M12 0 C12 7 13 11 24 12 C13 13 12 17 12 24 C12 17 11 13 0 12 C11 11 12 7 12 0 Z"
+              fill="url(#archispark-rail-logo)"
+            />
+          </svg>
+        </Link>
+        <div className="mb-1 w-6 border-t border-border" />
         <RailLink
           href="/"
           icon={LayoutDashboard}
@@ -110,14 +144,8 @@ export function SidebarIconRail({
           active={pathname === "/settings" || pathname.startsWith("/settings/")}
           onClick={onClose}
         />
+        <UserMenu placement="up" />
       </div>
-
-      {/* Collapse / expand toggle — desktop only */}
-      <CollapseToggle
-        collapsed={collapsed}
-        onToggleCollapse={onToggleCollapse}
-        t={t}
-      />
     </>
   )
 }

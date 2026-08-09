@@ -30,8 +30,9 @@ export function useActivateWorkspace() {
   return useMutation({
     mutationFn: (id: string) => activateWorkspaceApi(id),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.workspaces() })
-      qc.invalidateQueries({ queryKey: queryKeys.model() })
+      // Query keys for model data are not workspace-qualified: refreshing the
+      // complete cache prevents views from retaining the previous context.
+      qc.invalidateQueries()
     },
   })
 }

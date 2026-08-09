@@ -8,44 +8,34 @@ import {
   SearchCode,
   Blocks,
 } from "lucide-react"
-import type { ModelInfo } from "@/lib/api"
 import { useT } from "@/lib/i18n"
+import { useWorkspaces } from "@/lib/queries"
 import { Section } from "@/components/sidebar-section"
 import { ElementsNavSection } from "@/components/sidebar-elements-nav"
+import { UserMenu } from "@/components/user-menu"
+import { WorkspaceSwitcher } from "@/components/workspace-switcher"
 
 /** Full sidebar nav content (overview, layer sections, settings) — hidden on desktop when collapsed to an icon rail. */
 export function SidebarNavContent({
   pathname,
   onClose,
-  model,
-  absentCount,
-  relConflictCount,
   t,
 }: {
   pathname: string
   onClose: () => void
-  model: ModelInfo | undefined
-  absentCount: number
-  relConflictCount: number
   t: ReturnType<typeof useT>["t"]
 }) {
+  const { data: workspaces = [] } = useWorkspaces()
+  const activeWorkspace = workspaces.find((workspace) => workspace.active)
+
   return (
     <>
-      {/* Model info */}
-      {model && (
-        <div className="border-b border-border px-4 pt-4 pb-3">
-          <div className="mb-1 overflow-hidden text-[13px] font-semibold text-ellipsis whitespace-nowrap text-foreground">
-            {model.name}
-          </div>
-          <div className="text-[11px] text-muted-foreground">
-            {t("sidebar.model_summary", {
-              n: model.element_count,
-              r: model.relationship_count,
-              v: model.view_count,
-            })}
-          </div>
-        </div>
-      )}
+      <div className="border-b border-border px-4 pt-4 pb-3">
+        <WorkspaceSwitcher
+          workspaces={workspaces}
+          activeWorkspace={activeWorkspace}
+        />
+      </div>
 
       <div className="flex-1 overflow-y-auto py-2">
         {/* Overview */}
@@ -64,19 +54,6 @@ export function SidebarNavContent({
 
         {/* Separator */}
         <div className="mx-4 mt-3 mb-1 border-t border-border" />
-
-        {/* Layer sections */}
-        <ElementsNavSection
-          pathname={pathname}
-          onClose={onClose}
-          model={model}
-          absentCount={absentCount}
-          relConflictCount={relConflictCount}
-          t={t}
-        />
-
-        {/* Separator */}
-        <div className="mx-4 mt-2 mb-1 border-t border-border" />
 
         {/* Dashboards group */}
         <Section title={t("sidebar.dashboards")}>
@@ -117,6 +94,12 @@ export function SidebarNavContent({
             {t("sidebar.panel_catalog")}
           </Link>
         </Section>
+
+        {/* Separator */}
+        <div className="mx-4 mt-2 mb-1 border-t border-border" />
+
+        {/* Layer sections */}
+        <ElementsNavSection pathname={pathname} onClose={onClose} t={t} />
       </div>
 
       {/* Settings — bottom */}
@@ -133,6 +116,9 @@ export function SidebarNavContent({
           <SettingsIcon className="size-4 shrink-0" />
           {t("sidebar.settings")}
         </Link>
+        <div className="px-1 pt-1">
+          <UserMenu placement="up" display="full" />
+        </div>
       </div>
     </>
   )

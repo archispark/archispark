@@ -1,13 +1,19 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
-import { LogOut, User, Building2 } from "lucide-react"
+import { LogOut, User, Building2, ChevronsUpDown } from "lucide-react"
 import { useCurrentUser } from "@/hooks/use-current-user"
 import { useOrganizations } from "@/lib/queries"
 import { useT } from "@/lib/i18n"
 import Link from "next/link"
 
-export function UserMenu() {
+export function UserMenu({
+  placement = "down",
+  display = "compact",
+}: {
+  placement?: "up" | "down"
+  display?: "compact" | "full"
+}) {
   const user = useCurrentUser()
   const { data: organizations = [] } = useOrganizations()
   const activeOrg = organizations.find((o) => o.active)
@@ -37,14 +43,44 @@ export function UserMenu() {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex size-8 items-center justify-center overflow-hidden rounded-full bg-primary/10 text-[13px] font-semibold text-primary transition-all hover:ring-2 hover:ring-primary/30"
+        aria-expanded={open}
         aria-label="Mon compte"
+        className={
+          display === "full"
+            ? `flex w-full items-center gap-2 rounded-md px-2 py-2 text-left transition-colors hover:bg-muted ${
+                open ? "bg-muted" : ""
+              }`
+            : "flex size-8 items-center justify-center overflow-hidden rounded-full bg-primary/10 text-[13px] font-semibold text-primary transition-all hover:ring-2 hover:ring-primary/30"
+        }
       >
-        {initial}
+        <span
+          className={`flex size-8 shrink-0 items-center justify-center overflow-hidden bg-primary/10 text-[13px] font-semibold text-primary ${
+            display === "full" ? "rounded-lg" : "rounded-full"
+          }`}
+        >
+          {initial}
+        </span>
+        {display === "full" && (
+          <>
+            <span className="grid min-w-0 flex-1 text-left text-sm leading-tight">
+              <span className="truncate font-medium">
+                {user?.name || user?.username || "Mon compte"}
+              </span>
+              <span className="truncate text-xs text-muted-foreground">
+                {user?.email || user?.username || ""}
+              </span>
+            </span>
+            <ChevronsUpDown className="ml-auto size-4 shrink-0 text-muted-foreground" />
+          </>
+        )}
       </button>
 
       {open && (
-        <div className="absolute top-full right-0 z-50 mt-2 w-56 rounded-lg border border-border bg-popover py-1 shadow-lg">
+        <div
+          className={`absolute right-0 z-50 w-56 rounded-lg border border-border bg-popover py-1 shadow-lg ${
+            placement === "up" ? "right-0 bottom-full mb-2" : "top-full mt-2"
+          }`}
+        >
           <div className="mb-1 border-b border-border px-3 py-2.5">
             <p className="truncate text-[13px] font-medium">
               {user?.name || user?.username}
