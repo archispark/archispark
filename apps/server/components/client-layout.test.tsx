@@ -203,7 +203,7 @@ describe("ClientLayout", () => {
       expect(screen.getByTestId("page-content")).toBeInTheDocument()
     })
 
-    it("hides the Sidebar on /workspaces while keeping the panel header", () => {
+    it("keeps the shared Sidebar on /workspaces", () => {
       // Arrange
       mockUsePathname.mockReturnValue("/workspaces")
       mockUseIsAdmin.mockReturnValue(false)
@@ -217,7 +217,7 @@ describe("ClientLayout", () => {
 
       // Assert
       expect(screen.getByTestId("panel-header")).toBeInTheDocument()
-      expect(screen.queryByTestId("sidebar")).not.toBeInTheDocument()
+      expect(screen.getByTestId("sidebar")).toBeInTheDocument()
     })
 
     it("toggles the mobile sidebar open state via the panel header and closes it via Sidebar", () => {

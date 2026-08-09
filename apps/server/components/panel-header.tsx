@@ -3,10 +3,11 @@
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { useEffect } from "react"
-import { FolderOpen, Menu, PanelLeftClose, PanelLeftOpen } from "lucide-react"
+import { Menu, PanelLeftClose, PanelLeftOpen } from "lucide-react"
 import { useQueryClient } from "@tanstack/react-query"
 import { type ElementOut } from "@/lib/api"
 import { useWorkspaces, useElement, useView } from "@/lib/queries"
+import { useDashboard } from "@/lib/queries/dashboards"
 import { useT } from "@/lib/i18n"
 import { ThemeToggle } from "@/components/theme-toggle"
 
@@ -26,7 +27,6 @@ export function PanelHeader({
   const { t } = useT()
   const { data: workspaces = [], isSuccess: wsLoaded } = useWorkspaces()
   const qc = useQueryClient()
-  const activeWs = workspaces.find((workspace) => workspace.active)
   const segments = pathname.split("/").filter(Boolean)
 
   useEffect(() => {
@@ -45,6 +45,17 @@ export function PanelHeader({
       ? decodeURIComponent(segments[1]!)
       : ""
   const { data: breadcrumbView } = useView(viewId)
+  const dashboardId =
+    segments[0] === "dashboards"
+      ? segments[1] === "admin"
+        ? segments[2] && segments[2] !== "new"
+          ? decodeURIComponent(segments[2])
+          : ""
+        : segments[1]
+          ? decodeURIComponent(segments[1])
+          : ""
+      : ""
+  const { data: breadcrumbDashboard } = useDashboard(dashboardId)
 
   function segmentLabel(segment: string, index: number): string {
     const keys: Record<string, Parameters<typeof t>[0]> = {
@@ -56,6 +67,15 @@ export function PanelHeader({
       users: "breadcrumb.users",
       settings: "breadcrumb.settings",
       workspaces: "breadcrumb.workspaces",
+      dashboards: "sidebar.dashboards",
+      explore: "sidebar.explore",
+      "panel-visualizations": "sidebar.panel_catalog",
+      organizations: "breadcrumb.organizations",
+      platform: "platform.title",
+      admin: "breadcrumb.admin",
+      new: "common.create",
+      edit: "common.edit",
+      invitations: "invitations.page_title",
       login: "breadcrumb.login",
       profile: "breadcrumb.profile",
     }
@@ -76,6 +96,12 @@ export function PanelHeader({
         qc.getQueryData<{ name?: string }>(["view", id])?.name
       if (name) return name
       if (id === viewId) return "…"
+    }
+    if (
+      id === dashboardId &&
+      (segments[index - 1] === "dashboards" || segments[index - 2] === "admin")
+    ) {
+      return breadcrumbDashboard?.definition.title ?? "…"
     }
     return id
   }
@@ -113,49 +139,31 @@ export function PanelHeader({
         <div className="hidden h-4 w-px bg-border md:block" />
       )}
 
-      {workspaces.length > 0 && (
+      {workspaces.length > 0 && segments.length > 0 && (
         <div className="flex min-w-0 items-center gap-1.5 overflow-hidden text-[13px] text-muted-foreground">
-          <Link
-            href="/workspaces"
-            className="flex shrink-0 items-center gap-1.5 whitespace-nowrap no-underline hover:text-foreground"
-          >
-            <FolderOpen className="size-3.5 shrink-0 text-primary" />
-            {t("breadcrumb.workspaces")}
-          </Link>
-          {pathname !== "/workspaces" && (
-            <>
-              <span className="text-border">/</span>
-              <Link
-                href="/"
-                className="max-w-[160px] shrink-0 truncate no-underline hover:text-foreground"
+          {segments.map((segment, index) => {
+            const last = index === segments.length - 1
+            return (
+              <span
+                key={segment}
+                className="flex min-w-0 items-center gap-1.5 overflow-hidden"
               >
-                {activeWs?.name ?? "—"}
-              </Link>
-              {segments.map((segment, index) => {
-                const last = index === segments.length - 1
-                return (
-                  <span
-                    key={segment}
-                    className="flex min-w-0 items-center gap-1.5 overflow-hidden"
-                  >
-                    <span className="shrink-0 text-border">/</span>
-                    {last ? (
-                      <span className="truncate whitespace-nowrap text-foreground">
-                        {segmentLabel(segment, index)}
-                      </span>
-                    ) : (
-                      <Link
-                        href={`/${segments.slice(0, index + 1).join("/")}`}
-                        className="whitespace-nowrap no-underline hover:text-foreground"
-                      >
-                        {segmentLabel(segment, index)}
-                      </Link>
-                    )}
+                {index > 0 && <span className="shrink-0 text-border">/</span>}
+                {last ? (
+                  <span className="truncate whitespace-nowrap text-foreground">
+                    {segmentLabel(segment, index)}
                   </span>
-                )
-              })}
-            </>
-          )}
+                ) : (
+                  <Link
+                    href={`/${segments.slice(0, index + 1).join("/")}`}
+                    className="whitespace-nowrap no-underline hover:text-foreground"
+                  >
+                    {segmentLabel(segment, index)}
+                  </Link>
+                )}
+              </span>
+            )
+          })}
         </div>
       )}
 

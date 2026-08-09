@@ -69,11 +69,8 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
   // apps/web/app/platform/organizations/page.tsx.
   const isPlatformRoute = pathname?.startsWith("/platform")
   const isPlatformAdmin = useIsAdmin()
-  // The workspaces overview and the organizations page are full-width
-  // chrome-light pages (no model context), so they hide the sidebar —
-  // only the top nav stays.
-  const hideSidebar =
-    isChromeless || pathname === "/workspaces" || pathname === "/organizations"
+  // Organizations is a full-width chrome-light page, without a sidebar.
+  const hideSidebar = isChromeless || pathname === "/organizations"
 
   useEffect(() => {
     setSidebarCollapsed(localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "1")
@@ -109,7 +106,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
         className={
           isChromeless
             ? ""
-            : `min-h-screen bg-muted/40 p-2 transition-[margin-left] duration-200 ${
+            : `min-h-screen bg-background transition-[margin-left] duration-200 ${
                 hideSidebar
                   ? ""
                   : sidebarCollapsed
@@ -121,7 +118,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
         {isChromeless ? (
           children
         ) : (
-          <section className="relative flex min-h-[calc(100vh-1rem)] flex-col overflow-hidden rounded-xl border border-border bg-background shadow-sm">
+          <section className="relative flex min-h-screen flex-col overflow-hidden bg-background">
             <PanelHeader
               showSidebarToggle={!hideSidebar}
               sidebarCollapsed={sidebarCollapsed}

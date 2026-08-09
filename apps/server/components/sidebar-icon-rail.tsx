@@ -11,10 +11,13 @@ import {
   List,
   SearchCode,
   Blocks,
+  CircleHelp,
 } from "lucide-react"
 import { useT } from "@/lib/i18n"
+import { useWorkspaces } from "@/lib/queries"
 import { RailLink } from "@/components/sidebar-section"
 import { UserMenu } from "@/components/user-menu"
+import { WorkspaceSwitcher } from "@/components/workspace-switcher"
 
 /** Icon-only rail shown on desktop when the sidebar is collapsed. */
 export function SidebarIconRail({
@@ -32,10 +35,14 @@ export function SidebarIconRail({
   relConflictCount: number
   t: ReturnType<typeof useT>["t"]
 }) {
+  const { data: workspaces = [] } = useWorkspaces()
+  const activeWorkspace = workspaces.find((workspace) => workspace.active)
+  const isWorkspacesOverview = pathname === "/workspaces"
+
   return (
     <>
       <div
-        className={`hidden flex-1 flex-col items-center gap-1 overflow-y-auto py-3 ${collapsed ? "md:flex" : ""}`}
+        className={`hidden flex-1 flex-col items-center gap-1 overflow-y-auto py-3 ${collapsed ? "md:flex md:overflow-visible" : ""}`}
       >
         <Link
           href="/workspaces"
@@ -71,79 +78,100 @@ export function SidebarIconRail({
             />
           </svg>
         </Link>
-        <div className="mb-1 w-6 border-t border-border" />
-        <RailLink
-          href="/"
-          icon={LayoutDashboard}
-          label={t("sidebar.overview")}
-          active={pathname === "/"}
-          onClick={onClose}
+        <WorkspaceSwitcher
+          workspaces={workspaces}
+          activeWorkspace={activeWorkspace}
+          display="compact"
         />
-        <div className="my-1 w-6 border-t border-border" />
-        <RailLink
-          href="/elements"
-          icon={List}
-          label={t("sidebar.elements")}
-          active={pathname === "/elements"}
-          onClick={onClose}
-          badge={absentCount > 0 ? "amber" : undefined}
-        />
-        <RailLink
-          href="/relationships"
-          icon={GitBranch}
-          label={t("sidebar.relationships")}
-          active={pathname === "/relationships"}
-          onClick={onClose}
-          badge={relConflictCount > 0 ? "destructive" : undefined}
-        />
-        <RailLink
-          href="/views"
-          icon={LayoutGrid}
-          label={t("sidebar.views")}
-          active={pathname === "/views" || pathname.startsWith("/views/")}
-          onClick={onClose}
-        />
-        <RailLink
-          href="/properties"
-          icon={Tag}
-          label={t("sidebar.properties")}
-          active={pathname === "/properties"}
-          onClick={onClose}
-        />
-        <div className="my-1 w-6 border-t border-border" />
-        <RailLink
-          href="/dashboards"
-          icon={Gauge}
-          label={t("sidebar.dashboards")}
-          active={pathname.startsWith("/dashboards")}
-          onClick={onClose}
-        />
-        <RailLink
-          href="/explore"
-          icon={SearchCode}
-          label={t("sidebar.explore")}
-          active={pathname === "/explore"}
-          onClick={onClose}
-        />
-        <RailLink
-          href="/panel-visualizations"
-          icon={Blocks}
-          label={t("sidebar.panel_catalog")}
-          active={pathname === "/panel-visualizations"}
-          onClick={onClose}
-        />
+        {!isWorkspacesOverview && (
+          <>
+            <div className="mb-1 w-6 border-t border-border" />
+            <RailLink
+              href="/"
+              icon={LayoutDashboard}
+              label={t("sidebar.overview")}
+              active={pathname === "/"}
+              onClick={onClose}
+            />
+            <div className="my-1 w-6 border-t border-border" />
+            <RailLink
+              href="/elements"
+              icon={List}
+              label={t("sidebar.elements")}
+              active={pathname === "/elements"}
+              onClick={onClose}
+              badge={absentCount > 0 ? "amber" : undefined}
+            />
+            <RailLink
+              href="/relationships"
+              icon={GitBranch}
+              label={t("sidebar.relationships")}
+              active={pathname === "/relationships"}
+              onClick={onClose}
+              badge={relConflictCount > 0 ? "destructive" : undefined}
+            />
+            <RailLink
+              href="/views"
+              icon={LayoutGrid}
+              label={t("sidebar.views")}
+              active={pathname === "/views" || pathname.startsWith("/views/")}
+              onClick={onClose}
+            />
+            <RailLink
+              href="/properties"
+              icon={Tag}
+              label={t("sidebar.properties")}
+              active={pathname === "/properties"}
+              onClick={onClose}
+            />
+            <RailLink
+              href="/settings"
+              icon={SettingsIcon}
+              label={`${t("sidebar.settings")} — ${t("sidebar.general")}`}
+              active={
+                pathname === "/settings" || pathname.startsWith("/settings/")
+              }
+              onClick={onClose}
+            />
+            <div className="my-1 w-6 border-t border-border" />
+            <RailLink
+              href="/dashboards"
+              icon={Gauge}
+              label={t("sidebar.dashboards")}
+              active={pathname.startsWith("/dashboards")}
+              onClick={onClose}
+            />
+            <RailLink
+              href="/explore"
+              icon={SearchCode}
+              label={t("sidebar.explore")}
+              active={pathname === "/explore"}
+              onClick={onClose}
+            />
+            <RailLink
+              href="/panel-visualizations"
+              icon={Blocks}
+              label={t("sidebar.panel_catalog")}
+              active={pathname === "/panel-visualizations"}
+              onClick={onClose}
+            />
+          </>
+        )}
       </div>
 
       <div
         className={`hidden flex-col items-center gap-1 border-t border-border py-2 ${collapsed ? "md:flex" : ""}`}
       >
-        <RailLink
-          href="/settings"
-          icon={SettingsIcon}
-          label={t("sidebar.settings")}
-          active={pathname === "/settings" || pathname.startsWith("/settings/")}
-          onClick={onClose}
-        />
+        <a
+          href="https://archispark.io/docs/"
+          target="_blank"
+          rel="noreferrer"
+          title="Aide"
+          aria-label="Aide"
+          className="flex size-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        >
+          <CircleHelp className="size-4" />
+        </a>
         <UserMenu placement="up" />
       </div>
     </>

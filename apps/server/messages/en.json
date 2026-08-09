@@ -79,6 +79,7 @@
   "sidebar.properties": "Properties",
   "sidebar.list": "List",
   "sidebar.settings": "Settings",
+  "sidebar.general": "General",
   "sidebar.import": "Import a model",
   "sidebar.import_drop_hint": "Click or drop a file to import a model",
   "sidebar.export": "Export model",

@@ -83,17 +83,13 @@ function SidebarInner({
       )}
 
       <aside
-        className={`fixed top-0 bottom-0 left-0 z-40 w-[var(--sidebar-w)] ${collapsed ? "md:w-[var(--sidebar-w-collapsed,56px)]" : ""} flex flex-col overflow-y-auto border-r border-border bg-secondary transition-[width,transform] duration-200 ${
+        className={`fixed top-0 bottom-0 left-0 z-40 w-[var(--sidebar-w)] ${collapsed ? "md:w-[var(--sidebar-w-collapsed,56px)] md:overflow-visible" : ""} flex flex-col overflow-y-auto border-r border-border bg-secondary transition-[width,transform] duration-200 ${
           open ? "translate-x-0" : "-translate-x-full"
         } md:translate-x-0`}
       >
         {/* Full content — hidden on desktop when the sidebar is collapsed to an icon rail */}
         <div className={collapsed ? "contents md:hidden" : "contents"}>
-          <SidebarNavContent
-            pathname={pathname}
-            onClose={onClose}
-            t={t}
-          />
+          <SidebarNavContent pathname={pathname} onClose={onClose} t={t} />
         </div>
 
         <SidebarIconRail
