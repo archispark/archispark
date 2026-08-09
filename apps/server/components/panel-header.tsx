@@ -118,6 +118,45 @@ export function PanelHeader({
           <Menu className="size-4" />
         </button>
       )}
+      <Link
+        href="/workspaces"
+        aria-label="ArchiSpark"
+        className="flex shrink-0 items-center gap-1.5 no-underline md:hidden"
+      >
+        <svg
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          xmlns="http://www.w3.org/2000/svg"
+          aria-hidden="true"
+        >
+          <defs>
+            <linearGradient
+              id="archispark-header-logo"
+              x1="0"
+              y1="0"
+              x2="24"
+              y2="24"
+              gradientUnits="userSpaceOnUse"
+            >
+              <stop offset="0%" stopColor="#FF1D5D" />
+              <stop offset="50%" stopColor="#892FE8" />
+              <stop offset="100%" stopColor="#1A87FF" />
+            </linearGradient>
+          </defs>
+          <path
+            d="M12 0 C12 7 13 11 24 12 C13 13 12 17 12 24 C12 17 11 13 0 12 C11 11 12 7 12 0 Z"
+            fill="url(#archispark-header-logo)"
+          />
+        </svg>
+        <span
+          className="text-[15px] leading-none tracking-tight text-foreground"
+          style={{ fontFamily: "'Trebuchet MS', Arial, sans-serif" }}
+        >
+          <span className="font-light">Archi</span>
+          <span className="font-bold text-primary">Spark</span>
+        </span>
+      </Link>
       {showSidebarToggle && (
         <button
           type="button"
