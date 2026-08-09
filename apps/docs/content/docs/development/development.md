@@ -18,7 +18,6 @@ packages/types/    Shared TypeScript types
 packages/ui/       Shared React components
 models/            ArchiMate references, XSD, images, and example models
 .docker/           Local and production Compose definitions
-.k8s/              Kubernetes chart and manifests
 ```
 
 The business layer is deliberately local to `apps/server`: modeling code is in
@@ -31,7 +30,7 @@ The business layer is deliberately local to `apps/server`: modeling code is in
 nvm use
 pnpm install
 pnpm env
-# Set DB_PASSWORD and KEYCLOAK_ADMIN_CLIENT_SECRET in .env.dev
+# Set DB_PASSWORD and KEYCLOAK_ADMIN_CLIENT_SECRET in .env
 pnpm dev
 ```
 

@@ -1,20 +1,17 @@
 ---
 title: Deployment
-description: Deploy ArchiSpark with Docker, Helm or Vercel.
+description: Deploy ArchiSpark with Docker Compose or Vercel.
 ---
 
 ## Organizations migration (releases including `0018_organizations_expand.sql`)
 
 This release introduces the Organization → Workspace hierarchy via an
 expand→backfill→verify→contract migration (see
-[Architecture](architecture.md#database-schema)). It is deployed with the
-**`Recreate`** rollout strategy (short maintenance window, no rolling
-update) rather than a double-write compatibility design — the Helm chart's
-default `RollingUpdate` should be overridden to `Recreate` for this
-release's rollout. After deploying: run `pnpm --filter @workspace/db
-backfill:prod` once against the target database (no-op if already run —
-see the Vercel steps above for the exact invocation), then verify with the
-three queries in `plan.md`'s Phase 2 before ever generating
+[Architecture](architecture.md#database-schema)). Plan a short maintenance
+window rather than a rolling update for this release. After deploying, run
+`pnpm --filter @workspace/db backfill:prod` once against the target database
+(a no-op if already run), then verify with the three queries in `plan.md`'s
+Phase 2 before ever generating
 `0019_organizations_contract.sql` (the `NOT NULL` contract migration,
 intentionally not shipped in this release — see that file for the full
 rationale).
@@ -39,116 +36,6 @@ new `packages/db-neo4j/src/schema/migrations/*.cypher` file. Self-hosted
 Docker Compose deployments run it against the `neo4j` service added to
 `.docker/docker-compose.yml` (`NEO4J_URI=bolt://neo4j:7687`, credentials from
 `NEO4J_PASSWORD` in `.env.prod`).
-
-## Kubernetes (Helm)
-
-A Helm chart is available in `.k8s/helm/archispark/`. It deploys the full stack (server, postgres) with an NGINX Ingress — the same topology as the Docker Compose setup.
-
-### Prerequisites
-
-| Tool               | Install                                                                                                           |
-| ------------------ | ----------------------------------------------------------------------------------------------------------------- |
-| `helm` ≥ 3.x       | `curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 \| bash`                                |
-| `kubectl`          | `curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"` |
-| Kubernetes cluster | Any cluster with an **NGINX Ingress Controller** (minikube, k3s, GKE, EKS…)                                       |
-
-**Local cluster with minikube (Docker driver) :**
-
-```bash
-minikube start --driver=docker --cpus=4 --memory=6g --addons=ingress
-```
-
-### Install
-
-```bash
-# Minimal install (replace values with your own)
-helm install archispark .k8s/helm/archispark \
-  --namespace archispark --create-namespace \
-  --set ingress.host=archispark.local \
-  --set secrets.dbPassword=<password> \
-  --set keycloak.url=<shared self-hosted Keycloak URL> \
-  --set keycloak.realm=archispark \
-  --set secrets.keycloakAdminClientSecret=<archispark-api client secret>
-```
-
-With TLS (cert-manager or manual secret):
-
-```bash
-helm install archispark .k8s/helm/archispark \
-  --namespace archispark --create-namespace \
-  --set ingress.host=archispark.example.com \
-  --set ingress.tls.enabled=true \
-  --set ingress.tls.secretName=archispark-tls \
-  --set secrets.dbPassword=<password> \
-  --set keycloak.url=<shared self-hosted Keycloak URL> \
-  --set keycloak.realm=archispark \
-  --set secrets.keycloakAdminClientSecret=<archispark-api client secret>
-```
-
-Keycloak itself is **not** provisioned by this chart; it runs as a separate
-self-hosted service. See [One Keycloak realm per
-client](../reference/authentication.md#one-keycloak-realm-per-client) and
-[Onboard a new customer](#onboard-a-new-customer-with-a-dedicated-keycloak-realm)
-to create the realm and clients beforehand with `pnpm setup:realm`.
-
-**minikube local DNS** (add Ingress IP to `/etc/hosts`):
-
-```bash
-echo "$(minikube ip) archispark.local" | sudo tee -a /etc/hosts
-```
-
-### Key values
-
-| Value                               | Default                  | Description                                                               |
-| ----------------------------------- | ------------------------ | ------------------------------------------------------------------------- |
-| `image.os`                          | `alpine`                 | Image variant: `alpine` or `trixie-slim`                                  |
-| `image.tag`                         | `latest`                 | Image tag (use a pinned version in production, e.g. `0.4.0`)              |
-| `ingress.host`                      | `archispark.example.com` | Hostname served by the Ingress                                            |
-| `ingress.className`                 | `nginx`                  | Ingress class                                                             |
-| `ingress.tls.enabled`               | `false`                  | Enable TLS                                                                |
-| `secrets.dbPassword`                | —                        | **Required** — PostgreSQL password                                        |
-| `keycloak.url`                      | —                        | **Required** — self-hosted Keycloak base URL (not deployed by this chart) |
-| `keycloak.realm`                    | —                        | **Required** — target realm (shared or per-client dedicated)              |
-| `keycloak.clientIdWeb`              | `archispark-web`         | Public OIDC client id used by `apps/server`                               |
-| `keycloak.adminClientId`            | `archispark-api`         | Confidential service-account client id used by `apps/server`              |
-| `secrets.keycloakAdminClientSecret` | —                        | **Required** — secret of `keycloak.adminClientId`                         |
-| `secrets.existingSecret`            | `""`                     | Name of a pre-existing K8s Secret (Sealed Secrets, ESO…)                  |
-| `postgres.storage`                  | `5Gi`                    | PostgreSQL PVC size                                                       |
-
-See [`.k8s/helm/archispark/values.yaml`](https://github.com/archispark/archispark/blob/main/.k8s/helm/archispark/values.yaml) for the full list.
-
-### Upgrade / uninstall
-
-```bash
-# Upgrade (keep existing values)
-helm upgrade archispark .k8s/helm/archispark --namespace archispark --reuse-values
-
-# Uninstall (keeps PVCs — data is preserved)
-helm uninstall archispark --namespace archispark
-
-# Full wipe including data
-helm uninstall archispark --namespace archispark
-kubectl delete pvc -n archispark --all
-```
-
-### Routing
-
-A single Ingress rule sends all traffic to `archispark-server:8000` — the
-Next.js app itself routes `/api/*` (REST), `/mcp/*` (MCP Streamable HTTP,
-Bearer token required) and every UI page, so there's no path-based
-split/rewrite at the Ingress level anymore.
-
-### MCP Server on Kubernetes
-
-Once deployed, generate a personal API token in the web UI (**Profile → API
-Tokens → New token**) and configure Claude Code:
-
-```bash
-claude mcp add archimate \
-  http://archispark.local/mcp/ \
-  --transport http \
-  --header "Authorization: Bearer <your-token>"
-```
 
 ## Vercel
 
@@ -202,8 +89,7 @@ hitting an unbackfilled row.
 
 ArchiSpark can run as a **dedicated platform per customer**: a separate
 `apps/server` deployment and PostgreSQL database use a **shared self-hosted
-Keycloak**. The Helm chart does not provision Keycloak itself. Customer
-isolation comes from Keycloak realms: each customer has a separate
+Keycloak**. Customer isolation comes from Keycloak realms: each customer has a separate
 `archispark-<tenant>` identity namespace for users, roles, identity providers,
 JWKS, and issuer. See [One Keycloak realm per
 client](../reference/authentication.md#one-keycloak-realm-per-client).
@@ -239,8 +125,8 @@ Onboarding requires configuration only; no application code changes.
    new database; see
    [Organizations migration](#organizations-migration-releases-including-0018_organizations_expandsql)).
 
-4. **Deploy** the customer's `archispark-server` with Helm or Vercel and point
-   it at the shared Keycloak. Configure `DATABASE_URL` for the customer
+4. **Deploy** the customer's `archispark-server` with Vercel and point it at
+   the shared Keycloak. Configure `DATABASE_URL` for the customer
    database, `KEYCLOAK_URL` for shared Keycloak,
    `KEYCLOAK_REALM=archispark-<tenant>`, `KEYCLOAK_CLIENT_ID_WEB=archispark-web`,
    `KEYCLOAK_ADMIN_CLIENT_ID`/`KEYCLOAK_ADMIN_CLIENT_SECRET`.
@@ -277,6 +163,4 @@ Two sets of variables share one SMTP service:
   `${ARCHISPARK_URL}/invitations/<token>`. It is never inferred from the
   request's `Host` header.
 
-Pass these variables to `archispark-server`. For Helm, use `secrets.smtp*` and
-`env.archispark_url` in `values.yaml`; for Vercel, configure them on the
-`archispark-server` project.
+Configure these variables on the `archispark-server` Vercel project.

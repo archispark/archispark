@@ -97,10 +97,10 @@ Default credentials: `admin` / `admin` (Admin, no organization membership by des
 
 ## Keycloak login
 
-`docker compose -f .docker/docker-compose.dev.yml up -d --wait` also starts a local Keycloak (classic
+`pnpm run infra:up` also starts a local Keycloak (classic
 `quay.io/keycloak/keycloak` distribution,
 `http://localhost:8080`, admin console login from `KEYCLOAK_ADMIN`/`KEYCLOAK_ADMIN_PASSWORD`
-in `.env.dev`), pre-loaded via `--import-realm` from
+in `.env`), pre-loaded via `--import-realm` from
 `.docker/keycloak/realm-export.json` with realm `archispark`, the client
 `archispark-web`, the Admin realm role (`platform_admin`), and the api service
 account (`archispark-api`, `manage-users`/`view-users`/`query-users`/`view-realm`).
@@ -111,7 +111,7 @@ usernames) are **not** part of `realm-export.json` — they live in
 Admin API by `pnpm seed:demo-users` (see [Demo seed](../getting-started/demo-data.md#demo-seed)). Unlike `--import-realm`, this works against any
 Keycloak instance, including a client's dedicated realm on a remote server.
 
-`pnpm keycloak-setup` (`pnpm setup:realm`) creates or updates the realm
+`pnpm run seed:keycloak` (`pnpm setup:realm`) creates or updates the realm
 itself (roles, clients, service account) from the same
 `realm-export.json` via the Admin REST API — an alternative to
 `--import-realm` for environments where the Keycloak container isn't
@@ -122,8 +122,7 @@ remote Keycloak — see [Deployment](../development/deployment.md#onboard-a-new-
 
 Each ArchiSpark client gets its own Keycloak realm (`archispark-<tenant>`)
 on a shared, self-hosted **classic Keycloak** instance (the same
-`quay.io/keycloak/keycloak` distribution as local dev — see
-[Deployment](../development/deployment.md#kubernetes-helm)). A realm is a fully separate
+`quay.io/keycloak/keycloak` distribution as local dev). A realm is a fully separate
 identity namespace — its own users, roles, Identity Providers, sessions,
 and JWKS/issuer — so this gives complete tenant isolation with **no
 application code involved**:

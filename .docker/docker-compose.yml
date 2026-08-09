@@ -1,125 +1,33 @@
 # ─────────────────────────────────────────────────────────────────────────────
-#  ArchiSpark — Docker Compose (base)
+#  ArchiSpark — Docker Compose (dev local / pnpm)
 #
-#  Utilise les images publiées sur Docker Hub.
+#  Lance uniquement l'infrastructure (Postgres + Keycloak).
+#  L'application tourne en local via pnpm :
 #
-#  Variante d'image  : ARCHISPARK_OS      (alpine | trixie-slim, défaut: alpine)
-#  Version des images: ARCHISPARK_VERSION (défaut: latest)
+#    pnpm start       # démarre Postgres + Keycloak, puis pnpm dev
+#                      # (apps/server avec hot-reload : web, API REST et MCP)
 #
-#  Exemples :
-#    # Dernières images stables
-#    docker compose -f docker-compose.yml
+#  Arrêt (en conservant les données) :
+#    docker compose -f .docker/docker-compose.dev.yml down
 #
+#  Arrêt + suppression des volumes :
+#    docker compose -f .docker/docker-compose.dev.yml down -v
 # ─────────────────────────────────────────────────────────────────────────────
 
 services:
 
-  # ── Reverse proxy ─────────────────────────────────────────────────────────
-  # Traefik écoute sur les ports 80/443 et route tout le trafic vers `server`
-  # (web, API REST et transport MCP servis par le même process Next.js).
-  proxy-traefik:
-    image: traefik:v3
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      # Socket Docker en lecture seule pour la découverte automatique des services
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      # Configuration statique Traefik (entrypoints, providers, TLS…)
-      - ./traefik.yml:/etc/traefik/traefik.yml:ro
-      # Stockage persistant des certificats Let's Encrypt
-      - traefik_certs:/letsencrypt
-    depends_on:
-      server:
-        condition: service_healthy
-    networks:
-      - archispark
-
-  # ── Application ────────────────────────────────────────────────────────────
-  # Next.js unique : UI, API REST (auth, tokens, organisations, workspaces,
-  # modélisation ArchiMate — elements/relationships/views/import-export) et
-  # transport MCP (/mcp/), qui se partagent le même process. Un workspace
-  # appartient à une organisation, dont les membres ont un rôle owner/admin/member.
-  server:
-    image: archispark/archispark-server:${ARCHISPARK_OS:-alpine}-${ARCHISPARK_VERSION:-latest}
-    restart: unless-stopped
-    depends_on:
-      postgres:
-        condition: service_healthy
-      neo4j:
-        condition: service_healthy
-    environment:
-      NODE_ENV:    production
-      PORT:        "8000"
-      HOSTNAME:    "0.0.0.0"
-      # Connexion PostgreSQL (réseau Docker interne) — base unique partagée
-      DATABASE_URL: "postgresql://archispark:${DB_PASSWORD}@postgres:5432/archispark"
-      # Connexion Neo4j (réseau Docker interne) — export du modèle pour reporting
-      NEO4J_URI:      "bolt://neo4j:7687"
-      NEO4J_USER:     "neo4j"
-      NEO4J_PASSWORD: "${NEO4J_PASSWORD}"
-      # Keycloak self-hosté partagé — voir docs/deployment.md pour le modèle
-      # multi-tenant (un realm par déploiement).
-      KEYCLOAK_URL:                 "${KEYCLOAK_URL:?Set KEYCLOAK_URL in .env.prod}"
-      KEYCLOAK_REALM:               "${KEYCLOAK_REALM:?Set KEYCLOAK_REALM in .env.prod}"
-      KEYCLOAK_CLIENT_ID_WEB:       "${KEYCLOAK_CLIENT_ID_WEB:-archispark-web}"
-      KEYCLOAK_ADMIN_CLIENT_ID:     "${KEYCLOAK_ADMIN_CLIENT_ID:?Set KEYCLOAK_ADMIN_CLIENT_ID in .env.prod}"
-      KEYCLOAK_ADMIN_CLIENT_SECRET: "${KEYCLOAK_ADMIN_CLIENT_SECRET:?Set KEYCLOAK_ADMIN_CLIENT_SECRET in .env.prod}"
-      # URL publique du déploiement — construit le lien d'invitation
-      # (${ARCHISPARK_URL}/invitations/<token>), jamais dérivée d'un en-tête
-      # client (Host/X-Forwarded-Host, spoofables).
-      ARCHISPARK_URL: "${ARCHISPARK_URL:?Set ARCHISPARK_URL in .env.prod}"
-      # SMTP optionnel — laisser SMTP_HOST vide désactive l'envoi (l'invitation
-      # reste créée avec sent_at: null, à renvoyer une fois SMTP configuré).
-      SMTP_HOST:     "${SMTP_HOST:-}"
-      SMTP_PORT:     "${SMTP_PORT:-}"
-      SMTP_USER:     "${SMTP_USER:-}"
-      SMTP_PASSWORD: "${SMTP_PASSWORD:-}"
-      SMTP_FROM:     "${SMTP_FROM:-}"
-    healthcheck:
-      test:     ["CMD", "wget", "-qO-", "http://127.0.0.1:8000/api/health"]
-      interval: 10s
-      timeout:  5s
-      retries:  5
-      start_period: 30s
-    networks:
-      - archispark
-    labels:
-      - "traefik.enable=true"
-      # En-têtes de sécurité HTTP (HSTS, X-Content-Type, etc.)
-      - "traefik.http.middlewares.security-headers.headers.stsSeconds=31536000"
-      - "traefik.http.middlewares.security-headers.headers.stsIncludeSubdomains=true"
-      - "traefik.http.middlewares.security-headers.headers.contentTypeNosniff=true"
-      - "traefik.http.middlewares.security-headers.headers.customFrameOptionsValue=SAMEORIGIN"
-      - "traefik.http.middlewares.security-headers.headers.referrerPolicy=strict-origin-when-cross-origin"
-      # Supprime l'en-tête Server pour ne pas exposer la stack technique
-      - "traefik.http.middlewares.security-headers.headers.customResponseHeaders.Server="
-      - "traefik.http.middlewares.body-limit.buffering.maxRequestBodyBytes=67108864"
-      # Routeur catch-all unique : tout le trafic va au process Next.js, qui
-      # route lui-même /api/*, /mcp/* et les pages via son propre routing.
-      - "traefik.http.routers.server.rule=PathPrefix(`/`)"
-      - "traefik.http.routers.server.entrypoints=web"
-      - "traefik.http.routers.server.middlewares=security-headers,body-limit"
-      - "traefik.http.routers.server.service=server"
-      - "traefik.http.services.server.loadbalancer.server.port=8000"
-
-  # ── Base de données ────────────────────────────────────────────────────────
-  # PostgreSQL 17 — base unique et partagée de l'application (auth/tokens et
-  # contenu ArchiMate). Le port 5432 est exposé pour permettre un accès
-  # externe (psql, DBeaver…).
+  # ── Base de données (Postgres) ───────────────────────────────────────────────
   postgres:
     image: postgres:17-alpine
     restart: unless-stopped
     environment:
       POSTGRES_USER:     archispark
-      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env.prod}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-archispark}
       POSTGRES_DB:       archispark
     ports:
       - "5432:5432"
     volumes:
-      # Volume nommé pour la persistance des données entre les redémarrages
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_dev_data:/var/lib/postgresql/data
       # Script d'initialisation : crée la base archispark_keycloak au premier démarrage
       - ./initdb:/docker-entrypoint-initdb.d:ro
     healthcheck:
@@ -127,37 +35,51 @@ services:
       interval: 5s
       timeout:  5s
       retries:  10
-    networks:
-      - archispark
-
-  # ── Base de données (Neo4j) ────────────────────────────────────────────────
-  # Export du modèle ArchiMate (lu depuis Postgres) pour le reporting en graphe.
-  # Reconstructible à tout moment depuis Postgres via POST /api/export/neo4j —
-  # aucune donnée sensible ni source de vérité ici.
+  
+  # ── Base de données (Neo4j) ───────────────────────────────────────────────
   neo4j:
     image: neo4j:5-community
-    restart: unless-stopped
+    ports:
+      - '7474:7474' # Neo4j Browser
+      - '7687:7687' # Bolt (apps/server, NEO4J_URI=bolt://localhost:7687)
     environment:
-      NEO4J_AUTH: "neo4j/${NEO4J_PASSWORD:?Set NEO4J_PASSWORD in .env.prod}"
-    volumes:
-      - neo4j_data:/data
+      NEO4J_AUTH: none
     healthcheck:
-      test:     ["CMD-SHELL", "wget -q -O - http://localhost:7474 >/dev/null"]
+      test: ["CMD-SHELL", "wget -q -O - http://localhost:7474 >/dev/null"]
       interval: 5s
-      timeout:  3s
+      timeout: 3s
+      retries: 30
+
+  # ── Identity (Keycloak) ───────────────────────────────────────────────────
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0.2
+    restart: unless-stopped
+    command: start-dev --import-realm
+    environment:
+      KC_DB:          postgres
+      KC_DB_URL:      jdbc:postgresql://postgres:5432/archispark_keycloak
+      KC_DB_USERNAME: archispark
+      KC_DB_PASSWORD: ${DB_PASSWORD:-archispark}
+      KC_HOSTNAME:        localhost
+      KC_HOSTNAME_PORT:   "8080"
+      KC_HOSTNAME_STRICT: "false"
+      KC_HTTP_ENABLED:    "true"
+      KEYCLOAK_ADMIN:          ${KEYCLOAK_ADMIN:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+    ports:
+      - "8080:8080"
+    volumes:
+      # Realm import: clients, roles and demo users for local dev.
+      - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:     ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/8080"]
+      interval: 5s
+      timeout:  5s
       retries:  30
-    networks:
-      - archispark
+      start_period: 30s
 
-# ── Réseau ─────────────────────────────────────────────────────────────────
-# Réseau bridge nommé partagé par tous les services.
-# Le nom explicite "archispark" permet aux stacks externes de s'y attacher.
-networks:
-  archispark:
-    name: archispark
-
-# ── Volumes ────────────────────────────────────────────────────────────────
 volumes:
-  postgres_data:   # Données PostgreSQL
-  neo4j_data:      # Données Neo4j (reconstructible depuis Postgres)
-  traefik_certs:   # Certificats TLS Let's Encrypt gérés par Traefik
+  postgres_dev_data:

@@ -30,7 +30,7 @@ La documentation Fumadocs vit dans [`apps/docs`](apps/docs) et se lance avec
 | Topic                                                    | Description                                                        |
 | -------------------------------------------------------- | ------------------------------------------------------------------ |
 | [Installation & local development](docs/installation.md) | Stack, quick start, Docker & pnpm scripts                          |
-| [Deployment](docs/deployment.md)                         | Kubernetes (Helm), Vercel                                          |
+| [Deployment](docs/deployment.md)                         | Docker Compose, Vercel                                             |
 | [Architecture](docs/architecture.md)                     | Persistence, database schema, `apps/server`, dashboards            |
 | [Authentication](docs/authentication.md)                 | Keycloak login, tokens, access control                             |
 | [Administration](docs/administration.md)                 | Admin, user provisioning                                           |

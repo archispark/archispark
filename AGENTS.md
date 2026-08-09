@@ -30,7 +30,6 @@ Node 24).
 │   └── ui/           Composants React partagés
 ├── models/           Modèles ArchiMate, XSD et ressources de référence
 ├── .docker/          Environnement Docker de développement
-├── .k8s/             Déploiement Kubernetes et Helm
 ├── .github/          Workflows et modèles GitHub
 ├── docs/             Documentation technique historique du dépôt
 ├── package.json      Scripts et dépendances racine
@@ -92,7 +91,7 @@ pnpm start  # application principale compilée sur :8000 ; ne démarre pas Docke
 Après `pnpm env`, renseigner au minimum `DB_PASSWORD` et
 `KEYCLOAK_ADMIN_CLIENT_SECRET` dans `.env.dev`.
 
-Pour Docker, Helm et Vercel, consulter
+Pour Docker et Vercel, consulter
 [docs/installation.md](docs/installation.md) et
 [docs/deployment.md](docs/deployment.md).
 

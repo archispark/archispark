@@ -51,8 +51,8 @@ async function createDb(): Promise<NodePgDatabase<typeof schema>> {
 
 /**
  * `true` for standard local hostnames OR explicit `sslmode=disable` in the
- * URL (covers K8s/Docker internal hostnames like `archispark-postgres` that
- * don't match the localhost pattern but also have no SSL).
+ * URL (covers Docker internal hostnames that don't match the localhost
+ * pattern but also have no SSL).
  */
 export function isLocalConnectionString(cs: string): boolean {
   return /@(localhost|127\.0\.0\.1|\[::1\]|postgres)[:/]/.test(cs) || /[?&]sslmode=disable/i.test(cs);
