@@ -13,9 +13,9 @@
  *   DATABASE_URL — source PostgreSQL database (the workspaces to read)
  *   NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD — target Neo4j instance
  *
- * With no argument, loads `.env.$ENV` from the repo root (`.env.dev` by
- * default, same default as the root `pnpm env`/`pnpm up` scripts) if
- * present — vars already set in the environment still take priority.
+ * With no argument, loads `.env` from the repo root when present, otherwise
+ * `.env.$ENV` (`.env.dev` by default). Vars already set in the environment
+ * still take priority.
  */
 
 import { readFileSync, existsSync } from "fs"
@@ -34,7 +34,9 @@ const envFile = envFileArg
   ? isAbsolute(envFileArg)
     ? envFileArg
     : resolve(repoRoot, envFileArg)
-  : join(repoRoot, `.env.${process.env["ENV"] ?? "dev"}`)
+  : existsSync(join(repoRoot, ".env"))
+    ? join(repoRoot, ".env")
+    : join(repoRoot, `.env.${process.env["ENV"] ?? "dev"}`)
 
 if (envFileArg && !existsSync(envFile)) {
   console.error(`Env file not found: ${envFile}`)

@@ -10,10 +10,10 @@ All routes except `GET /openapi.json`, `GET /docs`, and `GET /settings/messages`
 Workspaces belong to **Organizations**, not directly to users. An
 organization has members with one of three roles:
 
-| Role     | Read | Write (elements/relationships/views/…) | Manage members | Delete organization |
+| Role     | Read | Write (elements/relationships/views/…) | Manage members | Rename organization |
 | -------- | ---- | -------------------------------------- | -------------- | ------------------- |
 | `owner`  | ✅   | ✅                                     | ✅             | ✅                  |
-| `admin`  | ✅   | ✅                                     | ❌             | ❌                  |
+| `admin`  | ✅   | ✅                                     | ❌             | ✅                  |
 | `member` | ✅   | ❌                                     | ❌             | ❌                  |
 
 Every organization/workspace route resolves the caller's role through the
@@ -36,9 +36,8 @@ rejects Admin unconditionally, before ever checking membership.
 
 Every user gets a personal organization (`is_personal = true`)
 auto-created the first time they create a workspace with no organization
-selected — this preserves frictionless solo use. Creating a "team"
-organization (`POST /api/organizations`) shared with other members is a
-separate, explicit action. Adding a member by username
+selected — this preserves frictionless solo use. Organization members cannot
+create or delete team organizations. Adding a member by username
 (`POST /api/organizations/:id/members`) requires an existing Keycloak account —
 to invite someone who doesn't have one yet, see
 [Organization invitations by e-mail](#organization-invitations-by-e-mail)
@@ -47,7 +46,8 @@ below.
 ## Organization invitations by e-mail
 
 An `owner` can invite anyone by e-mail (`POST /api/organizations/:id/invitations`,
-`email` + `role`), even if they have no Keycloak account yet. This is only
+`email` + `role` + optional `delivery_mode`), even if they have no Keycloak
+account yet. This is only
 enabled on the shared/pooled Keycloak realm — see
 [One Keycloak realm per client](#one-keycloak-realm-per-client) — since it
 requires self-registration to be turned on for that realm.
@@ -65,6 +65,24 @@ requires self-registration to be turned on for that realm.
   e-mail aren't atomic (SMTP isn't part of the DB transaction): the row's
   `sent_at` stays `null` if the send fails, and the invitation must be
   resent — it isn't lost.
+- When e-mail delivery is enabled and the address has no Keycloak identity,
+  ArchiSpark creates an enabled account without credentials and asks Keycloak
+  to send `UPDATE_PROFILE`, `UPDATE_PASSWORD`, and `VERIFY_EMAIL` actions. The
+  action link returns to the ArchiSpark invitation after the recipient enters
+  their name, chooses a password, and verifies the address. A normal
+  invitation e-mail is sent instead when the identity already exists. If the
+  first action e-mail fails, the newly created identity is removed so a
+  copied link can still use Keycloak self-registration; **Resend** reissues
+  the action e-mail for an account whose setup is still pending.
+- Before creating or resending an invitation, the owner chooses **Email and
+  link**, **Email only**, or **Link only** in the member-management interface.
+  The REST request can make the same choice with `delivery_mode` (`both`,
+  `email`, or `manual`); omitted values default to `both`. The clear link is
+  never stored or included when invitations are listed. If SMTP fails in
+  `both` mode, the owner can still copy the link. An air-gapped setup requires
+  the invitee to have a locally provisioned, verified Keycloak account; use
+  the Keycloak admin console or `pnpm run seed:demo-users` when no mail service
+  is available.
 - `GET /api/invitations/:token` (preview) and `POST /api/invitations/:token/accept`
   both still require an authenticated caller (`requireAuth`, mounted
   globally — see the routes table above) — an unauthenticated GET returns
@@ -75,6 +93,11 @@ requires self-registration to be turned on for that realm.
   `email_verified: true` claim whose `email` matches the invited address**
   — a token alone never proves identity, only which invitation is being
   redeemed.
+- In local development, finish-registration, verification, invitation, and
+  **Forgot password** messages are captured by Mailpit at
+  `http://localhost:8025`. In `manual` mode no identity is pre-provisioned, so
+  an invitee without an account follows the copied link and chooses
+  **Register** in Keycloak instead.
 - Acceptance runs a compare-and-swap `UPDATE … WHERE accepted_at IS NULL AND
 revoked_at IS NULL … RETURNING *` inside a transaction, so two concurrent
   accepts (double click, two tabs) can't both succeed; the membership insert
@@ -137,8 +160,9 @@ realm via env vars — `KEYCLOAK_URL` (the shared Keycloak instance),
 `KEYCLOAK_REALM=archispark-<tenant>`, `KEYCLOAK_CLIENT_ID_WEB=archispark-web`,
 `KEYCLOAK_ADMIN_CLIENT_ID`/`KEYCLOAK_ADMIN_CLIENT_SECRET` (the service
 account created in that realm). Self-registration
-(`KEYCLOAK_SELF_REGISTRATION`) and e-mail verification
-(`KEYCLOAK_VERIFY_EMAIL`) are off by default for every realm — a dedicated
+(`KEYCLOAK_SELF_REGISTRATION`), e-mail verification
+(`KEYCLOAK_VERIFY_EMAIL`), and password reset (`KEYCLOAK_RESET_PASSWORD`) are
+off by default for every realm — a dedicated
 client realm never gets them unless its deployment explicitly sets those
 env vars for `pnpm setup:realm` (see
 [Organization invitations by e-mail](#organization-invitations-by-e-mail));

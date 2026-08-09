@@ -9,16 +9,14 @@ import { eq, and } from "drizzle-orm"
 import { db, organizations, organizationMembers } from "@workspace/db"
 import {
   listOrganizationsForUser,
-  createOrganization,
   renameOrganization,
-  deleteOrganization,
   activateOrganization,
   listMembers,
   addMember,
   updateMemberRole,
   removeMember,
 } from "./organizations-store"
-import { ValidationError, NotFoundError, ForbiddenError } from "./errors"
+import { ValidationError, ForbiddenError } from "./errors"
 import type { AccessUser } from "./access"
 import { DEMO_KEYCLOAK_SUBS } from "./test/keycloak-token-fake"
 
@@ -49,40 +47,13 @@ beforeAll(async () => {
   ])
 })
 
-describe("createOrganization / listOrganizationsForUser", () => {
-  it("creates a team organization with the creator as owner", async () => {
-    const created = await createOrganization(OWNER, "My Team")
-    expect(created.role).toBe("owner")
-    expect(created.is_personal).toBe(false)
-
-    const list = await listOrganizationsForUser(OWNER)
-    expect(list.some((o) => o.id === created.id)).toBe(true)
-  })
-
-  it("generates a distinct slug for two organizations with the same name", async () => {
-    const a = await createOrganization(OWNER, "Duplicate Name Co")
-    const b = await createOrganization(OWNER, "Duplicate Name Co")
-    expect(a.slug).not.toBe(b.slug)
-  })
-
-  it("rejects an empty name", async () => {
-    await expect(createOrganization(OWNER, "  ")).rejects.toBeInstanceOf(
-      ValidationError
-    )
-  })
-
+describe("listOrganizationsForUser", () => {
   it("platform_admin sees an empty organization list, never their own", async () => {
     await expect(listOrganizationsForUser(PLATFORM_ADMIN)).resolves.toEqual([])
   })
-
-  it("platform_admin cannot create an organization", async () => {
-    await expect(
-      createOrganization(PLATFORM_ADMIN, "Should Not Exist")
-    ).rejects.toBeInstanceOf(NotFoundError)
-  })
 })
 
-describe("renameOrganization / activateOrganization / deleteOrganization", () => {
+describe("renameOrganization / activateOrganization", () => {
   it("owner and admin can rename; member cannot", async () => {
     const renamed = await renameOrganization(OWNER, orgId, "Renamed by owner")
     expect(renamed.name).toBe("Renamed by owner")
@@ -94,26 +65,6 @@ describe("renameOrganization / activateOrganization / deleteOrganization", () =>
   it("activateOrganization marks the organization active for that user", async () => {
     const activated = await activateOrganization(OWNER, orgId)
     expect(activated.active).toBe(true)
-  })
-
-  it("only an owner can delete an organization — admin is forbidden", async () => {
-    const [temp] = await db
-      .insert(organizations)
-      .values({ slug: `org-store-del-${randomUUID()}`, name: "To Delete" })
-      .returning()
-    await db.insert(organizationMembers).values([
-      { organizationId: temp!.id, userId: OWNER.id, role: "owner" },
-      { organizationId: temp!.id, userId: ADMIN.id, role: "admin" },
-    ])
-    await expect(deleteOrganization(ADMIN, temp!.id)).rejects.toBeInstanceOf(
-      ForbiddenError
-    )
-    await deleteOrganization(OWNER, temp!.id)
-    const [gone] = await db
-      .select()
-      .from(organizations)
-      .where(eq(organizations.id, temp!.id))
-    expect(gone).toBeUndefined()
   })
 })
 

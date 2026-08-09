@@ -2,7 +2,11 @@
 
 import { useState } from "react"
 import { useT } from "@/lib/i18n"
-import { type OrganizationOut, type OrgRole } from "@/lib/api"
+import {
+  type InvitationDeliveryMode,
+  type OrganizationOut,
+  type OrgRole,
+} from "@/lib/api"
 import {
   useOrganizationMembers,
   useUpdateOrganizationMemberRole,
@@ -16,6 +20,7 @@ import { useFormModal } from "@/hooks/use-form-modal"
 import { MemberList } from "@/components/organization-member-list"
 import { OrganizationInvitationsPanel } from "@/components/organization-invitations-panel"
 import { Button } from "@workspace/ui/components/button"
+import { Input } from "@workspace/ui/components/input"
 import {
   Dialog,
   DialogContent,
@@ -53,14 +58,40 @@ export function OrganizationMembers({
   }>()
   const [email, setEmail] = useState("")
   const [role, setRole] = useState<OrgRole>("member")
+  const [deliveryMode, setDeliveryMode] =
+    useState<InvitationDeliveryMode>("both")
+  const [manualLink, setManualLink] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
+  const canCopy = typeof navigator !== "undefined" && !!navigator.clipboard
 
   async function handleInvite() {
     if (!email.trim()) return
     await inviteActions.run(async () => {
-      await createInvitation.mutateAsync({ email: email.trim(), role })
+      const invitation = await createInvitation.mutateAsync({
+        email: email.trim(),
+        role,
+        deliveryMode,
+      })
+      setManualLink(invitation.accept_url ?? null)
+      setCopied(false)
       setEmail("")
       setRole("member")
     })
+  }
+
+  async function handleResend(invitationId: string) {
+    const invitation = await resendInvitation.mutateAsync({
+      invitationId,
+      deliveryMode,
+    })
+    setManualLink(invitation.accept_url ?? null)
+    setCopied(false)
+  }
+
+  async function copyManualLink() {
+    if (!manualLink || !navigator.clipboard) return
+    await navigator.clipboard.writeText(manualLink)
+    setCopied(true)
   }
 
   async function handleRemove() {
@@ -103,8 +134,10 @@ export function OrganizationMembers({
               onEmailChange={setEmail}
               role={role}
               onRoleChange={setRole}
+              deliveryMode={deliveryMode}
+              onDeliveryModeChange={setDeliveryMode}
               onInvite={handleInvite}
-              onResend={(id) => resendInvitation.mutate(id)}
+              onResend={handleResend}
               resendPending={resendInvitation.isPending}
               onRevoke={(id) => revokeInvitation.mutate(id)}
               revokePending={revokeInvitation.isPending}
@@ -115,6 +148,35 @@ export function OrganizationMembers({
             <DialogClose render={<Button variant="outline" />}>
               {t("common.cancel")}
             </DialogClose>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={manualLink !== null}
+        onOpenChange={(open) => !open && setManualLink(null)}
+      >
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{t("settings.org.invitation_link_title")}</DialogTitle>
+            <DialogDescription>
+              {t("settings.org.invitation_link_desc")}
+            </DialogDescription>
+          </DialogHeader>
+          <Input
+            value={manualLink ?? ""}
+            readOnly
+            aria-label={t("settings.org.invitation_link_title")}
+          />
+          <DialogFooter>
+            <DialogClose render={<Button variant="outline" />}>
+              {t("common.cancel")}
+            </DialogClose>
+            <Button onClick={copyManualLink} disabled={!canCopy}>
+              {copied
+                ? t("settings.org.invitation_link_copied")
+                : t("settings.org.invitation_link_copy")}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

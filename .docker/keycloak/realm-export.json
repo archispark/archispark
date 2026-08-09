@@ -3,6 +3,8 @@
   "enabled": true,
   "sslRequired": "none",
   "registrationAllowed": false,
+  "verifyEmail": false,
+  "resetPasswordAllowed": false,
   "loginWithEmailAllowed": true,
   "roles": {
     "realm": [

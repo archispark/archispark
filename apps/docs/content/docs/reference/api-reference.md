@@ -7,23 +7,25 @@ description: REST API endpoints for organizations, ArchiMate models and dashboar
 
 Workspaces belong to an organization — see [Authentication](authentication.md#organizations-and-roles) for the full role matrix (`owner`/`admin`/`member`) and the Admin isolation guarantee.
 
-| Method   | Path                                     | Auth        | Description                                                                                                    |
-| -------- | ---------------------------------------- | ----------- | -------------------------------------------------------------------------------------------------------------- |
+| Method   | Path                                     | Auth        | Description                                                                                            |
+| -------- | ---------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------------ |
 | `GET`    | `/api/organizations`                     | member+     | List organizations the caller belongs to, with their role and which one is active (empty for an Admin) |
-| `POST`   | `/api/organizations`                     | any user    | Create a "team" organization — body: `{ name }`; caller becomes `owner`                                        |
-| `PUT`    | `/api/organizations/:id`                 | owner/admin | Rename — body: `{ name }`                                                                                      |
-| `DELETE` | `/api/organizations/:id`                 | owner       | Delete (cascades to workspaces/members/tokens)                                                                 |
-| `POST`   | `/api/organizations/:id/activate`        | member+     | Switch the caller's active organization                                                                        |
-| `GET`    | `/api/organizations/:id/members`         | member+     | List members with role and username                                                                            |
-| `POST`   | `/api/organizations/:id/members`         | owner       | Add an existing Keycloak user — body: `{ username, role }` (no email invitation)                               |
-| `PUT`    | `/api/organizations/:id/members/:userId` | owner       | Change a member's role — body: `{ role }`; refuses to demote the last `owner`                                  |
-| `DELETE` | `/api/organizations/:id/members/:userId` | owner       | Remove a member, including self-removal; refuses to remove the last `owner`                                    |
+| `PUT`    | `/api/organizations/:id`                 | owner/admin | Rename — body: `{ name }`                                                                              |
+| `POST`   | `/api/organizations/:id/activate`        | member+     | Switch the caller's active organization                                                                |
+| `GET`    | `/api/organizations/:id/members`         | member+     | List members with role and username                                                                    |
+| `POST`   | `/api/organizations/:id/members`         | owner       | Add an existing Keycloak user — body: `{ username, role }` (no email invitation)                       |
+| `PUT`    | `/api/organizations/:id/members/:userId` | owner       | Change a member's role — body: `{ role }`; refuses to demote the last `owner`                          |
+| `DELETE` | `/api/organizations/:id/members/:userId` | owner       | Remove a member, including self-removal; refuses to remove the last `owner`                            |
 
 Invitation routes complement direct member management: `POST` and `GET`
 `/api/organizations/:id/invitations`, `DELETE`
 `/api/organizations/:id/invitations/:invitationId`, `POST` on its `/resend`
 suffix, plus public token inspection and authenticated acceptance through
 `GET /api/invitations/:token` and `POST /api/invitations/:token/accept`.
+Create/resend responses may include the one-time `accept_url` and a
+`delivery_kind` of `manual`, `invitation`, or `onboarding`. With e-mail
+delivery enabled, `onboarding` means a missing Keycloak identity was created
+without credentials and received the finish-registration actions.
 
 ## Platform administration
 
@@ -34,7 +36,7 @@ organization content.
 | -------- | --------------------------------- | -------------------------------------------------------------------------------- |
 | `GET`    | `/api/platform/organizations`     | List every organization (id, slug, name, `is_personal`, `enabled`, `created_at`) |
 | `PUT`    | `/api/platform/organizations/:id` | Suspend/reactivate — body: `{ enabled }`                                         |
-| `DELETE` | `/api/platform/organizations/:id` | Delete an organization                                                           |
+| `DELETE` | `/api/platform/organizations/:id` | Delete an organization (cascades to workspaces, members, and tokens)             |
 
 ## Workspace management
 
@@ -130,15 +132,15 @@ Org-scoped — see [docs/../development/architecture.md#dashboards](../developme
 
 ## Session, profile, and service routes
 
-| Method         | Path                                                        | Description                               |
-| -------------- | ----------------------------------------------------------- | ----------------------------------------- |
-| `GET`          | `/api/auth/login`, `/api/auth/callback`, `/api/auth/logout` | Browser OIDC flow                         |
-| `POST`         | `/api/auth/refresh`                                         | Refresh browser token cookies             |
-| `GET`          | `/api/auth/me`                                              | Current verified Keycloak identity        |
-| `GET`          | `/api/me`                                                   | Read the current profile and memberships  |
-| `GET` / `POST` | `/api/settings/api-tokens`                                  | List or create personal tokens            |
-| `DELETE`       | `/api/settings/api-tokens/:id`                              | Revoke a personal token                   |
-| `GET` / `PUT`  | `/api/settings/messages`                                    | Read messages; update as an Admin |
-| `GET`          | `/api/health`                                               | Service health                            |
-| `GET`          | `/api/openapi.json`                                         | OpenAPI document                          |
-| `GET`          | `/api/docs`                                                 | Interactive API reference                 |
+| Method         | Path                                                        | Description                              |
+| -------------- | ----------------------------------------------------------- | ---------------------------------------- |
+| `GET`          | `/api/auth/login`, `/api/auth/callback`, `/api/auth/logout` | Browser OIDC flow                        |
+| `POST`         | `/api/auth/refresh`                                         | Refresh browser token cookies            |
+| `GET`          | `/api/auth/me`                                              | Current verified Keycloak identity       |
+| `GET`          | `/api/me`                                                   | Read the current profile and memberships |
+| `GET` / `POST` | `/api/settings/api-tokens`                                  | List or create personal tokens           |
+| `DELETE`       | `/api/settings/api-tokens/:id`                              | Revoke a personal token                  |
+| `GET` / `PUT`  | `/api/settings/messages`                                    | Read messages; update as an Admin        |
+| `GET`          | `/api/health`                                               | Service health                           |
+| `GET`          | `/api/openapi.json`                                         | OpenAPI document                         |
+| `GET`          | `/api/docs`                                                 | Interactive API reference                |

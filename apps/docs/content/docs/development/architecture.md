@@ -114,8 +114,8 @@ session/token, via two scripts:
   failed.
 
 Both read `DATABASE_URL`/`NEO4J_*` from the environment, falling back to
-`.env.$ENV` at the repo root if not already set (`.env.dev` by default, same
-default as the root `pnpm env`/`pnpm start` scripts) — so `pnpm import:workspaces`
+`.env` at the repo root if not already set, falling back to `.env.$ENV`
+(`.env.dev` by default) when `.env` is absent — so `pnpm import:workspaces`
 just works against the local dev stack with no extra flags. Pass an explicit
 env file as the last
 argument to target another environment (`pnpm import:workspace --
@@ -124,7 +124,7 @@ convention as `migrate:prod`/`backfill:prod` in `packages/db`. A relative
 path is resolved against the repo root (not the current directory), since
 `pnpm --filter` runs the underlying script from `packages/db-neo4j`.
 `${VAR}` references inside the file (e.g. `DATABASE_URL` interpolating
-`DB_PASSWORD`, as `.env.dev`/`.env.prod` do) are expanded against vars
+`DB_PASSWORD`, as `.env`/`.env.prod` do) are expanded against vars
 already loaded earlier in the same file.
 
 Both are root `package.json` scripts (delegating to

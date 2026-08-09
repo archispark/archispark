@@ -35,7 +35,7 @@ seed:demo` rather than `psql -f` directly.
 To reproduce **Actions → Restore demo data** locally, run:
 
 ```bash
-pnpm reset:demo
+pnpm reset-demo
 ```
 
 It applies pending PostgreSQL and Neo4j migrations, runs the organization

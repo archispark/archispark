@@ -2,12 +2,23 @@
 
 import { Mail, RefreshCw, Trash2 } from "lucide-react"
 import { useT } from "@/lib/i18n"
-import { type OrgRole, type OrganizationInvitationOut } from "@/lib/api"
+import {
+  type InvitationDeliveryMode,
+  type OrgRole,
+  type OrganizationInvitationOut,
+} from "@/lib/api"
 import type { FormModalState } from "@/hooks/use-form-modal"
 import { ROLES, roleLabel } from "@/components/organization-member-list"
 import { Input } from "@workspace/ui/components/input"
 import { Button } from "@workspace/ui/components/button"
 import { Label } from "@workspace/ui/components/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@workspace/ui/components/select"
 
 export function OrganizationInvitationsPanel({
   invitations,
@@ -16,6 +27,8 @@ export function OrganizationInvitationsPanel({
   onEmailChange,
   role,
   onRoleChange,
+  deliveryMode,
+  onDeliveryModeChange,
   onInvite,
   onResend,
   resendPending,
@@ -28,6 +41,8 @@ export function OrganizationInvitationsPanel({
   onEmailChange: (v: string) => void
   role: OrgRole
   onRoleChange: (r: OrgRole) => void
+  deliveryMode: InvitationDeliveryMode
+  onDeliveryModeChange: (mode: InvitationDeliveryMode) => void
   onInvite: () => void
   onResend: (invitationId: string) => void
   resendPending: boolean
@@ -90,7 +105,7 @@ export function OrganizationInvitationsPanel({
         </div>
       )}
 
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         <div className="flex flex-1 flex-col gap-1">
           <Label htmlFor="invite-email" className="text-[12px]">
             {t("settings.org.invite_email")}
@@ -122,6 +137,32 @@ export function OrganizationInvitationsPanel({
               </option>
             ))}
           </select>
+        </div>
+        <div className="flex flex-col gap-1">
+          <Label className="text-[12px]">
+            {t("settings.org.invite_delivery")}
+          </Label>
+          <Select
+            value={deliveryMode}
+            onValueChange={(value) =>
+              onDeliveryModeChange(value as InvitationDeliveryMode)
+            }
+          >
+            <SelectTrigger className="w-44">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="both">
+                {t("settings.org.invite_delivery_both")}
+              </SelectItem>
+              <SelectItem value="email">
+                {t("settings.org.invite_delivery_email")}
+              </SelectItem>
+              <SelectItem value="manual">
+                {t("settings.org.invite_delivery_manual")}
+              </SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </div>
       {inviteModal.error && (

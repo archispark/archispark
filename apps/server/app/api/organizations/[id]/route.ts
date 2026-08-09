@@ -2,10 +2,7 @@ import { NextResponse, type NextRequest } from "next/server"
 import { withErrorHandling } from "@/lib/http/with-error-handling"
 import { withAuth } from "@/lib/http/with-auth"
 import { parseIntParam } from "@/lib/http/params"
-import {
-  renameOrganization,
-  deleteOrganization,
-} from "@/lib/archimate/organizations-store"
+import { renameOrganization } from "@/lib/archimate/organizations-store"
 import {
   parseBody,
   OrganizationUpdateSchema,
@@ -20,13 +17,5 @@ export const PUT = withErrorHandling(
     const body = parseBody(OrganizationUpdateSchema, await req.json())
     const id = parseIntParam((await params).id)
     return NextResponse.json(await renameOrganization(auth.user, id, body.name))
-  })
-)
-
-export const DELETE = withErrorHandling(
-  withAuth(async (_req: NextRequest, auth, { params }: Ctx) => {
-    const id = parseIntParam((await params).id)
-    await deleteOrganization(auth.user, id)
-    return new NextResponse(null, { status: 204 })
   })
 )

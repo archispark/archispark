@@ -151,14 +151,31 @@ self-registration and e-mail invitations. See
 [Organization invitations by e-mail](../reference/authentication.md#organization-invitations-by-e-mail).
 Two sets of variables share one SMTP service:
 
-- `KEYCLOAK_SELF_REGISTRATION=true` and `KEYCLOAK_VERIFY_EMAIL=true` are passed
-  to `pnpm setup:realm` only for the pooled realm. When absent, configuration
-  remains unchanged, as required for dedicated realms.
-- `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, and `SMTP_FROM` are
+- `KEYCLOAK_SELF_REGISTRATION=true`, `KEYCLOAK_VERIFY_EMAIL=true`, and
+  `KEYCLOAK_RESET_PASSWORD=true` are passed to `pnpm setup:realm` only for the
+  pooled realm. When absent, configuration remains unchanged, as required for
+  dedicated realms.
+- `SMTP_HOST`, `SMTP_PORT`, `SMTP_STARTTLS`, `SMTP_USER`, `SMTP_PASSWORD`, and
+  `SMTP_FROM` are
   used both by `apps/server` for invitation mail and by Keycloak for address
-  verification. `setup-realm.ts` patches `smtpServer` only when `SMTP_HOST` is
-  set. Leaving it empty disables delivery; the invitation remains stored with
-  `sent_at: null` and can be resent after SMTP is configured.
+  verification and password reset. When Keycloak reaches the SMTP server from
+  a different network, set `KEYCLOAK_SMTP_HOST` to its network-visible host;
+  it overrides `SMTP_HOST` only in the realm configuration. Local development
+  uses `localhost:1025` for `apps/server`, `mailpit:1025` for Keycloak, and
+  exposes the captured messages at `http://localhost:8025`.
+- Invitation delivery is selected for each create or resend operation in the
+  member-management interface: email and copyable link, email only, or link
+  only. API clients pass the equivalent `delivery_mode` value (`both`,
+  `email`, or `manual`); it defaults to `both`. The clear link is never stored
+  and cannot be retrieved later.
+- The Keycloak service account needs `manage-users`, `view-users`, and
+  `query-users`: ArchiSpark searches identities by exact e-mail, provisions a
+  missing account without credentials, and invokes `execute-actions-email`
+  with `UPDATE_PROFILE`, `UPDATE_PASSWORD`, and `VERIFY_EMAIL`. The action
+  e-mail redirects back to the original ArchiSpark invitation.
+- An air-gapped setup also needs the pnpm dependencies and Docker images to
+  have been downloaded beforehand. Provision Keycloak users through its local
+  admin console or `pnpm run seed:demo-users`.
 - `ARCHISPARK_URL` is the public deployment URL used to build
   `${ARCHISPARK_URL}/invitations/<token>`. It is never inferred from the
   request's `Host` header.

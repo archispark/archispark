@@ -29,11 +29,11 @@ import {
   PropertyDefinitionUpdateSchema,
   WorkspaceCreateSchema,
   WorkspaceUpdateSchema,
-  OrganizationCreateSchema,
   OrganizationUpdateSchema,
   OrganizationMemberCreateSchema,
   OrganizationMemberUpdateSchema,
   OrganizationInvitationCreateSchema,
+  OrganizationInvitationResendSchema,
   PlatformOrganizationUpdateSchema,
   ApiTokenCreateSchema as ApiTokenCreateInputSchema,
 } from "./validation"
@@ -244,7 +244,9 @@ const Neo4jImportResultSchema = registry.register(
   "Neo4jImportResult",
   z
     .object({
-      modelId: z.string().openapi({ description: "uuid du workspace, id du nœud :Model" }),
+      modelId: z
+        .string()
+        .openapi({ description: "uuid du workspace, id du nœud :Model" }),
       elements: z.number().int(),
       relationships: z.number().int(),
       views: z.number().int(),
@@ -322,12 +324,21 @@ const OrganizationInvitationOutSchema = registry.register(
         .number()
         .int()
         .openapi({ description: "Timestamp Unix (secondes)" }),
-      sent_at: z
-        .number()
-        .int()
-        .nullable()
-        .openapi({ description: "null si l'envoi SMTP a échoué" }),
+      sent_at: z.number().int().nullable().openapi({
+        description: "null when SMTP was not attempted or failed",
+      }),
       expired: z.boolean(),
+      accept_url: z.string().url().optional().openapi({
+        description:
+          "Clear-text link returned once in manual or both mode; never present in list responses.",
+      }),
+      delivery_kind: z
+        .enum(["manual", "invitation", "onboarding"])
+        .optional()
+        .openapi({
+          description:
+            "Delivery used by this create/resend call; never present in list responses.",
+        }),
     })
     .openapi("OrganizationInvitationOut")
 )
@@ -498,10 +509,6 @@ registry.register(
   "PropertyDefinitionUpdateInput",
   PropertyDefinitionUpdateSchema.openapi("PropertyDefinitionUpdateInput")
 )
-const OrganizationCreateInput = registry.register(
-  "OrganizationCreateInput",
-  OrganizationCreateSchema.openapi("OrganizationCreateInput")
-)
 const OrganizationUpdateInput = registry.register(
   "OrganizationUpdateInput",
   OrganizationUpdateSchema.openapi("OrganizationUpdateInput")
@@ -518,6 +525,12 @@ const OrganizationInvitationCreateInput = registry.register(
   "OrganizationInvitationCreateInput",
   OrganizationInvitationCreateSchema.openapi(
     "OrganizationInvitationCreateInput"
+  )
+)
+const OrganizationInvitationResendInput = registry.register(
+  "OrganizationInvitationResendInput",
+  OrganizationInvitationResendSchema.openapi(
+    "OrganizationInvitationResendInput"
   )
 )
 const PlatformOrganizationUpdateInput = registry.register(
@@ -1230,30 +1243,6 @@ registry.registerPath({
 })
 
 registry.registerPath({
-  method: "post",
-  path: "/organizations",
-  tags: ["Organizations"],
-  summary: "Créer une organisation d'équipe",
-  operationId: "createOrganization",
-  security: BothAuth,
-  request: {
-    body: {
-      required: true,
-      content: { "application/json": { schema: OrganizationCreateInput } },
-    },
-  },
-  responses: {
-    201: {
-      description: "Organisation créée",
-      content: { "application/json": { schema: OrganizationOutSchema } },
-    },
-    401: Unauthorized,
-    404: NotFound,
-    422: UnprocessableType,
-  },
-})
-
-registry.registerPath({
   method: "put",
   path: "/organizations/{id}",
   tags: ["Organizations"],
@@ -1276,22 +1265,6 @@ registry.registerPath({
     403: Forbidden,
     404: NotFound,
     422: UnprocessableType,
-  },
-})
-
-registry.registerPath({
-  method: "delete",
-  path: "/organizations/{id}",
-  tags: ["Organizations"],
-  summary: "Supprimer une organisation (owner uniquement)",
-  operationId: "deleteOrganization",
-  security: BothAuth,
-  request: { params: z.object({ id: z.string() }) },
-  responses: {
-    204: { description: "Organisation supprimée" },
-    401: Unauthorized,
-    403: Forbidden,
-    404: NotFound,
   },
 })
 
@@ -1438,7 +1411,7 @@ registry.registerPath({
   operationId: "createOrganizationInvitation",
   security: BothAuth,
   description:
-    "Crée (ou remplace une invitation active existante pour le même e-mail) et envoie un e-mail avec un lien d'acceptation. sent_at reste null si l'envoi SMTP a échoué — l'invitation existe mais doit être renvoyée.",
+    "Crée (ou remplace) une invitation active. delivery_mode choisit l'e-mail, le lien à copier ou les deux et vaut both par défaut. sent_at reste null sans envoi SMTP réussi.",
   request: {
     params: z.object({ id: z.string() }),
     body: {
@@ -1471,6 +1444,12 @@ registry.registerPath({
   security: BothAuth,
   request: {
     params: z.object({ id: z.string(), invitationId: z.string() }),
+    body: {
+      required: true,
+      content: {
+        "application/json": { schema: OrganizationInvitationResendInput },
+      },
+    },
   },
   responses: {
     204: { description: "Invitation révoquée" },
@@ -1782,7 +1761,10 @@ const _doc: Record<string, any> = generator.generateDocument({
     { name: "Views", description: "Vues et diagrammes" },
     { name: "PropertyDefinitions", description: "Définitions de propriétés" },
     { name: "Settings", description: "Tokens API personnels" },
-    { name: "Neo4j", description: "Export du modèle vers Neo4j pour le reporting en graphe" },
+    {
+      name: "Neo4j",
+      description: "Export du modèle vers Neo4j pour le reporting en graphe",
+    },
     { name: "MCP", description: "Transport MCP (streamable-http)" },
   ],
 })

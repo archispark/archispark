@@ -2,9 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import {
   fetchOrganizations,
-  createOrganizationApi,
   renameOrganizationApi,
-  deleteOrganizationApi,
   activateOrganizationApi,
   fetchOrganizationMembers,
   addOrganizationMemberApi,
@@ -21,18 +19,6 @@ export function useOrganizations() {
   })
 }
 
-export function useCreateOrganization() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: (name: string) => createOrganizationApi(name),
-    onSuccess: (org) => {
-      qc.invalidateQueries({ queryKey: queryKeys.organizations() })
-      toast.success(`Organisation « ${org.name} » créée`)
-    },
-    onError: (e) => toast.error((e as Error).message),
-  })
-}
-
 export function useRenameOrganization() {
   const qc = useQueryClient()
   return useMutation({
@@ -40,18 +26,6 @@ export function useRenameOrganization() {
       renameOrganizationApi(id, name),
     onSuccess: () =>
       qc.invalidateQueries({ queryKey: queryKeys.organizations() }),
-    onError: (e) => toast.error((e as Error).message),
-  })
-}
-
-export function useDeleteOrganization() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: (id: string) => deleteOrganizationApi(id),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.organizations() })
-      toast.success("Organisation supprimée")
-    },
     onError: (e) => toast.error((e as Error).message),
   })
 }

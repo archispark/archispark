@@ -21,12 +21,8 @@ export interface OrganizationMemberOut {
 
 export const fetchOrganizations = () => get<OrganizationOut[]>("/organizations")
 
-export const createOrganizationApi = (name: string) =>
-  post<OrganizationOut>("/organizations", { name })
 export const renameOrganizationApi = (id: string, name: string) =>
   put<OrganizationOut>(`/organizations/${encodeURIComponent(id)}`, { name })
-export const deleteOrganizationApi = (id: string) =>
-  del(`/organizations/${encodeURIComponent(id)}`)
 export const activateOrganizationApi = (id: string) =>
   post<OrganizationOut>(`/organizations/${encodeURIComponent(id)}/activate`, {})
 

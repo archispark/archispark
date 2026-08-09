@@ -50,6 +50,14 @@ services:
       timeout: 3s
       retries: 30
 
+  # ── Local e-mail inbox (SMTP + web UI) ───────────────────────────────────
+  mailpit:
+    image: axllent/mailpit:latest
+    restart: unless-stopped
+    ports:
+      - "1025:1025" # SMTP for apps/server running on the host
+      - "8025:8025" # Mailpit web UI
+
   # ── Identity (Keycloak) ───────────────────────────────────────────────────
   keycloak:
     image: quay.io/keycloak/keycloak:26.0.2
@@ -74,6 +82,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      mailpit:
+        condition: service_started
     healthcheck:
       test:     ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/8080"]
       interval: 5s

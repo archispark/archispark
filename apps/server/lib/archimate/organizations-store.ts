@@ -63,25 +63,6 @@ async function getActiveOrganizationId(userId: string): Promise<number | null> {
   return active?.organizationId ?? null
 }
 
-async function uniqueSlug(name: string): Promise<string> {
-  const base =
-    name
-      .toLowerCase()
-      .trim()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "") || "org"
-  let slug = base
-  let suffix = 2
-  while (true) {
-    const [existing] = await db
-      .select({ id: organizations.id })
-      .from(organizations)
-      .where(eq(organizations.slug, slug))
-    if (!existing) return slug
-    slug = `${base}-${suffix++}`
-  }
-}
-
 async function countOwners(organizationId: number): Promise<number> {
   const owners = await db
     .select({ id: organizationMembers.id })
@@ -126,30 +107,6 @@ export async function listOrganizationsForUser(
   )
 }
 
-/** Creating a "team" organization is free for any authenticated, non-platform-admin user. */
-export async function createOrganization(
-  user: AccessUser,
-  name: string
-): Promise<OrganizationOut> {
-  if (user.role === "platform_admin")
-    throw new NotFoundError("Organisation introuvable.")
-  if (!name?.trim())
-    throw new ValidationError("Le nom de l'organisation est requis.")
-
-  const slug = await uniqueSlug(name)
-  const [org] = await db
-    .insert(organizations)
-    .values({ slug, name: name.trim(), isPersonal: false })
-    .returning()
-  if (!org) throw new Error("Failed to create organization")
-  await db
-    .insert(organizationMembers)
-    .values({ organizationId: org.id, userId: user.id, role: "owner" })
-
-  const activeId = await getActiveOrganizationId(user.id)
-  return toOrgOut(org, "owner", activeId)
-}
-
 export async function renameOrganization(
   user: AccessUser,
   organizationId: number,
@@ -168,15 +125,6 @@ export async function renameOrganization(
 
   const activeId = await getActiveOrganizationId(user.id)
   return toOrgOut(org, role, activeId)
-}
-
-/** owner-only: reuses the "manage_members" intent, which assertOrgAccess restricts to owner. */
-export async function deleteOrganization(
-  user: AccessUser,
-  organizationId: number
-): Promise<void> {
-  await assertOrgAccess(user, organizationId, "manage_members")
-  await db.delete(organizations).where(eq(organizations.id, organizationId))
 }
 
 export async function activateOrganization(

@@ -12,7 +12,7 @@ transport, all in one process:
 | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Web + API | Next.js 16 App Router (Route Handlers under `app/api/**`), React, shadcn/ui, Vercel Analytics + Speed Insights                                                      |
 | MCP       | `pages/api/mcp.ts` (Pages Router — the MCP SDK's transport needs raw Node `http` objects), `@modelcontextprotocol/sdk` Streamable HTTP transport, Bearer token auth |
-| Data      | PostgreSQL (Drizzle ORM), Keycloak (auth), Neo4j (optional graph export for reporting, see [Neo4j export](../development/architecture.md#neo4j-export))             |
+| Data      | PostgreSQL (Drizzle ORM), Keycloak (auth), Mailpit (local e-mail), Neo4j (optional graph export, see [Neo4j export](../development/architecture.md#neo4j-export))   |
 
 ## Quick start
 
@@ -20,6 +20,10 @@ transport, all in one process:
 pnpm install      # Node >=22.13 required (.nvmrc pins 24 — `nvm use` if you use nvm)
 pnpm dev          # Docker development infrastructure, then hot-reload — server on :8000 (web + API + MCP), docs on :3000
 ```
+
+Mailpit captures local invitation, verification, and password-reset e-mails
+at [http://localhost:8025](http://localhost:8025); it never delivers them to
+the public Internet.
 
 On first run, `apps/server`'s `instrumentation.ts` (Next.js's `register()`
 hook) applies pending PostgreSQL migrations (`packages/db/drizzle-pg/`).
@@ -64,7 +68,7 @@ pnpm seed:demo-users # create/update the 5 Keycloak demo accounts (admin/user/co
 pnpm seed:demo       # seed demo ArchiMate data (ArchiMetal/ArchiSurance/Open Day, see Demo seed)
 pnpm setup-demo      # all three above, in order
 pnpm reset           # delete all ArchiSpark PostgreSQL and Neo4j data (no seed)
-pnpm reset:demo      # migrate, replace demo data, and export all workspaces to Neo4j
+pnpm reset-demo      # migrate, replace demo data, and export all workspaces to Neo4j
 
 # Run the built main application (infrastructure must already be available)
 pnpm build

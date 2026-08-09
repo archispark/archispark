@@ -1,52 +1,33 @@
 "use client"
 
 import { useState } from "react"
-import { Building2, Pencil, Trash2, Check, Users } from "lucide-react"
+import { Building2, Pencil, Check, Users } from "lucide-react"
 import { useT } from "@/lib/i18n"
 import { type OrganizationOut } from "@/lib/api"
 import {
   useOrganizations,
-  useCreateOrganization,
   useRenameOrganization,
-  useDeleteOrganization,
   useActivateOrganization,
 } from "@/lib/queries"
 import { useFormModal } from "@/hooks/use-form-modal"
 import { OrganizationMembers } from "@/components/organization-members"
-import {
-  CreateOrganizationDialog,
-  EditOrganizationDialog,
-  DeleteOrganizationDialog,
-} from "@/components/organization-dialogs"
+import { EditOrganizationDialog } from "@/components/organization-dialogs"
 import { Button } from "@workspace/ui/components/button"
 
 export default function OrganizationsPage() {
   const { t } = useT()
   const { data: organizations = [], isLoading } = useOrganizations()
-  const createOrg = useCreateOrganization()
   const renameOrg = useRenameOrganization()
-  const deleteOrg = useDeleteOrganization()
   const activateOrg = useActivateOrganization()
 
-  const [createModal, createActions] = useFormModal<null>()
   const [editModal, editActions] = useFormModal<OrganizationOut>()
-  const [deleteModal, deleteActions] = useFormModal<OrganizationOut>()
   const [membersOrg, setMembersOrg] = useState<OrganizationOut | null>(null)
 
-  const [newName, setNewName] = useState("")
   const [editName, setEditName] = useState("")
 
   function openEdit(org: OrganizationOut) {
     setEditName(org.name)
     editActions.openWith(org)
-  }
-
-  async function handleCreate() {
-    if (!newName.trim()) return
-    await createActions.run(async () => {
-      await createOrg.mutateAsync(newName.trim())
-      setNewName("")
-    })
   }
 
   async function handleEditSave() {
@@ -56,13 +37,6 @@ export default function OrganizationsPage() {
         id: editModal.target!.id,
         name: editName.trim(),
       })
-    })
-  }
-
-  async function handleDelete() {
-    if (!deleteModal.target) return
-    await deleteActions.run(async () => {
-      await deleteOrg.mutateAsync(deleteModal.target!.id)
     })
   }
 
@@ -78,18 +52,6 @@ export default function OrganizationsPage() {
             {t("organizations.subtitle")}
           </p>
         </div>
-
-        <CreateOrganizationDialog
-          modal={createModal}
-          actions={createActions}
-          name={newName}
-          onNameChange={setNewName}
-          onOpenNew={() => {
-            setNewName("")
-            createActions.openNew()
-          }}
-          onCreate={handleCreate}
-        />
       </div>
 
       {isLoading ? (
@@ -158,16 +120,6 @@ export default function OrganizationsPage() {
                   <Pencil className="size-3.5" />
                 </Button>
               )}
-              {org.role === "owner" && (
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  onClick={() => deleteActions.openWith(org)}
-                  aria-label={t("common.delete")}
-                >
-                  <Trash2 className="size-3.5 text-destructive" />
-                </Button>
-              )}
             </div>
           ))}
         </div>
@@ -180,13 +132,6 @@ export default function OrganizationsPage() {
         onNameChange={setEditName}
         onSave={handleEditSave}
       />
-
-      <DeleteOrganizationDialog
-        modal={deleteModal}
-        actions={deleteActions}
-        onConfirm={handleDelete}
-      />
-
       {membersOrg && (
         <OrganizationMembers
           org={membersOrg}

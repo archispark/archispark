@@ -12,9 +12,12 @@ export {
 export { getAdminToken, clearAdminTokenCache } from "./admin-token.js"
 export {
   findUserByUsername,
+  findUserByEmail,
   getKeycloakUser,
   createKeycloakUser,
   updateKeycloakUser,
+  deleteKeycloakUser,
+  sendUserRequiredActionsEmail,
   setUserPassword,
   getUserRealmRoles,
   assignRealmRole,

@@ -20,6 +20,19 @@ import { ValidationError, NotFoundError, ForbiddenError } from "./errors"
 import type { AccessUser } from "./access"
 
 vi.mock("./mail", async () => import("./test/mail-fake.js"))
+vi.mock("./invitation-onboarding", async () => {
+  const { sendInvitationEmail } = await import("./test/mail-fake.js")
+  return {
+    deliverInvitationEmail: async (
+      email: string,
+      organizationName: string,
+      acceptUrl: string
+    ) => {
+      await sendInvitationEmail(email, organizationName, acceptUrl)
+      return "invitation"
+    },
+  }
+})
 import {
   resetMailFake,
   setMailFakeShouldFail,
@@ -54,6 +67,7 @@ beforeAll(async () => {
 
 beforeEach(() => {
   resetMailFake()
+  process.env["ARCHISPARK_URL"] = "http://localhost:8000"
 })
 
 function invitee(
@@ -150,6 +164,72 @@ describe("createOrReplaceInvitation", () => {
     )
     expect(row).toBeDefined()
   })
+
+  it("returns a manual link once without persisting it", async () => {
+    const previousUrl = process.env["ARCHISPARK_URL"]
+    process.env["ARCHISPARK_URL"] = "http://localhost:8000"
+
+    try {
+      const email = `manual-${randomUUID()}@example.com`
+      const created = await createOrReplaceInvitation(
+        OWNER,
+        orgId,
+        email,
+        "member",
+        "manual"
+      )
+      expect(created.sent_at).toBeNull()
+      expect(created.accept_url).toMatch(/\/invitations\//)
+      expect(getSentInvitationEmails()).toHaveLength(0)
+
+      const [listed] = (await listInvitations(OWNER, orgId)).filter(
+        (invitation) => invitation.email === email
+      )
+      expect(listed).not.toHaveProperty("accept_url")
+      await expect(
+        getInvitationPreview(tokenFromAcceptUrl(created.accept_url!))
+      ).resolves.toMatchObject({ email })
+    } finally {
+      if (previousUrl === undefined) delete process.env["ARCHISPARK_URL"]
+      else process.env["ARCHISPARK_URL"] = previousUrl
+    }
+  })
+
+  it("sends the e-mail and returns a one-time link in both mode", async () => {
+    const email = `both-${randomUUID()}@example.com`
+    const created = await createOrReplaceInvitation(
+      OWNER,
+      orgId,
+      email,
+      "member",
+      "both"
+    )
+
+    expect(created.sent_at).not.toBeNull()
+    expect(created.accept_url).toMatch(/\/invitations\//)
+    expect(getSentInvitationEmails().some((sent) => sent.to === email)).toBe(
+      true
+    )
+
+    const [listed] = (await listInvitations(OWNER, orgId)).filter(
+      (invitation) => invitation.email === email
+    )
+    expect(listed).not.toHaveProperty("accept_url")
+  })
+
+  it("still returns the link when SMTP fails in both mode", async () => {
+    setMailFakeShouldFail(true)
+    const created = await createOrReplaceInvitation(
+      OWNER,
+      orgId,
+      `both-failure-${randomUUID()}@example.com`,
+      "member",
+      "both"
+    )
+
+    expect(created.sent_at).toBeNull()
+    expect(created.accept_url).toMatch(/\/invitations\//)
+  })
 })
 
 describe("resendInvitation", () => {
@@ -175,6 +255,29 @@ describe("resendInvitation", () => {
     await expect(
       resendInvitation(OWNER, orgId, 999999999)
     ).rejects.toBeInstanceOf(NotFoundError)
+  })
+
+  it("replaces a manual link and invalidates the previous one", async () => {
+    const created = await createOrReplaceInvitation(
+      OWNER,
+      orgId,
+      `manual-resend-${randomUUID()}@example.com`,
+      "member",
+      "manual"
+    )
+    const firstToken = tokenFromAcceptUrl(created.accept_url!)
+
+    const resent = await resendInvitation(
+      OWNER,
+      orgId,
+      Number(created.id),
+      "manual"
+    )
+    const secondToken = tokenFromAcceptUrl(resent.accept_url!)
+    expect(secondToken).not.toBe(firstToken)
+    await expect(getInvitationPreview(firstToken)).rejects.toBeInstanceOf(
+      ValidationError
+    )
   })
 })
 

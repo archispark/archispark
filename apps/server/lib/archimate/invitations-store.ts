@@ -18,7 +18,11 @@ import {
 } from "@workspace/db"
 import { NotFoundError, ValidationError } from "./errors"
 import { assertOrgAccess, type AccessUser, type OrgRoleName } from "./access"
-import { sendInvitationEmail, invitationAcceptUrl } from "./mail"
+import { invitationAcceptUrl } from "./mail"
+import {
+  deliverInvitationEmail,
+  type InvitationEmailKind,
+} from "./invitation-onboarding"
 
 const VALID_ROLES: OrgRoleName[] = ["owner", "admin", "member"]
 const EXPIRES_IN_SECONDS = 7 * 24 * 3600
@@ -36,6 +40,10 @@ export interface InvitationOut {
   expires_at: number
   sent_at: number | null
   expired: boolean
+  /** Present only in manual/both delivery responses; never persisted or listed. */
+  accept_url?: string
+  /** Present only in create/resend responses; never persisted or listed. */
+  delivery_kind?: "manual" | InvitationEmailKind
 }
 
 export interface InvitationPreviewOut {
@@ -48,6 +56,8 @@ export interface AcceptInvitationOut {
   organization_id: string
   role: OrgRoleName
 }
+
+export type InvitationDeliveryMode = "email" | "manual" | "both"
 
 function now(): number {
   return Math.floor(Date.now() / 1000)
@@ -90,7 +100,8 @@ export async function createOrReplaceInvitation(
   user: AccessUser,
   organizationId: number,
   email: string,
-  role: string
+  role: string,
+  deliveryMode: InvitationDeliveryMode = "both"
 ): Promise<InvitationOut> {
   await assertOrgAccess(user, organizationId, "manage_members")
   if (!VALID_ROLES.includes(role as OrgRoleName))
@@ -108,6 +119,10 @@ export async function createOrReplaceInvitation(
   const token = generateToken()
   const tokenHash = hashToken(token)
   const expiresAt = now() + EXPIRES_IN_SECONDS
+  // Build this before the transaction so a missing ARCHISPARK_URL cannot
+  // leave behind a manual invitation whose clear link was never delivered.
+  const exposedAcceptUrl =
+    deliveryMode === "email" ? undefined : invitationAcceptUrl(token)
 
   let inserted: typeof organizationInvitations.$inferSelect | undefined
   try {
@@ -151,24 +166,39 @@ export async function createOrReplaceInvitation(
   }
   if (!inserted) throw new Error("Failed to create invitation")
 
+  if (deliveryMode === "manual") {
+    return {
+      ...toInvitationOut(inserted),
+      accept_url: exposedAcceptUrl,
+      delivery_kind: "manual",
+    }
+  }
+
   try {
-    await sendInvitationEmail(
+    const deliveryKind = await deliverInvitationEmail(
       normalizedEmail,
       org.name,
-      invitationAcceptUrl(token)
+      exposedAcceptUrl ?? invitationAcceptUrl(token)
     )
     const [updated] = await db
       .update(organizationInvitations)
       .set({ sentAt: now() })
       .where(eq(organizationInvitations.id, inserted.id))
       .returning()
-    return toInvitationOut(updated ?? inserted)
+    return {
+      ...toInvitationOut(updated ?? inserted),
+      ...(exposedAcceptUrl ? { accept_url: exposedAcceptUrl } : {}),
+      delivery_kind: deliveryKind,
+    }
   } catch (err) {
     console.error(
       `[invitations] failed to send invitation ${inserted.id} to ${normalizedEmail}:`,
       err
     )
-    return toInvitationOut(inserted)
+    return {
+      ...toInvitationOut(inserted),
+      ...(exposedAcceptUrl ? { accept_url: exposedAcceptUrl } : {}),
+    }
   }
 }
 
@@ -220,7 +250,8 @@ export async function revokeInvitation(
 export async function resendInvitation(
   user: AccessUser,
   organizationId: number,
-  invitationId: number
+  invitationId: number,
+  deliveryMode: InvitationDeliveryMode = "both"
 ): Promise<InvitationOut> {
   await assertOrgAccess(user, organizationId, "manage_members")
   const [existing] = await db
@@ -239,7 +270,8 @@ export async function resendInvitation(
     user,
     organizationId,
     existing.email,
-    existing.role
+    existing.role,
+    deliveryMode
   )
 }
 
