@@ -12,8 +12,10 @@ RUN --mount=type=cache,id=pnpm-debian,target=/pnpm/store \
     pnpm install --frozen-lockfile --ignore-scripts
 
 # Build workspace packages whose dist is referenced by Next.js's file tracer
-# (@workspace/db) or transpiled at build time (@workspace/auth).
+# (@workspace/db and @workspace/db-neo4j) or transpiled at build time
+# (@workspace/auth).
 RUN pnpm --filter @workspace/db build
+RUN pnpm --filter @workspace/db-neo4j build
 RUN pnpm --filter @workspace/auth build
 
 # next build evaluates every route module (including lib/archimate/store.ts),
