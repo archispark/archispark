@@ -233,17 +233,16 @@ login/token — the companion project's single-admin-token session
 (`ARCHIMATE_API_TOKEN`) isn't used here.
 
 Frontend components live under `apps/server/components/dashboards/`,
-restyled to ArchiSpark's shadcn/Tailwind tokens. `graph-view.tsx` is a
-second ReactFlow node style — read-only "bubble" nodes (generic layer icon
-inside the node, floating ArchiMate type badge, label, dagre auto-layout and
-click-to-navigate) for exploring/reporting — distinct
-from `view-canvas-node.tsx`'s resizable ArchiMate-notation editing nodes.
-Both already share their layer color palette (`LAYER_HEX_COLORS`,
-`lib/archimate-helpers.ts`), type-icon glyphs
-(`components/archimate-notation-badge.tsx`), and node border radius/font
-size; only the bubble shape (vs. the resizable rectangle) remains
-deliberately different — a read-only exploration node doesn't need to be
-resized like an editing node does.
+restyled to ArchiSpark's shadcn/Tailwind tokens. Every ReactFlow uses the
+same rounded node treatment: a generic layer icon inside the node, a floating
+text badge for the ArchiMate component type, and labels clamped to two lines.
+The dashboard and relation graphs use fixed-size nodes with dagre auto-layout;
+`view-canvas-node.tsx` keeps the dimensions stored in the model and remains
+resizable so editing an imported ArchiMate view does not alter its geometry.
+Each graph retains its existing component color calculation.
+All three ReactFlow surfaces share the fullscreen overlay control implemented in
+`components/react-flow-fullscreen.tsx`; it locks page scrolling while active and
+supports Escape to exit.
 
 Not carried over from the companion project: the XML-import worker
 (`apps/worker`) and its Postgres demo datasource (superseded by the live

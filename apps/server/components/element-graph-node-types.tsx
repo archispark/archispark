@@ -13,6 +13,8 @@ import {
   type NodeProps,
 } from "@xyflow/react"
 import { getLayer, LAYER_HEX_COLORS } from "@/lib/archimate-helpers"
+import { ArchimateLayerBadge } from "@/components/archimate-layer-badge"
+import { ArchimateNotationBadge } from "@/components/archimate-notation-badge"
 import {
   NODE_W,
   NODE_H,
@@ -112,7 +114,7 @@ export function ArchiNode({ data }: NodeProps) {
   }
   const layer = getLayer(d.elementType)
   const color = LAYER_HEX_COLORS[layer] ?? "#64748b"
-  const borderColor = d.hasConflict ? "#dc2626" : color
+  const borderColor = color
   const borderWidth = d.isCentral ? 3 : 1.5
   return (
     <>
@@ -133,30 +135,41 @@ export function ArchiNode({ data }: NodeProps) {
           height: NODE_H,
           border: `${borderWidth}px solid ${borderColor}`,
           borderRadius: 8,
-          background: d.isCentral
-            ? `${color}22`
-            : d.hasConflict
-              ? "#fef2f2"
-              : "white",
+          background: d.isCentral ? `${color}22` : "white",
           display: "flex",
-          flexDirection: "column",
           alignItems: "center",
-          justifyContent: "center",
-          padding: "6px 10px",
+          padding: "6px 10px 6px 42px",
           cursor: d.isCentral ? "default" : "pointer",
           boxShadow: d.isCentral
             ? `0 0 0 4px ${borderColor}33, 0 2px 10px rgba(0,0,0,0.12)`
             : "0 1px 4px rgba(0,0,0,0.08)",
-          textAlign: "center",
+          textAlign: "left",
           userSelect: "none",
           position: "relative",
         }}
       >
+        <div
+          style={{
+            position: "absolute",
+            top: "50%",
+            left: 6,
+            transform: "translateY(-50%)",
+          }}
+        >
+          <ArchimateLayerBadge layer={layer} />
+        </div>
+        <div style={{ position: "absolute", top: -13, right: -4 }}>
+          <ArchimateNotationBadge
+            elementType={d.elementType}
+            size={18}
+            color={color}
+          />
+        </div>
         {d.hasConflict && (
           <span
             style={{
               position: "absolute",
-              top: 3,
+              bottom: 3,
               right: 5,
               fontSize: 9,
               color: "#dc2626",
@@ -167,18 +180,7 @@ export function ArchiNode({ data }: NodeProps) {
           </span>
         )}
         <div
-          style={{
-            fontSize: 10,
-            color,
-            fontWeight: 700,
-            letterSpacing: 0.4,
-            lineHeight: 1,
-            marginBottom: 4,
-          }}
-        >
-          {d.elementType}
-        </div>
-        <div
+          title={d.label || "—"}
           style={{
             fontSize: d.isCentral ? 13 : 12,
             fontWeight: d.isCentral ? 700 : 500,
@@ -188,6 +190,7 @@ export function ArchiNode({ data }: NodeProps) {
             display: "-webkit-box",
             WebkitLineClamp: 2,
             WebkitBoxOrient: "vertical",
+            minWidth: 0,
           }}
         >
           {d.label || "—"}

@@ -28,6 +28,10 @@ import { DownloadMenu } from "@/components/view-canvas-download-menu"
 import { HANDLE_HOVER_CSS, MARKER_DEFS } from "@/components/view-canvas-markers"
 import { PendingConnectionDialog } from "@/components/view-canvas-pending-connection-dialog"
 import { useViewCanvasHandlers } from "@/components/use-view-canvas-handlers"
+import {
+  ReactFlowFullscreenButton,
+  useReactFlowFullscreen,
+} from "@/components/react-flow-fullscreen"
 
 const NODE_TYPES = { archi: ArchiNode }
 const EDGE_TYPES = { archi: ArchiEdge }
@@ -62,6 +66,7 @@ function ViewCanvasInner({
   relationshipNames = new Map(),
 }: ViewCanvasProps) {
   const { screenToFlowPosition } = useReactFlow()
+  const { fullscreen, toggleFullscreen } = useReactFlowFullscreen()
   const initialNodes = useMemo(
     () => flattenNodes(nodes, elementNames, elementTypes),
     [nodes, elementNames, elementTypes]
@@ -193,8 +198,13 @@ function ViewCanvasInner({
       <div
         style={{
           width: "100%",
-          height: 600,
-          position: "relative",
+          height: fullscreen ? "100dvh" : 600,
+          position: fullscreen ? "fixed" : "relative",
+          inset: fullscreen ? 0 : undefined,
+          zIndex: fullscreen ? 60 : undefined,
+          padding: fullscreen ? 16 : undefined,
+          boxSizing: "border-box",
+          background: "var(--background)",
           display: "flex",
         }}
       >
@@ -236,7 +246,13 @@ function ViewCanvasInner({
             <Background />
             <Controls />
             <Panel position="top-right">
-              <DownloadMenu />
+              <div className="flex items-start gap-2">
+                <ReactFlowFullscreenButton
+                  fullscreen={fullscreen}
+                  onToggle={toggleFullscreen}
+                />
+                <DownloadMenu />
+              </div>
             </Panel>
           </ReactFlow>
         </div>

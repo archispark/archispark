@@ -2,7 +2,7 @@
 
 import { createContext } from "react"
 
-export const NODE_W = 150
+export const NODE_W = 220
 export const NODE_H = 60
 
 export type EdgePathType = "smoothstep" | "bezier" | "step" | "straight"

@@ -35,6 +35,9 @@ ORDER BY count DESC
 All organization members can list dashboards and execute panels. A panel
 returns `graph`, `table`, or `metrics`. Owners and admins can create and edit
 dashboards; saving an edit creates an immutable revision, and deletion is soft.
+Graph panels provide controls for filtering element and relationship types,
+choosing the edge style and layout direction, and entering fullscreen. Press
+Escape or the minimize control to return to the dashboard.
 
 The form uses structured metadata fields and validated JSON for parameters,
 panels, layouts, and tab groups. Identifiers use lowercase kebab-case. Every

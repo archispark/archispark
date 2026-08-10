@@ -4,8 +4,9 @@ import { useContext } from "react"
 import type React from "react"
 import { NodeResizer, Handle, Position, type NodeProps } from "@xyflow/react"
 import { updateViewNode } from "@/lib/api"
-import { iconForType } from "@/lib/archimate/archimate-icons"
-import { renderIconPrim } from "@/components/archimate-notation-badge"
+import { getLayer } from "@/lib/archimate-helpers"
+import { ArchimateLayerBadge } from "@/components/archimate-layer-badge"
+import { ArchimateNotationBadge } from "@/components/archimate-notation-badge"
 import { colorFor } from "@/components/view-canvas-colors"
 import { ViewIdContext } from "@/components/view-canvas-context"
 
@@ -19,43 +20,6 @@ const HANDLE_STYLE: React.CSSProperties = {
   transition: "opacity 0.15s",
 }
 
-// The ArchiMate type icon, drawn in the element's top-right corner. The glyph
-// coordinates are anchored to the corner (x ≤ 0, y ≥ 0), so the overlay SVG is
-// pinned flush to the top-right and its viewBox places x=0 at the right edge.
-function ArchimateTypeIcon({
-  elementType,
-  color,
-}: {
-  elementType?: string
-  color: string
-}) {
-  const prims = iconForType(elementType)
-  if (!prims) return null
-  return (
-    <svg
-      width={28}
-      height={30}
-      viewBox="-28 0 28 30"
-      style={{
-        position: "absolute",
-        top: 2,
-        right: 2,
-        overflow: "visible",
-        pointerEvents: "none",
-        color,
-      }}
-      stroke="currentColor"
-      strokeWidth={1}
-      fill="none"
-      strokeLinejoin="round"
-      strokeLinecap="round"
-      aria-hidden
-    >
-      {prims.map(renderIconPrim)}
-    </svg>
-  )
-}
-
 export function ArchiNode({ id, data, selected }: NodeProps) {
   const viewId = useContext(ViewIdContext)
   const elementType = (data.elementType as string | undefined) ?? undefined
@@ -67,13 +31,13 @@ export function ArchiNode({ id, data, selected }: NodeProps) {
         height: "100%",
         boxSizing: "border-box",
         border: `1px solid ${border}`,
-        borderRadius: 4,
+        borderRadius: 8,
         background: bg,
         color: "#111",
         padding: "16px 6px 6px 6px",
         fontSize: 11,
         textAlign: "left",
-        overflow: "hidden",
+        overflow: "visible",
         cursor: "grab",
         position: "relative",
       }
@@ -82,16 +46,16 @@ export function ArchiNode({ id, data, selected }: NodeProps) {
         height: "100%",
         boxSizing: "border-box",
         border: `1px solid ${border}`,
-        borderRadius: 4,
+        borderRadius: 8,
         background: bg,
         color: "#111",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        padding: "4px",
+        padding: "6px 10px 6px 42px",
         fontSize: 11,
         textAlign: "center",
-        overflow: "hidden",
+        overflow: "visible",
         cursor: "grab",
         position: "relative",
       }
@@ -165,7 +129,25 @@ export function ArchiNode({ id, data, selected }: NodeProps) {
         id="t-left"
         style={HANDLE_STYLE}
       />
-      <ArchimateTypeIcon elementType={elementType} color={border} />
+      <div style={{ position: "absolute", top: -13, right: -4, zIndex: 1 }}>
+        <ArchimateNotationBadge
+          elementType={elementType}
+          size={18}
+          color={border}
+        />
+      </div>
+      {!hasChildren ? (
+        <div
+          style={{
+            position: "absolute",
+            top: "50%",
+            left: 6,
+            transform: "translateY(-50%)",
+          }}
+        >
+          <ArchimateLayerBadge layer={getLayer(elementType ?? "")} />
+        </div>
+      ) : null}
       {hasChildren ? (
         <span
           style={{
@@ -179,7 +161,20 @@ export function ArchiNode({ id, data, selected }: NodeProps) {
           {String(data.label ?? "")}
         </span>
       ) : (
-        <span>{String(data.label ?? "")}</span>
+        <span
+          title={String(data.label ?? "")}
+          style={{
+            minWidth: 0,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            display: "-webkit-box",
+            WebkitBoxOrient: "vertical",
+            WebkitLineClamp: 2,
+            lineHeight: 1.25,
+          }}
+        >
+          {String(data.label ?? "")}
+        </span>
       )}
     </div>
   )

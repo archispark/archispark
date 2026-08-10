@@ -77,13 +77,13 @@ describe("ViewCanvas", () => {
     expect(gcEl.getAttribute("data-parent")).toBe("child")
   })
 
-  it("renders ArchiMate type-icon primitives for nodes with known element types", () => {
+  it("renders text badges for nodes with known ArchiMate element types", () => {
     const nodes = [
-      makeNode("p", { element_ref: "e-process" }), // polygon glyph
-      makeNode("c", { element_ref: "e-collab" }), // circle glyph
-      makeNode("cap", { element_ref: "e-cap" }), // rect glyph
-      makeNode("art", { element_ref: "e-art" }), // path glyph
-      makeNode("gap", { element_ref: "e-gap" }), // ellipse glyph
+      makeNode("p", { element_ref: "e-process" }),
+      makeNode("c", { element_ref: "e-collab" }),
+      makeNode("cap", { element_ref: "e-cap" }),
+      makeNode("art", { element_ref: "e-art" }),
+      makeNode("gap", { element_ref: "e-gap" }),
     ]
     const elementTypes = new Map([
       ["e-process", "BusinessProcess"],
@@ -95,10 +95,9 @@ describe("ViewCanvas", () => {
     render(
       <ViewCanvas nodes={nodes} connections={[]} elementTypes={elementTypes} />
     )
-    expect(document.querySelectorAll("polygon").length).toBeGreaterThan(0)
-    expect(document.querySelectorAll("circle").length).toBeGreaterThan(0)
-    expect(document.querySelectorAll("ellipse").length).toBeGreaterThan(0)
-    expect(document.querySelectorAll("path").length).toBeGreaterThan(0)
+    for (const type of elementTypes.values()) {
+      expect(screen.getByText(type)).toBeInTheDocument()
+    }
   })
 
   it("offers PNG and SVG canvas downloads from a single menu", () => {

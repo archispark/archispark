@@ -30,8 +30,12 @@ import {
   buildGraph,
   getReachableTypes,
 } from "@/components/element-graph-builder"
-import { GraphToolbar } from "@/components/element-graph-toolbar"
+import { AppearancePanel } from "@/components/element-graph-appearance-panel"
 import { FilterPanel } from "@/components/element-graph-filter-panel"
+import {
+  ReactFlowFullscreenButton,
+  useReactFlowFullscreen,
+} from "@/components/react-flow-fullscreen"
 
 // ── Public props ──────────────────────────────────────────────────────────────
 
@@ -52,6 +56,7 @@ function GraphCanvas({
 }: ElementGraphTabProps) {
   const router = useRouter()
   const { fitView } = useReactFlow()
+  const { fullscreen, toggleFullscreen } = useReactFlowFullscreen()
   const [direction, setDirection] = useState<Direction>("TB")
   const [edgePathType, setEdgePathType] = useState<EdgePathType>("smoothstep")
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([])
@@ -97,8 +102,7 @@ function GraphCanvas({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [element, allRelationships, byId])
 
-  function toggleDirection() {
-    const next: Direction = direction === "TB" ? "LR" : "TB"
+  function changeDirection(next: Direction) {
     setDirection(next)
     layout(next, hiddenElRef.current, hiddenRelRef.current)
   }
@@ -116,14 +120,13 @@ function GraphCanvas({
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-2">
-      <GraphToolbar
-        edgePathType={edgePathType}
-        onChangeEdgePathType={setEdgePathType}
-        direction={direction}
-        onToggleDirection={toggleDirection}
-      />
-
+    <div
+      className={
+        fullscreen
+          ? "fixed inset-0 z-[60] flex min-h-0 flex-col gap-2 bg-background p-4"
+          : "flex min-h-0 flex-1 flex-col gap-2"
+      }
+    >
       <div
         className="relative min-h-0 flex-1 overflow-hidden rounded-lg border border-border"
         style={{ height: "100%" }}
@@ -143,16 +146,28 @@ function GraphCanvas({
             minZoom={0.2}
             maxZoom={3}
           >
-            <Background color="#e2e8f0" gap={24} />
+            <Background />
             <Panel position="top-right">
-              <FilterPanel
-                availableElementTypes={availableElementTypes}
-                availableRelTypes={availableRelTypes}
-                hiddenElementTypes={hiddenElementTypes}
-                hiddenRelTypes={hiddenRelTypes}
-                onChangeElementTypes={changeElementTypes}
-                onChangeRelTypes={changeRelTypes}
-              />
+              <div className="flex flex-col items-end gap-1">
+                <FilterPanel
+                  availableElementTypes={availableElementTypes}
+                  availableRelTypes={availableRelTypes}
+                  hiddenElementTypes={hiddenElementTypes}
+                  hiddenRelTypes={hiddenRelTypes}
+                  onChangeElementTypes={changeElementTypes}
+                  onChangeRelTypes={changeRelTypes}
+                />
+                <AppearancePanel
+                  edgePathType={edgePathType}
+                  onChangeEdgePathType={setEdgePathType}
+                  direction={direction}
+                  onChangeDirection={changeDirection}
+                />
+                <ReactFlowFullscreenButton
+                  fullscreen={fullscreen}
+                  onToggle={toggleFullscreen}
+                />
+              </div>
             </Panel>
             <Controls showInteractive={false} />
           </ReactFlow>

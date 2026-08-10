@@ -249,6 +249,10 @@ A graph showing the element and its direct relationships.
 - **Click a neighbor** to open its detail page
 - **Pan / zoom** with the mouse — controls are available in the bottom-left
   corner
+- Use **Appearance** in the top-right controls to choose the edge style and
+  switch between vertical and horizontal layouts
+- Use the fullscreen control below **Appearance** to expand the graph; press
+  Escape or the minimize control to return to the page
 
 ---
 

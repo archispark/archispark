@@ -1,79 +1,39 @@
 "use client"
 
-import { useEffect, useMemo, type ReactNode } from "react"
+import { useEffect, useMemo, useState, type ReactNode } from "react"
 import { useRouter } from "next/navigation"
 import {
   Background,
   Controls,
-  Handle,
   MarkerType,
   Panel,
-  Position,
   ReactFlow,
   ReactFlowProvider,
   useNodesState,
   useReactFlow,
   type Edge,
-  type Node,
-  type NodeProps,
-  type NodeTypes,
 } from "@xyflow/react"
 import "@xyflow/react/dist/style.css"
 import { cn } from "@workspace/ui/lib/utils"
 import { LAYER_HEX_COLORS, getLayer } from "@/lib/archimate-helpers"
-import { ArchimateLayerBadge } from "@/components/archimate-layer-badge"
-import { ArchimateNotationBadge } from "@/components/archimate-notation-badge"
-import { applyDagreLayout, type GraphDirection } from "./dagre-layout"
-
-// Nœud "bulle" en lecture seule (badge de type + libellé), distinct du
-// nœud d'édition de vue (`view-canvas-node.tsx`, redimensionnable, notation
-// ArchiMate stricte) — les deux partagent la même palette de couches
-// (LAYER_HEX_COLORS) et un badge textuel du type ArchiMate,
-// voir docs/architecture.md#dashboards pour le plan de convergence.
-type ArchiNodeData = {
-  label: string
-  layer: string
-  type: string
-  emphasized?: boolean
-}
-type ArchiNode = Node<ArchiNodeData, "archi">
-
-function ArchiNodeComponent({
-  data,
-  targetPosition,
-  sourcePosition,
-}: NodeProps<ArchiNode>) {
-  return (
-    <>
-      <Handle type="target" position={targetPosition ?? Position.Left} />
-      <div style={{ position: "absolute", top: -13, right: -4 }}>
-        <ArchimateNotationBadge elementType={data.type} size={18} />
-      </div>
-      <div
-        style={{
-          position: "absolute",
-          top: "50%",
-          left: 6,
-          transform: "translateY(-50%)",
-        }}
-      >
-        <ArchimateLayerBadge layer={data.layer} />
-      </div>
-      <span>{data.label}</span>
-      <Handle type="source" position={sourcePosition ?? Position.Right} />
-    </>
-  )
-}
-
-const NODE_TYPES: NodeTypes = { archi: ArchiNodeComponent }
-
-const HANDLE_POSITIONS: Record<
-  GraphDirection,
-  { target: Position; source: Position }
-> = {
-  LR: { target: Position.Left, source: Position.Right },
-  TB: { target: Position.Top, source: Position.Bottom },
-}
+import { AppearancePanel } from "@/components/element-graph-appearance-panel"
+import { FilterPanel } from "@/components/element-graph-filter-panel"
+import type { EdgePathType } from "@/components/element-graph-markers"
+import {
+  ReactFlowFullscreenButton,
+  useReactFlowFullscreen,
+} from "@/components/react-flow-fullscreen"
+import {
+  applyDagreLayout,
+  DASHBOARD_NODE_HEIGHT,
+  DASHBOARD_NODE_WIDTH,
+  type GraphDirection,
+} from "./dagre-layout"
+import {
+  DASHBOARD_HANDLE_POSITIONS,
+  DASHBOARD_NODE_TYPES,
+  type DashboardArchiNode,
+} from "./graph-node"
 
 // Zoom minimal autorisé lors du recadrage automatique : plus bas que le
 // défaut de React Flow (0.5) pour qu'un grand graphe puisse toujours tenir
@@ -117,7 +77,7 @@ function GraphViewInner({
   nodes: inputNodes,
   edges: inputEdges,
   height = 480,
-  direction = "LR",
+  direction: defaultDirection = "LR",
   nodeHref,
   panel,
 }: {
@@ -130,20 +90,49 @@ function GraphViewInner({
 }) {
   const router = useRouter()
   const { fitView } = useReactFlow()
+  const { fullscreen, toggleFullscreen } = useReactFlowFullscreen()
+  const [direction, setDirection] = useState(defaultDirection)
+  const [edgePathType, setEdgePathType] = useState<EdgePathType>("smoothstep")
+  const [hiddenElementTypes, setHiddenElementTypes] = useState<Set<string>>(
+    new Set()
+  )
+  const [hiddenRelTypes, setHiddenRelTypes] = useState<Set<string>>(new Set())
 
-  const computedNodes = useMemo<ArchiNode[]>(() => {
-    const { target, source } = HANDLE_POSITIONS[direction]
+  const availableElementTypes = useMemo(
+    () => [...new Set(inputNodes.map((node) => node.type))].sort(),
+    [inputNodes]
+  )
+  const availableRelTypes = useMemo(
+    () => [...new Set(inputEdges.map((edge) => edge.type))].sort(),
+    [inputEdges]
+  )
+  const visibleInputNodes = useMemo(
+    () => inputNodes.filter((node) => !hiddenElementTypes.has(node.type)),
+    [inputNodes, hiddenElementTypes]
+  )
+  const visibleInputEdges = useMemo(() => {
+    const visibleNodeIds = new Set(visibleInputNodes.map((node) => node.id))
+    return inputEdges.filter(
+      (edge) =>
+        !hiddenRelTypes.has(edge.type) &&
+        visibleNodeIds.has(edge.source) &&
+        visibleNodeIds.has(edge.target)
+    )
+  }, [inputEdges, visibleInputNodes, hiddenRelTypes])
+
+  const computedNodes = useMemo<DashboardArchiNode[]>(() => {
+    const { target, source } = DASHBOARD_HANDLE_POSITIONS[direction]
     const laidOut = applyDagreLayout(
-      inputNodes.map((n) => ({
+      visibleInputNodes.map((n) => ({
         id: n.id,
         label: n.label,
         rankGroup: n.rankGroup,
       })),
-      inputEdges,
+      visibleInputEdges,
       direction
     )
     const positionById = new Map(laidOut.map((n) => [n.id, { x: n.x, y: n.y }]))
-    return inputNodes.map((n) => {
+    return visibleInputNodes.map((n) => {
       const layer = getLayer(n.type)
       const color = LAYER_HEX_COLORS[layer] ?? "#64748b"
       return {
@@ -160,23 +149,23 @@ function GraphViewInner({
           borderRadius: 8,
           padding: "6px 10px 6px 42px",
           fontSize: 12,
-          minHeight: 45,
+          boxSizing: "border-box",
+          width: DASHBOARD_NODE_WIDTH,
+          height: DASHBOARD_NODE_HEIGHT,
           display: "flex",
           alignItems: "center",
-          width: "auto",
-          maxWidth: 220,
           opacity: n.dimmed ? 0.35 : 1,
         },
       }
     })
-  }, [inputNodes, inputEdges, direction])
+  }, [visibleInputNodes, visibleInputEdges, direction])
 
   const [nodes, setNodes, onNodesChange] = useNodesState(computedNodes)
   useEffect(() => setNodes(computedNodes), [computedNodes, setNodes])
 
   const edges = useMemo<Edge[]>(
     () =>
-      inputEdges.map((e) => ({
+      visibleInputEdges.map((e) => ({
         id: e.id,
         source: e.source,
         target: e.target,
@@ -184,8 +173,15 @@ function GraphViewInner({
         labelStyle: { fontSize: 10, opacity: e.dimmed ? 0.35 : 1 },
         markerEnd: { type: MarkerType.ArrowClosed },
         style: { strokeWidth: 1.5, opacity: e.dimmed ? 0.35 : 1 },
+        type:
+          edgePathType === "bezier"
+            ? "default"
+            : edgePathType === "step"
+              ? "smoothstep"
+              : edgePathType,
+        pathOptions: edgePathType === "step" ? { borderRadius: 0 } : undefined,
       })),
-    [inputEdges]
+    [visibleInputEdges, edgePathType]
   )
 
   useEffect(() => {
@@ -204,13 +200,16 @@ function GraphViewInner({
 
   return (
     <div
-      style={{ height }}
-      className={cn("overflow-hidden rounded-lg border border-border")}
+      style={{ height: fullscreen ? "100dvh" : height }}
+      className={cn(
+        "overflow-hidden rounded-lg border border-border bg-background",
+        fullscreen && "fixed inset-0 z-[60] rounded-none p-4"
+      )}
     >
       <ReactFlow
         nodes={nodes}
         edges={edges}
-        nodeTypes={NODE_TYPES}
+        nodeTypes={DASHBOARD_NODE_TYPES}
         onNodesChange={onNodesChange}
         fitView
         nodesDraggable={true}
@@ -223,6 +222,28 @@ function GraphViewInner({
       >
         <Background />
         <Controls showInteractive={false} />
+        <Panel position="top-right">
+          <div className="flex flex-col items-end gap-1">
+            <FilterPanel
+              availableElementTypes={availableElementTypes}
+              availableRelTypes={availableRelTypes}
+              hiddenElementTypes={hiddenElementTypes}
+              hiddenRelTypes={hiddenRelTypes}
+              onChangeElementTypes={setHiddenElementTypes}
+              onChangeRelTypes={setHiddenRelTypes}
+            />
+            <AppearancePanel
+              edgePathType={edgePathType}
+              onChangeEdgePathType={setEdgePathType}
+              direction={direction}
+              onChangeDirection={setDirection}
+            />
+            <ReactFlowFullscreenButton
+              fullscreen={fullscreen}
+              onToggle={toggleFullscreen}
+            />
+          </div>
+        </Panel>
         {panel ? <Panel position="top-left">{panel}</Panel> : null}
       </ReactFlow>
     </div>

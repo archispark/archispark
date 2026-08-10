@@ -1,21 +1,10 @@
 import dagre, { graphlib } from "@dagrejs/dagre"
 
-// Doit rester cohérent avec le style des nœuds dans GraphView (padding
-// gauche élargi pour le badge de notation, fontSize 12) : une largeur fixe
-// pour tous les nœuds réserverait beaucoup plus de place que ce que la
-// plupart des libellés occupent réellement une fois rendus, d'où de grands
-// vides entre nœuds/rangs — on l'estime donc à partir de la longueur du
-// libellé, comme dans le portail d'origine.
-const NODE_MIN_WIDTH = 70
-const NODE_MAX_WIDTH = 220
-const CHAR_WIDTH = 6.5
-const NODE_PADDING_X = 40
-const NODE_HEIGHT = 40
-
-function estimateNodeWidth(label: string): number {
-  const raw = label.length * CHAR_WIDTH + NODE_PADDING_X
-  return Math.min(NODE_MAX_WIDTH, Math.max(NODE_MIN_WIDTH, raw))
-}
+// Taille permanente partagée par Dagre et le composant React Flow. La
+// largeur correspond à celle qu'atteignait auparavant le libellé long
+// "Detailed Insight in Customer Behavior".
+export const DASHBOARD_NODE_WIDTH = 220
+export const DASHBOARD_NODE_HEIGHT = 60
 
 /** Sens du layout automatique : horizontal (gauche→droite) ou vertical (haut→bas). */
 export type GraphDirection = "LR" | "TB"
@@ -30,15 +19,27 @@ export type GraphDirection = "LR" | "TB"
 export function applyDagreLayout<
   N extends { id: string; label: string; rankGroup?: string },
   E extends { id: string; source: string; target: string },
->(nodes: N[], edges: E[], direction: GraphDirection = "LR"): (N & { x: number; y: number })[] {
+>(
+  nodes: N[],
+  edges: E[],
+  direction: GraphDirection = "LR"
+): (N & { x: number; y: number })[] {
   // "multigraph" : deux éléments peuvent être reliés par plusieurs relations
   // dans le même sens ; un id d'arête unique évite qu'elles s'écrasent.
   const g = new dagre.graphlib.Graph({ multigraph: true })
   g.setDefaultEdgeLabel(() => ({}))
-  g.setGraph({ rankdir: direction, nodesep: 28, ranksep: 56, acyclicer: "greedy" })
+  g.setGraph({
+    rankdir: direction,
+    nodesep: 28,
+    ranksep: 56,
+    acyclicer: "greedy",
+  })
 
   for (const node of nodes) {
-    g.setNode(node.id, { width: estimateNodeWidth(node.label), height: NODE_HEIGHT })
+    g.setNode(node.id, {
+      width: DASHBOARD_NODE_WIDTH,
+      height: DASHBOARD_NODE_HEIGHT,
+    })
   }
   for (const edge of edges) {
     if (!g.hasNode(edge.source) || !g.hasNode(edge.target)) continue
@@ -58,8 +59,11 @@ export function applyDagreLayout<
 
   return nodes.map((node) => {
     const pos = g.node(node.id)
-    const width = estimateNodeWidth(node.label)
-    return { ...node, x: pos ? pos.x - width / 2 : 0, y: pos ? pos.y - NODE_HEIGHT / 2 : 0 }
+    return {
+      ...node,
+      x: pos ? pos.x - DASHBOARD_NODE_WIDTH / 2 : 0,
+      y: pos ? pos.y - DASHBOARD_NODE_HEIGHT / 2 : 0,
+    }
   })
 }
 
@@ -78,14 +82,20 @@ function alignRankGroups(
   const groups = new Map<string, string[]>()
   for (const node of nodes) {
     if (!node.rankGroup || !g.hasNode(node.id)) continue
-    ;(groups.get(node.rankGroup) ?? groups.set(node.rankGroup, []).get(node.rankGroup)!).push(node.id)
+    ;(
+      groups.get(node.rankGroup) ??
+      groups.set(node.rankGroup, []).get(node.rankGroup)!
+    ).push(node.id)
   }
   for (const members of groups.values()) {
     if (members.length < 2) continue
     let target = g.node(members[0]!)
     for (const id of members) {
       const candidate = g.node(id)
-      if (candidate.rank !== undefined && (target.rank === undefined || candidate.rank < target.rank)) {
+      if (
+        candidate.rank !== undefined &&
+        (target.rank === undefined || candidate.rank < target.rank)
+      ) {
         target = candidate
       }
     }
@@ -103,8 +113,8 @@ function gridFallback<N extends { id: string; label: string }>(
     const row = Math.floor(i / columns)
     return {
       ...node,
-      x: (direction === "LR" ? row : col) * (NODE_MAX_WIDTH + 40),
-      y: (direction === "LR" ? col : row) * (NODE_HEIGHT + 40),
+      x: (direction === "LR" ? row : col) * (DASHBOARD_NODE_WIDTH + 40),
+      y: (direction === "LR" ? col : row) * (DASHBOARD_NODE_HEIGHT + 40),
     }
   })
 }

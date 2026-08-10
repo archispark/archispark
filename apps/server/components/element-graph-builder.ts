@@ -2,6 +2,7 @@ import type { Node, Edge } from "@xyflow/react"
 import type { useRouter } from "next/navigation"
 import type { ElementOut, RelationshipOut } from "@/lib/api"
 import { isRelationshipAllowed } from "@/lib/archimate-rules"
+import { NODE_H, NODE_W } from "@/components/element-graph-markers"
 
 // ── Graph builder (BFS with filters) ─────────────────────────────────────────
 
@@ -15,6 +16,7 @@ function createNode(
   return {
     id,
     position: { x: 0, y: 0 },
+    style: { width: NODE_W, height: NODE_H },
     data: {
       label,
       elementType,
