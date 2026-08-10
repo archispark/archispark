@@ -31,7 +31,7 @@ describe("PlatformAdminBlock", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        "Les comptes administrateur de la plateforme gèrent les organisations depuis l'interface d'administration et n'ont pas accès aux espaces de travail des organisations.",
+        "Les comptes Admin gèrent les organisations depuis l'interface d'administration et n'ont pas accès aux espaces de travail des organisations.",
       ),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Déconnexion/i })).toBeInTheDocument();

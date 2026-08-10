@@ -27,8 +27,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build native addons
-        run: pnpm --filter server build
+      - name: Build server and workspace dependencies
+        run: pnpm turbo run build --filter=server
         env:
           NODE_ENV: production
           DB_CLIENT: pglite
