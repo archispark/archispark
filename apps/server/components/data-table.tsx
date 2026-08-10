@@ -20,7 +20,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
   DialogFooter, DialogClose,
 } from "@workspace/ui/components/dialog";
-import { ArrowUpDown, ChevronLeft, ChevronRight, Search, Trash2 } from "lucide-react";
+import { ArrowUpDown, ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
 import {
   Table,
   TableHeader,
@@ -30,6 +30,7 @@ import {
   TableCell,
 } from "@workspace/ui/components/table";
 import { Button } from "@workspace/ui/components/button";
+import { DataTableSearch } from "@/components/data-table-search";
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
@@ -40,6 +41,7 @@ interface DataTableProps<TData, TValue> {
   renderSubRow?: (row: Row<TData>) => React.ReactNode;
   searchable?: boolean;
   searchPlaceholder?: string;
+  searchAction?: React.ReactNode;
   initialSorting?: SortingState;
   selectable?: boolean;
   onBulkDelete?: (rows: TData[]) => void;
@@ -58,6 +60,7 @@ export function DataTable<TData, TValue>({
   renderSubRow,
   searchable,
   searchPlaceholder = "Rechercher…",
+  searchAction,
   initialSorting,
   selectable,
   onBulkDelete,
@@ -127,16 +130,12 @@ export function DataTable<TData, TValue>({
         </div>
       )}
       {searchable && (
-        <div className="relative">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />
-          <input
-            type="search"
-            value={globalFilter}
-            onChange={(e) => table.setGlobalFilter(e.target.value)}
-            placeholder={searchPlaceholder}
-            className="w-full pl-8 pr-3 py-1.5 text-sm border border-border rounded-md bg-background text-foreground placeholder:text-muted-foreground outline-none focus:border-ring"
-          />
-        </div>
+        <DataTableSearch
+          value={globalFilter}
+          onChange={table.setGlobalFilter}
+          placeholder={searchPlaceholder}
+          action={searchAction}
+        />
       )}
       <div className="rounded-lg border">
         <Table>

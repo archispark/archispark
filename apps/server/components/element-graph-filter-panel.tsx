@@ -32,8 +32,6 @@ export function FilterPanel({
     return () => document.removeEventListener("mousedown", onDown)
   }, [open])
 
-  const totalHidden = hiddenElementTypes.size + hiddenRelTypes.size
-
   const elTypesByLayer = useMemo(() => {
     const groups: Record<string, string[]> = {}
     for (const t of availableElementTypes) {
@@ -60,22 +58,17 @@ export function FilterPanel({
   return (
     <div className="relative" ref={ref}>
       <Button
-        size="sm"
+        size="icon"
         variant="outline"
         onClick={() => setOpen((v) => !v)}
-        className="gap-1.5"
+        aria-label="Filtres"
+        title="Filtres"
       >
         <SlidersHorizontal className="size-3.5" />
-        Filtres
-        {totalHidden > 0 && (
-          <span className="rounded-full bg-primary px-1.5 text-[10px] leading-4 font-semibold text-primary-foreground">
-            {totalHidden}
-          </span>
-        )}
       </Button>
 
       {open && (
-        <div className="absolute top-full left-0 z-50 mt-1 max-h-[420px] w-64 overflow-y-auto rounded-lg border border-border bg-background p-3 shadow-lg">
+        <div className="absolute top-full right-0 z-50 mt-1 max-h-[420px] w-64 overflow-y-auto rounded-lg border border-border bg-background p-3 shadow-lg">
           {/* Element types */}
           <div className="mb-3">
             <div className="mb-2 flex items-center justify-between">

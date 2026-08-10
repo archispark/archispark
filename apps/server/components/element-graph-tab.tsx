@@ -1,11 +1,12 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   ReactFlow,
   ReactFlowProvider,
   Background,
   Controls,
+  Panel,
   useNodesState,
   useEdgesState,
   useReactFlow,
@@ -30,6 +31,7 @@ import {
   getReachableTypes,
 } from "@/components/element-graph-builder"
 import { GraphToolbar } from "@/components/element-graph-toolbar"
+import { FilterPanel } from "@/components/element-graph-filter-panel"
 
 // ── Public props ──────────────────────────────────────────────────────────────
 
@@ -38,6 +40,8 @@ export interface ElementGraphTabProps {
   allRelationships: RelationshipOut[]
   byId: Map<string, ElementOut>
 }
+
+const GRAPH_DEPTH = 1
 
 // ── Canvas ────────────────────────────────────────────────────────────────────
 
@@ -49,8 +53,6 @@ function GraphCanvas({
   const router = useRouter()
   const { fitView } = useReactFlow()
   const [direction, setDirection] = useState<Direction>("TB")
-  const [depth, setDepth] = useState(1)
-  const [showIndirect, setShowIndirect] = useState(false)
   const [edgePathType, setEdgePathType] = useState<EdgePathType>("smoothstep")
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([])
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([])
@@ -61,28 +63,25 @@ function GraphCanvas({
   const [hiddenRelTypes, setHiddenRelTypes] = useState<Set<string>>(new Set())
   const hiddenElRef = useRef<Set<string>>(new Set())
   const hiddenRelRef = useRef<Set<string>>(new Set())
-
-  const [availableElementTypes, setAvailableElementTypes] = useState<string[]>(
-    []
-  )
-  const [availableRelTypes, setAvailableRelTypes] = useState<string[]>([])
+  const { availableElementTypes, availableRelTypes } = useMemo(() => {
+    const { elementTypes, relTypes } = getReachableTypes(
+      element,
+      allRelationships,
+      byId,
+      GRAPH_DEPTH
+    )
+    return { availableElementTypes: elementTypes, availableRelTypes: relTypes }
+  }, [element, allRelationships, byId])
 
   const layout = useCallback(
-    (
-      dir: Direction,
-      d: number,
-      hiddenEl: Set<string>,
-      hiddenRel: Set<string>,
-      indirect: boolean
-    ) => {
+    (dir: Direction, hiddenEl: Set<string>, hiddenRel: Set<string>) => {
       const { nodes: rawNodes, edges: rawEdges } = buildGraph(
         element,
         allRelationships,
         byId,
-        d,
+        GRAPH_DEPTH,
         hiddenEl,
         hiddenRel,
-        indirect,
         router
       )
       const laid = applyDagreLayout(rawNodes, rawEdges, dir)
@@ -94,73 +93,31 @@ function GraphCanvas({
   )
 
   useEffect(() => {
-    const { elementTypes, relTypes } = getReachableTypes(
-      element,
-      allRelationships,
-      byId,
-      depth
-    )
-    setAvailableElementTypes(elementTypes)
-    setAvailableRelTypes(relTypes)
-    layout(
-      direction,
-      depth,
-      hiddenElRef.current,
-      hiddenRelRef.current,
-      showIndirect
-    )
+    layout(direction, hiddenElRef.current, hiddenRelRef.current)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [element, allRelationships, byId, depth, showIndirect])
+  }, [element, allRelationships, byId])
 
   function toggleDirection() {
     const next: Direction = direction === "TB" ? "LR" : "TB"
     setDirection(next)
-    layout(next, depth, hiddenElRef.current, hiddenRelRef.current, showIndirect)
+    layout(next, hiddenElRef.current, hiddenRelRef.current)
   }
 
   function changeElementTypes(hidden: Set<string>) {
     hiddenElRef.current = hidden
     setHiddenElementTypes(hidden)
-    layout(direction, depth, hidden, hiddenRelRef.current, showIndirect)
+    layout(direction, hidden, hiddenRelRef.current)
   }
 
   function changeRelTypes(hidden: Set<string>) {
     hiddenRelRef.current = hidden
     setHiddenRelTypes(hidden)
-    layout(direction, depth, hiddenElRef.current, hidden, showIndirect)
-  }
-
-  function changeShowIndirect(indirect: boolean) {
-    setShowIndirect(indirect)
-    layout(
-      direction,
-      depth,
-      hiddenElRef.current,
-      hiddenRelRef.current,
-      indirect
-    )
-  }
-
-  function changeDepth(d: number) {
-    setDepth(d)
-    if (d > 1 && !showIndirect) {
-      setShowIndirect(true)
-    }
+    layout(direction, hiddenElRef.current, hidden)
   }
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-2">
       <GraphToolbar
-        availableElementTypes={availableElementTypes}
-        availableRelTypes={availableRelTypes}
-        hiddenElementTypes={hiddenElementTypes}
-        hiddenRelTypes={hiddenRelTypes}
-        onChangeElementTypes={changeElementTypes}
-        onChangeRelTypes={changeRelTypes}
-        depth={depth}
-        onChangeDepth={changeDepth}
-        showIndirect={showIndirect}
-        onChangeShowIndirect={changeShowIndirect}
         edgePathType={edgePathType}
         onChangeEdgePathType={setEdgePathType}
         direction={direction}
@@ -187,6 +144,16 @@ function GraphCanvas({
             maxZoom={3}
           >
             <Background color="#e2e8f0" gap={24} />
+            <Panel position="top-right">
+              <FilterPanel
+                availableElementTypes={availableElementTypes}
+                availableRelTypes={availableRelTypes}
+                hiddenElementTypes={hiddenElementTypes}
+                hiddenRelTypes={hiddenRelTypes}
+                onChangeElementTypes={changeElementTypes}
+                onChangeRelTypes={changeRelTypes}
+              />
+            </Panel>
             <Controls showInteractive={false} />
           </ReactFlow>
         </EdgeTypeContext.Provider>

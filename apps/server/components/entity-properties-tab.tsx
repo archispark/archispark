@@ -119,19 +119,6 @@ export function EntityPropertiesTab({
   return (
     <div className="min-h-0 flex-1 overflow-y-auto pt-3 pb-4">
       <div className="space-y-3">
-        {isAdmin && (
-          <div className="flex justify-end">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={onStartAdd}
-              disabled={addingProp || availableDefs.length === 0}
-            >
-              <Plus className="mr-1 size-3.5" />
-              {t("common.create")}
-            </Button>
-          </div>
-        )}
         {addingProp && (
           <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted/30 p-3">
             <Select
@@ -180,6 +167,20 @@ export function EntityPropertiesTab({
           columns={propColumns}
           data={properties as PropRow[]}
           pageSize={25}
+          searchable
+          searchAction={
+            isAdmin ? (
+              <Button
+                size="sm"
+                onClick={onStartAdd}
+                disabled={addingProp || availableDefs.length === 0}
+                className="h-8 bg-indigo-600 text-primary-foreground hover:bg-indigo-700"
+              >
+                <Plus className="mr-1 size-3.5" />
+                {t("common.add")}
+              </Button>
+            ) : undefined
+          }
         />
       </div>
     </div>

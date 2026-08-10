@@ -39,18 +39,18 @@ Docker Compose deployments run it against the `neo4j` service added to
 
 ## Vercel
 
-A single Vercel project (`archispark-server`, root directory `apps/server`)
+A single Vercel project (`archispark`, root directory `apps/server`)
 serves the UI, the REST API and the MCP transport — there is no longer a
 separate API or MCP-server project. `apps/server/vercel.json` overrides
 `buildCommand` to build `@workspace/db` and `@workspace/auth` first (Vercel's
 zero-config Next.js detection doesn't build workspace dependencies on its
 own).
 
-1. **Create the `archispark-server` project** — import the repo as a Vercel
+1. **Create the `archispark` project** — import the repo as a Vercel
    project with root directory `apps/server`.
 
 2. **Add Neon** — In Vercel → Storage, add a Neon Postgres database
-   (`archispark`), attached to `archispark-server`. Neon auto-injects
+   (`archispark`), attached to `archispark`. Neon auto-injects
    `DATABASE_URL` (pooled) and `DATABASE_URL_UNPOOLED` (direct).
 
 3. **Apply database migrations, then the organization backfill** using the
@@ -73,7 +73,7 @@ database, and safe to re-run. `apps/server/instrumentation.ts` (Next.js's
 running it explicitly here avoids the very first request after a migration
 hitting an unbackfilled row.
 
-4. **Set environment variables** on `archispark-server` — `DATABASE_URL`
+4. **Set environment variables** on `archispark` — `DATABASE_URL`
    (from Neon, above), `KEYCLOAK_URL`, `KEYCLOAK_REALM`,
    `KEYCLOAK_CLIENT_ID_WEB`, `KEYCLOAK_ADMIN_CLIENT_ID`,
    `KEYCLOAK_ADMIN_CLIENT_SECRET`, `ARCHISPARK_URL`, and (only on the pooled
@@ -83,7 +83,7 @@ hitting an unbackfilled row.
    [Keycloak login](../reference/authentication.md#keycloak-login). SMTP config is also
    detailed in [E-mail invitations](#e-mail-invitations-smtp).
 
-5. **Redeploy** `archispark-server`.
+5. **Redeploy** `archispark`.
 
 ## Onboard a new customer with a dedicated Keycloak realm
 
@@ -125,7 +125,7 @@ Onboarding requires configuration only; no application code changes.
    new database; see
    [Organizations migration](#organizations-migration-releases-including-0018_organizations_expandsql)).
 
-4. **Deploy** the customer's `archispark-server` with Vercel and point it at
+4. **Deploy** the customer's `archispark` with Vercel and point it at
    the shared Keycloak. Configure `DATABASE_URL` for the customer
    database, `KEYCLOAK_URL` for shared Keycloak,
    `KEYCLOAK_REALM=archispark-<tenant>`, `KEYCLOAK_CLIENT_ID_WEB=archispark-web`,
@@ -180,4 +180,4 @@ Two sets of variables share one SMTP service:
   `${ARCHISPARK_URL}/invitations/<token>`. It is never inferred from the
   request's `Host` header.
 
-Configure these variables on the `archispark-server` Vercel project.
+Configure these variables on the `archispark` Vercel project.

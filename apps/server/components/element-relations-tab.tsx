@@ -53,20 +53,24 @@ export function ElementRelationsTab({
   return (
     <div className="min-h-0 flex-1 overflow-y-auto pt-3 pb-4">
       <div className="space-y-3">
-        {isAdmin && (
-          <div className="flex justify-end">
-            <Button size="sm" variant="outline" onClick={onCreateClick}>
-              <Plus className="mr-1 size-3.5" />
-              {t("common.create")}
-            </Button>
-          </div>
-        )}
         <DataTable<RelationshipOut, unknown>
           columns={relColumns}
           data={relationships}
           loading={relLoading}
           pageSize={25}
           searchable
+          searchAction={
+            isAdmin ? (
+              <Button
+                size="sm"
+                onClick={onCreateClick}
+                className="h-8 bg-indigo-600 text-primary-foreground hover:bg-indigo-700"
+              >
+                <Plus className="mr-1 size-3.5" />
+                {t("common.add")}
+              </Button>
+            ) : undefined
+          }
           footerStats={
             <>
               <span className="text-emerald-600">{relCounts.ok} OK</span>

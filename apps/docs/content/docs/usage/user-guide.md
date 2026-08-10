@@ -237,16 +237,15 @@ allowed types.
 
 ### Tab 3 — Graph
 
-An animated force-directed graph showing the element and all its direct
-neighbors.
+A graph showing the element and its direct relationships.
 
 - **Central node** — current element, fixed in the center and highlighted with
   a colored ring matching its ArchiMate layer
 - **Neighboring nodes** — each connected element, colored according to its own
   layer
-- **Edges** — animated dashed lines labeled with the relationship name or type
-- Nodes are positioned using a physics simulation (d3-force); the view fits the
-  content automatically
+- **Edges** — only the relationships used to reach nodes from the current
+  element, labeled with the relationship name or type
+- Nodes are positioned automatically; the view fits the content
 - **Click a neighbor** to open its detail page
 - **Pan / zoom** with the mouse — controls are available in the bottom-left
   corner

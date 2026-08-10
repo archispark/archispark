@@ -1,11 +1,6 @@
 "use client"
 
-import Link from "next/link"
-import {
-  type RelationshipOut,
-  type ElementUpdateIn,
-  type ElementOut,
-} from "@/lib/api"
+import { type ElementUpdateIn, type ElementOut } from "@/lib/api"
 import { InlineText } from "@/components/detail-page-shared"
 import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
@@ -51,7 +46,7 @@ export function ElementSelect({
   )
 }
 
-// ── Element header (badges, name, description, specialization) ────────────────
+// ── Element header (badges, name and description) ────────────────────────────
 
 export function ElementHeader({
   element,
@@ -63,11 +58,6 @@ export function ElementHeader({
   layer,
   layerColor,
   isInViews,
-  editingSpec,
-  setEditingSpec,
-  elementSelectOpts,
-  specializes,
-  saveSpecialization,
   onDelete,
 }: {
   element: ElementOut
@@ -79,11 +69,6 @@ export function ElementHeader({
   layer: string
   layerColor: string
   isInViews: boolean
-  editingSpec: boolean
-  setEditingSpec: (v: boolean) => void
-  elementSelectOpts: ElementOut[]
-  specializes: RelationshipOut[]
-  saveSpecialization: (targetId: string) => Promise<void>
   onDelete: () => void
 }) {
   const { t } = useT()
@@ -188,57 +173,6 @@ export function ElementHeader({
           {t("elements.not_in_views_hint")}
         </div>
       )}
-
-      {/* Specialization */}
-      <div className="flex items-center gap-2 text-sm">
-        <span className="shrink-0 text-muted-foreground">
-          {t("elements.specialization")} :
-        </span>
-        {isAdmin && editingSpec ? (
-          <div className="flex items-center gap-2">
-            <div className="w-56">
-              <ElementSelect
-                options={elementSelectOpts}
-                value={specializes[0]?.target ?? ""}
-                onChange={saveSpecialization}
-                placeholder="— aucune —"
-              />
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setEditingSpec(false)}
-            >
-              {t("common.cancel")}
-            </Button>
-          </div>
-        ) : (
-          <span
-            onDoubleClick={() => isAdmin && setEditingSpec(true)}
-            className={`${isAdmin ? "group -mx-1 cursor-text rounded px-1 transition-colors hover:bg-muted/40" : ""}`}
-            title={isAdmin ? "Double-cliquer pour modifier" : undefined}
-          >
-            {specializes.length > 0 ? (
-              specializes.map((r) => (
-                <Link
-                  key={r.identifier}
-                  href={`/elements/${encodeURIComponent(r.target)}`}
-                  className="font-medium text-primary hover:underline"
-                >
-                  {r.target_name || r.target}
-                </Link>
-              ))
-            ) : (
-              <span className="text-muted-foreground/60">—</span>
-            )}
-            {isAdmin && (
-              <span className="ml-1 align-middle text-[10px] opacity-0 group-hover:opacity-40">
-                ✎
-              </span>
-            )}
-          </span>
-        )}
-      </div>
     </div>
   )
 }

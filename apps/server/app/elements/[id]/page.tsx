@@ -33,7 +33,6 @@ import { ElementRelationDialogsGroup } from "@/components/element-relation-dialo
 import { DeleteElementDialog } from "@/components/element-delete-dialog"
 import { useElementProperties } from "@/components/use-element-properties"
 import { useElementRelationForm } from "@/components/use-element-relation-form"
-import { saveSpecializationRelation } from "@/components/element-specialization"
 import { buildElementTabs } from "@/components/element-detail-tabs"
 import { ElementGraphTab } from "@/components/element-graph-tab"
 import { ChevronLeft } from "lucide-react"
@@ -96,31 +95,9 @@ export default function ElementDetailPage() {
     return groups
   }, [elementTypes])
 
-  // ── Specialization ────────────────────────────────────────────────────────
-  const specializes = useMemo(
-    () =>
-      relationships.filter(
-        (r) => r.type === "Specialization" && r.source === id
-      ),
-    [relationships, id]
-  )
-  const [editingSpec, setEditingSpec] = useState(false)
-
   const properties: Property[] = element?.properties ?? []
   const propertiesForm = useElementProperties({ id, properties, propDefs })
   const relationForm = useElementRelationForm({ id })
-
-  async function saveSpecialization(targetId: string) {
-    setEditingSpec(false)
-    await saveSpecializationRelation({
-      id,
-      targetId,
-      specializes,
-      createRelMutation: relationForm.createRelMutation,
-      updateRelMutation: relationForm.updateRelMutation,
-      deleteRelMutation: relationForm.deleteRelMutation,
-    })
-  }
 
   // ── byId for relation status ──────────────────────────────────────────────
   const byId = useMemo(
@@ -185,11 +162,6 @@ export default function ElementDetailPage() {
         layer={layer}
         layerColor={layerColor}
         isInViews={isInViews}
-        editingSpec={editingSpec}
-        setEditingSpec={setEditingSpec}
-        elementSelectOpts={elementSelectOpts}
-        specializes={specializes}
-        saveSpecialization={saveSpecialization}
         onDelete={() => deleteActions.openWith(element)}
       />
 
