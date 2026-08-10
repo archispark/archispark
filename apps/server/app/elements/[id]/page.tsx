@@ -63,8 +63,8 @@ export default function ElementDetailPage() {
   const deleteMutation = useDeleteElement()
 
   const [activeTab, setActiveTab] = useState<
-    "properties" | "relations" | "canvas" | "views"
-  >("canvas")
+    "properties" | "relations" | "views"
+  >("properties")
 
   // ── Delete element ────────────────────────────────────────────────────────
   const [deleteModal, deleteActions] = useFormModal<ElementOut>()
@@ -141,7 +141,7 @@ export default function ElementDetailPage() {
   })
 
   return (
-    <div className="flex h-[calc(100vh-var(--nav-h))] flex-col overflow-hidden px-4 pt-4 pb-0 sm:px-7 sm:pt-6">
+    <div className="flex min-h-[calc(100vh-var(--nav-h))] flex-col px-4 pt-4 pb-4 sm:px-7 sm:pt-6">
       {/* Back */}
       <Link
         href="/elements"
@@ -165,13 +165,21 @@ export default function ElementDetailPage() {
         onDelete={() => deleteActions.openWith(element)}
       />
 
-      {/* Tabs — fills remaining vertical space */}
-      <div className="mt-4 flex min-h-0 flex-1 flex-col">
+      <div className="mt-4 flex flex-col">
+        {/* ── Canvas ─────────────────────────────────────────────────────── */}
+        <div className="flex h-[min(60vh,36rem)] flex-col pb-4">
+          <ElementGraphTab
+            element={element}
+            allRelationships={allRelationships}
+            byId={byId}
+          />
+        </div>
+
         <Tabs
           tabs={tabs}
           active={activeTab}
           onChange={(v) =>
-            setActiveTab(v as "properties" | "relations" | "canvas" | "views")
+            setActiveTab(v as "properties" | "relations" | "views")
           }
         />
 
@@ -212,17 +220,6 @@ export default function ElementDetailPage() {
             onEditClick={relationForm.openEditRel}
             onDeleteClick={(rel) => relationForm.deleteRelActions.openWith(rel)}
           />
-        )}
-
-        {/* ── Canvas tab ───────────────────────────────────────────────────── */}
-        {activeTab === "canvas" && (
-          <div className="flex min-h-0 flex-1 flex-col pt-3 pb-4">
-            <ElementGraphTab
-              element={element}
-              allRelationships={allRelationships}
-              byId={byId}
-            />
-          </div>
         )}
 
         {/* ── Views tab ────────────────────────────────────────────────────── */}

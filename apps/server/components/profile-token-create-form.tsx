@@ -54,9 +54,13 @@ export function TokenCreateForm({
 
   if (!show) {
     return (
-      <Button variant="outline" size="sm" onClick={() => onShowChange(true)}>
+      <Button
+        size="sm"
+        onClick={() => onShowChange(true)}
+        className="bg-indigo-600 text-primary-foreground hover:bg-indigo-700"
+      >
         <Plus className="size-3.5" />
-        Nouveau token
+        {t("common.add")}
       </Button>
     )
   }
@@ -134,7 +138,7 @@ export function TokenCreateForm({
                 key={p.label}
                 type="button"
                 onClick={() => onExpiryPresetChange(p.days)}
-                className={`rounded border px-2.5 py-1 text-[12px] transition-colors ${
+                className={`h-8 rounded border px-2.5 text-[12px] transition-colors ${
                   expiryPreset === p.days
                     ? "border-primary bg-primary text-primary-foreground"
                     : "border-border text-muted-foreground hover:border-foreground/30 hover:text-foreground"

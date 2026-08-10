@@ -34,7 +34,7 @@ export function GraphToolbar({
                 key={type}
                 type="button"
                 onClick={() => onChangeEdgePathType(type)}
-                className={`h-6 rounded border px-2 text-xs transition-colors ${
+                className={`h-8 rounded border px-2 text-xs transition-colors ${
                   edgePathType === type
                     ? "border-primary bg-primary text-primary-foreground"
                     : "border-border text-muted-foreground hover:border-ring hover:text-foreground"

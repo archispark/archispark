@@ -107,7 +107,7 @@ export function PanelHeader({
   }
 
   return (
-    <header className="flex h-[var(--nav-h)] shrink-0 items-center gap-2 border-b border-border px-3 sm:px-4">
+    <header className="sticky top-0 z-40 flex h-[var(--nav-h)] shrink-0 items-center gap-2 border-b border-border bg-background px-3 sm:px-4">
       {showSidebarToggle && (
         <button
           type="button"

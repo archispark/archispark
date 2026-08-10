@@ -118,7 +118,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
         {isChromeless ? (
           children
         ) : (
-          <section className="relative flex min-h-screen flex-col overflow-hidden bg-background">
+          <section className="relative flex h-[100dvh] flex-col overflow-hidden bg-background">
             <PanelHeader
               showSidebarToggle={!hideSidebar}
               sidebarCollapsed={sidebarCollapsed}

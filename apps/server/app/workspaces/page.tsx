@@ -72,10 +72,10 @@ export default function WorkspacesPage() {
               setShowForm(true)
               setError(null)
             }}
-            className="flex shrink-0 items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-[13px] text-primary-foreground hover:bg-primary/90"
+            className="flex h-8 shrink-0 items-center gap-1.5 rounded-md bg-indigo-600 px-3 text-[13px] text-primary-foreground hover:bg-indigo-700"
           >
             <Plus className="size-4" />
-            {t("nav.workspace_new")}
+            {t("common.add")}
           </button>
         )}
       </div>

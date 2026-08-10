@@ -61,8 +61,15 @@ export function CreateElementDialog({
   const { t } = useT()
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogTrigger render={<Button size="sm" />}>
-        <Plus className="size-4" /> Nouvel élément
+      <DialogTrigger
+        render={
+          <Button
+            size="sm"
+            className="bg-indigo-600 text-primary-foreground hover:bg-indigo-700"
+          />
+        }
+      >
+        <Plus className="size-4" /> {t("common.add")}
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>

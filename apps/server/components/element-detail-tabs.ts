@@ -13,7 +13,6 @@ export function buildElementTabs({
   viewCount: number
 }) {
   return [
-    { id: "canvas", label: t("elements.tab_canvas") },
     { id: "relations", label: t("elements.tab_relations"), count: relCount },
     {
       id: "properties",

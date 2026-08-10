@@ -33,6 +33,7 @@ export default function ElementsPage() {
 
   const [search, setSearch] = useState("")
   const [debouncedSearch] = useDebounce(search, 300)
+  const [layerFilter, setLayerFilter] = useState<string | null>(null)
   const [typeFilter, setTypeFilter] = useState<string | null>(null)
   const [statusFilter, setStatusFilter] = useState<
     "all" | "ok" | "conflict" | "absent"
@@ -53,9 +54,16 @@ export default function ElementsPage() {
     () => new Map(allElements.map((e) => [e.identifier, e])),
     [allElements]
   )
+  const layerFilteredElements = useMemo(
+    () =>
+      layerFilter
+        ? elements.filter((element) => getLayer(element.type) === layerFilter)
+        : elements,
+    [elements, layerFilter]
+  )
 
   const { relStats, filteredElements, elementStats } = useElementStats({
-    elements,
+    elements: layerFilteredElements,
     allRelationships,
     byId,
     inViewsSet,
@@ -94,6 +102,21 @@ export default function ElementsPage() {
     }
     return groups
   }, [types])
+  const layerOptions = useMemo(() => Object.keys(grouped), [grouped])
+  const typeOptions = useMemo(
+    () =>
+      layerFilter
+        ? (grouped[layerFilter] ?? [])
+        : Object.values(grouped).flat(),
+    [grouped, layerFilter]
+  )
+
+  function handleLayerFilterChange(layer: string | null) {
+    setLayerFilter(layer)
+    if (typeFilter && layer && getLayer(typeFilter) !== layer) {
+      setTypeFilter(null)
+    }
+  }
 
   const searchRef = useRef<HTMLInputElement>(null)
   useKeyboardShortcut(
@@ -189,7 +212,10 @@ export default function ElementsPage() {
         onSearchChange={setSearch}
         typeFilter={typeFilter}
         onTypeFilterChange={setTypeFilter}
-        typeOptions={Object.values(grouped).flat()}
+        typeOptions={typeOptions}
+        layerFilter={layerFilter}
+        onLayerFilterChange={handleLayerFilterChange}
+        layerOptions={layerOptions}
         statusFilter={statusFilter}
         onStatusFilterChange={setStatusFilter}
       />
