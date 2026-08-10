@@ -170,7 +170,7 @@ export function buildGraph(
     id: r.identifier,
     source: r.source,
     target: r.target,
-    type: "archiEdge",
+    type: "archimate",
     label: r.name ? `${r.type} · ${r.name}` : r.type,
     data: { relationshipType: r.type },
   }))

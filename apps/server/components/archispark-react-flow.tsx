@@ -10,6 +10,7 @@ import {
   type ReactFlowProps,
 } from "@xyflow/react"
 import "@xyflow/react/dist/style.css"
+import { ARCHIMATE_EDGE_MARKERS } from "@/components/archimate-edge-markers"
 
 type SharedReactFlowProps<
   NodeType extends Node = Node,
@@ -34,6 +35,7 @@ export function ArchisparkReactFlow<
 }: SharedReactFlowProps<NodeType, EdgeType>) {
   return (
     <ReactFlow {...props} proOptions={{ hideAttribution: true, ...proOptions }}>
+      {ARCHIMATE_EDGE_MARKERS}
       <Background />
       <Controls {...controlsProps} />
       {children}

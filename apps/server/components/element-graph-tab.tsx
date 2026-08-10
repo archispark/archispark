@@ -14,11 +14,11 @@ import type { ElementOut, RelationshipOut } from "@/lib/api"
 import { ArchisparkReactFlow } from "@/components/archispark-react-flow"
 import { useRouter } from "next/navigation"
 import {
-  MARKER_DEFS,
   EdgeTypeContext,
   type EdgePathType,
-} from "@/components/element-graph-markers"
-import { NODE_TYPES, EDGE_TYPES } from "@/components/element-graph-node-types"
+} from "@/components/react-flow-edge-path"
+import { NODE_TYPES } from "@/components/element-graph-node-types"
+import { ARCHIMATE_READONLY_EDGE_TYPES } from "@/components/archimate-readonly-edge"
 import {
   applyDagreLayout,
   type Direction,
@@ -128,7 +128,6 @@ function GraphCanvas({
         className="relative min-h-0 flex-1 overflow-hidden rounded-lg border border-border"
         style={{ height: "100%" }}
       >
-        {MARKER_DEFS}
         <EdgeTypeContext.Provider value={edgePathType}>
           <ArchisparkReactFlow
             nodes={nodes}
@@ -136,7 +135,7 @@ function GraphCanvas({
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             nodeTypes={NODE_TYPES}
-            edgeTypes={EDGE_TYPES}
+            edgeTypes={ARCHIMATE_READONLY_EDGE_TYPES}
             nodesDraggable
             nodesConnectable={false}
             elementsSelectable={false}

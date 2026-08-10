@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react"
 import { Palette } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
-import type { EdgePathType } from "@/components/element-graph-markers"
+import type { EdgePathType } from "@/components/react-flow-edge-path"
 import type { Direction } from "@/components/element-graph-layout"
 
 const EDGE_PATH_OPTIONS: Array<{ value: EdgePathType; label: string }> = [

@@ -13,7 +13,7 @@ import {
   updateViewConnection,
   updateViewNode,
 } from "@/lib/api"
-import { archimateEdgeStyle } from "@/components/view-canvas-edge"
+import { archimateEdgeStyle } from "@/components/archimate-edge-style"
 import type { PendingConnection } from "@/components/view-canvas-pending-connection-dialog"
 import { useViewCanvasDrop } from "@/components/use-view-canvas-drop"
 import { useT } from "@/lib/i18n"
@@ -74,17 +74,11 @@ export function useViewCanvasHandlers({
       body.target = newConn.target
     if (newConn.sourceHandle && newConn.sourceHandle.startsWith("s-")) {
       body.source_side = newConn.sourceHandle.slice(2) as
-        | "top"
-        | "right"
-        | "bottom"
-        | "left"
+        "top" | "right" | "bottom" | "left"
     }
     if (newConn.targetHandle && newConn.targetHandle.startsWith("t-")) {
       body.target_side = newConn.targetHandle.slice(2) as
-        | "top"
-        | "right"
-        | "bottom"
-        | "left"
+        "top" | "right" | "bottom" | "left"
     }
     updateViewConnection(viewId, oldEdge.id, body).catch((err) =>
       console.error("updateViewConnection reconnect failed", err)

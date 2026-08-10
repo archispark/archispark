@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react"
 import { useRouter } from "next/navigation"
 import {
-  MarkerType,
   Panel,
   ReactFlowProvider,
   useNodesState,
@@ -15,7 +14,11 @@ import { ArchisparkReactFlow } from "@/components/archispark-react-flow"
 import { LAYER_HEX_COLORS, getLayer } from "@/lib/archimate-helpers"
 import { AppearancePanel } from "@/components/element-graph-appearance-panel"
 import { FilterPanel } from "@/components/element-graph-filter-panel"
-import type { EdgePathType } from "@/components/element-graph-markers"
+import { ARCHIMATE_READONLY_EDGE_TYPES } from "@/components/archimate-readonly-edge"
+import {
+  EdgeTypeContext,
+  type EdgePathType,
+} from "@/components/react-flow-edge-path"
 import {
   ReactFlowFullscreenButton,
   useReactFlowFullscreen,
@@ -167,18 +170,11 @@ function GraphViewInner({
         source: e.source,
         target: e.target,
         label: e.type,
-        labelStyle: { fontSize: 10, opacity: e.dimmed ? 0.35 : 1 },
-        markerEnd: { type: MarkerType.ArrowClosed },
+        type: "archimate",
+        data: { relationshipType: e.type },
         style: { strokeWidth: 1.5, opacity: e.dimmed ? 0.35 : 1 },
-        type:
-          edgePathType === "bezier"
-            ? "default"
-            : edgePathType === "step"
-              ? "smoothstep"
-              : edgePathType,
-        pathOptions: edgePathType === "step" ? { borderRadius: 0 } : undefined,
       })),
-    [visibleInputEdges, edgePathType]
+    [visibleInputEdges]
   )
 
   useEffect(() => {
@@ -203,44 +199,47 @@ function GraphViewInner({
         fullscreen && "fixed inset-0 z-[60] rounded-none p-4"
       )}
     >
-      <ArchisparkReactFlow
-        nodes={nodes}
-        edges={edges}
-        nodeTypes={DASHBOARD_NODE_TYPES}
-        onNodesChange={onNodesChange}
-        fitView
-        nodesDraggable={true}
-        nodesConnectable={false}
-        elementsSelectable={true}
-        onNodeClick={
-          nodeHref ? (_, node) => router.push(nodeHref(node.id)) : undefined
-        }
-        controlsProps={{ showInteractive: false }}
-      >
-        <Panel position="top-right">
-          <div className="flex flex-col items-end gap-1">
-            <FilterPanel
-              availableElementTypes={availableElementTypes}
-              availableRelTypes={availableRelTypes}
-              hiddenElementTypes={hiddenElementTypes}
-              hiddenRelTypes={hiddenRelTypes}
-              onChangeElementTypes={setHiddenElementTypes}
-              onChangeRelTypes={setHiddenRelTypes}
-            />
-            <AppearancePanel
-              edgePathType={edgePathType}
-              onChangeEdgePathType={setEdgePathType}
-              direction={direction}
-              onChangeDirection={setDirection}
-            />
-            <ReactFlowFullscreenButton
-              fullscreen={fullscreen}
-              onToggle={toggleFullscreen}
-            />
-          </div>
-        </Panel>
-        {panel ? <Panel position="top-left">{panel}</Panel> : null}
-      </ArchisparkReactFlow>
+      <EdgeTypeContext.Provider value={edgePathType}>
+        <ArchisparkReactFlow
+          nodes={nodes}
+          edges={edges}
+          nodeTypes={DASHBOARD_NODE_TYPES}
+          edgeTypes={ARCHIMATE_READONLY_EDGE_TYPES}
+          onNodesChange={onNodesChange}
+          fitView
+          nodesDraggable={true}
+          nodesConnectable={false}
+          elementsSelectable={true}
+          onNodeClick={
+            nodeHref ? (_, node) => router.push(nodeHref(node.id)) : undefined
+          }
+          controlsProps={{ showInteractive: false }}
+        >
+          <Panel position="top-right">
+            <div className="flex flex-col items-end gap-1">
+              <FilterPanel
+                availableElementTypes={availableElementTypes}
+                availableRelTypes={availableRelTypes}
+                hiddenElementTypes={hiddenElementTypes}
+                hiddenRelTypes={hiddenRelTypes}
+                onChangeElementTypes={setHiddenElementTypes}
+                onChangeRelTypes={setHiddenRelTypes}
+              />
+              <AppearancePanel
+                edgePathType={edgePathType}
+                onChangeEdgePathType={setEdgePathType}
+                direction={direction}
+                onChangeDirection={setDirection}
+              />
+              <ReactFlowFullscreenButton
+                fullscreen={fullscreen}
+                onToggle={toggleFullscreen}
+              />
+            </div>
+          </Panel>
+          {panel ? <Panel position="top-left">{panel}</Panel> : null}
+        </ArchisparkReactFlow>
+      </EdgeTypeContext.Provider>
     </div>
   )
 }

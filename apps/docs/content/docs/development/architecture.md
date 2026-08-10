@@ -246,7 +246,11 @@ supports Escape to exit.
 The React Flow canvas itself is instantiated only by
 `components/archispark-react-flow.tsx`, which owns the shared stylesheet,
 background, controls and attribution settings. Dashboard, relationship and view
-features supply only their domain-specific nodes, edges, panels and handlers.
+features supply only their domain-specific nodes, panels and handlers.
+ArchiMate relationship notation is defined once in
+`components/archimate-edge-style.ts`; shared marker definitions and the
+read-only edge renderer ensure that relationship types such as `Realization`
+use the same line pattern and endpoint symbols on every graph.
 
 Not carried over from the companion project: the XML-import worker
 (`apps/worker`) and its Postgres demo datasource (superseded by the live

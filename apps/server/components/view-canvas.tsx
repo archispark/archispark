@@ -13,7 +13,8 @@ import { type NodeOut, type ConnectionOut, type ElementOut } from "@/lib/api"
 import { ArchisparkReactFlow } from "@/components/archispark-react-flow"
 import { ViewIdContext } from "@/components/view-canvas-context"
 import { ArchiNode } from "@/components/view-canvas-node"
-import { ArchiEdge, archimateEdgeStyle } from "@/components/view-canvas-edge"
+import { ArchiEdge } from "@/components/view-canvas-edge"
+import { archimateEdgeStyle } from "@/components/archimate-edge-style"
 import {
   type NodeRect,
   pickHandles,
@@ -22,7 +23,7 @@ import {
 } from "@/components/view-canvas-builder"
 import { ElementPalette } from "@/components/view-canvas-palette"
 import { DownloadMenu } from "@/components/view-canvas-download-menu"
-import { HANDLE_HOVER_CSS, MARKER_DEFS } from "@/components/view-canvas-markers"
+import { HANDLE_HOVER_CSS } from "@/components/view-canvas-markers"
 import { PendingConnectionDialog } from "@/components/view-canvas-pending-connection-dialog"
 import { useViewCanvasHandlers } from "@/components/use-view-canvas-handlers"
 import {
@@ -212,7 +213,6 @@ function ViewCanvasInner({
           onDrop={onDrop}
         >
           {HANDLE_HOVER_CSS}
-          {MARKER_DEFS}
           {pendingConnection ? (
             <PendingConnectionDialog
               pendingConnection={pendingConnection}
