@@ -12,7 +12,7 @@ on:
 
 jobs:
   build:
-    name: ${{ matrix.service }} (${{ matrix.variant }})
+    name: Docker (${{ matrix.variant }})
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -21,7 +21,6 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        service: [server]
         variant: [alpine, trixie-slim]
 
     steps:
@@ -73,7 +72,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v6
         with:
-          images: archispark/archispark-${{ matrix.service }}
+          images: archispark/archispark
           flavor: |
             latest=false
             prefix=${{ matrix.variant }}-
@@ -88,13 +87,13 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: .
-          file: .docker/${{ matrix.service }}/${{ matrix.variant }}/Dockerfile
+          file: .docker/server/${{ matrix.variant }}/Dockerfile
           push: ${{ steps.meta.outputs.tags != '' }}
           platforms: linux/amd64
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=${{ matrix.service }}-${{ matrix.variant }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.service }}-${{ matrix.variant }}
+          cache-from: type=gha,scope=${{ matrix.variant }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.variant }}
 
   update-descriptions:
     name: Update Docker Hub descriptions
@@ -102,10 +101,6 @@ jobs:
     needs: build
     permissions:
       contents: read
-    strategy:
-      fail-fast: false
-      matrix:
-        service: [server]
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -113,15 +108,13 @@ jobs:
       - name: Set short description
         id: desc
         run: |
-          case "${{ matrix.service }}" in
-            server)  echo "short=Unified Next.js app for ArchiSpark — web UI, REST API and MCP server (38 tools) for ArchiMate 3.1 modeling (PostgreSQL, Keycloak)" >> "$GITHUB_OUTPUT" ;;
-          esac
+          echo "short=Unified Next.js app for ArchiSpark — web UI, REST API and MCP server (38 tools) for ArchiMate 3.1 modeling (PostgreSQL, Keycloak)" >> "$GITHUB_OUTPUT"
 
       - name: Update Docker Hub description
         uses: peter-evans/dockerhub-description@v5
         with:
           username: ${{ vars.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-          repository: archispark/archispark-${{ matrix.service }}
+          repository: archispark/archispark
           short-description: ${{ steps.desc.outputs.short }}
-          readme-filepath: ./.docker/${{ matrix.service }}/descriptions.md
+          readme-filepath: ./.docker/server/descriptions.md
