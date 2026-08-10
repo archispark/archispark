@@ -167,7 +167,7 @@ export default function ElementDetailPage() {
 
       <div className="mt-4 flex flex-col">
         {/* ── Canvas ─────────────────────────────────────────────────────── */}
-        <div className="flex h-[min(60vh,36rem)] flex-col pb-4">
+        <div className="flex h-[min(70vh,46rem)] flex-col pb-4">
           <ElementGraphTab
             element={element}
             allRelationships={allRelationships}
