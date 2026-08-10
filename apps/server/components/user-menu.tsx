@@ -1,11 +1,13 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, useSyncExternalStore } from "react"
 import { LogOut, User, Building2, ChevronsUpDown } from "lucide-react"
 import { useCurrentUser } from "@/hooks/use-current-user"
 import { useOrganizations } from "@/lib/queries"
 import { useT } from "@/lib/i18n"
 import Link from "next/link"
+
+const subscribeToMount = () => () => {}
 
 export function UserMenu({
   placement = "down",
@@ -20,6 +22,11 @@ export function UserMenu({
   const { t } = useT()
   const [open, setOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
+  const mounted = useSyncExternalStore(
+    subscribeToMount,
+    () => true,
+    () => false
+  )
 
   useEffect(() => {
     if (!open) return
@@ -36,7 +43,11 @@ export function UserMenu({
     window.location.href = "/api/auth/logout"
   }
 
-  const initial = user?.username?.[0]?.toUpperCase() ?? "?"
+  // React Query can restore the signed-in user from the browser cache before
+  // hydration, while the server has no such cache. Defer user-specific text
+  // until after the first client render so it matches the server markup.
+  const currentUser = mounted ? user : null
+  const initial = currentUser?.username?.[0]?.toUpperCase() ?? "?"
 
   return (
     <div className="relative" ref={menuRef}>
@@ -64,10 +75,10 @@ export function UserMenu({
           <>
             <span className="grid min-w-0 flex-1 text-left text-sm leading-tight">
               <span className="truncate font-medium">
-                {user?.name || user?.username || "Mon compte"}
+                {currentUser?.name || currentUser?.username || "Mon compte"}
               </span>
               <span className="truncate text-xs text-muted-foreground">
-                {user?.email || user?.username || ""}
+                {currentUser?.email || currentUser?.username || ""}
               </span>
             </span>
             <ChevronsUpDown className="ml-auto size-4 shrink-0 text-muted-foreground" />
@@ -83,7 +94,7 @@ export function UserMenu({
         >
           <div className="mb-1 border-b border-border px-3 py-2.5">
             <p className="truncate text-[13px] font-medium">
-              {user?.name || user?.username}
+              {currentUser?.name || currentUser?.username}
             </p>
             {activeOrg && (
               <p className="truncate text-[11px] text-muted-foreground">
@@ -91,7 +102,7 @@ export function UserMenu({
               </p>
             )}
             <p className="text-[11px] text-muted-foreground capitalize">
-              {user?.role}
+              {currentUser?.role}
             </p>
           </div>
 
