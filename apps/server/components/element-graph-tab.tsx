@@ -2,10 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
-  ReactFlow,
   ReactFlowProvider,
-  Background,
-  Controls,
   Panel,
   useNodesState,
   useEdgesState,
@@ -13,8 +10,8 @@ import {
   type Node,
   type Edge,
 } from "@xyflow/react"
-import "@xyflow/react/dist/style.css"
 import type { ElementOut, RelationshipOut } from "@/lib/api"
+import { ArchisparkReactFlow } from "@/components/archispark-react-flow"
 import { useRouter } from "next/navigation"
 import {
   MARKER_DEFS,
@@ -133,7 +130,7 @@ function GraphCanvas({
       >
         {MARKER_DEFS}
         <EdgeTypeContext.Provider value={edgePathType}>
-          <ReactFlow
+          <ArchisparkReactFlow
             nodes={nodes}
             edges={edges}
             onNodesChange={onNodesChange}
@@ -145,8 +142,8 @@ function GraphCanvas({
             elementsSelectable={false}
             minZoom={0.2}
             maxZoom={3}
+            controlsProps={{ showInteractive: false }}
           >
-            <Background />
             <Panel position="top-right">
               <div className="flex flex-col items-end gap-1">
                 <FilterPanel
@@ -169,8 +166,7 @@ function GraphCanvas({
                 />
               </div>
             </Panel>
-            <Controls showInteractive={false} />
-          </ReactFlow>
+          </ArchisparkReactFlow>
         </EdgeTypeContext.Provider>
       </div>
     </div>

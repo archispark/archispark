@@ -243,6 +243,10 @@ Each graph retains its existing component color calculation.
 All three ReactFlow surfaces share the fullscreen overlay control implemented in
 `components/react-flow-fullscreen.tsx`; it locks page scrolling while active and
 supports Escape to exit.
+The React Flow canvas itself is instantiated only by
+`components/archispark-react-flow.tsx`, which owns the shared stylesheet,
+background, controls and attribution settings. Dashboard, relationship and view
+features supply only their domain-specific nodes, edges, panels and handlers.
 
 Not carried over from the companion project: the XML-import worker
 (`apps/worker`) and its Postgres demo datasource (superseded by the live

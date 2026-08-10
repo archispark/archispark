@@ -2,18 +2,15 @@
 
 import { useEffect, useMemo } from "react"
 import {
-  ReactFlow,
   ReactFlowProvider,
-  Background,
-  Controls,
   Panel,
   useNodesState,
   useEdgesState,
   useReactFlow,
   type Edge,
 } from "@xyflow/react"
-import "@xyflow/react/dist/style.css"
 import { type NodeOut, type ConnectionOut, type ElementOut } from "@/lib/api"
+import { ArchisparkReactFlow } from "@/components/archispark-react-flow"
 import { ViewIdContext } from "@/components/view-canvas-context"
 import { ArchiNode } from "@/components/view-canvas-node"
 import { ArchiEdge, archimateEdgeStyle } from "@/components/view-canvas-edge"
@@ -223,7 +220,7 @@ function ViewCanvasInner({
               onConfirmType={confirmRelationshipType}
             />
           ) : null}
-          <ReactFlow
+          <ArchisparkReactFlow
             nodes={rfNodes}
             edges={rfEdges}
             onNodesChange={onNodesChange}
@@ -243,8 +240,6 @@ function ViewCanvasInner({
             deleteKeyCode={["Backspace", "Delete"]}
             colorMode="system"
           >
-            <Background />
-            <Controls />
             <Panel position="top-right">
               <div className="flex items-start gap-2">
                 <ReactFlowFullscreenButton
@@ -254,7 +249,7 @@ function ViewCanvasInner({
                 <DownloadMenu />
               </div>
             </Panel>
-          </ReactFlow>
+          </ArchisparkReactFlow>
         </div>
       </div>
     </ViewIdContext.Provider>

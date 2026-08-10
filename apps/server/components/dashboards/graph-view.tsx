@@ -3,18 +3,15 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react"
 import { useRouter } from "next/navigation"
 import {
-  Background,
-  Controls,
   MarkerType,
   Panel,
-  ReactFlow,
   ReactFlowProvider,
   useNodesState,
   useReactFlow,
   type Edge,
 } from "@xyflow/react"
-import "@xyflow/react/dist/style.css"
 import { cn } from "@workspace/ui/lib/utils"
+import { ArchisparkReactFlow } from "@/components/archispark-react-flow"
 import { LAYER_HEX_COLORS, getLayer } from "@/lib/archimate-helpers"
 import { AppearancePanel } from "@/components/element-graph-appearance-panel"
 import { FilterPanel } from "@/components/element-graph-filter-panel"
@@ -206,7 +203,7 @@ function GraphViewInner({
         fullscreen && "fixed inset-0 z-[60] rounded-none p-4"
       )}
     >
-      <ReactFlow
+      <ArchisparkReactFlow
         nodes={nodes}
         edges={edges}
         nodeTypes={DASHBOARD_NODE_TYPES}
@@ -218,10 +215,8 @@ function GraphViewInner({
         onNodeClick={
           nodeHref ? (_, node) => router.push(nodeHref(node.id)) : undefined
         }
-        proOptions={{ hideAttribution: true }}
+        controlsProps={{ showInteractive: false }}
       >
-        <Background />
-        <Controls showInteractive={false} />
         <Panel position="top-right">
           <div className="flex flex-col items-end gap-1">
             <FilterPanel
@@ -245,7 +240,7 @@ function GraphViewInner({
           </div>
         </Panel>
         {panel ? <Panel position="top-left">{panel}</Panel> : null}
-      </ReactFlow>
+      </ArchisparkReactFlow>
     </div>
   )
 }
