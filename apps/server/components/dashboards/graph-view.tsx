@@ -21,13 +21,14 @@ import {
 import "@xyflow/react/dist/style.css"
 import { cn } from "@workspace/ui/lib/utils"
 import { LAYER_HEX_COLORS, getLayer } from "@/lib/archimate-helpers"
+import { ArchimateLayerBadge } from "@/components/archimate-layer-badge"
 import { ArchimateNotationBadge } from "@/components/archimate-notation-badge"
 import { applyDagreLayout, type GraphDirection } from "./dagre-layout"
 
-// Nœud "bulle" en lecture seule (badge de notation + libellé), distinct du
+// Nœud "bulle" en lecture seule (badge de type + libellé), distinct du
 // nœud d'édition de vue (`view-canvas-node.tsx`, redimensionnable, notation
 // ArchiMate stricte) — les deux partagent la même palette de couches
-// (LAYER_HEX_COLORS) et la même logique d'icône (ArchimateNotationBadge),
+// (LAYER_HEX_COLORS) et un badge textuel du type ArchiMate,
 // voir docs/architecture.md#dashboards pour le plan de convergence.
 type ArchiNodeData = {
   label: string
@@ -37,12 +38,26 @@ type ArchiNodeData = {
 }
 type ArchiNode = Node<ArchiNodeData, "archi">
 
-function ArchiNodeComponent({ data, targetPosition, sourcePosition }: NodeProps<ArchiNode>) {
+function ArchiNodeComponent({
+  data,
+  targetPosition,
+  sourcePosition,
+}: NodeProps<ArchiNode>) {
   return (
     <>
       <Handle type="target" position={targetPosition ?? Position.Left} />
       <div style={{ position: "absolute", top: -13, right: -4 }}>
         <ArchimateNotationBadge elementType={data.type} size={18} />
+      </div>
+      <div
+        style={{
+          position: "absolute",
+          top: "50%",
+          left: 6,
+          transform: "translateY(-50%)",
+        }}
+      >
+        <ArchimateLayerBadge layer={data.layer} />
       </div>
       <span>{data.label}</span>
       <Handle type="source" position={sourcePosition ?? Position.Right} />
@@ -52,7 +67,10 @@ function ArchiNodeComponent({ data, targetPosition, sourcePosition }: NodeProps<
 
 const NODE_TYPES: NodeTypes = { archi: ArchiNodeComponent }
 
-const HANDLE_POSITIONS: Record<GraphDirection, { target: Position; source: Position }> = {
+const HANDLE_POSITIONS: Record<
+  GraphDirection,
+  { target: Position; source: Position }
+> = {
   LR: { target: Position.Left, source: Position.Right },
   TB: { target: Position.Top, source: Position.Bottom },
 }
@@ -116,7 +134,11 @@ function GraphViewInner({
   const computedNodes = useMemo<ArchiNode[]>(() => {
     const { target, source } = HANDLE_POSITIONS[direction]
     const laidOut = applyDagreLayout(
-      inputNodes.map((n) => ({ id: n.id, label: n.label, rankGroup: n.rankGroup })),
+      inputNodes.map((n) => ({
+        id: n.id,
+        label: n.label,
+        rankGroup: n.rankGroup,
+      })),
       inputEdges,
       direction
     )
@@ -135,9 +157,12 @@ function GraphViewInner({
           background: n.emphasized ? `${color}26` : "var(--card)",
           color: "var(--card-foreground)",
           border: `${n.emphasized ? 3 : 2}px solid ${color}`,
-          borderRadius: 4,
-          padding: "6px 10px",
-          fontSize: 11,
+          borderRadius: 8,
+          padding: "6px 10px 6px 42px",
+          fontSize: 12,
+          minHeight: 45,
+          display: "flex",
+          alignItems: "center",
           width: "auto",
           maxWidth: 220,
           opacity: n.dimmed ? 0.35 : 1,
@@ -178,7 +203,10 @@ function GraphViewInner({
   }, [computedNodes, edges, fitView])
 
   return (
-    <div style={{ height }} className={cn("overflow-hidden rounded-lg border border-border")}>
+    <div
+      style={{ height }}
+      className={cn("overflow-hidden rounded-lg border border-border")}
+    >
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -188,7 +216,9 @@ function GraphViewInner({
         nodesDraggable={true}
         nodesConnectable={false}
         elementsSelectable={true}
-        onNodeClick={nodeHref ? (_, node) => router.push(nodeHref(node.id)) : undefined}
+        onNodeClick={
+          nodeHref ? (_, node) => router.push(nodeHref(node.id)) : undefined
+        }
         proOptions={{ hideAttribution: true }}
       >
         <Background />

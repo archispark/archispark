@@ -1,5 +1,17 @@
-import { iconForType, type IconPrim } from "@/lib/archimate/archimate-icons"
-import { LAYER_HEX_COLORS, getLayer } from "@/lib/archimate-helpers"
+import type { IconPrim } from "@/lib/archimate/archimate-icons"
+import { getLayer } from "@/lib/archimate-helpers"
+
+// Palette du composant source `ofr-archimate-reports/notation-badge.tsx`.
+const NOTATION_BADGE_COLORS: Record<string, string> = {
+  Motivation: "#8b5cf6",
+  Strategy: "#f97316",
+  Business: "#f5c518",
+  Application: "#0ea5e9",
+  Technology: "#10b981",
+  Physical: "#84cc16",
+  Implementation: "#ec4899",
+  Composite: "#94a3b8",
+}
 
 function renderIconPrim(p: IconPrim, i: number) {
   const fill = "fill" in p && p.fill ? "currentColor" : "none"
@@ -13,19 +25,26 @@ function renderIconPrim(p: IconPrim, i: number) {
     case "circle":
       return <circle key={i} cx={p.cx} cy={p.cy} r={p.r} fill={fill} />
     case "ellipse":
-      return <ellipse key={i} cx={p.cx} cy={p.cy} rx={p.rx} ry={p.ry} fill={fill} />
+      return (
+        <ellipse key={i} cx={p.cx} cy={p.cy} rx={p.rx} ry={p.ry} fill={fill} />
+      )
     case "rect":
-      return <rect key={i} x={p.x} y={p.y} width={p.width} height={p.height} rx={p.rx} fill={fill} />
+      return (
+        <rect
+          key={i}
+          x={p.x}
+          y={p.y}
+          width={p.width}
+          height={p.height}
+          rx={p.rx}
+          fill={fill}
+        />
+      )
   }
 }
 
 /**
- * Bulle ronde colorée par couche, portant le pictogramme du type ArchiMate
- * exact (BusinessRole, TechnologyService, …) — même glyphes que le coin
- * haut-droit de `view-canvas-node.tsx` (`iconForType`), factorisés ici pour
- * être réutilisés par les nœuds de graphe en lecture seule
- * (`components/dashboards/graph-view.tsx`). Voir docs/architecture.md#dashboards
- * pour l'alignement visuel entre les deux styles de nœuds ReactFlow.
+ * Badge rectangulaire coloré par couche indiquant le type ArchiMate exact.
  */
 export function ArchimateNotationBadge({
   elementType,
@@ -34,39 +53,35 @@ export function ArchimateNotationBadge({
   elementType?: string
   size?: number
 }) {
-  const prims = iconForType(elementType)
-  if (!prims) return null
   const layer = getLayer(elementType ?? "")
-  const color = LAYER_HEX_COLORS[layer] ?? "#64748b"
+  const color = NOTATION_BADGE_COLORS[layer] ?? "#94a3b8"
+  const label = elementType || "Unknown"
+  const textColor =
+    layer === "Business" || layer === "Physical" ? "#111827" : "#ffffff"
+
   return (
     <div
-      title={elementType}
+      title={label}
       style={{
-        width: size,
         height: size,
-        borderRadius: "50%",
+        minWidth: size,
+        padding: "0 6px",
+        borderRadius: 6,
         background: color,
         border: "2px solid #ffffff",
         boxShadow: "0 1px 2px rgba(0,0,0,0.3)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        color: "#ffffff",
+        color: textColor,
+        fontSize: 9,
+        fontWeight: 600,
+        lineHeight: 1,
+        whiteSpace: "nowrap",
         flexShrink: 0,
       }}
     >
-      <svg
-        viewBox="0 0 24 24"
-        width={size * 0.6}
-        height={size * 0.6}
-        fill="none"
-        stroke="currentColor"
-        strokeWidth={2.4}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        {prims.map(renderIconPrim)}
-      </svg>
+      {label}
     </div>
   )
 }

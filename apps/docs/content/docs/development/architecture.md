@@ -234,8 +234,9 @@ login/token — the companion project's single-admin-token session
 
 Frontend components live under `apps/server/components/dashboards/`,
 restyled to ArchiSpark's shadcn/Tailwind tokens. `graph-view.tsx` is a
-second ReactFlow node style — read-only "bubble" nodes (badge + label,
-dagre auto-layout, click-to-navigate) for exploring/reporting — distinct
+second ReactFlow node style — read-only "bubble" nodes (generic layer icon
+inside the node, floating ArchiMate type badge, label, dagre auto-layout and
+click-to-navigate) for exploring/reporting — distinct
 from `view-canvas-node.tsx`'s resizable ArchiMate-notation editing nodes.
 Both already share their layer color palette (`LAYER_HEX_COLORS`,
 `lib/archimate-helpers.ts`), type-icon glyphs
