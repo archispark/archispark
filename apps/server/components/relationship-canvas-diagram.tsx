@@ -1,61 +1,16 @@
 "use client"
 
-import Link from "next/link"
-import { getLayer, LAYER_HEX_COLORS } from "@/lib/archimate-helpers"
+import { useMemo } from "react"
+import { useRouter } from "next/navigation"
+import { type Edge, type Node } from "@xyflow/react"
+import { ArchisparkReactFlow } from "@/components/archispark-react-flow"
+import { ARCHIMATE_READONLY_EDGE_TYPES } from "@/components/archimate-readonly-edge"
+import { NODE_TYPES } from "@/components/element-graph-node-types"
+import { NODE_H, NODE_W } from "@/components/element-graph-markers"
 
-function ElementBox({
-  id,
-  name,
-  type,
-}: {
-  id: string
-  name: string
-  type: string
-}) {
-  const layer = getLayer(type)
-  const color = LAYER_HEX_COLORS[layer] ?? "#64748b"
-  return (
-    <Link
-      href={`/elements/${encodeURIComponent(id)}`}
-      className="block no-underline transition-transform hover:scale-[1.02]"
-    >
-      <div
-        style={{
-          width: 160,
-          border: `1.5px solid ${color}`,
-          borderRadius: 8,
-          background: `${color}18`,
-          padding: "10px 14px",
-          boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
-        }}
-      >
-        <div
-          style={{
-            fontSize: 10,
-            color,
-            fontWeight: 700,
-            letterSpacing: 0.4,
-            marginBottom: 4,
-          }}
-        >
-          {type}
-        </div>
-        <div
-          style={{
-            fontSize: 13,
-            fontWeight: 600,
-            color: "#1e293b",
-            lineHeight: 1.3,
-          }}
-        >
-          {name || "—"}
-        </div>
-      </div>
-    </Link>
-  )
-}
+const NODE_GAP = 140
 
-/** Simple source → relationship → target diagram for the relationship detail page's canvas tab. */
+/** Source → relationship → target diagram for the relationship detail page's canvas tab. */
 export function RelationshipCanvas({
   relType,
   relName,
@@ -63,9 +18,11 @@ export function RelationshipCanvas({
   srcId,
   srcName,
   srcType,
+  srcImageUrl,
   tgtId,
   tgtName,
   tgtType,
+  tgtImageUrl,
 }: {
   relType: string
   relName: string | null
@@ -73,43 +30,89 @@ export function RelationshipCanvas({
   srcId: string
   srcName: string
   srcType: string
+  srcImageUrl?: string | null
   tgtId: string
   tgtName: string
   tgtType: string
+  tgtImageUrl?: string | null
 }) {
-  const arrowColor = isOk ? "#10b981" : "#dc2626"
+  const router = useRouter()
+
+  const nodes = useMemo<Node[]>(
+    () => [
+      {
+        id: srcId,
+        type: "archimateNode",
+        position: { x: 0, y: 0 },
+        style: { width: NODE_W, height: NODE_H },
+        data: {
+          label: srcName,
+          elementType: srcType,
+          isCentral: false,
+          hasConflict: !isOk,
+          imageUrl: srcImageUrl ?? undefined,
+          onClick: () => router.push(`/elements/${encodeURIComponent(srcId)}`),
+        },
+      },
+      {
+        id: tgtId,
+        type: "archimateNode",
+        position: { x: NODE_W + NODE_GAP, y: 0 },
+        style: { width: NODE_W, height: NODE_H },
+        data: {
+          label: tgtName,
+          elementType: tgtType,
+          isCentral: false,
+          hasConflict: !isOk,
+          imageUrl: tgtImageUrl ?? undefined,
+          onClick: () => router.push(`/elements/${encodeURIComponent(tgtId)}`),
+        },
+      },
+    ],
+    [
+      srcId,
+      srcName,
+      srcType,
+      srcImageUrl,
+      tgtId,
+      tgtName,
+      tgtType,
+      tgtImageUrl,
+      isOk,
+      router,
+    ]
+  )
+
+  const edges = useMemo<Edge[]>(
+    () => [
+      {
+        id: `${srcId}-${tgtId}`,
+        source: srcId,
+        target: tgtId,
+        type: "archimate",
+        label: relName ? `${relType} · ${relName}` : relType,
+        data: { relationshipType: relType },
+      },
+    ],
+    [srcId, tgtId, relType, relName]
+  )
+
   return (
-    <div className="flex flex-1 items-center justify-center">
-      <div className="flex items-center gap-4">
-        <ElementBox id={srcId} name={srcName} type={srcType} />
-        <div className="flex flex-col items-center gap-1.5 select-none">
-          <svg width="120" height="20" style={{ overflow: "visible" }}>
-            <line
-              x1="0"
-              y1="10"
-              x2="110"
-              y2="10"
-              stroke={arrowColor}
-              strokeWidth="1.5"
-            />
-            <polygon points="110,6 120,10 110,14" fill={arrowColor} />
-          </svg>
-          <div className="flex flex-col items-center gap-0.5">
-            <span
-              className="text-[11px] font-semibold"
-              style={{ color: arrowColor }}
-            >
-              {relType}
-            </span>
-            {relName && (
-              <span className="text-[10px] text-muted-foreground italic">
-                {relName}
-              </span>
-            )}
-          </div>
-        </div>
-        <ElementBox id={tgtId} name={tgtName} type={tgtType} />
-      </div>
+    <div className="flex flex-1">
+      <ArchisparkReactFlow
+        nodes={nodes}
+        edges={edges}
+        nodeTypes={NODE_TYPES}
+        edgeTypes={ARCHIMATE_READONLY_EDGE_TYPES}
+        fitView
+        fitViewOptions={{ padding: 0.35 }}
+        nodesDraggable={false}
+        nodesConnectable={false}
+        elementsSelectable={false}
+        minZoom={0.2}
+        maxZoom={3}
+        controlsProps={{ showInteractive: false }}
+      />
     </div>
   )
 }
