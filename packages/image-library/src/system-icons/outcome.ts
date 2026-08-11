@@ -1,0 +1,8 @@
+import type { SystemArchimateIcon } from "../types.js"
+
+export const outcome: SystemArchimateIcon = {
+  slug: "outcome",
+  name: "Outcome",
+  archimateType: "Outcome",
+  svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 32 32\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linejoin=\"round\" stroke-linecap=\"round\"><g transform=\"translate(28 2)\"><path d=\"M-12 15.5 C-12 11.9 -14.9 9 -18.5 9 C-22.1 9 -25 11.9 -25 15.5 C-25 19.1 -22.1 22 -18.5 22 C-14.9 22 -12 19.1 -12 15.5 ZM-14.5 15.5 C-14.5 13.3 -16.3 11.5 -18.5 11.5 C-20.7 11.5 -22.5 13.3 -22.5 15.5 C-22.5 17.7 -20.7 19.5 -18.5 19.5 C-16.3 19.5 -14.5 17.7 -14.5 15.5 ZM-17 15.5 C-17 14.7 -17.7 14 -18.5 14 C-19.3 14 -20 14.7 -20 15.5 C-20 16.3 -19.3 17 -18.5 17 C-17.7 17 -17 16.3 -17 15.5 ZM-18 15.5 C-18 15.2 -18.2 15 -18.5 15 C-18.8 15 -19 15.2 -19 15.5 C-19 15.8 -18.8 16 -18.5 16 C-18.2 16 -18 15.8 -18 15.5 Z\" fill=\"none\"/><path d=\"M-19 16 L-9.5 6.5 M-12 9 L-11 4 M-12 9 L-7 8\" fill=\"none\"/></g></svg>",
+}

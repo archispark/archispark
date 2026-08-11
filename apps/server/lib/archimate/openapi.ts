@@ -445,6 +445,7 @@ const PropertyDefinitionSchema = registry.register(
       identifier: z.string(),
       name: z.string(),
       type: z.string().nullable().optional(),
+      is_system: z.boolean(),
     })
     .openapi("PropertyDefinition")
 )

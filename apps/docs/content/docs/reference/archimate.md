@@ -276,3 +276,6 @@ Background colours by layer follow the Archi reference palette:
 | Motivation            | `#CCCCFF` (light purple) |
 | Strategy              | `#F5DEAA` (beige)        |
 | Implementation        | `#FFE0E0` (light pink)   |
+
+Setting the `archispark_image` system property on an element replaces its
+notation glyph with a picked icon — see [Image Library](/docs/reference/image-library).

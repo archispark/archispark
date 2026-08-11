@@ -1,7 +1,6 @@
 /**
- * Requêtes Cypher ad hoc en lecture seule (page Explore) — porté de
- * `explore-query.ts` (ofr-archimate-reports/apps/portal), mais avec un
- * scoping multi-tenant strict : contrairement aux panneaux de dashboard
+ * Requêtes Cypher ad hoc en lecture seule (page Explore), avec un scoping
+ * multi-tenant strict : contrairement aux panneaux de dashboard
  * (dont le texte est validé une fois à l'enregistrement), une requête
  * Explore est arbitraire et changeante à chaque exécution — impossible de
  * garantir statiquement qu'elle filtre sur `$organizationId`. La défense est
@@ -9,9 +8,8 @@
  * relation Neo4j dont `organizationId` diffère de celui de l'appelant est
  * rejetée dans son intégralité, quel que soit le texte de la requête.
  *
- * Contrairement au portail (qui hydrate le graphe depuis un modèle ArchiMate
- * complet chargé en mémoire, `lib/get-model.ts`), le graphe est reconstruit
- * ici via les mêmes requêtes Neo4j déjà utilisées pour les panneaux de
+ * Le graphe est reconstruit ici via les mêmes requêtes Neo4j déjà utilisées
+ * pour les panneaux de
  * dashboard (`nodeMetadata`/`inducedEdges`, déjà scopées par organisation) —
  * plus simple, et cohérent avec le fait que les éléments `:Element` portent
  * déjà toute la donnée nécessaire.

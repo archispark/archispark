@@ -8,6 +8,7 @@ export interface ElementOut {
   type: string
   documentation: string | null
   properties: Property[]
+  resolved_image_url?: string | null
 }
 
 export interface ElementCreateIn {

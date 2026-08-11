@@ -28,10 +28,14 @@ The token resolves the calling user's identity and its pinned organization/works
 | Nodes                | `create_node`, `update_node`, `delete_node`                                                                                                                       |
 | Connections          | `create_connection`, `update_connection`, `delete_connection`                                                                                                     |
 | Property definitions | `list_property_definitions`, `get_property_definition`, `create_property_definition`, `update_property_definition`, `delete_property_definition`                  |
-| Workspaces           | `list_workspaces`, `activate_workspace`                                                                                                                           |
-| Viewpoints           | `list_viewpoints`                                                                                                                                                 |
-| Import / Export      | `export_model`, `import_model`                                                                                                                                    |
-| Persistence          | `save_model` (no-op, kept for compatibility)                                                                                                                      |
+
+Property-definition results include `is_system`. System definitions such as
+`archispark_image` cannot be updated or deleted; their values remain editable
+on elements and relationships and must be HTTP(S) URLs or relative paths.
+| Workspaces | `list_workspaces`, `activate_workspace` |
+| Viewpoints | `list_viewpoints` |
+| Import / Export | `export_model`, `import_model` |
+| Persistence | `save_model` (no-op, kept for compatibility) |
 
 **Prompts:** `archimate-modeling-guide` (load ArchiMate 3.1 rules — call first), `create-viewpoint-view` (step-by-step view creation for a given viewpoint).  
 **Resources:** `archimate://layers`, `archimate://relationships`.

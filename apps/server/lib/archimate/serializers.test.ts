@@ -99,6 +99,6 @@ describe("element / view / property-definition serialization", () => {
     expect(detail.connections).toHaveLength(1);
   });
   it("pdOut maps a property definition", () => {
-    expect(pdOut({ uuid: "p1", name: "P", type: "string" })).toEqual({ identifier: "p1", name: "P", type: "string" });
+    expect(pdOut({ uuid: "p1", name: "P", type: "string" })).toEqual({ identifier: "p1", name: "P", type: "string", is_system: false });
   });
 });

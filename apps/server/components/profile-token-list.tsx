@@ -70,7 +70,7 @@ export function TokenList({
             <button
               type="button"
               onClick={() => onDelete(t.id)}
-              className="rounded p-1.5 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 hover:text-destructive"
+              className="rounded bg-destructive p-1.5 text-white opacity-0 transition-opacity group-hover:opacity-100 hover:bg-destructive/90"
               title="Supprimer ce token"
             >
               <Trash2 className="size-3.5" />

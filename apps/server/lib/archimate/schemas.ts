@@ -100,6 +100,7 @@ export interface PropertyDefinitionOut {
   identifier: string;
   name: string;
   type: string;
+  is_system: boolean;
 }
 
 export interface PropertyDefinitionCreateIn {
@@ -135,6 +136,8 @@ export interface ElementOut {
   type: string;
   documentation?: string | null;
   properties: PropertyOut[];
+  /** Resolved `archispark_image` URL, set only when that property is present and valid. */
+  resolved_image_url?: string | null;
 }
 
 export interface RelationshipOut {
@@ -284,4 +287,3 @@ export interface ConnectionUpdateIn {
   source_side?: EdgeSide | null;
   target_side?: EdgeSide | null;
 }
-

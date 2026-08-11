@@ -143,7 +143,7 @@ export function useElementColumns({
                     e.stopPropagation()
                     onDeleteClick(row.original)
                   }}
-                  className="rounded p-1 text-destructive transition-colors hover:bg-destructive/10"
+                  className="rounded bg-destructive p-1 text-white transition-colors hover:bg-destructive/90"
                   aria-label={t("common.delete")}
                 >
                   <Trash2 className="size-3.5" />

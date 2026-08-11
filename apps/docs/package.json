@@ -11,6 +11,7 @@
     "format": "prettier --write \"**/*.{md,mdx,ts,tsx}\""
   },
   "dependencies": {
+    "@workspace/image-library": "workspace:*",
     "cnfast": "^0.1.0",
     "fumadocs-core": "16.14.2",
     "fumadocs-mdx": "15.2.2",

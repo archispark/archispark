@@ -108,6 +108,7 @@ export interface PropertyDefinitionOut {
   identifier: string
   name: string
   type: string
+  is_system: boolean
 }
 
 export interface WorkspaceInfo {

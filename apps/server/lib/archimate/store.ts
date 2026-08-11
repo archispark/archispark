@@ -16,7 +16,7 @@ import {
   db,
   workspaces, elements, relationships, propertyDefinitions,
   elementProperties, relationshipProperties, views, nodes, connections,
-  buildNodeTree, modelFromDb, modelToDb,
+  assertSystemPropertyValues, buildNodeTree, modelFromDb, modelToDb,
 } from "@workspace/db";
 import type { ArchiModel } from "@workspace/db";
 import { parseOpenExchange } from "./oxf-parser";
@@ -30,6 +30,10 @@ import type {
   ArchiElement, ArchiRelationship, ArchiNode, ArchiConnection, ArchiView,
 } from "@workspace/db";
 import { elementOut, relOut, nodeOut, viewOut, pdOut } from "./serializers";
+import {
+  attachResolvedElementImage,
+  attachResolvedElementImages,
+} from "./image-library-resolve";
 import { NotFoundError, ValidationError } from "./errors";
 import type {
   ElementCreateIn, ElementUpdateIn, ElementOut,
@@ -195,14 +199,15 @@ export async function listElements(wsId: number, element_type?: string | null, n
     rows = rows.filter((e) => e.name && e.name.toLowerCase().includes(nl));
   }
   const propsMap = await elementPropsByDbId(rows.map((r) => r.id));
-  return rows.map((r) => elementOut(rowToElement(r, propsMap.get(r.id) ?? {})));
+  const out = rows.map((r) => elementOut(rowToElement(r, propsMap.get(r.id) ?? {})));
+  return attachResolvedElementImages(out, wsId);
 }
 
 export async function getElementById(wsId: number, elementId: string): Promise<ElementOut> {
   const [row] = await db.select().from(elements).where(and(eq(elements.workspaceId, wsId), eq(elements.uuid, elementId)));
   if (!row) throw new NotFoundError(`Élément '${elementId}' introuvable.`);
   const propsMap = await elementPropsByDbId([row.id]);
-  return elementOut(rowToElement(row, propsMap.get(row.id) ?? {}));
+  return attachResolvedElementImage(elementOut(rowToElement(row, propsMap.get(row.id) ?? {})), wsId);
 }
 
 export async function getElementRelationships(wsId: number, elementId: string): Promise<RelationshipOut[]> {
@@ -228,11 +233,11 @@ export async function createElement(wsId: number, input: ElementCreateIn): Promi
     workspaceId: wsId, uuid, type: input.type, name: input.name, description: input.documentation ?? null,
   }).returning();
   if (!row) throw new Error("Failed to create element");
-  const props = propsIn(input.properties);
+  const props = await propsIn(wsId, input.properties);
   for (const [defUuid, value] of Object.entries(props)) {
     await db.insert(elementProperties).values({ elementId: row.id, propertyDefUuid: defUuid, value });
   }
-  return elementOut(rowToElement(row, props));
+  return attachResolvedElementImage(elementOut(rowToElement(row, props)), wsId);
 }
 
 export async function updateElement(wsId: number, elementId: string, input: ElementUpdateIn): Promise<ElementOut> {
@@ -245,7 +250,7 @@ export async function updateElement(wsId: number, elementId: string, input: Elem
   if (Object.keys(patch).length > 0) await db.update(elements).set(patch).where(eq(elements.id, row.id));
   if (input.properties !== undefined) {
     await db.delete(elementProperties).where(eq(elementProperties.elementId, row.id));
-    for (const [defUuid, value] of Object.entries(propsIn(input.properties))) {
+    for (const [defUuid, value] of Object.entries(await propsIn(wsId, input.properties))) {
       await db.insert(elementProperties).values({ elementId: row.id, propertyDefUuid: defUuid, value });
     }
   }
@@ -314,7 +319,7 @@ export async function createRelationship(wsId: number, input: RelationshipCreate
     influenceModifier: input.influence_strength ?? null,
   }).returning();
   if (!row) throw new Error("Failed to create relationship");
-  const props = propsIn(input.properties);
+  const props = await propsIn(wsId, input.properties);
   for (const [defUuid, value] of Object.entries(props)) {
     await db.insert(relationshipProperties).values({ relationshipId: row.id, propertyDefUuid: defUuid, value });
   }
@@ -344,7 +349,7 @@ export async function updateRelationship(wsId: number, relationshipId: string, i
   if (Object.keys(patch).length > 0) await db.update(relationships).set(patch).where(eq(relationships.id, row.id));
   if (input.properties !== undefined) {
     await db.delete(relationshipProperties).where(eq(relationshipProperties.relationshipId, row.id));
-    for (const [defUuid, value] of Object.entries(propsIn(input.properties))) {
+    for (const [defUuid, value] of Object.entries(await propsIn(wsId, input.properties))) {
       await db.insert(relationshipProperties).values({ relationshipId: row.id, propertyDefUuid: defUuid, value });
     }
   }
@@ -363,13 +368,13 @@ export async function deleteRelationship(wsId: number, relationshipId: string): 
 
 export async function listPropertyDefinitions(wsId: number): Promise<PropertyDefinitionOut[]> {
   const rows = await db.select().from(propertyDefinitions).where(eq(propertyDefinitions.workspaceId, wsId));
-  return rows.map((r) => pdOut({ uuid: r.uuid, name: r.name, type: r.type }));
+  return rows.map((r) => pdOut({ uuid: r.uuid, name: r.name, type: r.type }, r.isSystem));
 }
 
 export async function getPropertyDefinitionById(wsId: number, id: string): Promise<PropertyDefinitionOut> {
   const [row] = await db.select().from(propertyDefinitions).where(and(eq(propertyDefinitions.workspaceId, wsId), eq(propertyDefinitions.uuid, id)));
   if (!row) throw new NotFoundError(`Définition de propriété '${id}' introuvable.`);
-  return pdOut({ uuid: row.uuid, name: row.name, type: row.type });
+  return pdOut({ uuid: row.uuid, name: row.name, type: row.type }, row.isSystem);
 }
 
 export async function createPropertyDefinition(wsId: number, input: PropertyDefinitionCreateIn): Promise<PropertyDefinitionOut> {
@@ -378,12 +383,13 @@ export async function createPropertyDefinition(wsId: number, input: PropertyDefi
     workspaceId: wsId, uuid, name: input.name, type: input.type ?? "string",
   }).returning();
   if (!row) throw new Error("Failed to create property definition");
-  return pdOut({ uuid: row.uuid, name: row.name, type: row.type });
+  return pdOut({ uuid: row.uuid, name: row.name, type: row.type }, row.isSystem);
 }
 
 export async function updatePropertyDefinition(wsId: number, id: string, input: PropertyDefinitionUpdateIn): Promise<PropertyDefinitionOut> {
   const [row] = await db.select().from(propertyDefinitions).where(and(eq(propertyDefinitions.workspaceId, wsId), eq(propertyDefinitions.uuid, id)));
   if (!row) throw new NotFoundError(`Définition de propriété '${id}' introuvable.`);
+  if (row.isSystem) throw new ValidationError("Une définition de propriété système ne peut pas être modifiée.");
   const patch: Partial<typeof propertyDefinitions.$inferInsert> = {};
   if (input.name !== undefined) patch.name = input.name;
   if (input.type !== undefined) patch.type = input.type;
@@ -392,8 +398,9 @@ export async function updatePropertyDefinition(wsId: number, id: string, input: 
 }
 
 export async function deletePropertyDefinition(wsId: number, id: string): Promise<void> {
-  const [row] = await db.select({ id: propertyDefinitions.id }).from(propertyDefinitions).where(and(eq(propertyDefinitions.workspaceId, wsId), eq(propertyDefinitions.uuid, id)));
+  const [row] = await db.select({ id: propertyDefinitions.id, isSystem: propertyDefinitions.isSystem }).from(propertyDefinitions).where(and(eq(propertyDefinitions.workspaceId, wsId), eq(propertyDefinitions.uuid, id)));
   if (!row) throw new NotFoundError(`Définition de propriété '${id}' introuvable.`);
+  if (row.isSystem) throw new ValidationError("Une définition de propriété système ne peut pas être supprimée.");
   await db.delete(propertyDefinitions).where(eq(propertyDefinitions.id, row.id));
   // Drop the property values keyed by this definition on elements/relationships of the workspace.
   const elemIds = (await db.select({ id: elements.id }).from(elements).where(eq(elements.workspaceId, wsId))).map((e) => e.id);
@@ -747,6 +754,12 @@ export async function importModelFromXml(wsId: number, xml: string): Promise<Mod
 // Internal
 // ---------------------------------------------------------------------------
 
-function propsIn(properties: { property_definition_ref: string; value: string }[] | undefined): Record<string, string> {
-  return Object.fromEntries((properties ?? []).map((p) => [p.property_definition_ref, p.value]));
+async function propsIn(wsId: number, properties: { property_definition_ref: string; value: string }[] | undefined): Promise<Record<string, string>> {
+  const result = Object.fromEntries((properties ?? []).map((p) => [p.property_definition_ref, p.value]));
+  try {
+    await assertSystemPropertyValues(result, wsId)
+  } catch (error) {
+    throw new ValidationError(error instanceof Error ? error.message : String(error))
+  }
+  return result
 }

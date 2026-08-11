@@ -13,7 +13,8 @@
     "lint": "eslint",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
     "typecheck": "tsc --noEmit",
-    "openapi": "tsx scripts/generate-openapi.ts"
+    "openapi": "tsx scripts/generate-openapi.ts",
+    "gen:icon-pack": "tsx scripts/generate-archimate-icon-pack.ts"
   },
   "dependencies": {
     "@asteasolutions/zod-to-openapi": "^8.5.0",
@@ -22,10 +23,12 @@
     "@tanstack/react-query": "^5.101.0",
     "@tanstack/react-table": "^8.21.3",
     "@vercel/analytics": "^2.0.1",
+    "@vercel/blob": "^2.8.0",
     "@vercel/speed-insights": "^2.0.0",
     "@workspace/auth": "workspace:*",
     "@workspace/db": "workspace:*",
     "@workspace/db-neo4j": "workspace:*",
+    "@workspace/image-library": "workspace:*",
     "@workspace/ui": "workspace:*",
     "@xyflow/react": "^12.11.0",
     "archiver": "^8.0.0",

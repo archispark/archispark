@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll } from "vitest"
 import { randomUUID } from "node:crypto"
 import { seedWorkspace, modelFromDb, modelToDb } from "./model-io.js"
+import { ARCHISPARK_IMAGE_PROPERTY_ID } from "./system-properties.js"
 import { runMigrations } from "./migrate.js"
 import { db } from "./connection.js"
 import { organizations } from "./schema.js"
@@ -67,6 +68,21 @@ describe("seedWorkspace", () => {
     )
     expect(id2).toBe(id1)
   })
+
+  it("adds the canonical system image definition", async () => {
+    const id = await seedWorkspace(
+      `SW-system-${Date.now()}`,
+      emptyModel(`sw-system-${Date.now()}`),
+      userId,
+      organizationId
+    )
+    const model = await modelFromDb(id)
+    expect(model.propertyDefinitions).toContainEqual({
+      uuid: ARCHISPARK_IMAGE_PROPERTY_ID,
+      name: "archispark_image",
+      type: "string",
+    })
+  })
 })
 
 // ---------------------------------------------------------------------------
@@ -84,6 +100,29 @@ describe("modelFromDb", () => {
 // ---------------------------------------------------------------------------
 
 describe("modelToDb + modelFromDb roundtrip", () => {
+  it("restores the canonical system definition after an import", async () => {
+    const id = await seedWorkspace(
+      `RT-system-${Date.now()}`,
+      emptyModel(`rt-system-${Date.now()}`),
+      userId,
+      organizationId
+    )
+    const model = emptyModel(`rt-import-${Date.now()}`)
+    model.propertyDefinitions = [
+      {
+        uuid: ARCHISPARK_IMAGE_PROPERTY_ID,
+        name: "changed",
+        type: "number",
+      },
+    ]
+    await modelToDb(id, model)
+    expect((await modelFromDb(id)).propertyDefinitions).toContainEqual({
+      uuid: ARCHISPARK_IMAGE_PROPERTY_ID,
+      name: "archispark_image",
+      type: "string",
+    })
+  })
+
   it("roundtrips a rich model with elements, relationships, propertyDefs, views", async () => {
     const model: ArchiModel = {
       uuid: `rt-uuid-${Date.now()}`,
@@ -259,8 +298,15 @@ describe("modelToDb + modelFromDb roundtrip", () => {
     expect(rel2.access_type).toBeNull()
     expect(rel2.is_directed).toBeNull()
 
-    expect(loaded.propertyDefinitions).toHaveLength(1)
-    expect(loaded.propertyDefinitions[0]!.name).toBe("Category")
+    expect(loaded.propertyDefinitions).toHaveLength(2)
+    expect(loaded.propertyDefinitions.find((p) => p.uuid === "pd1")?.name).toBe(
+      "Category"
+    )
+    expect(
+      loaded.propertyDefinitions.find(
+        (p) => p.uuid === ARCHISPARK_IMAGE_PROPERTY_ID
+      )?.name
+    ).toBe("archispark_image")
 
     expect(loaded.views).toHaveLength(2)
     const v1 = loaded.views.find((v) => v.uuid === "v1")!

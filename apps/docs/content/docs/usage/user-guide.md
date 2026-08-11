@@ -382,6 +382,12 @@ sharing it.
 Manage **property definitions** that can be attached to model elements and
 relationships.
 
+ArchiSpark supplies protected system definitions. The first is
+`archispark_image`, whose value is an HTTP(S) image URL or a relative path.
+Its definition cannot be renamed, retyped, or deleted, but its value remains
+editable on elements and relationships. Definitions you create remain fully
+editable.
+
 ### Create a definition
 
 Click **+ New definition**:

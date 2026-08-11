@@ -1,6 +1,13 @@
 import { describe, it, expect, beforeEach } from "vitest"
 import { randomUUID } from "crypto"
-import { seedWorkspace, getOrCreatePersonalOrganization } from "@workspace/db"
+import {
+  ARCHISPARK_IMAGE_PROPERTY_ID,
+  getOrCreatePersonalOrganization,
+  seedWorkspace,
+  db,
+  imagePacks,
+  imagePackItems,
+} from "@workspace/db"
 import * as store from "./store"
 
 // Each test runs against a fresh, isolated workspace seeded in the (PGlite) DB.
@@ -8,10 +15,11 @@ import * as store from "./store"
 // (identities live in Keycloak).
 let wsId: number
 let ownerId: string
+let organizationId: number
 
 beforeEach(async () => {
   ownerId = `owner-store-test-${randomUUID()}`
-  const organizationId = await getOrCreatePersonalOrganization(ownerId)
+  organizationId = await getOrCreatePersonalOrganization(ownerId)
   wsId = await seedWorkspace(
     `store-test-${randomUUID()}`,
     {
@@ -289,7 +297,7 @@ describe("store – property definitions", () => {
   it("CRUD lifecycle with type defaulting", async () => {
     const pd = await store.createPropertyDefinition(wsId, { name: "Status" })
     expect(pd.type).toBe("string")
-    expect(await store.listPropertyDefinitions(wsId)).toHaveLength(1)
+    expect(await store.listPropertyDefinitions(wsId)).toHaveLength(2)
     expect(
       (await store.getPropertyDefinitionById(wsId, pd.identifier)).name
     ).toBe("Status")
@@ -305,7 +313,116 @@ describe("store – property definitions", () => {
     expect(updType.type).toBe("number")
 
     await store.deletePropertyDefinition(wsId, pd.identifier)
-    expect(await store.listPropertyDefinitions(wsId)).toHaveLength(0)
+    expect(await store.listPropertyDefinitions(wsId)).toHaveLength(1)
+  })
+
+  it("protects the system image definition while allowing its values", async () => {
+    const definitions = await store.listPropertyDefinitions(wsId)
+    const image = definitions.find(
+      (definition) => definition.identifier === ARCHISPARK_IMAGE_PROPERTY_ID
+    )
+    expect(image).toMatchObject({ name: "archispark_image", is_system: true })
+
+    await expect(
+      store.updatePropertyDefinition(wsId, ARCHISPARK_IMAGE_PROPERTY_ID, {
+        name: "other",
+      })
+    ).rejects.toThrow(/système/)
+    await expect(
+      store.deletePropertyDefinition(wsId, ARCHISPARK_IMAGE_PROPERTY_ID)
+    ).rejects.toThrow(/système/)
+
+    const element = await store.createElement(wsId, {
+      name: "A",
+      type: "Goal",
+      properties: [
+        {
+          property_definition_ref: ARCHISPARK_IMAGE_PROPERTY_ID,
+          value: "https://example.test/image.png",
+        },
+      ],
+    })
+    expect(element.properties[0]?.value).toBe("https://example.test/image.png")
+    expect(element.resolved_image_url).toBe("https://example.test/image.png")
+    await expect(
+      store.updateElement(wsId, element.identifier, {
+        properties: [
+          {
+            property_definition_ref: ARCHISPARK_IMAGE_PROPERTY_ID,
+            value: "not an image URL",
+          },
+        ],
+      })
+    ).rejects.toThrow(/URL HTTP/)
+
+    // A resolvable img-<uuid> reference into a pack owned by this workspace's
+    // organization is accepted and resolves to the public svg route.
+    const [pack] = await db
+      .insert(imagePacks)
+      .values({
+        uuid: randomUUID(),
+        organizationId,
+        isSystem: false,
+        slug: `store-test-pack-${randomUUID()}`,
+        name: "Store Test Pack",
+      })
+      .returning({ id: imagePacks.id })
+    const itemUuid = randomUUID()
+    await db.insert(imagePackItems).values({
+      uuid: itemUuid,
+      packId: pack!.id,
+      slug: "icon",
+      name: "Icon",
+      storageKind: "inline_svg",
+      svgContent: "<svg/>",
+    })
+
+    const updated = await store.updateElement(wsId, element.identifier, {
+      properties: [
+        {
+          property_definition_ref: ARCHISPARK_IMAGE_PROPERTY_ID,
+          value: `img-${itemUuid}`,
+        },
+      ],
+    })
+    expect(updated.resolved_image_url).toBe(
+      `/api/image-library/items/${itemUuid}/svg`
+    )
+
+    // An img-<uuid> reference to a pack owned by a *different* organization
+    // does not resolve and is rejected.
+    const otherOrgId = await getOrCreatePersonalOrganization(
+      `owner-store-test-other-${randomUUID()}`
+    )
+    const [otherPack] = await db
+      .insert(imagePacks)
+      .values({
+        uuid: randomUUID(),
+        organizationId: otherOrgId,
+        isSystem: false,
+        slug: `other-org-pack-${randomUUID()}`,
+        name: "Other Org Pack",
+      })
+      .returning({ id: imagePacks.id })
+    const otherItemUuid = randomUUID()
+    await db.insert(imagePackItems).values({
+      uuid: otherItemUuid,
+      packId: otherPack!.id,
+      slug: "icon",
+      name: "Icon",
+      storageKind: "inline_svg",
+      svgContent: "<svg/>",
+    })
+    await expect(
+      store.updateElement(wsId, element.identifier, {
+        properties: [
+          {
+            property_definition_ref: ARCHISPARK_IMAGE_PROPERTY_ID,
+            value: `img-${otherItemUuid}`,
+          },
+        ],
+      })
+    ).rejects.toThrow(/archispark_image/)
   })
 
   it("delete cascades property values on elements and relationships", async () => {

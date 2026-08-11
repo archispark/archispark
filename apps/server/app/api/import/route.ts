@@ -41,7 +41,13 @@ export const POST = withErrorHandling(
     }
 
     const wsId = await activeWorkspaceId(auth, "write")
-    await modelToDb(wsId, newModel)
+    try {
+      await modelToDb(wsId, newModel)
+    } catch (error) {
+      throw new ValidationError(
+        error instanceof Error ? error.message : "Le modèle est invalide."
+      )
+    }
     return NextResponse.json(await getModelInfo(wsId))
   })
 )

@@ -30,4 +30,5 @@ export const queryKeys = {
   panelVisualizations: () => ["panelVisualizations"] as const,
   panelResult: (dashboardId: string, panelInstanceId: string, parameters: Record<string, string>) =>
     ["panelResult", dashboardId, panelInstanceId, parameters] as const,
+  imagePacks: () => ["imagePacks"] as const,
 }

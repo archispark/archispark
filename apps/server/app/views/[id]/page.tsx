@@ -318,10 +318,10 @@ export default function ViewDetailPage() {
         {/* Delete button */}
         {isAdmin && view && (
           <Button
-            variant="outline"
+            variant="destructive"
             size="sm"
             onClick={() => setDeleteOpen(true)}
-            className="shrink-0 border-destructive/30 text-destructive hover:bg-destructive/5 hover:text-destructive"
+            className="shrink-0"
           >
             <Trash2 className="mr-1.5 size-3.5" />
             {t("common.delete")}

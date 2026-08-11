@@ -133,22 +133,32 @@ export function ElementHeader({
           </div>
 
           {/* Name */}
-          <InlineText
-            value={element.name}
-            onSave={(v) => saveField({ name: v })}
-            className="block w-full text-xl leading-tight font-semibold sm:text-2xl"
-            placeholder={t("elements.placeholder")}
-            disabled={!isAdmin}
-          />
+          <div className="flex items-center gap-2">
+            {element.resolved_image_url && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={element.resolved_image_url}
+                alt=""
+                className="size-8 shrink-0 rounded"
+              />
+            )}
+            <InlineText
+              value={element.name}
+              onSave={(v) => saveField({ name: v })}
+              className="block min-w-0 flex-1 text-xl leading-tight font-semibold sm:text-2xl"
+              placeholder={t("elements.placeholder")}
+              disabled={!isAdmin}
+            />
+          </div>
         </div>
 
         {/* Delete button */}
         {isAdmin && (
           <Button
-            variant="outline"
+            variant="destructive"
             size="sm"
             onClick={onDelete}
-            className="shrink-0 border-destructive/30 text-destructive hover:bg-destructive/5 hover:text-destructive"
+            className="shrink-0"
           >
             <Trash2 className="mr-1.5 size-3.5" />
             {t("common.delete")}

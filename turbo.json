@@ -44,6 +44,7 @@
         "NEO4J_URI",
         "NEO4J_USER",
         "NEO4J_PASSWORD",
+        "BLOB_READ_WRITE_TOKEN",
         "NODE_OPTIONS",
         "PORT",
         "HOST"

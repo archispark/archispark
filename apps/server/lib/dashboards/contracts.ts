@@ -1,7 +1,5 @@
 /**
- * Schémas Zod des dashboards configurables — porté de
- * `@archimate/api-contract` (ofr-archimate-reports/apps/portal), sans
- * changement de logique de validation. `ELEMENT_LAYER`/`ALL_ELEMENT_TYPES`
+ * Schémas Zod des dashboards configurables. `ELEMENT_LAYER`/`ALL_ELEMENT_TYPES`
  * viennent de `lib/archimate-helpers.ts` (source de vérité ArchiMate
  * d'ArchiSpark) plutôt que d'un package `@archimate/domain` séparé — voir
  * docs/architecture.md#dashboards.

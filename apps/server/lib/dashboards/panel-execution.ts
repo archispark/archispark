@@ -1,7 +1,5 @@
 /**
- * Résolution des paramètres et exécution d'un panneau — porté de
- * `panel-execution.ts` (ofr-archimate-reports/apps/portal), scopé par
- * workspace.
+ * Résolution des paramètres et exécution d'un panneau, scopée par workspace.
  */
 import { getLatestRevision } from "./repository"
 import { executeDatasourceQuery, classifyDatasourceFailure } from "./datasource-executors"

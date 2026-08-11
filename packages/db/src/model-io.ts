@@ -19,6 +19,11 @@ import {
   connections,
   bendpoints,
 } from "./schema.js"
+import {
+  assertSystemPropertyValues,
+  isSystemPropertyDefinition,
+  SYSTEM_PROPERTY_DEFINITIONS,
+} from "./system-properties.js"
 import type {
   ArchiModel,
   ArchiElement,
@@ -354,16 +359,21 @@ export async function modelToDb(
       .where(eq(propertyDefinitions.workspaceId, workspaceId))
     await tx.delete(views).where(eq(views.workspaceId, workspaceId))
 
-    for (const pd of model.propertyDefinitions) {
+    const customDefinitions = model.propertyDefinitions.filter(
+      (definition) => !isSystemPropertyDefinition(definition.uuid)
+    )
+    for (const pd of [...customDefinitions, ...SYSTEM_PROPERTY_DEFINITIONS]) {
       await tx.insert(propertyDefinitions).values({
         workspaceId,
         uuid: pd.uuid,
         name: pd.name,
         type: pd.type,
+        isSystem: isSystemPropertyDefinition(pd.uuid),
       })
     }
 
     for (const e of model.elements) {
+      await assertSystemPropertyValues(e.props, workspaceId, tx)
       const [res] = await tx
         .insert(elements)
         .values({
@@ -384,6 +394,7 @@ export async function modelToDb(
     }
 
     for (const r of model.relationships) {
+      await assertSystemPropertyValues(r.props, workspaceId, tx)
       const srcUuid = typeof r.source === "string" ? r.source : r.source.uuid
       const tgtUuid = typeof r.target === "string" ? r.target : r.target.uuid
       const [res] = await tx

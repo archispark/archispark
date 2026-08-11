@@ -36,6 +36,18 @@ export function usePropertyDefinitionColumns({
         ),
       },
       {
+        accessorKey: "is_system",
+        header: t("properties.origin"),
+        cell: ({ row }) =>
+          row.original.is_system ? (
+            <Badge variant="secondary">{t("properties.system")}</Badge>
+          ) : (
+            <span className="text-muted-foreground">
+              {t("properties.custom")}
+            </span>
+          ),
+      },
+      {
         accessorKey: "identifier",
         header: t("common.identifier"),
         enableSorting: false,
@@ -53,22 +65,26 @@ export function usePropertyDefinitionColumns({
               enableSorting: false,
               cell: ({ row }: { row: { original: PropertyDefinitionOut } }) => (
                 <div className="flex items-center justify-end gap-1">
-                  <Button
-                    variant="ghost"
-                    size="icon-xs"
-                    onClick={() => onEdit(row.original)}
-                    aria-label={t("common.edit")}
-                  >
-                    <Pencil className="size-3.5" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon-xs"
-                    onClick={() => onDelete(row.original)}
-                    aria-label={t("common.delete")}
-                  >
-                    <Trash2 className="size-3.5 text-destructive" />
-                  </Button>
+                  {!row.original.is_system && (
+                    <>
+                      <Button
+                        variant="ghost"
+                        size="icon-xs"
+                        onClick={() => onEdit(row.original)}
+                        aria-label={t("common.edit")}
+                      >
+                        <Pencil className="size-3.5" />
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        size="icon-xs"
+                        onClick={() => onDelete(row.original)}
+                        aria-label={t("common.delete")}
+                      >
+                        <Trash2 className="size-3.5" />
+                      </Button>
+                    </>
+                  )}
                 </div>
               ),
             },

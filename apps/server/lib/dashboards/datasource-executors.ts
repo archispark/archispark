@@ -1,9 +1,7 @@
 /**
  * Exécution des requêtes Cypher d'un panneau contre le Neo4j natif
  * d'ArchiSpark (`@workspace/db-neo4j`, le même graphe que `POST
- * /api/export/neo4j` — voir docs/architecture.md#neo4j-export), au lieu du
- * driver dédié et de la datasource `postgres` de démo du portail d'origine
- * (`datasource-executors.ts`, ofr-archimate-reports/apps/portal).
+ * /api/export/neo4j` — voir docs/architecture.md#neo4j-export).
  *
  * Scoping de sécurité multi-tenant : `organizationId` est injecté ici dans
  * les paramètres liés (`session.run(text, { ...parameters, organizationId }`)

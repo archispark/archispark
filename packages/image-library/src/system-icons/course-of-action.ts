@@ -1,0 +1,8 @@
+import type { SystemArchimateIcon } from "../types.js"
+
+export const courseOfAction: SystemArchimateIcon = {
+  slug: "course-of-action",
+  name: "Course Of Action",
+  archimateType: "CourseOfAction",
+  svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 32 32\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linejoin=\"round\" stroke-linecap=\"round\"><g transform=\"translate(28 2)\"><path d=\"M-22.4 12 L-16.4 13 L-19.4 18.2\" fill=\"currentColor\"/><path d=\"M-19.5 15 C-21.9 15 -24 16.7 -24.4 19.1\" fill=\"none\"/><path d=\"M-4 9.5 C-4 5.9 -6.9 3 -10.5 3 C-14.1 3 -17 5.9 -17 9.5 C-17 13.1 -14.1 16 -10.5 16 C-6.9 16 -4 13.1 -4 9.5 ZM-6.5 9.5 C-6.5 7.3 -8.3 5.5 -10.5 5.5 C-12.7 5.5 -14.5 7.3 -14.5 9.5 C-14.5 11.7 -12.7 13.5 -10.5 13.5 C-8.3 13.5 -6.5 11.7 -6.5 9.5 ZM-9 9.5 C-9 8.7 -9.7 8 -10.5 8 C-11.3 8 -12 8.7 -12 9.5 C-12 10.3 -11.3 11 -10.5 11 C-9.7 11 -9 10.3 -9 9.5 ZM-10 9.5 C-10 9.2 -10.2 9 -10.5 9 C-10.8 9 -11 9.2 -11 9.5 C-11 9.8 -10.8 10 -10.5 10 C-10.2 10 -10 9.8 -10 9.5 Z\" fill=\"none\"/></g></svg>",
+}

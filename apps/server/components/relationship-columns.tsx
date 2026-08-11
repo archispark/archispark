@@ -159,13 +159,13 @@ export function useRelationshipColumns({
               cell: ({ row }: { row: { original: RelationshipOut } }) => (
                 <div className="flex items-center justify-end gap-1">
                   <Button
-                    variant="ghost"
+                    variant="destructive"
                     size="icon-xs"
                     className="size-5"
                     onClick={() => onDeleteClick(row.original)}
                     aria-label={t("common.delete")}
                   >
-                    <Trash2 className="size-3.5 text-destructive" />
+                    <Trash2 className="size-3.5" />
                   </Button>
                 </div>
               ),

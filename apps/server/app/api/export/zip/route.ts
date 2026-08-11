@@ -14,6 +14,7 @@ import { activeWorkspaceId } from "@/lib/archimate/access"
 import { loadModel } from "@/lib/archimate/store"
 import { serializeToOpenExchange } from "@/lib/archimate/oxf-serializer"
 import { renderViewToSvg } from "@/lib/archimate/renderer"
+import { resolveElementImages } from "@/lib/archimate/image-library-resolve"
 
 const ZipArchive = (
   archiverNs as unknown as { ZipArchive: new (opts?: ZipOptions) => Archiver }
@@ -25,8 +26,10 @@ export const runtime = "nodejs"
 // Export model + all view SVGs as a ZIP archive
 export const GET = withErrorHandling(
   withAuth(async (_req: NextRequest, auth) => {
-    const model = await loadModel(await activeWorkspaceId(auth, "read"))
+    const wsId = await activeWorkspaceId(auth, "read")
+    const model = await loadModel(wsId)
     const modelName = model.name || "model"
+    const elementImages = await resolveElementImages(model, wsId)
 
     const archive = new ZipArchive({ zlib: { level: 9 } })
     // The stream is already handed off to NextResponse by the time archiving
@@ -38,7 +41,7 @@ export const GET = withErrorHandling(
       name: `${modelName}.xml`,
     })
     for (const view of model.views) {
-      const svg = renderViewToSvg(view, model)
+      const svg = renderViewToSvg(view, model, elementImages)
       const safeName = view.name.replace(/[^a-zA-Z0-9_-]/g, "_")
       archive.append(svg, { name: `views/${safeName}.svg` })
     }

@@ -33,3 +33,4 @@ minimumReleaseAgeExclude:
   - '@turbo/windows-arm64@2.9.17'
   - prettier@3.8.4
   - turbo@2.9.17
+  - '@vercel/blob@2.8.0'

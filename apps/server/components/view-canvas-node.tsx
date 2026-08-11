@@ -24,6 +24,7 @@ export function ArchiNode({ id, data, selected }: NodeProps) {
   const viewId = useContext(ViewIdContext)
   const elementType = (data.elementType as string | undefined) ?? undefined
   const hasChildren = Boolean(data.hasChildren)
+  const imageUrl = (data.imageUrl as string | undefined) ?? undefined
   const { bg, border } = colorFor(elementType)
   const containerStyle: React.CSSProperties = hasChildren
     ? {
@@ -145,7 +146,22 @@ export function ArchiNode({ id, data, selected }: NodeProps) {
             transform: "translateY(-50%)",
           }}
         >
-          <ArchimateLayerBadge layer={getLayer(elementType ?? "")} />
+          {imageUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={imageUrl}
+              alt=""
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: "50%",
+                objectFit: "cover",
+                flexShrink: 0,
+              }}
+            />
+          ) : (
+            <ArchimateLayerBadge layer={getLayer(elementType ?? "")} />
+          )}
         </div>
       ) : null}
       {hasChildren ? (
