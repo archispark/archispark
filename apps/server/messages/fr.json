@@ -442,5 +442,22 @@
   "panels.sort_column": "Trier la colonne {column}",
   "panels.table_empty": "Aucune ligne pour ce panneau.",
   "panels.table_incompatible_data": "Données incompatibles avec la visualisation tableau.",
-  "panels.visualization_error": "La visualisation a rencontré une erreur : {error}"
+  "panels.visualization_error": "La visualisation a rencontré une erreur : {error}",
+  "image_library.choose": "Choisir une image",
+  "image_library.title": "Bibliothèque d'images",
+  "image_library.search_placeholder": "Rechercher une icône…",
+  "image_library.empty": "Aucune image trouvée.",
+  "image_library.manage_title": "Bibliothèque d'images",
+  "image_library.manage_desc": "Gérez les packs d'images personnalisés de votre organisation.",
+  "image_library.new_pack_btn": "Nouveau pack",
+  "image_library.new_pack_title": "Nouveau pack d'images",
+  "image_library.new_pack_desc": "Créez un pack d'images personnalisé pour votre organisation.",
+  "image_library.pack_name_placeholder": "Nom du pack",
+  "image_library.pack_slug_placeholder": "identifiant-du-pack",
+  "image_library.upload_btn": "Ajouter des images",
+  "image_library.delete_pack_title": "Supprimer le pack",
+  "image_library.delete_pack_desc": "Supprimer {name} et toutes ses images ? Cette action est irréversible.",
+  "image_library.system_pack_badge": "Système",
+  "image_library.no_custom_packs": "Aucun pack personnalisé pour cette organisation.",
+  "image_library.blob_not_configured": "Le stockage d'images n'est pas configuré pour cette instance."
 }

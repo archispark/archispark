@@ -10,6 +10,7 @@ export function ArchiNode({ data }: NodeProps) {
     elementType: string
     isCentral: boolean
     hasConflict: boolean
+    imageUrl?: string
     onClick?: () => void
   }
   const layer = getLayer(d.elementType)
@@ -56,7 +57,22 @@ export function ArchiNode({ data }: NodeProps) {
             transform: "translateY(-50%)",
           }}
         >
-          <ArchimateLayerBadge layer={layer} />
+          {d.imageUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={d.imageUrl}
+              alt=""
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: "50%",
+                objectFit: "cover",
+                flexShrink: 0,
+              }}
+            />
+          ) : (
+            <ArchimateLayerBadge layer={layer} />
+          )}
         </div>
         <div style={{ position: "absolute", top: -13, right: -4 }}>
           <ArchimateNotationBadge

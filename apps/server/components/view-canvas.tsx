@@ -65,9 +65,18 @@ function ViewCanvasInner({
 }: ViewCanvasProps) {
   const { screenToFlowPosition } = useReactFlow()
   const { fullscreen, toggleFullscreen } = useReactFlowFullscreen()
+  const elementImages = useMemo(
+    () =>
+      new Map(
+        elements
+          .filter((e) => e.resolved_image_url)
+          .map((e) => [e.identifier, e.resolved_image_url as string])
+      ),
+    [elements]
+  )
   const initialNodes = useMemo(
-    () => flattenNodes(nodes, elementNames, elementTypes),
-    [nodes, elementNames, elementTypes]
+    () => flattenNodes(nodes, elementNames, elementTypes, elementImages),
+    [nodes, elementNames, elementTypes, elementImages]
   )
 
   const nodeRectMap = useMemo(() => {

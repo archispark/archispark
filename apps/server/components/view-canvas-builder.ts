@@ -39,6 +39,7 @@ export function flattenNodes(
   nodes: NodeOut[] | null | undefined,
   elementNames: Map<string, string>,
   elementTypes: Map<string, string>,
+  elementImages: Map<string, string> = new Map(),
   parentId?: string,
   parentAbsX = 0,
   parentAbsY = 0
@@ -68,6 +69,7 @@ export function flattenNodes(
         elementType,
         elementRef: n.element_ref ?? null,
         hasChildren,
+        imageUrl: n.element_ref ? elementImages.get(n.element_ref) : undefined,
       },
       style: { width: n.w ?? undefined, height: n.h ?? undefined },
       ...(parentId
@@ -80,6 +82,7 @@ export function flattenNodes(
         n.children,
         elementNames,
         elementTypes,
+        elementImages,
         n.identifier,
         absX,
         absY

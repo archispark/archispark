@@ -1,6 +1,7 @@
 "use client"
 import { useT } from "@/lib/i18n"
 import { ModelExportButton } from "@/components/model-export-button"
+import { ImagePackManager } from "@/components/image-pack-manager"
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
@@ -37,6 +38,10 @@ export default function SettingsPage() {
       </div>
 
       <WorkspaceTab />
+
+      <div className="max-w-xl border-t border-border pt-5">
+        <ImagePackManager />
+      </div>
     </div>
   )
 }

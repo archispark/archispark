@@ -1,0 +1,8 @@
+import type { SystemArchimateIcon } from "../types.js"
+
+export const applicationComponent: SystemArchimateIcon = {
+  slug: "application-component",
+  name: "Application Component",
+  archimateType: "ApplicationComponent",
+  svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 32 32\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linejoin=\"round\" stroke-linecap=\"round\"><g transform=\"translate(28 2)\"><path d=\"M-15 19 L-15 15 M-15 13 L-15 11 M-15 8 L-15 6 L-5 6 L-5 19 L-15.5 19 M-18 8 L-12 8 L-12 10.5 L-18 10.5 ZM-18 13 L-12 13 L-12 15.5 L-18 15.5 Z\" fill=\"none\"/></g></svg>",
+}

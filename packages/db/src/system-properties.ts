@@ -1,3 +1,6 @@
+import { db } from "./connection.js"
+import { assertImageReferenceValid } from "./image-library.js"
+
 export const ARCHISPARK_IMAGE_PROPERTY_ID = "archispark-image"
 
 export const SYSTEM_PROPERTY_DEFINITIONS = [
@@ -14,24 +17,17 @@ export function isSystemPropertyDefinition(id: string): boolean {
   )
 }
 
-export function assertSystemPropertyValues(
-  properties: Record<string, string>
-): void {
+/**
+ * Validates system property values, scoped to `wsId` — `archispark_image`
+ * must be a resolvable image-library reference (`img-<uuid>`) or a legacy
+ * URL/path (see image-library.ts).
+ */
+export async function assertSystemPropertyValues(
+  properties: Record<string, string>,
+  wsId: number,
+  dbClient: typeof db = db
+): Promise<void> {
   const image = properties[ARCHISPARK_IMAGE_PROPERTY_ID]
-  if (image !== undefined && !isImageUrl(image)) {
-    throw new Error(
-      "La propriété « archispark_image » doit être une URL HTTP(S) ou un chemin relatif valide."
-    )
-  }
-}
-
-function isImageUrl(value: string): boolean {
-  if (!value || /\s/.test(value)) return false
-  if (value.startsWith("/")) return true
-  try {
-    const url = new URL(value)
-    return url.protocol === "http:" || url.protocol === "https:"
-  } catch {
-    return false
-  }
+  if (image === undefined) return
+  await assertImageReferenceValid(image, wsId, dbClient)
 }

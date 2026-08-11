@@ -30,6 +30,10 @@ import type {
   ArchiElement, ArchiRelationship, ArchiNode, ArchiConnection, ArchiView,
 } from "@workspace/db";
 import { elementOut, relOut, nodeOut, viewOut, pdOut } from "./serializers";
+import {
+  attachResolvedElementImage,
+  attachResolvedElementImages,
+} from "./image-library-resolve";
 import { NotFoundError, ValidationError } from "./errors";
 import type {
   ElementCreateIn, ElementUpdateIn, ElementOut,
@@ -195,14 +199,15 @@ export async function listElements(wsId: number, element_type?: string | null, n
     rows = rows.filter((e) => e.name && e.name.toLowerCase().includes(nl));
   }
   const propsMap = await elementPropsByDbId(rows.map((r) => r.id));
-  return rows.map((r) => elementOut(rowToElement(r, propsMap.get(r.id) ?? {})));
+  const out = rows.map((r) => elementOut(rowToElement(r, propsMap.get(r.id) ?? {})));
+  return attachResolvedElementImages(out, wsId);
 }
 
 export async function getElementById(wsId: number, elementId: string): Promise<ElementOut> {
   const [row] = await db.select().from(elements).where(and(eq(elements.workspaceId, wsId), eq(elements.uuid, elementId)));
   if (!row) throw new NotFoundError(`Élément '${elementId}' introuvable.`);
   const propsMap = await elementPropsByDbId([row.id]);
-  return elementOut(rowToElement(row, propsMap.get(row.id) ?? {}));
+  return attachResolvedElementImage(elementOut(rowToElement(row, propsMap.get(row.id) ?? {})), wsId);
 }
 
 export async function getElementRelationships(wsId: number, elementId: string): Promise<RelationshipOut[]> {
@@ -228,11 +233,11 @@ export async function createElement(wsId: number, input: ElementCreateIn): Promi
     workspaceId: wsId, uuid, type: input.type, name: input.name, description: input.documentation ?? null,
   }).returning();
   if (!row) throw new Error("Failed to create element");
-  const props = propsIn(input.properties);
+  const props = await propsIn(wsId, input.properties);
   for (const [defUuid, value] of Object.entries(props)) {
     await db.insert(elementProperties).values({ elementId: row.id, propertyDefUuid: defUuid, value });
   }
-  return elementOut(rowToElement(row, props));
+  return attachResolvedElementImage(elementOut(rowToElement(row, props)), wsId);
 }
 
 export async function updateElement(wsId: number, elementId: string, input: ElementUpdateIn): Promise<ElementOut> {
@@ -245,7 +250,7 @@ export async function updateElement(wsId: number, elementId: string, input: Elem
   if (Object.keys(patch).length > 0) await db.update(elements).set(patch).where(eq(elements.id, row.id));
   if (input.properties !== undefined) {
     await db.delete(elementProperties).where(eq(elementProperties.elementId, row.id));
-    for (const [defUuid, value] of Object.entries(propsIn(input.properties))) {
+    for (const [defUuid, value] of Object.entries(await propsIn(wsId, input.properties))) {
       await db.insert(elementProperties).values({ elementId: row.id, propertyDefUuid: defUuid, value });
     }
   }
@@ -314,7 +319,7 @@ export async function createRelationship(wsId: number, input: RelationshipCreate
     influenceModifier: input.influence_strength ?? null,
   }).returning();
   if (!row) throw new Error("Failed to create relationship");
-  const props = propsIn(input.properties);
+  const props = await propsIn(wsId, input.properties);
   for (const [defUuid, value] of Object.entries(props)) {
     await db.insert(relationshipProperties).values({ relationshipId: row.id, propertyDefUuid: defUuid, value });
   }
@@ -344,7 +349,7 @@ export async function updateRelationship(wsId: number, relationshipId: string, i
   if (Object.keys(patch).length > 0) await db.update(relationships).set(patch).where(eq(relationships.id, row.id));
   if (input.properties !== undefined) {
     await db.delete(relationshipProperties).where(eq(relationshipProperties.relationshipId, row.id));
-    for (const [defUuid, value] of Object.entries(propsIn(input.properties))) {
+    for (const [defUuid, value] of Object.entries(await propsIn(wsId, input.properties))) {
       await db.insert(relationshipProperties).values({ relationshipId: row.id, propertyDefUuid: defUuid, value });
     }
   }
@@ -749,10 +754,10 @@ export async function importModelFromXml(wsId: number, xml: string): Promise<Mod
 // Internal
 // ---------------------------------------------------------------------------
 
-function propsIn(properties: { property_definition_ref: string; value: string }[] | undefined): Record<string, string> {
+async function propsIn(wsId: number, properties: { property_definition_ref: string; value: string }[] | undefined): Promise<Record<string, string>> {
   const result = Object.fromEntries((properties ?? []).map((p) => [p.property_definition_ref, p.value]));
   try {
-    assertSystemPropertyValues(result)
+    await assertSystemPropertyValues(result, wsId)
   } catch (error) {
     throw new ValidationError(error instanceof Error ? error.message : String(error))
   }

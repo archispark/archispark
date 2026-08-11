@@ -1,4 +1,10 @@
 {
   "title": "Reference",
-  "pages": ["api-reference", "authentication", "mcp-tools", "archimate"]
+  "pages": [
+    "api-reference",
+    "authentication",
+    "mcp-tools",
+    "archimate",
+    "image-library"
+  ]
 }

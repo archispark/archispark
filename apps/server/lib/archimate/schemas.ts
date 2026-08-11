@@ -136,6 +136,8 @@ export interface ElementOut {
   type: string;
   documentation?: string | null;
   properties: PropertyOut[];
+  /** Resolved `archispark_image` URL, set only when that property is present and valid. */
+  resolved_image_url?: string | null;
 }
 
 export interface RelationshipOut {

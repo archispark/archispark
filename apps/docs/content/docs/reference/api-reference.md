@@ -116,8 +116,28 @@ Every workspace belongs to exactly one organization (`organization_id`) — a ca
 
 Each returned definition includes `is_system`. System definitions, including
 `archispark_image`, are read-only at the definition level: update and delete
-requests are rejected. Its values on elements and relationships must be HTTP(S)
-URLs or relative paths.
+requests are rejected. Its value on an element or relationship must be an
+`img-<uuid>` reference to an image library item (system or organization
+pack — see [Image library](#image-library)), or a legacy HTTP(S) URL /
+relative path for values written before that library existed.
+
+## Image library
+
+See [Image Library](/docs/reference/image-library) for the packs/items model
+and the `archispark_image` property. Custom packs are organization-scoped;
+creating one or uploading an item requires the `owner`/`admin` role.
+
+| Method   | Path                                        | Description                                                                |
+| -------- | -------------------------------------------- | --------------------------------------------------------------------------- |
+| `GET`    | `/api/image-library/packs`                   | List packs accessible to the active organization (system + custom)        |
+| `POST`   | `/api/image-library/packs`                   | Create a custom pack — `{ name, slug }`                                   |
+| `DELETE` | `/api/image-library/packs/:packId`           | Delete a custom pack and its items                                        |
+| `POST`   | `/api/image-library/packs/:packId/items`     | Upload one or more images to a custom pack — `multipart/form-data`, field `files` (SVG/PNG/JPEG/WebP, 2 MB max) |
+| `DELETE` | `/api/image-library/items/:itemUuid`         | Delete a custom pack item                                                  |
+| `GET`    | `/api/image-library/items/:itemUuid/svg`     | Public — inline SVG of a system-pack item, no auth required                |
+
+Uploading to a custom pack requires `BLOB_READ_WRITE_TOKEN` to be configured
+(Vercel Blob) — see [Deployment](../development/deployment.md).
 
 ## Dashboards
 

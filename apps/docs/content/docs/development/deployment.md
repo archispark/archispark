@@ -81,9 +81,21 @@ hitting an unbackfilled row.
    Authentication itself (Keycloak realm, client ids/secrets) is configured
    via the project's Vercel dashboard — see
    [Keycloak login](../reference/authentication.md#keycloak-login). SMTP config is also
-   detailed in [E-mail invitations](#e-mail-invitations-smtp).
+   detailed in [E-mail invitations](#e-mail-invitations-smtp). Custom image
+   pack uploads need `BLOB_READ_WRITE_TOKEN` — see
+   [Image library storage](#image-library-storage-vercel-blob).
 
 5. **Redeploy** `archispark`.
+
+## Image library storage (Vercel Blob)
+
+Organization-scoped custom image packs (see
+[Image Library](../reference/image-library.md)) store their uploaded files in
+[Vercel Blob](https://vercel.com/docs/storage/vercel-blob). In Vercel →
+Storage, create a Blob store and attach it to the `archispark` project —
+this auto-injects `BLOB_READ_WRITE_TOKEN`. Without it, uploading to a custom
+pack fails with a clear error; the system pack (bundled ArchiMate icons)
+stays fully usable regardless.
 
 ## Onboard a new customer with a dedicated Keycloak realm
 

@@ -17,3 +17,10 @@ export {
   isSystemPropertyDefinition,
   assertSystemPropertyValues,
 } from "./system-properties.js"
+export {
+  IMAGE_REF_PREFIX,
+  isImageReference,
+  isLegacyImageUrl,
+  resolveImageReference,
+  assertImageReferenceValid,
+} from "./image-library.js"

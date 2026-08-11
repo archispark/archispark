@@ -373,7 +373,7 @@ export async function modelToDb(
     }
 
     for (const e of model.elements) {
-      assertSystemPropertyValues(e.props)
+      await assertSystemPropertyValues(e.props, workspaceId, tx)
       const [res] = await tx
         .insert(elements)
         .values({
@@ -394,7 +394,7 @@ export async function modelToDb(
     }
 
     for (const r of model.relationships) {
-      assertSystemPropertyValues(r.props)
+      await assertSystemPropertyValues(r.props, workspaceId, tx)
       const srcUuid = typeof r.source === "string" ? r.source : r.source.uuid
       const tgtUuid = typeof r.target === "string" ? r.target : r.target.uuid
       const [res] = await tx

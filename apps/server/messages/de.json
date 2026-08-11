@@ -442,5 +442,22 @@
   "panels.sort_column": "Spalte {column} sortieren",
   "panels.table_empty": "Keine Zeile für dieses Panel.",
   "panels.table_incompatible_data": "Daten sind mit der Tabellen-Visualisierung nicht kompatibel.",
-  "panels.visualization_error": "Bei der Visualisierung ist ein Fehler aufgetreten: {error}"
+  "panels.visualization_error": "Bei der Visualisierung ist ein Fehler aufgetreten: {error}",
+  "image_library.choose": "Bild auswählen",
+  "image_library.title": "Bildbibliothek",
+  "image_library.search_placeholder": "Symbol suchen…",
+  "image_library.empty": "Kein Bild gefunden.",
+  "image_library.manage_title": "Bildbibliothek",
+  "image_library.manage_desc": "Verwalten Sie die benutzerdefinierten Bildpakete Ihrer Organisation.",
+  "image_library.new_pack_btn": "Neues Paket",
+  "image_library.new_pack_title": "Neues Bildpaket",
+  "image_library.new_pack_desc": "Erstellen Sie ein benutzerdefiniertes Bildpaket für Ihre Organisation.",
+  "image_library.pack_name_placeholder": "Paketname",
+  "image_library.pack_slug_placeholder": "paket-kennung",
+  "image_library.upload_btn": "Bilder hinzufügen",
+  "image_library.delete_pack_title": "Paket löschen",
+  "image_library.delete_pack_desc": "{name} und alle zugehörigen Bilder löschen? Diese Aktion ist unwiderruflich.",
+  "image_library.system_pack_badge": "System",
+  "image_library.no_custom_packs": "Kein benutzerdefiniertes Paket für diese Organisation.",
+  "image_library.blob_not_configured": "Der Bildspeicher ist für diese Instanz nicht konfiguriert."
 }

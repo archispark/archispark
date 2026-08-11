@@ -11,7 +11,8 @@ function createNode(
   label: string,
   elementType: string,
   isCentral: boolean,
-  router: ReturnType<typeof useRouter>
+  router: ReturnType<typeof useRouter>,
+  imageUrl?: string | null
 ): Node {
   return {
     id,
@@ -21,6 +22,7 @@ function createNode(
       label,
       elementType,
       isCentral,
+      imageUrl: imageUrl ?? undefined,
       onClick: isCentral
         ? undefined
         : () => router.push(`/elements/${encodeURIComponent(id)}`),
@@ -42,6 +44,7 @@ function frontierStep(
       otherId: string
       label: string
       elementType: string
+      imageUrl?: string | null
     }
   | undefined {
   const srcIn = currentFrontier.has(rel.source)
@@ -60,6 +63,7 @@ function frontierStep(
     otherId,
     label: other?.name ?? fallbackName ?? otherId,
     elementType,
+    imageUrl: other?.resolved_image_url,
   }
 }
 
@@ -98,7 +102,14 @@ function expandFrontier(
       if (!nodeMap.has(step.otherId)) {
         nodeMap.set(
           step.otherId,
-          createNode(step.otherId, step.label, step.elementType, false, router)
+          createNode(
+            step.otherId,
+            step.label,
+            step.elementType,
+            false,
+            router,
+            step.imageUrl
+          )
         )
       }
     }
@@ -139,7 +150,14 @@ export function buildGraph(
   // Central element is always shown regardless of filters
   nodeMap.set(
     element.identifier,
-    createNode(element.identifier, element.name, element.type, true, router)
+    createNode(
+      element.identifier,
+      element.name,
+      element.type,
+      true,
+      router,
+      element.resolved_image_url
+    )
   )
 
   const eligibleRels = allRelationships.filter(

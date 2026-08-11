@@ -2,9 +2,14 @@
 
 import { useMemo } from "react"
 import type { ColumnDef } from "@tanstack/react-table"
-import { type Property, type PropertyDefinitionOut } from "@/lib/api"
+import {
+  type Property,
+  type PropertyDefinitionOut,
+  ARCHISPARK_IMAGE_PROPERTY_ID,
+} from "@/lib/api"
 import { InlineText } from "@/components/detail-page-shared"
 import { DataTable } from "@/components/data-table"
+import { ImagePicker } from "@/components/image-picker"
 import { Button } from "@workspace/ui/components/button"
 import { Input } from "@workspace/ui/components/input"
 import {
@@ -75,8 +80,24 @@ export function EntityPropertiesTab({
       {
         accessorKey: "value",
         header: t("elements.prop_value"),
-        cell: ({ row }) =>
-          isAdmin ? (
+        cell: ({ row }) => {
+          if (!isAdmin) {
+            return <span className="text-sm">{row.original.value || "—"}</span>
+          }
+          const isImage =
+            row.original.property_definition_ref ===
+            ARCHISPARK_IMAGE_PROPERTY_ID
+          if (isImage) {
+            return (
+              <ImagePicker
+                value={row.original.value}
+                onChange={(v) =>
+                  onSaveValue(row.original.property_definition_ref, v)
+                }
+              />
+            )
+          }
+          return (
             <InlineText
               value={row.original.value}
               onSave={(v) =>
@@ -85,9 +106,8 @@ export function EntityPropertiesTab({
               className="text-sm"
               placeholder="—"
             />
-          ) : (
-            <span className="text-sm">{row.original.value || "—"}</span>
-          ),
+          )
+        },
       },
       ...(isAdmin
         ? [
@@ -141,16 +161,20 @@ export function EntityPropertiesTab({
                 ))}
               </SelectContent>
             </Select>
-            <Input
-              className="h-8 min-w-[140px] flex-1 text-sm"
-              placeholder={t("properties.value_placeholder")}
-              value={newPropVal}
-              onChange={(e) => onNewPropValChange(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") onSaveAdd()
-                if (e.key === "Escape") onCancelAdd()
-              }}
-            />
+            {newPropRef === ARCHISPARK_IMAGE_PROPERTY_ID ? (
+              <ImagePicker value={newPropVal} onChange={onNewPropValChange} />
+            ) : (
+              <Input
+                className="h-8 min-w-[140px] flex-1 text-sm"
+                placeholder={t("properties.value_placeholder")}
+                value={newPropVal}
+                onChange={(e) => onNewPropValChange(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") onSaveAdd()
+                  if (e.key === "Escape") onCancelAdd()
+                }}
+              />
+            )}
             <Button
               size="sm"
               onClick={onSaveAdd}

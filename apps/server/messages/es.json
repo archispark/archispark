@@ -442,5 +442,22 @@
   "panels.sort_column": "Ordenar la columna {column}",
   "panels.table_empty": "Ninguna fila para este panel.",
   "panels.table_incompatible_data": "Datos incompatibles con la visualización de tabla.",
-  "panels.visualization_error": "La visualización encontró un error: {error}"
+  "panels.visualization_error": "La visualización encontró un error: {error}",
+  "image_library.choose": "Elegir una imagen",
+  "image_library.title": "Biblioteca de imágenes",
+  "image_library.search_placeholder": "Buscar un icono…",
+  "image_library.empty": "No se encontró ninguna imagen.",
+  "image_library.manage_title": "Biblioteca de imágenes",
+  "image_library.manage_desc": "Gestione los packs de imágenes personalizados de su organización.",
+  "image_library.new_pack_btn": "Nuevo pack",
+  "image_library.new_pack_title": "Nuevo pack de imágenes",
+  "image_library.new_pack_desc": "Cree un pack de imágenes personalizado para su organización.",
+  "image_library.pack_name_placeholder": "Nombre del pack",
+  "image_library.pack_slug_placeholder": "identificador-del-pack",
+  "image_library.upload_btn": "Añadir imágenes",
+  "image_library.delete_pack_title": "Eliminar el pack",
+  "image_library.delete_pack_desc": "¿Eliminar {name} y todas sus imágenes? Esta acción es irreversible.",
+  "image_library.system_pack_badge": "Sistema",
+  "image_library.no_custom_packs": "Ningún pack personalizado para esta organización.",
+  "image_library.blob_not_configured": "El almacenamiento de imágenes no está configurado para esta instancia."
 }

@@ -4,6 +4,7 @@ import { withAuth } from "@/lib/http/with-auth"
 import { activeWorkspaceId } from "@/lib/archimate/access"
 import { loadModel } from "@/lib/archimate/store"
 import { renderViewToSvg } from "@/lib/archimate/renderer"
+import { resolveElementImages } from "@/lib/archimate/image-library-resolve"
 import { NotFoundError, ValidationError } from "@/lib/archimate/errors"
 
 export const dynamic = "force-dynamic"
@@ -18,10 +19,12 @@ export const GET = withErrorHandling(
         "Format invalide. Seul 'svg' est supporté côté serveur (l'export PNG se fait côté client)."
       )
     const { view_id } = await params
-    const model = await loadModel(await activeWorkspaceId(auth, "read"))
+    const wsId = await activeWorkspaceId(auth, "read")
+    const model = await loadModel(wsId)
     const view = model.views.find((v) => v.uuid === view_id)
     if (!view) throw new NotFoundError(`Vue '${view_id}' introuvable.`)
-    const svg = renderViewToSvg(view, model)
+    const elementImages = await resolveElementImages(model, wsId)
+    const svg = renderViewToSvg(view, model, elementImages)
     return new NextResponse(svg, {
       headers: { "Content-Type": "image/svg+xml; charset=utf-8" },
     })
