@@ -1,6 +1,10 @@
 import { describe, it, expect, beforeEach } from "vitest"
 import { randomUUID } from "crypto"
-import { seedWorkspace, getOrCreatePersonalOrganization } from "@workspace/db"
+import {
+  ARCHISPARK_IMAGE_PROPERTY_ID,
+  getOrCreatePersonalOrganization,
+  seedWorkspace,
+} from "@workspace/db"
 import * as store from "./store"
 
 // Each test runs against a fresh, isolated workspace seeded in the (PGlite) DB.
@@ -289,7 +293,7 @@ describe("store – property definitions", () => {
   it("CRUD lifecycle with type defaulting", async () => {
     const pd = await store.createPropertyDefinition(wsId, { name: "Status" })
     expect(pd.type).toBe("string")
-    expect(await store.listPropertyDefinitions(wsId)).toHaveLength(1)
+    expect(await store.listPropertyDefinitions(wsId)).toHaveLength(2)
     expect(
       (await store.getPropertyDefinitionById(wsId, pd.identifier)).name
     ).toBe("Status")
@@ -305,7 +309,46 @@ describe("store – property definitions", () => {
     expect(updType.type).toBe("number")
 
     await store.deletePropertyDefinition(wsId, pd.identifier)
-    expect(await store.listPropertyDefinitions(wsId)).toHaveLength(0)
+    expect(await store.listPropertyDefinitions(wsId)).toHaveLength(1)
+  })
+
+  it("protects the system image definition while allowing its values", async () => {
+    const definitions = await store.listPropertyDefinitions(wsId)
+    const image = definitions.find(
+      (definition) => definition.identifier === ARCHISPARK_IMAGE_PROPERTY_ID
+    )
+    expect(image).toMatchObject({ name: "archispark_image", is_system: true })
+
+    await expect(
+      store.updatePropertyDefinition(wsId, ARCHISPARK_IMAGE_PROPERTY_ID, {
+        name: "other",
+      })
+    ).rejects.toThrow(/système/)
+    await expect(
+      store.deletePropertyDefinition(wsId, ARCHISPARK_IMAGE_PROPERTY_ID)
+    ).rejects.toThrow(/système/)
+
+    const element = await store.createElement(wsId, {
+      name: "A",
+      type: "Goal",
+      properties: [
+        {
+          property_definition_ref: ARCHISPARK_IMAGE_PROPERTY_ID,
+          value: "https://example.test/image.png",
+        },
+      ],
+    })
+    expect(element.properties[0]?.value).toBe("https://example.test/image.png")
+    await expect(
+      store.updateElement(wsId, element.identifier, {
+        properties: [
+          {
+            property_definition_ref: ARCHISPARK_IMAGE_PROPERTY_ID,
+            value: "not an image URL",
+          },
+        ],
+      })
+    ).rejects.toThrow(/URL HTTP/)
   })
 
   it("delete cascades property values on elements and relationships", async () => {

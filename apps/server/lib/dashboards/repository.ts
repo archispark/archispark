@@ -1,6 +1,5 @@
 /**
- * Dashboard CRUD — porté de `dashboard-repository.ts` (ofr-archimate-reports/
- * apps/portal), réécrit sur Drizzle (`@workspace/db`) au lieu de `pg` brut.
+ * Dashboard CRUD sur Drizzle (`@workspace/db`).
  * Toutes les méthodes prennent `workspaceId` en premier paramètre : c'est
  * le point d'application du scoping par workspace — l'appelant (routes API) le résout via
  * `resolveActiveContext`/`assertOrgAccess` (lib/archimate/access.ts), jamais

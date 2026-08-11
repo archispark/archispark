@@ -1,6 +1,6 @@
 /**
- * Seeds the dashboards imported from ofr-archimate-reports for every
- * workspace. Dashboards are intentionally workspace-scoped: two workspaces
+ * Seeds the default dashboards for every workspace. Dashboards are
+ * intentionally workspace-scoped: two workspaces
  * in the same organization receive independent copies and revision histories.
  */
 import { readFileSync } from "fs"

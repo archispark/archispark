@@ -1,6 +1,6 @@
 import { getLayer } from "@/lib/archimate-helpers"
 
-// Palette du composant source `ofr-archimate-reports/notation-badge.tsx`.
+// Palette des badges de notation ArchiMate.
 const NOTATION_BADGE_COLORS: Record<string, string> = {
   Motivation: "#8b5cf6",
   Strategy: "#f97316",

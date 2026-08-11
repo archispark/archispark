@@ -100,6 +100,7 @@ export interface PropertyDefinitionOut {
   identifier: string;
   name: string;
   type: string;
+  is_system: boolean;
 }
 
 export interface PropertyDefinitionCreateIn {
@@ -284,4 +285,3 @@ export interface ConnectionUpdateIn {
   source_side?: EdgeSide | null;
   target_side?: EdgeSide | null;
 }
-

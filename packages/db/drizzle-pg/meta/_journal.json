@@ -155,6 +155,13 @@
       "when": 1786283200000,
       "tag": "0021_dashboards_workspace_scope",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1786369600000,
+      "tag": "0022_system_property_definitions",
+      "breakpoints": true
     }
   ]
 }

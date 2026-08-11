@@ -188,10 +188,8 @@ Configured via `NEO4J_URI` (defaults to `bolt://localhost:7687`),
 
 Configurable reporting dashboards — composed of panels (graph/table/metric),
 each embedding its own Cypher query, parameters and visualization inline (no
-external panel/query catalogue) — integrated from a companion project
-(`ofr-archimate-reports/apps/portal`) and rebuilt on top of ArchiSpark's own
-data and access model rather than ported as a separate app. Business logic
-lives in `apps/server/lib/dashboards/`:
+external panel/query catalogue) — built on top of ArchiSpark's own data and
+access model. Business logic lives in `apps/server/lib/dashboards/`:
 
 - `contracts.ts` — Zod schemas for `DashboardDefinition`, `PanelContent`,
   `PanelResult`, `PanelVisualizationMetadata`. `ELEMENT_TYPES`/layers reuse

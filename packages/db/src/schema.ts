@@ -319,6 +319,7 @@ export const propertyDefinitions = pgTable(
     uuid: text("uuid").notNull(),
     name: text("name").notNull(),
     type: text("type").notNull().default("string"), // string | boolean | date | number | enumeration
+    isSystem: boolean("is_system").notNull().default(false),
   },
   (t) => [
     uniqueIndex("prop_defs_uuid_ws_uniq").on(t.workspaceId, t.uuid),

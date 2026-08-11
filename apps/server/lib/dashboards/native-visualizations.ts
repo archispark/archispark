@@ -1,9 +1,7 @@
 import type { PanelVisualizationMetadata } from "./contracts"
 
 /**
- * Catalogue des visualisations natives — porté de `native-panel-visualizations.ts`
- * (ofr-archimate-reports/apps/portal). Le système de plugins tiers du portail
- * (`plugins/`) n'est pas repris : ce catalogue est fixe, pas extensible.
+ * Catalogue fixe des visualisations natives.
  */
 export const NATIVE_PANEL_VISUALIZATIONS: readonly PanelVisualizationMetadata[] = [
   {

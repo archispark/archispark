@@ -114,6 +114,11 @@ Every workspace belongs to exactly one organization (`organization_id`) — a ca
 | `PUT`    | `/api/property-definitions/:id` | Update                                                                                   |
 | `DELETE` | `/api/property-definitions/:id` | Delete                                                                                   |
 
+Each returned definition includes `is_system`. System definitions, including
+`archispark_image`, are read-only at the definition level: update and delete
+requests are rejected. Its values on elements and relationships must be HTTP(S)
+URLs or relative paths.
+
 ## Dashboards
 
 Org-scoped — see [docs/../development/architecture.md#dashboards](../development/architecture.md#dashboards). Editing requires the `owner`/`admin` role in the active organization; `member` is read-only.

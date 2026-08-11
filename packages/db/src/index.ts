@@ -11,3 +11,9 @@ export {
 } from "./model-io.js"
 export { runOrganizationBackfill } from "./backfill-organizations.js"
 export { getOrCreatePersonalOrganization } from "./organizations.js"
+export {
+  ARCHISPARK_IMAGE_PROPERTY_ID,
+  SYSTEM_PROPERTY_DEFINITIONS,
+  isSystemPropertyDefinition,
+  assertSystemPropertyValues,
+} from "./system-properties.js"

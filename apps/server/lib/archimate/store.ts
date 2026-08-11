@@ -16,7 +16,7 @@ import {
   db,
   workspaces, elements, relationships, propertyDefinitions,
   elementProperties, relationshipProperties, views, nodes, connections,
-  buildNodeTree, modelFromDb, modelToDb,
+  assertSystemPropertyValues, buildNodeTree, modelFromDb, modelToDb,
 } from "@workspace/db";
 import type { ArchiModel } from "@workspace/db";
 import { parseOpenExchange } from "./oxf-parser";
@@ -363,13 +363,13 @@ export async function deleteRelationship(wsId: number, relationshipId: string): 
 
 export async function listPropertyDefinitions(wsId: number): Promise<PropertyDefinitionOut[]> {
   const rows = await db.select().from(propertyDefinitions).where(eq(propertyDefinitions.workspaceId, wsId));
-  return rows.map((r) => pdOut({ uuid: r.uuid, name: r.name, type: r.type }));
+  return rows.map((r) => pdOut({ uuid: r.uuid, name: r.name, type: r.type }, r.isSystem));
 }
 
 export async function getPropertyDefinitionById(wsId: number, id: string): Promise<PropertyDefinitionOut> {
   const [row] = await db.select().from(propertyDefinitions).where(and(eq(propertyDefinitions.workspaceId, wsId), eq(propertyDefinitions.uuid, id)));
   if (!row) throw new NotFoundError(`Définition de propriété '${id}' introuvable.`);
-  return pdOut({ uuid: row.uuid, name: row.name, type: row.type });
+  return pdOut({ uuid: row.uuid, name: row.name, type: row.type }, row.isSystem);
 }
 
 export async function createPropertyDefinition(wsId: number, input: PropertyDefinitionCreateIn): Promise<PropertyDefinitionOut> {
@@ -378,12 +378,13 @@ export async function createPropertyDefinition(wsId: number, input: PropertyDefi
     workspaceId: wsId, uuid, name: input.name, type: input.type ?? "string",
   }).returning();
   if (!row) throw new Error("Failed to create property definition");
-  return pdOut({ uuid: row.uuid, name: row.name, type: row.type });
+  return pdOut({ uuid: row.uuid, name: row.name, type: row.type }, row.isSystem);
 }
 
 export async function updatePropertyDefinition(wsId: number, id: string, input: PropertyDefinitionUpdateIn): Promise<PropertyDefinitionOut> {
   const [row] = await db.select().from(propertyDefinitions).where(and(eq(propertyDefinitions.workspaceId, wsId), eq(propertyDefinitions.uuid, id)));
   if (!row) throw new NotFoundError(`Définition de propriété '${id}' introuvable.`);
+  if (row.isSystem) throw new ValidationError("Une définition de propriété système ne peut pas être modifiée.");
   const patch: Partial<typeof propertyDefinitions.$inferInsert> = {};
   if (input.name !== undefined) patch.name = input.name;
   if (input.type !== undefined) patch.type = input.type;
@@ -392,8 +393,9 @@ export async function updatePropertyDefinition(wsId: number, id: string, input: 
 }
 
 export async function deletePropertyDefinition(wsId: number, id: string): Promise<void> {
-  const [row] = await db.select({ id: propertyDefinitions.id }).from(propertyDefinitions).where(and(eq(propertyDefinitions.workspaceId, wsId), eq(propertyDefinitions.uuid, id)));
+  const [row] = await db.select({ id: propertyDefinitions.id, isSystem: propertyDefinitions.isSystem }).from(propertyDefinitions).where(and(eq(propertyDefinitions.workspaceId, wsId), eq(propertyDefinitions.uuid, id)));
   if (!row) throw new NotFoundError(`Définition de propriété '${id}' introuvable.`);
+  if (row.isSystem) throw new ValidationError("Une définition de propriété système ne peut pas être supprimée.");
   await db.delete(propertyDefinitions).where(eq(propertyDefinitions.id, row.id));
   // Drop the property values keyed by this definition on elements/relationships of the workspace.
   const elemIds = (await db.select({ id: elements.id }).from(elements).where(eq(elements.workspaceId, wsId))).map((e) => e.id);
@@ -748,5 +750,11 @@ export async function importModelFromXml(wsId: number, xml: string): Promise<Mod
 // ---------------------------------------------------------------------------
 
 function propsIn(properties: { property_definition_ref: string; value: string }[] | undefined): Record<string, string> {
-  return Object.fromEntries((properties ?? []).map((p) => [p.property_definition_ref, p.value]));
+  const result = Object.fromEntries((properties ?? []).map((p) => [p.property_definition_ref, p.value]));
+  try {
+    assertSystemPropertyValues(result)
+  } catch (error) {
+    throw new ValidationError(error instanceof Error ? error.message : String(error))
+  }
+  return result
 }
