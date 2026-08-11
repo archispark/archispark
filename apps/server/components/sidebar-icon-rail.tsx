@@ -95,6 +95,28 @@ export function SidebarIconRail({
             />
             <div className="my-1 w-6 border-t border-border" />
             <RailLink
+              href="/dashboards"
+              icon={Gauge}
+              label={t("sidebar.dashboards")}
+              active={pathname.startsWith("/dashboards")}
+              onClick={onClose}
+            />
+            <RailLink
+              href="/explore"
+              icon={SearchCode}
+              label={t("sidebar.explore")}
+              active={pathname === "/explore"}
+              onClick={onClose}
+            />
+            <RailLink
+              href="/panel-visualizations"
+              icon={Blocks}
+              label={t("sidebar.panel_catalog")}
+              active={pathname === "/panel-visualizations"}
+              onClick={onClose}
+            />
+            <div className="my-1 w-6 border-t border-border" />
+            <RailLink
               href="/elements"
               icon={List}
               label={t("sidebar.elements")}
@@ -133,28 +155,6 @@ export function SidebarIconRail({
               }
               onClick={onClose}
             />
-            <div className="my-1 w-6 border-t border-border" />
-            <RailLink
-              href="/dashboards"
-              icon={Gauge}
-              label={t("sidebar.dashboards")}
-              active={pathname.startsWith("/dashboards")}
-              onClick={onClose}
-            />
-            <RailLink
-              href="/explore"
-              icon={SearchCode}
-              label={t("sidebar.explore")}
-              active={pathname === "/explore"}
-              onClick={onClose}
-            />
-            <RailLink
-              href="/panel-visualizations"
-              icon={Blocks}
-              label={t("sidebar.panel_catalog")}
-              active={pathname === "/panel-visualizations"}
-              onClick={onClose}
-            />
           </>
         )}
       </div>
@@ -172,7 +172,7 @@ export function SidebarIconRail({
         >
           <CircleHelp className="size-4" />
         </a>
-        <UserMenu placement="up" />
+        <UserMenu placement="up" align="left" />
       </div>
     </>
   )

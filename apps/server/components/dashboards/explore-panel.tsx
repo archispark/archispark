@@ -191,7 +191,7 @@ export function ExplorePanel() {
           </div>
           <Button
             type="button"
-            variant="outline"
+            variant="destructive"
             disabled={history.length === 0}
             onClick={() => {
               localStorage.removeItem(HISTORY_KEY)

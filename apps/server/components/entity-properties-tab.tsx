@@ -98,14 +98,14 @@ export function EntityPropertiesTab({
               cell: ({ row }: { row: { original: PropRow } }) => (
                 <div className="flex justify-end">
                   <Button
-                    variant="ghost"
+                    variant="destructive"
                     size="icon-xs"
                     onClick={() =>
                       onDeleteClick(row.original.property_definition_ref)
                     }
                     aria-label={t("common.delete")}
                   >
-                    <Trash2 className="size-3.5 text-destructive" />
+                    <Trash2 className="size-3.5" />
                   </Button>
                 </div>
               ),

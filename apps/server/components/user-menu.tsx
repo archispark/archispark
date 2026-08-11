@@ -12,9 +12,11 @@ const subscribeToMount = () => () => {}
 export function UserMenu({
   placement = "down",
   display = "compact",
+  align = "right",
 }: {
   placement?: "up" | "down"
   display?: "compact" | "full"
+  align?: "left" | "right"
 }) {
   const user = useCurrentUser()
   const { data: organizations = [] } = useOrganizations()
@@ -88,9 +90,9 @@ export function UserMenu({
 
       {open && (
         <div
-          className={`absolute right-0 z-50 w-56 rounded-lg border border-border bg-popover py-1 shadow-lg ${
-            placement === "up" ? "right-0 bottom-full mb-2" : "top-full mt-2"
-          }`}
+          className={`absolute z-50 w-56 rounded-lg border border-border bg-popover py-1 shadow-lg ${
+            align === "left" ? "left-0" : "right-0"
+          } ${placement === "up" ? "bottom-full mb-2" : "top-full mt-2"}`}
         >
           <div className="mb-1 border-b border-border px-3 py-2.5">
             <p className="truncate text-[13px] font-medium">

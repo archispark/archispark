@@ -167,12 +167,12 @@ export function useElementRelationColumns({
                     <Pencil className="size-3.5" />
                   </Button>
                   <Button
-                    variant="ghost"
+                    variant="destructive"
                     size="icon-xs"
                     onClick={() => onDeleteClick(row.original)}
                     aria-label={t("common.delete")}
                   >
-                    <Trash2 className="size-3.5 text-destructive" />
+                    <Trash2 className="size-3.5" />
                   </Button>
                 </div>
               ),

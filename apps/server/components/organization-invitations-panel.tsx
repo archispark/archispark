@@ -92,13 +92,13 @@ export function OrganizationInvitationsPanel({
                 <RefreshCw className="size-3.5" />
               </Button>
               <Button
-                variant="ghost"
+                variant="destructive"
                 size="icon-xs"
                 onClick={() => onRevoke(inv.id)}
                 disabled={revokePending}
                 aria-label={t("settings.org.cancel_invitation")}
               >
-                <Trash2 className="size-3.5 text-destructive" />
+                <Trash2 className="size-3.5" />
               </Button>
             </div>
           ))}

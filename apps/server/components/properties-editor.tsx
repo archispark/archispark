@@ -65,12 +65,12 @@ export function PropertiesEditor({ value, onChange }: Props) {
                 onChange={(e) => updateValue(p.property_definition_ref, e.target.value)}
               />
               <Button
-                variant="ghost"
+                variant="destructive"
                 size="icon-xs"
                 onClick={() => remove(p.property_definition_ref)}
                 aria-label={t("common.delete")}
               >
-                <Trash2 className="size-3 text-destructive" />
+                <Trash2 className="size-3" />
               </Button>
             </div>
           ))}
