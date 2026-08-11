@@ -9,7 +9,6 @@ import {
   useReactFlow,
   type Edge,
 } from "@xyflow/react"
-import { cn } from "@workspace/ui/lib/utils"
 import { ArchisparkReactFlow } from "@/components/archispark-react-flow"
 import { LAYER_HEX_COLORS, getLayer } from "@/lib/archimate-helpers"
 import { AppearancePanel } from "@/components/element-graph-appearance-panel"
@@ -20,9 +19,11 @@ import {
   type EdgePathType,
 } from "@/components/react-flow-edge-path"
 import {
+  FullscreenContainer,
   ReactFlowFullscreenButton,
   useReactFlowFullscreen,
 } from "@/components/react-flow-fullscreen"
+import { CanvasToolbarPanel } from "@/components/canvas-toolbar-panel"
 import {
   applyDagreLayout,
   DASHBOARD_NODE_HEIGHT,
@@ -192,12 +193,11 @@ function GraphViewInner({
   }, [computedNodes, edges, fitView])
 
   return (
-    <div
+    <FullscreenContainer
+      fullscreen={fullscreen}
       style={{ height: fullscreen ? "100dvh" : height }}
-      className={cn(
-        "overflow-hidden rounded-lg border border-border bg-background",
-        fullscreen && "fixed inset-0 z-[60] rounded-none p-4"
-      )}
+      className="overflow-hidden rounded-lg border border-border bg-background"
+      fullscreenClassName="rounded-none"
     >
       <EdgeTypeContext.Provider value={edgePathType}>
         <ArchisparkReactFlow
@@ -215,31 +215,29 @@ function GraphViewInner({
           }
           controlsProps={{ showInteractive: false }}
         >
-          <Panel position="top-right">
-            <div className="flex flex-col items-end gap-1">
-              <FilterPanel
-                availableElementTypes={availableElementTypes}
-                availableRelTypes={availableRelTypes}
-                hiddenElementTypes={hiddenElementTypes}
-                hiddenRelTypes={hiddenRelTypes}
-                onChangeElementTypes={setHiddenElementTypes}
-                onChangeRelTypes={setHiddenRelTypes}
-              />
-              <AppearancePanel
-                edgePathType={edgePathType}
-                onChangeEdgePathType={setEdgePathType}
-                direction={direction}
-                onChangeDirection={setDirection}
-              />
-              <ReactFlowFullscreenButton
-                fullscreen={fullscreen}
-                onToggle={toggleFullscreen}
-              />
-            </div>
-          </Panel>
+          <CanvasToolbarPanel>
+            <FilterPanel
+              availableElementTypes={availableElementTypes}
+              availableRelTypes={availableRelTypes}
+              hiddenElementTypes={hiddenElementTypes}
+              hiddenRelTypes={hiddenRelTypes}
+              onChangeElementTypes={setHiddenElementTypes}
+              onChangeRelTypes={setHiddenRelTypes}
+            />
+            <AppearancePanel
+              edgePathType={edgePathType}
+              onChangeEdgePathType={setEdgePathType}
+              direction={direction}
+              onChangeDirection={setDirection}
+            />
+            <ReactFlowFullscreenButton
+              fullscreen={fullscreen}
+              onToggle={toggleFullscreen}
+            />
+          </CanvasToolbarPanel>
           {panel ? <Panel position="top-left">{panel}</Panel> : null}
         </ArchisparkReactFlow>
       </EdgeTypeContext.Provider>
-    </div>
+    </FullscreenContainer>
   )
 }

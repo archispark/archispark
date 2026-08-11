@@ -3,7 +3,6 @@
 import { useEffect, useMemo } from "react"
 import {
   ReactFlowProvider,
-  Panel,
   useNodesState,
   useEdgesState,
   useReactFlow,
@@ -27,9 +26,11 @@ import { HANDLE_HOVER_CSS } from "@/components/view-canvas-markers"
 import { PendingConnectionDialog } from "@/components/view-canvas-pending-connection-dialog"
 import { useViewCanvasHandlers } from "@/components/use-view-canvas-handlers"
 import {
+  FullscreenContainer,
   ReactFlowFullscreenButton,
   useReactFlowFullscreen,
 } from "@/components/react-flow-fullscreen"
+import { CanvasToolbarPanel } from "@/components/canvas-toolbar-panel"
 
 const NODE_TYPES = { archi: ArchiNode }
 const EDGE_TYPES = { archi: ArchiEdge }
@@ -202,18 +203,10 @@ function ViewCanvasInner({
 
   return (
     <ViewIdContext.Provider value={viewId}>
-      <div
-        style={{
-          width: "100%",
-          height: fullscreen ? "100dvh" : 600,
-          position: fullscreen ? "fixed" : "relative",
-          inset: fullscreen ? 0 : undefined,
-          zIndex: fullscreen ? 60 : undefined,
-          padding: fullscreen ? 16 : undefined,
-          boxSizing: "border-box",
-          background: "var(--background)",
-          display: "flex",
-        }}
+      <FullscreenContainer
+        fullscreen={fullscreen}
+        style={{ height: fullscreen ? "100dvh" : 600 }}
+        className="box-border flex w-full bg-background"
       >
         {viewId ? <ElementPalette elements={elements} /> : null}
         <div
@@ -249,18 +242,16 @@ function ViewCanvasInner({
             deleteKeyCode={["Backspace", "Delete"]}
             colorMode="system"
           >
-            <Panel position="top-right">
-              <div className="flex items-start gap-2">
-                <ReactFlowFullscreenButton
-                  fullscreen={fullscreen}
-                  onToggle={toggleFullscreen}
-                />
-                <DownloadMenu />
-              </div>
-            </Panel>
+            <CanvasToolbarPanel className="flex items-start gap-2">
+              <ReactFlowFullscreenButton
+                fullscreen={fullscreen}
+                onToggle={toggleFullscreen}
+              />
+              <DownloadMenu />
+            </CanvasToolbarPanel>
           </ArchisparkReactFlow>
         </div>
-      </div>
+      </FullscreenContainer>
     </ViewIdContext.Provider>
   )
 }

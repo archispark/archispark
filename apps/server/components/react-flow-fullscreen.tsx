@@ -1,7 +1,8 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, type CSSProperties, type ReactNode } from "react"
 import { Maximize2, Minimize2 } from "lucide-react"
+import { cn } from "@workspace/ui/lib/utils"
 
 export function useReactFlowFullscreen() {
   const [fullscreen, setFullscreen] = useState(false)
@@ -49,5 +50,37 @@ export function ReactFlowFullscreenButton({
     >
       {fullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
     </button>
+  )
+}
+
+/**
+ * Wraps a canvas so it can expand into a fixed, full-viewport overlay.
+ * `fullscreenClassName` overrides base classes (e.g. to drop rounding) since
+ * it is merged last.
+ */
+export function FullscreenContainer({
+  fullscreen,
+  className,
+  fullscreenClassName,
+  style,
+  children,
+}: {
+  fullscreen: boolean
+  className?: string
+  fullscreenClassName?: string
+  style?: CSSProperties
+  children: ReactNode
+}) {
+  return (
+    <div
+      style={style}
+      className={cn(
+        className,
+        fullscreen && "fixed inset-0 z-[60] bg-background p-4",
+        fullscreen && fullscreenClassName
+      )}
+    >
+      {children}
+    </div>
   )
 }

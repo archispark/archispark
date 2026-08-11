@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   ReactFlowProvider,
-  Panel,
   useNodesState,
   useEdgesState,
   useReactFlow,
@@ -30,9 +29,11 @@ import {
 import { AppearancePanel } from "@/components/element-graph-appearance-panel"
 import { FilterPanel } from "@/components/element-graph-filter-panel"
 import {
+  FullscreenContainer,
   ReactFlowFullscreenButton,
   useReactFlowFullscreen,
 } from "@/components/react-flow-fullscreen"
+import { CanvasToolbarPanel } from "@/components/canvas-toolbar-panel"
 
 // ── Public props ──────────────────────────────────────────────────────────────
 
@@ -117,12 +118,9 @@ function GraphCanvas({
   }
 
   return (
-    <div
-      className={
-        fullscreen
-          ? "fixed inset-0 z-[60] flex min-h-0 flex-col gap-2 bg-background p-4"
-          : "flex min-h-0 flex-1 flex-col gap-2"
-      }
+    <FullscreenContainer
+      fullscreen={fullscreen}
+      className="flex min-h-0 flex-1 flex-col gap-2"
     >
       <div
         className="relative min-h-0 flex-1 overflow-hidden rounded-lg border border-border"
@@ -143,32 +141,30 @@ function GraphCanvas({
             maxZoom={3}
             controlsProps={{ showInteractive: false }}
           >
-            <Panel position="top-right">
-              <div className="flex flex-col items-end gap-1">
-                <FilterPanel
-                  availableElementTypes={availableElementTypes}
-                  availableRelTypes={availableRelTypes}
-                  hiddenElementTypes={hiddenElementTypes}
-                  hiddenRelTypes={hiddenRelTypes}
-                  onChangeElementTypes={changeElementTypes}
-                  onChangeRelTypes={changeRelTypes}
-                />
-                <AppearancePanel
-                  edgePathType={edgePathType}
-                  onChangeEdgePathType={setEdgePathType}
-                  direction={direction}
-                  onChangeDirection={changeDirection}
-                />
-                <ReactFlowFullscreenButton
-                  fullscreen={fullscreen}
-                  onToggle={toggleFullscreen}
-                />
-              </div>
-            </Panel>
+            <CanvasToolbarPanel>
+              <FilterPanel
+                availableElementTypes={availableElementTypes}
+                availableRelTypes={availableRelTypes}
+                hiddenElementTypes={hiddenElementTypes}
+                hiddenRelTypes={hiddenRelTypes}
+                onChangeElementTypes={changeElementTypes}
+                onChangeRelTypes={changeRelTypes}
+              />
+              <AppearancePanel
+                edgePathType={edgePathType}
+                onChangeEdgePathType={setEdgePathType}
+                direction={direction}
+                onChangeDirection={changeDirection}
+              />
+              <ReactFlowFullscreenButton
+                fullscreen={fullscreen}
+                onToggle={toggleFullscreen}
+              />
+            </CanvasToolbarPanel>
           </ArchisparkReactFlow>
         </EdgeTypeContext.Provider>
       </div>
-    </div>
+    </FullscreenContainer>
   )
 }
 
