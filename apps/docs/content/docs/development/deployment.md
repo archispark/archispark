@@ -21,7 +21,10 @@ rationale).
 `packages/db-neo4j` (see [Neo4j export](architecture.md#neo4j-export)) ships
 its own versioned Cypher migrations, separate from `packages/db`'s Postgres
 migrations — Neo4j has no `drizzle-kit` equivalent, so these are applied with
-a dedicated script rather than automatically on cold start:
+a dedicated script rather than automatically on cold start. On the `archispark`
+Vercel project this runs via the `migrate-prod.yml` GitHub Actions workflow
+(see [Vercel](#vercel) below), triggered automatically on every push to `main`
+that adds a migration file. Elsewhere, run it directly:
 
 ```bash
 NEO4J_URI=<uri> NEO4J_USER=<user> NEO4J_PASSWORD=<password> \
@@ -54,9 +57,14 @@ own).
    `DATABASE_URL` (pooled) and `DATABASE_URL_UNPOOLED` (direct).
 
 3. **Apply database migrations, then the organization backfill** using the
-   manual GitHub Actions workflow **Run production migrations**
+   GitHub Actions workflow **Run production migrations**
    (`migrate-prod.yml`). It reads the `DATABASE_URL_UNPOOLED` repository
    secret, so no Vercel environment export is needed on a developer machine.
+   It runs automatically on every push to `main` that touches
+   `packages/db/drizzle-pg/**` or `packages/db-neo4j/src/schema/migrations/**`
+   (i.e. any merge adding a new migration file), and can also be triggered
+   manually (`workflow_dispatch`) for a migration that shipped without
+   changing those paths in the same push, or to re-run after a failure.
 
    For exceptional local recovery only:
 

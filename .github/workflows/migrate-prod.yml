@@ -2,6 +2,11 @@ name: Run production migrations
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "packages/db/drizzle-pg/**"
+      - "packages/db-neo4j/src/schema/migrations/**"
 
 permissions:
   contents: read
