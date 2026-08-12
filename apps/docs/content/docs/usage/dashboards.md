@@ -32,18 +32,19 @@ ORDER BY count DESC
 
 ## Dashboards (`/dashboards`)
 
-All organization members can list dashboards and execute panels. A panel
-returns `graph`, `table`, or `metrics`. Owners and admins can create and edit
-dashboards; saving an edit creates an immutable revision, and deletion is soft.
-Graph panels provide controls for filtering element and relationship types,
-choosing the edge style and layout direction, and entering fullscreen. Press
-Escape or the minimize control to return to the dashboard.
-
-The form uses structured metadata fields and validated JSON for parameters,
-panels, layouts, and tab groups. Identifiers use lowercase kebab-case. Every
-panel query must use `architecture-neo4j`, reference `$organizationId`, and
-select a compatible visualization: `core/graph`, `core/table`, or
-`core/metric`.
+- All organization members can list dashboards and execute panels; a panel
+  returns `graph`, `table`, or `metrics`.
+- Owners and admins can create and edit dashboards — saving an edit creates
+  an immutable revision, deletion is soft.
+- Graph panels provide controls for filtering element and relationship
+  types, choosing the edge style and layout direction, and entering
+  fullscreen (Escape or the minimize control to exit).
+- The form uses structured metadata fields and validated JSON for
+  parameters, panels, layouts, and tab groups; identifiers use lowercase
+  kebab-case.
+- Every panel query must use `architecture-neo4j`, reference
+  `$organizationId`, and select a compatible visualization: `core/graph`,
+  `core/table`, or `core/metric`.
 
 ## Current limits
 

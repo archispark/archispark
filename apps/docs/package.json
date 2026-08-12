@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@workspace/image-library": "workspace:*",
+    "@xyflow/react": "^12.11.0",
     "cnfast": "^0.1.0",
     "fumadocs-core": "16.14.2",
     "fumadocs-mdx": "15.2.2",

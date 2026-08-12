@@ -31,22 +31,15 @@ create or delete organizations.
 
 ## Invite members
 
-From an organization's members dialog, an Owner or Editor enters an e-mail and
-chooses Owner, Editor, or Viewer. ArchiSpark stores only a SHA-256 hash of
-the random invitation token. Pending invitations can be resent or revoked and
-expire after the configured validity period.
+From an organization's members dialog, an Owner or Editor enters an e-mail
+and chooses Owner, Editor, or Viewer. The API and database retain the
+stable role identifiers `owner`, `admin`, and `member`; the application
+presents them as Owner, Editor, and Viewer.
 
-The API and database retain the stable role identifiers `owner`, `admin`, and
-`member`; the application presents them as Owner, Editor, and Viewer.
-
-If the address has no Keycloak identity and e-mail delivery is enabled,
-ArchiSpark provisions an account without credentials. Keycloak e-mails a
-finish-registration link where the recipient enters their name, chooses a
-password, and verifies the address before being redirected to the ArchiSpark
-invitation. Existing identities receive the normal invitation e-mail. In
-`manual` mode, no account is provisioned and the recipient uses **Register**
-from the copied invitation link. Acceptance adds the membership and cannot be
-repeated. SMTP settings and delivery behavior are described in
+See [Organization invitations by e-mail](../reference/authentication.mdx#organization-invitations-by-e-mail)
+for the full invitation lifecycle (diagram, token hashing, resend/revoke,
+missing-identity provisioning, delivery modes). SMTP settings and delivery
+behavior are described in
 [Deployment](../development/deployment.md#e-mail-invitations-smtp).
 
 ## Admin administration

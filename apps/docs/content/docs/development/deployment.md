@@ -5,37 +5,39 @@ description: Deploy ArchiSpark with Docker Compose or Vercel.
 
 ## Organizations migration (releases including `0018_organizations_expand.sql`)
 
-This release introduces the Organization → Workspace hierarchy via an
-expand→backfill→verify→contract migration (see
-[Architecture](architecture.md#database-schema)). Plan a short maintenance
-window rather than a rolling update for this release. After deploying, run
-`pnpm --filter @workspace/db backfill:prod` once against the target database
-(a no-op if already run), then verify with the three queries in `plan.md`'s
-Phase 2 before ever generating
-`0019_organizations_contract.sql` (the `NOT NULL` contract migration,
-intentionally not shipped in this release — see that file for the full
-rationale).
+- This release introduces the Organization → Workspace hierarchy via an
+  expand→backfill→verify→contract migration (see
+  [Architecture](architecture.md#database-schema)).
+- Plan a short maintenance window rather than a rolling update for this
+  release.
+- After deploying, run `pnpm --filter @workspace/db backfill:prod` once
+  against the target database (a no-op if already run).
+- Verify with the three queries in `plan.md`'s Phase 2 before ever
+  generating `0019_organizations_contract.sql` (the `NOT NULL` contract
+  migration, intentionally not shipped in this release — see that file for
+  the full rationale).
 
 ## Neo4j schema migrations (production)
 
-`packages/db-neo4j` (see [Neo4j export](architecture.md#neo4j-export)) ships
-its own versioned Cypher migrations, separate from `packages/db`'s Postgres
-migrations — Neo4j has no `drizzle-kit` equivalent. Like the Postgres
-migrations above, `apps/server/instrumentation.ts` (Next.js's `register()`
-hook) applies them automatically on every cold start — self-hosted (`next
-start`) and Vercel serverless alike, no separate step required. Unlike
-Postgres, a failure here only logs an error and never blocks startup: Neo4j
-is a secondary integration (`POST /api/export/neo4j`), and
-`getNeo4jConfig()` always falls back to a default URI rather than signaling
-"unconfigured", so a deployment without Neo4j reachable must still serve
-requests normally.
+- `packages/db-neo4j` (see [Neo4j export](architecture.md#neo4j-export))
+  ships its own versioned Cypher migrations, separate from `packages/db`'s
+  Postgres migrations — Neo4j has no `drizzle-kit` equivalent.
+- Like the Postgres migrations above, `apps/server/instrumentation.ts`
+  (Next.js's `register()` hook) applies them automatically on every cold
+  start — self-hosted (`next start`) and Vercel serverless alike, no
+  separate step required.
+- Unlike Postgres, a failure here only logs an error and never blocks
+  startup: Neo4j is a secondary integration (`POST /api/export/neo4j`), and
+  `getNeo4jConfig()` always falls back to a default URI rather than
+  signaling "unconfigured", so a deployment without Neo4j reachable must
+  still serve requests normally.
+- **Idempotent**: already-applied migrations (tracked via
+  `:SchemaMigration` nodes) are skipped, so cold starts after a deployment
+  that adds a new `packages/db-neo4j/src/schema/migrations/*.cypher` file
+  pick it up automatically.
 
-Idempotent — already-applied migrations (tracked via `:SchemaMigration`
-nodes) are skipped, so cold starts after a deployment that adds a new
-`packages/db-neo4j/src/schema/migrations/*.cypher` file pick it up
-automatically. For an exceptional manual run (recovery, or applying a
-migration ahead of the next cold start) — same reasoning as `backfill:prod`
-below:
+For an exceptional manual run (recovery, or applying a migration ahead of
+the next cold start) — same reasoning as `backfill:prod` below:
 
 ```bash
 NEO4J_URI=<uri> NEO4J_USER=<user> NEO4J_PASSWORD=<password> \

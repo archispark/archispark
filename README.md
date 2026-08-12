@@ -27,18 +27,18 @@ pnpm start
 La documentation Fumadocs vit dans [`apps/docs`](apps/docs) et se lance avec
 `pnpm --filter @archispark/docs dev`.
 
-| Topic                                                    | Description                                                        |
-| -------------------------------------------------------- | ------------------------------------------------------------------ |
-| [Installation & local development](docs/installation.md) | Stack, quick start, Docker & pnpm scripts                          |
-| [Deployment](docs/deployment.md)                         | Docker Compose, Vercel                                             |
-| [Architecture](docs/architecture.md)                     | Persistence, database schema, `apps/server`, dashboards            |
-| [Authentication](docs/authentication.md)                 | Keycloak login, tokens, access control                             |
-| [Administration](docs/administration.md)                 | Admin, user provisioning                                           |
-| [API reference](docs/api-reference.md)                   | Workspaces, elements, relationships, views, property definitions   |
-| [MCP server](docs/mcp-server.md)                         | Model Context Protocol tools for AI agents                         |
-| [Demo data](docs/demo-data.md)                           | Seeding demo accounts and workspaces                               |
-| [Contributing](docs/contributing.md)                     | Running tests, code of conduct                                     |
-| [Claude Code configuration](docs/claude-code.md)         | MCP servers, plugins, and agents for Claude Code / Claude Code Web |
+| Topic                                                                          | Description                                                        |
+| ------------------------------------------------------------------------------ | ------------------------------------------------------------------ |
+| [Installation & local development](apps/docs/content/docs/getting-started/index.md) | Stack, quick start, Docker & pnpm scripts                    |
+| [Deployment](apps/docs/content/docs/development/deployment.md)                 | Docker Compose, Vercel                                             |
+| [Architecture](apps/docs/content/docs/development/architecture.md)             | Persistence, database schema, `apps/server`, dashboards            |
+| [Authentication](apps/docs/content/docs/reference/authentication.md)           | Keycloak login, tokens, access control                             |
+| [Administration](apps/docs/content/docs/administration/index.md)               | Admin, user provisioning                                           |
+| [API reference](apps/docs/content/docs/reference/api-reference.md)             | Workspaces, elements, relationships, views, property definitions   |
+| [MCP server](apps/docs/content/docs/reference/mcp-tools.md)                    | Model Context Protocol tools for AI agents                         |
+| [Demo data](apps/docs/content/docs/getting-started/demo-data.md)               | Seeding demo accounts and workspaces                               |
+| [Contributing](apps/docs/content/docs/development/contributing.md)             | Running tests, code of conduct                                     |
+| [Claude Code configuration](apps/docs/content/docs/development/claude-code.md) | MCP servers, plugins, and agents for Claude Code / Claude Code Web |
 
 ## License
 

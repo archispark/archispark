@@ -36,6 +36,9 @@ importers:
       '@workspace/image-library':
         specifier: workspace:*
         version: link:../../packages/image-library
+      '@xyflow/react':
+        specifier: ^12.11.0
+        version: 12.11.0(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       cnfast:
         specifier: ^0.1.0
         version: 0.1.0
@@ -8595,7 +8598,7 @@ snapshots:
       obug: 2.1.1
       std-env: 4.1.0
       tinyrainbow: 3.1.0
-      vitest: 4.1.8(@types/node@25.9.2)(@vitest/coverage-v8@4.1.8)(jsdom@29.1.1(@noble/hashes@2.2.0))(msw@2.14.6(@types/node@25.9.2)(typescript@6.0.3))(vite@8.0.16(@types/node@25.9.2)(esbuild@0.28.0)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
+      vitest: 4.1.8(@types/node@22.19.19)(@vitest/coverage-v8@4.1.8)(jsdom@29.1.1(@noble/hashes@2.2.0))(msw@2.14.6(@types/node@22.19.19)(typescript@6.0.3))(vite@8.0.16(@types/node@22.19.19)(esbuild@0.28.0)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
 
   '@vitest/expect@4.1.8':
     dependencies:
@@ -8658,6 +8661,19 @@ snapshots:
     optionalDependencies:
       '@types/react': 19.2.17
       '@types/react-dom': 19.2.3(@types/react@19.2.17)
+    transitivePeerDependencies:
+      - immer
+
+  '@xyflow/react@12.11.0(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)':
+    dependencies:
+      '@xyflow/system': 0.0.77
+      classcat: 5.0.5
+      react: 19.2.8
+      react-dom: 19.2.8(react@19.2.8)
+      zustand: 4.5.7(@types/react@19.2.18)(react@19.2.8)
+    optionalDependencies:
+      '@types/react': 19.2.18
+      '@types/react-dom': 19.2.4(@types/react@19.2.18)
     transitivePeerDependencies:
       - immer
 
@@ -13178,5 +13194,12 @@ snapshots:
     optionalDependencies:
       '@types/react': 19.2.17
       react: 19.2.7
+
+  zustand@4.5.7(@types/react@19.2.18)(react@19.2.8):
+    dependencies:
+      use-sync-external-store: 1.6.0(react@19.2.8)
+    optionalDependencies:
+      '@types/react': 19.2.18
+      react: 19.2.8
 
   zwitch@2.0.4: {}

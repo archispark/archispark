@@ -69,10 +69,14 @@ contrôles d'autorisation : ne pas dupliquer cette logique ailleurs.
   React et les types partagés.
 
 Avant toute modification transverse de l'authentification ou de la base de
-données, lire [docs/architecture.md](docs/architecture.md) et
-[docs/authentication.md](docs/authentication.md). Consulter aussi les sections
-sur les [tableaux de bord](docs/architecture.md#dashboards) et
-[l'export Neo4j](docs/architecture.md#neo4j-export) selon le domaine modifié.
+données, lire
+[architecture.md](apps/docs/content/docs/development/architecture.md) et
+[authentication.md](apps/docs/content/docs/reference/authentication.md).
+Consulter aussi les sections sur les
+[tableaux de bord](apps/docs/content/docs/development/architecture.md#dashboards)
+et
+[l'export Neo4j](apps/docs/content/docs/development/architecture.md#neo4j-export)
+selon le domaine modifié.
 
 ## Commandes
 
@@ -92,8 +96,8 @@ Après `pnpm env`, renseigner au minimum `DB_PASSWORD` et
 `KEYCLOAK_ADMIN_CLIENT_SECRET` dans `.env.dev`.
 
 Pour Docker et Vercel, consulter
-[docs/installation.md](docs/installation.md) et
-[docs/deployment.md](docs/deployment.md).
+[installation.md](apps/docs/content/docs/getting-started/index.md) et
+[deployment.md](apps/docs/content/docs/development/deployment.md).
 
 ### Vérifications
 
@@ -159,6 +163,9 @@ une route active.
 
 La documentation fait partie du produit. Dans le même changement que le code :
 
+- rester concis et éviter la prose : privilégier des tableaux, des listes et,
+  pour illustrer une architecture ou un flux, un schéma ReactFlow plutôt que
+  des paragraphes descriptifs ;
 - rédiger en anglais tout le contenu de `apps/docs/content/docs/` ainsi que la
   landing page `apps/docs/app/(home)/page.tsx`, y compris les titres,
   descriptions, libellés, exemples et textes alternatifs ;

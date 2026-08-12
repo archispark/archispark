@@ -20,9 +20,12 @@ models/            ArchiMate references, XSD, images, and example models
 .docker/           Local and production Compose definitions
 ```
 
-The business layer is deliberately local to `apps/server`: modeling code is in
-`lib/archimate`, dashboard code in `lib/dashboards`, and MCP registrations in
-`lib/mcp`. REST and MCP call these modules directly.
+The business layer is deliberately local to `apps/server`, called directly
+by both REST and MCP:
+
+- `lib/archimate` — modeling code
+- `lib/dashboards` — dashboard code
+- `lib/mcp` — MCP registrations
 
 ## Local workflow
 

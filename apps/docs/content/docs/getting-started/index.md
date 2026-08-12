@@ -25,17 +25,18 @@ Mailpit captures local invitation, verification, and password-reset e-mails
 at [http://localhost:8025](http://localhost:8025); it never delivers them to
 the public Internet.
 
-On first run, `apps/server`'s `instrumentation.ts` (Next.js's `register()`
-hook) applies pending PostgreSQL migrations (`packages/db/drizzle-pg/`).
-Demo users and workspaces are not seeded
-automatically — run `pnpm setup-demo` (or the individual `pnpm
-keycloak-setup` / `seed-demo-users` / `seed-demo` scripts, see
-[Demo seed](demo-data.md#demo-seed)).
+First run:
 
-`DATABASE_URL` is **required** — there is no hardcoded
-default. For local development, `pnpm dev` sources `.env.dev`, which sets
-`DATABASE_URL=postgresql://archispark:${DB_PASSWORD}@localhost:5432/archispark`
-to match the Postgres container started by the same command.
+- `apps/server`'s `instrumentation.ts` (Next.js's `register()` hook)
+  applies pending PostgreSQL migrations (`packages/db/drizzle-pg/`).
+- Demo users and workspaces are **not** seeded automatically — run
+  `pnpm setup-demo` (or the individual `pnpm keycloak-setup` /
+  `seed-demo-users` / `seed-demo` scripts, see
+  [Demo seed](demo-data.md#demo-seed)).
+- `DATABASE_URL` is **required**, no hardcoded default. `pnpm dev` sources
+  `.env.dev`, which sets it to
+  `postgresql://archispark:${DB_PASSWORD}@localhost:5432/archispark` to
+  match the Postgres container started by the same command.
 
 ## Docker & pnpm scripts
 

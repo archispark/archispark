@@ -3,10 +3,14 @@ title: MCP Server
 description: Connect AI clients to ArchiSpark's Streamable HTTP MCP server.
 ---
 
-Endpoint: `http://localhost:8000/mcp/` (same origin, same process as the web UI and REST API — see [Architecture](../development/architecture.md#apps-server); the transport itself lives at `apps/server/pages/api/mcp.ts`, reached through a `/mcp/:path*` → `/api/mcp` rewrite that preserves the pre-fusion external URL).  
-Transport: Streamable HTTP (MCP 2025-03-26), stateless (no session id — each request gets a fresh server instance, safe for serverless).
+| Aspect    | Detail                                                                                                                                                                                                                                                                                                        |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Endpoint  | `http://localhost:8000/mcp/` (same origin, same process as the web UI and REST API — see [Architecture](../development/architecture.mdx#apps-server); the transport lives at `apps/server/pages/api/mcp.ts`, reached through a `/mcp/:path*` → `/api/mcp` rewrite that preserves the pre-fusion external URL) |
+| Transport | Streamable HTTP (MCP 2025-03-26), stateless (no session id — each request gets a fresh server instance, safe for serverless)                                                                                                                                                                                  |
+| Auth      | `Authorization: Bearer <token>` on every request, where `<token>` is a personal API token (`api_tokens` table, same tokens used for the REST API)                                                                                                                                                             |
 
-**Authentication:** every request requires `Authorization: Bearer <token>`, where `<token>` is a personal API token (`api_tokens` table, same tokens used for the REST API). Generate one from **Mon profil → Tokens API → Nouveau token** in the web UI, then configure your client:
+Generate a token from **Mon profil → Tokens API → Nouveau token** in the web
+UI, then configure your client:
 
 ```bash
 claude mcp add archimate \
@@ -15,7 +19,14 @@ claude mcp add archimate \
   --header "Authorization: Bearer <token>"
 ```
 
-The token resolves the calling user's identity and its pinned organization/workspace scope (set at token creation, see [Authentication](authentication.md#organizations-and-roles)) — every tool resolves access through the same `apps/server/lib/archimate/access.ts` gateway used by the REST API, honouring the caller's `owner`/`admin`/`member` role (read-only tools work for any role; mutating tools like `create_element` or `import_model` require `owner`/`admin`).
+- The token resolves the calling user's identity and its pinned
+  organization/workspace scope (set at token creation, see
+  [Authentication](authentication.mdx#organizations-and-roles)).
+- Every tool resolves access through the same
+  `apps/server/lib/archimate/access.ts` gateway used by the REST API,
+  honouring the caller's `owner`/`admin`/`member` role: read-only tools
+  work for any role, mutating tools like `create_element` or
+  `import_model` require `owner`/`admin`.
 
 **Available tools (38), 2 prompts, 2 resources:**
 
@@ -28,14 +39,14 @@ The token resolves the calling user's identity and its pinned organization/works
 | Nodes                | `create_node`, `update_node`, `delete_node`                                                                                                                       |
 | Connections          | `create_connection`, `update_connection`, `delete_connection`                                                                                                     |
 | Property definitions | `list_property_definitions`, `get_property_definition`, `create_property_definition`, `update_property_definition`, `delete_property_definition`                  |
+| Workspaces           | `list_workspaces`, `activate_workspace`                                                                                                                           |
+| Viewpoints           | `list_viewpoints`                                                                                                                                                 |
+| Import / Export      | `export_model`, `import_model`                                                                                                                                    |
+| Persistence          | `save_model` (no-op, kept for compatibility)                                                                                                                      |
 
 Property-definition results include `is_system`. System definitions such as
 `archispark_image` cannot be updated or deleted; their values remain editable
 on elements and relationships and must be HTTP(S) URLs or relative paths.
-| Workspaces | `list_workspaces`, `activate_workspace` |
-| Viewpoints | `list_viewpoints` |
-| Import / Export | `export_model`, `import_model` |
-| Persistence | `save_model` (no-op, kept for compatibility) |
 
 **Prompts:** `archimate-modeling-guide` (load ArchiMate 3.1 rules — call first), `create-viewpoint-view` (step-by-step view creation for a given viewpoint).  
 **Resources:** `archimate://layers`, `archimate://relationships`.
