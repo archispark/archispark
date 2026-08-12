@@ -15,6 +15,8 @@
     "restart": "pnpm run stop && pnpm run start",
     "infra:up": "docker compose -f .docker/docker-compose.yml up -d --wait",
     "infra:down": "docker compose -f .docker/docker-compose.yml down",
+    "prod:up": "docker compose -f .docker/docker-compose.prod.yml --env-file .env.prod up -d --wait",
+    "prod:down": "docker compose -f .docker/docker-compose.prod.yml --env-file .env.prod down",
     "db:migrate": "pnpm run db:migrate:postgres && pnpm run db:migrate:backfill && pnpm run db:migrate:neo4j",
     "db:migrate:postgres": "set -a && . ./.env && set +a && pnpm --filter @workspace/db migrate:prod",
     "db:migrate:backfill": "set -a && . ./.env && set +a && pnpm --filter @workspace/db backfill:prod",
@@ -27,10 +29,10 @@
     "setup:realm": "pnpm --filter @workspace/db setup:realm",
     "import:workspace": "pnpm --filter @workspace/db-neo4j import:workspace",
     "import:workspaces": "pnpm --filter @workspace/db-neo4j import:workspaces",
-    "reset": "pnpm run reset:db && pnpm run reset:neo4j && pnpm run migrate",
-    "reset:db": "set -a && . ./.env && set +a && pnpm --filter @workspace/db reset",
-    "reset:neo4j": "set -a && . ./.env && set +a && pnpm --filter @workspace/db-neo4j reset",
-    "reset-demo": "pnpm run reset && pnpm run seed && pnpm import:workspaces"
+    "db:reset": "pnpm run db:reset:postgres && pnpm run db:reset:neo4j && pnpm run migrate",
+    "db:reset:postgres": "set -a && . ./.env && set +a && pnpm --filter @workspace/db reset",
+    "db:reset:neo4j": "set -a && . ./.env && set +a && pnpm --filter @workspace/db-neo4j reset",
+    "db:reset-demo": "pnpm run db:reset && pnpm run seed && pnpm run import:workspaces"
   },
   "devDependencies": {
     "@workspace/eslint-config": "workspace:*",

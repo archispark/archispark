@@ -16,5 +16,17 @@ export async function register(): Promise<void> {
       await import("@workspace/db")
     await runMigrations()
     await runOrganizationBackfill()
+
+    // Unlike Postgres above, a failure here must not block startup: Neo4j is
+    // a secondary integration (POST /api/export/neo4j), not the primary
+    // store, and getNeo4jConfig() always falls back to a default URI rather
+    // than signaling "unconfigured" — so a deployment without Neo4j reachable
+    // must still serve requests normally.
+    const { runNeo4jMigrations } = await import("@workspace/db-neo4j")
+    try {
+      await runNeo4jMigrations()
+    } catch (err) {
+      console.error("Neo4j schema migration failed at startup:", err)
+    }
   }
 }

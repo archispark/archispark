@@ -20,11 +20,22 @@ rationale).
 
 `packages/db-neo4j` (see [Neo4j export](architecture.md#neo4j-export)) ships
 its own versioned Cypher migrations, separate from `packages/db`'s Postgres
-migrations — Neo4j has no `drizzle-kit` equivalent, so these are applied with
-a dedicated script rather than automatically on cold start. On the `archispark`
-Vercel project this runs via the `migrate-prod.yml` GitHub Actions workflow
-(see [Vercel](#vercel) below), triggered automatically on every push to `main`
-that adds a migration file. Elsewhere, run it directly:
+migrations — Neo4j has no `drizzle-kit` equivalent. Like the Postgres
+migrations above, `apps/server/instrumentation.ts` (Next.js's `register()`
+hook) applies them automatically on every cold start — self-hosted (`next
+start`) and Vercel serverless alike, no separate step required. Unlike
+Postgres, a failure here only logs an error and never blocks startup: Neo4j
+is a secondary integration (`POST /api/export/neo4j`), and
+`getNeo4jConfig()` always falls back to a default URI rather than signaling
+"unconfigured", so a deployment without Neo4j reachable must still serve
+requests normally.
+
+Idempotent — already-applied migrations (tracked via `:SchemaMigration`
+nodes) are skipped, so cold starts after a deployment that adds a new
+`packages/db-neo4j/src/schema/migrations/*.cypher` file pick it up
+automatically. For an exceptional manual run (recovery, or applying a
+migration ahead of the next cold start) — same reasoning as `backfill:prod`
+below:
 
 ```bash
 NEO4J_URI=<uri> NEO4J_USER=<user> NEO4J_PASSWORD=<password> \
@@ -33,12 +44,9 @@ NEO4J_URI=<uri> NEO4J_USER=<user> NEO4J_PASSWORD=<password> \
 pnpm --filter @workspace/db-neo4j migrate:prod /tmp/neo4j-prod.env
 ```
 
-Idempotent — already-applied migrations (tracked via `:SchemaMigration`
-nodes) are skipped, so it's safe to re-run after every deployment that adds a
-new `packages/db-neo4j/src/schema/migrations/*.cypher` file. Self-hosted
-Docker Compose deployments run it against the `neo4j` service added to
-`.docker/docker-compose.yml` (`NEO4J_URI=bolt://neo4j:7687`, credentials from
-`NEO4J_PASSWORD` in `.env.prod`).
+On the `archispark` Vercel project this also runs via the
+`migrate-prod.yml` GitHub Actions workflow (see [Vercel](#vercel) below),
+triggered automatically on every push to `main` that adds a migration file.
 
 ## Vercel
 
@@ -79,7 +87,11 @@ that includes `0018_organizations_expand.sql` or later; a no-op on a fresh
 database, and safe to re-run. `apps/server/instrumentation.ts` (Next.js's
 `register()` hook) also runs it automatically on every cold start, but
 running it explicitly here avoids the very first request after a migration
-hitting an unbackfilled row.
+hitting an unbackfilled row. The same hook also applies pending Neo4j
+migrations on every cold start (see
+[Neo4j schema migrations](#neo4j-schema-migrations-production) above) — the
+`migrate-prod.yml` workflow's Neo4j step exists for the same
+run-it-ahead-of-the-first-request reason.
 
 4. **Set environment variables** on `archispark` — `DATABASE_URL`
    (from Neon, above), `KEYCLOAK_URL`, `KEYCLOAK_REALM`,
@@ -94,6 +106,45 @@ hitting an unbackfilled row.
    [Image library storage](#image-library-storage-vercel-blob).
 
 5. **Redeploy** `archispark`.
+
+## Self-hosted Docker Compose
+
+`.docker/docker-compose.prod.yml` is a self-hosted alternative to Vercel: it
+runs the published `archispark/archispark` image (built by
+`docker-publish.yml` from `.docker/server/{alpine,trixie-slim}/Dockerfile`)
+behind Traefik, alongside Postgres, Neo4j, and Keycloak — the single-service
+architecture described in [Vercel](#vercel) above, self-hosted instead of on
+Vercel/Neon.
+
+1. **Prepare the environment file** — `cp .env.example .env.prod`, then set
+   at minimum `DB_PASSWORD`, `NEO4J_PASSWORD`, `KEYCLOAK_ADMIN`,
+   `KEYCLOAK_ADMIN_PASSWORD`, `KEYCLOAK_ADMIN_CLIENT_ID`,
+   `KEYCLOAK_ADMIN_CLIENT_SECRET`, `ARCHISPARK_DOMAIN`, and
+   `KEYCLOAK_DOMAIN` (the two domains only used by Traefik's Docker labels
+   — `ARCHISPARK_URL`/`KEYCLOAK_URL` remain the full URLs used by the
+   application itself). `ARCHISPARK_OS` (`alpine` or `trixie-slim`) and
+   `ARCHISPARK_VERSION` select which published image tag to run.
+
+2. **Start the stack** — `pnpm run prod:up` (stop with `pnpm run
+prod:down`). Postgres and Neo4j publish no host port; only Traefik's `80`
+   and `443` are exposed. `apps/server` applies pending Postgres and Neo4j
+   migrations automatically on its own startup (see
+   [Neo4j schema migrations](#neo4j-schema-migrations-production) above) —
+   no separate migration step is needed after `prod:up`.
+
+3. **Enable TLS** — uncomment the `certificatesResolvers` block in
+   `.docker/traefik.yml`, set `ACME_EMAIL` in `.env.prod`, and add
+   `entrypoints=websecure` / `tls.certresolver=letsencrypt` to each router's
+   labels (already set by default on the `server` and `keycloak` routers in
+   `docker-compose.prod.yml`).
+
+4. **Review the imported Keycloak realm** — `keycloak.realm-export.json` is
+   the same realm used for local development
+   (`registrationAllowed: false`, `redirectUris` pointing at `localhost`).
+   Adjust it for the real domain before the first deployment, or provision a
+   dedicated realm instead with
+   [`setup:realm`](#onboard-a-new-customer-with-a-dedicated-keycloak-realm)
+   below.
 
 ## Image library storage (Vercel Blob)
 
