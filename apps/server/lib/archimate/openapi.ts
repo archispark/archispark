@@ -288,7 +288,7 @@ const OrganizationOutSchema = registry.register(
       name: z.string(),
       is_personal: z.boolean(),
       enabled: z.boolean(),
-      role: z.enum(["owner", "admin", "member"]),
+      role: z.enum(["owner", "editor", "viewer"]),
       active: z.boolean(),
     })
     .openapi("OrganizationOut")
@@ -300,7 +300,7 @@ const OrganizationMemberOutSchema = registry.register(
     .object({
       user_id: z.string(),
       username: z.string(),
-      role: z.enum(["owner", "admin", "member"]),
+      role: z.enum(["owner", "editor", "viewer"]),
       created_at: z
         .number()
         .int()
@@ -315,7 +315,7 @@ const OrganizationInvitationOutSchema = registry.register(
     .object({
       id: z.string(),
       email: z.string(),
-      role: z.enum(["owner", "admin", "member"]),
+      role: z.enum(["owner", "editor", "viewer"]),
       created_at: z
         .number()
         .int()
@@ -348,7 +348,7 @@ const InvitationPreviewOutSchema = registry.register(
   z
     .object({
       organization_name: z.string(),
-      role: z.enum(["owner", "admin", "member"]),
+      role: z.enum(["owner", "editor", "viewer"]),
       email: z.string(),
     })
     .openapi("InvitationPreviewOut")
@@ -359,7 +359,7 @@ const AcceptInvitationOutSchema = registry.register(
   z
     .object({
       organization_id: z.string(),
-      role: z.enum(["owner", "admin", "member"]),
+      role: z.enum(["owner", "editor", "viewer"]),
     })
     .openapi("AcceptInvitationOut")
 )
@@ -1749,7 +1749,7 @@ const _doc: Record<string, any> = generator.generateDocument({
     { name: "Model", description: "Informations et persistance du modèle" },
     {
       name: "Organizations",
-      description: "Organisations et membres (owner/admin/member)",
+      description: "Organisations et membres (owner/editor/viewer)",
     },
     {
       name: "Platform",

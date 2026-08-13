@@ -323,8 +323,8 @@
   "settings.org.invite_delivery_manual": "Solo link",
   "settings.org.invite_sent": "Invito inviato a {email}.",
   "settings.org.role_owner": "Proprietario",
-  "settings.org.role_admin": "Editor",
-  "settings.org.role_member": "Visualizzatore",
+  "settings.org.role_editor": "Editor",
+  "settings.org.role_viewer": "Visualizzatore",
   "settings.org.member_removed": "Membro rimosso.",
   "settings.org.remove_member_title": "Rimuovi membro",
   "settings.org.remove_member_desc": "Rimuovere {name} dall'organizzazione? Questa azione è irreversibile.",
@@ -352,7 +352,7 @@
   "settings.general.teams_label": "Team",
   "settings.general.teams_hint": "Team con accesso a questo workspace, oltre ai proprietari/editor dell'organizzazione.",
   "platform_admin_block.title": "Accesso non disponibile",
-  "platform_admin_block.desc": "Gli account Admin gestiscono le organizzazioni dall'interfaccia di amministrazione e non hanno accesso agli spazi di lavoro delle organizzazioni.",
+  "platform_admin_block.desc": "Gli account Admin gestiscono le organizzazioni dall'interfaccia di amministrazione. Entra in un'organizzazione da lì per lavorare nei suoi spazi di lavoro con accesso completo.",
   "no_organization_block.title": "Nessuna organizzazione",
   "no_organization_block.desc": "Il tuo account non è ancora membro di nessuna organizzazione. Chiedi a un amministratore di invitarti in uno spazio di lavoro.",
   "breadcrumb.organizations": "Organizzazioni",
@@ -366,7 +366,7 @@
   "settings.org.delete_org_title": "Elimina organizzazione",
   "settings.org.delete_org_desc": "Eliminare l'organizzazione {name}? Questa azione è irreversibile.",
   "platform.title": "Organizzazioni (piattaforma)",
-  "platform.desc": "Solo metadati — nessun accesso al contenuto delle organizzazioni.",
+  "platform.desc": "Gestisci le organizzazioni ed entra in una di esse per accedere ai suoi spazi di lavoro con accesso completo.",
   "platform.status_enabled": "Attiva",
   "platform.status_suspended": "Sospesa",
   "platform.suspend": "Sospendi",
@@ -468,5 +468,8 @@
   "image_library.delete_pack_desc": "Eliminare {name} e tutte le sue immagini? Questa azione è irreversibile.",
   "image_library.system_pack_badge": "Sistema",
   "image_library.no_custom_packs": "Nessun pacchetto personalizzato per questa organizzazione.",
-  "image_library.blob_not_configured": "L'archiviazione delle immagini non è configurata per questa istanza."
+  "image_library.blob_not_configured": "L'archiviazione delle immagini non è configurata per questa istanza.",
+  "platform.enter": "Amministra",
+  "platform_admin_banner.label": "Modalità amministrazione — {name}",
+  "platform_admin_banner.exit": "Esci"
 }

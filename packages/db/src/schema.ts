@@ -7,10 +7,12 @@
  * `local:<uuid>`) or in Keycloak (id = the Keycloak `sub`, a bare UUID —
  * the `local:` prefix makes collision between the two id spaces
  * structurally impossible); see `@workspace/auth`. An Organization groups
- * Workspaces and members with one of four roles — `platform_admin`
- * (administers organizations, no access to their data, enforced structurally
- * in `apps/server/lib/archimate/access.ts`), `owner`, `admin`, `member` (see
- * `organization_members.role`). Every user gets a personal organization
+ * Workspaces and members with one of four roles — `owner`, `editor`,
+ * `viewer` (see `organization_members.role`), and `platform_admin` (a
+ * Keycloak realm role, never a row in `organization_members`; granted full
+ * owner-equivalent access to every organization's content in "admin mode",
+ * enforced structurally in `apps/server/lib/archimate/access.ts`). Every
+ * user gets a personal organization
  * (`is_personal = true`) the first time they create a workspace; creating a
  * "team" organization is a separate explicit action.
  *
@@ -190,7 +192,7 @@ export const organizationMembers = pgTable(
       .references(() => organizations.id, { onDelete: "cascade" }),
     // Identity id, local or Keycloak (no FK: identities live in either place).
     userId: text("user_id").notNull(),
-    role: text("role").notNull(), // "owner" | "admin" | "member"
+    role: text("role").notNull(), // "owner" | "editor" | "viewer"
     createdAt: integer("created_at")
       .notNull()
       .default(sql`extract(epoch from now())::int`),
@@ -214,7 +216,7 @@ export const organizationInvitations = pgTable(
       .notNull()
       .references(() => organizations.id, { onDelete: "cascade" }),
     email: text("email").notNull(), // lowercase
-    role: text("role").notNull(), // "owner" | "admin" | "member"
+    role: text("role").notNull(), // "owner" | "editor" | "viewer"
     // sha256 of the invitation token — the clear-text token is never
     // persisted, only emailed; lookups hash the received token and compare.
     tokenHash: text("token_hash").notNull(),
@@ -244,6 +246,14 @@ export const organizationInvitations = pgTable(
 // Per-user "active organization" — which organization the user is currently in
 // ---------------------------------------------------------------------------
 
+// No FK to organization_members by design — this table serves two distinct
+// meanings that never overlap, because a user's role (regular user vs
+// platform_admin) is fixed and exclusive: for a regular user it's the
+// organization they're currently working in (must be a member, see
+// access.ts's resolveActiveOrganizationId); for a platform_admin — who is
+// never a member of anything — it's instead the organization they've
+// explicitly "entered" via admin mode (see access.ts's
+// resolveActivePlatformOrganizationId).
 export const userActiveOrganization = pgTable("user_active_organization", {
   userId: text("user_id").primaryKey(),
   organizationId: integer("organization_id")

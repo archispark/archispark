@@ -323,8 +323,8 @@
   "settings.org.invite_delivery_manual": "Nur Link",
   "settings.org.invite_sent": "Einladung an {email} gesendet.",
   "settings.org.role_owner": "Inhaber",
-  "settings.org.role_admin": "Bearbeiter",
-  "settings.org.role_member": "Betrachter",
+  "settings.org.role_editor": "Bearbeiter",
+  "settings.org.role_viewer": "Betrachter",
   "settings.org.member_removed": "Mitglied entfernt.",
   "settings.org.remove_member_title": "Mitglied entfernen",
   "settings.org.remove_member_desc": "{name} aus der Organisation entfernen? Diese Aktion ist unwiderruflich.",
@@ -352,7 +352,7 @@
   "settings.general.teams_label": "Teams",
   "settings.general.teams_hint": "Teams mit Zugriff auf diesen Workspace, zusätzlich zu Inhabern/Bearbeitern der Organisation.",
   "platform_admin_block.title": "Zugriff nicht verfügbar",
-  "platform_admin_block.desc": "Admin-Konten verwalten Organisationen über die Administrationsoberfläche und haben keinen Zugriff auf die Arbeitsbereiche der Organisationen.",
+  "platform_admin_block.desc": "Admin-Konten verwalten Organisationen über die Administrationsoberfläche. Betreten Sie von dort aus eine Organisation, um mit vollem Zugriff in ihren Arbeitsbereichen zu arbeiten.",
   "no_organization_block.title": "Keine Organisation",
   "no_organization_block.desc": "Ihr Konto ist noch keiner Organisation zugeordnet. Bitten Sie einen Administrator, Sie zu einem Arbeitsbereich einzuladen.",
   "breadcrumb.organizations": "Organisationen",
@@ -366,7 +366,7 @@
   "settings.org.delete_org_title": "Organisation löschen",
   "settings.org.delete_org_desc": "Organisation {name} löschen? Diese Aktion ist unwiderruflich.",
   "platform.title": "Organisationen (Plattform)",
-  "platform.desc": "Nur Metadaten — kein Zugriff auf Organisationsinhalte.",
+  "platform.desc": "Verwalten Sie Organisationen und betreten Sie eine, um mit vollem Zugriff auf ihre Arbeitsbereiche zuzugreifen.",
   "platform.status_enabled": "Aktiv",
   "platform.status_suspended": "Gesperrt",
   "platform.suspend": "Sperren",
@@ -468,5 +468,8 @@
   "image_library.delete_pack_desc": "{name} und alle zugehörigen Bilder löschen? Diese Aktion ist unwiderruflich.",
   "image_library.system_pack_badge": "System",
   "image_library.no_custom_packs": "Kein benutzerdefiniertes Paket für diese Organisation.",
-  "image_library.blob_not_configured": "Der Bildspeicher ist für diese Instanz nicht konfiguriert."
+  "image_library.blob_not_configured": "Der Bildspeicher ist für diese Instanz nicht konfiguriert.",
+  "platform.enter": "Verwalten",
+  "platform_admin_banner.label": "Administrationsmodus — {name}",
+  "platform_admin_banner.exit": "Beenden"
 }

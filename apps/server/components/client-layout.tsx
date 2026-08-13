@@ -4,7 +4,9 @@ import { ThemeProvider } from "@/components/theme-provider"
 import { PanelHeader } from "@/components/panel-header"
 import { Sidebar } from "@/components/sidebar"
 import { PlatformAdminBlock } from "@/components/platform-admin-block"
+import { PlatformAdminBanner } from "@/components/platform-admin-banner"
 import { useIsAdmin } from "@/hooks/use-current-user"
+import { useActivePlatformOrganization } from "@/lib/queries"
 import { useState, useEffect, useCallback } from "react"
 import { usePathname } from "next/navigation"
 import { Toaster } from "sonner"
@@ -64,11 +66,16 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
   // same full-bleed chrome as /login.
   const isChromeless =
     pathname === "/login" || !!pathname?.startsWith("/invitations")
-  // platform_admin has no workspace access, but IS meant to reach
-  // /platform/* (organization administration, metadata only) — see
-  // apps/web/app/platform/organizations/page.tsx.
+  // platform_admin has no workspace access of its own, but IS meant to
+  // reach /platform/* (organization administration) — see
+  // apps/server/app/platform/organizations/page.tsx — and, once it has
+  // "entered" an organization there (admin mode), the regular app chrome
+  // for that organization's content, same as a real owner.
   const isPlatformRoute = pathname?.startsWith("/platform")
   const isPlatformAdmin = useIsAdmin()
+  const { data: activePlatformOrgData } =
+    useActivePlatformOrganization(isPlatformAdmin)
+  const activePlatformOrg = activePlatformOrgData?.organization ?? null
   // Organizations is a full-width chrome-light page, without a sidebar.
   const hideSidebar = isChromeless || pathname === "/organizations"
 
@@ -84,7 +91,12 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
     })
   }, [])
 
-  if (!isChromeless && isPlatformAdmin && !isPlatformRoute) {
+  if (
+    !isChromeless &&
+    isPlatformAdmin &&
+    !isPlatformRoute &&
+    !activePlatformOrg
+  ) {
     return (
       <ThemeProvider>
         <PlatformAdminBlock />
@@ -125,6 +137,9 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
               onToggleSidebar={toggleSidebarCollapsed}
               onToggleMobileSidebar={() => setSidebarOpen((open) => !open)}
             />
+            {isPlatformAdmin && !isPlatformRoute && activePlatformOrg && (
+              <PlatformAdminBanner organizationName={activePlatformOrg.name} />
+            )}
             <SiteBanner />
             <div className="min-h-0 flex-1 overflow-auto">{children}</div>
           </section>

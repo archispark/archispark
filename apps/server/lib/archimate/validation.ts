@@ -154,7 +154,7 @@ export const OrganizationUpdateSchema = z.object({
   name: z.string().min(1, "Le champ 'name' est requis."),
 })
 
-const orgRole = z.enum(["owner", "admin", "member"], {
+const orgRole = z.enum(["owner", "editor", "viewer"], {
   error: "Rôle invalide.",
 })
 

@@ -1,13 +1,15 @@
 "use client"
 
 import { useState } from "react"
-import { ShieldAlert, Trash2, Ban, Play, LogOut } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { ShieldAlert, Trash2, Ban, Play, LogOut, LogIn } from "lucide-react"
 import { useT } from "@/lib/i18n"
 import { type PlatformOrganizationOut } from "@/lib/api"
 import {
   usePlatformOrganizations,
   useSetPlatformOrganizationEnabled,
   useDeletePlatformOrganization,
+  useEnterPlatformOrganization,
 } from "@/lib/queries"
 import { useFormModal } from "@/hooks/use-form-modal"
 import { Button } from "@workspace/ui/components/button"
@@ -22,15 +24,20 @@ import {
 } from "@workspace/ui/components/dialog"
 
 /**
- * platform_admin-only view — metadata only, no access to organization
- * content. Reachable even though client-layout.tsx otherwise blocks
- * platform_admin sessions from the regular app (see PlatformAdminBlock).
+ * platform_admin-only view — organization metadata (suspend/reactivate/
+ * delete) plus the entry point into admin mode ("Administer"), which grants
+ * full owner-equivalent access to that organization's actual content (see
+ * access.ts and platform-context-store.ts). Reachable even though
+ * client-layout.tsx otherwise blocks platform_admin sessions from the
+ * regular app until one is entered (see PlatformAdminBlock).
  */
 export default function PlatformOrganizationsPage() {
   const { t } = useT()
+  const router = useRouter()
   const { data: organizations = [], isLoading } = usePlatformOrganizations()
   const setEnabled = useSetPlatformOrganizationEnabled()
   const deleteOrg = useDeletePlatformOrganization()
+  const enterOrg = useEnterPlatformOrganization()
   const [deleteModal, deleteActions] = useFormModal<PlatformOrganizationOut>()
 
   async function handleDelete() {
@@ -38,6 +45,11 @@ export default function PlatformOrganizationsPage() {
     await deleteActions.run(async () => {
       await deleteOrg.mutateAsync(deleteModal.target!.id)
     })
+  }
+
+  async function handleEnter(org: PlatformOrganizationOut) {
+    await enterOrg.mutateAsync(org.id)
+    router.push("/")
   }
 
   function logout() {
@@ -91,6 +103,16 @@ export default function PlatformOrganizationsPage() {
                   ? t("platform.status_enabled")
                   : t("platform.status_suspended")}
               </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleEnter(org)}
+                disabled={enterOrg.isPending}
+                className="shrink-0"
+              >
+                <LogIn className="size-3.5" />
+                {t("platform.enter")}
+              </Button>
               <Button
                 variant="outline"
                 size="sm"

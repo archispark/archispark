@@ -37,7 +37,7 @@ export interface MemberOut {
   created_at: number
 }
 
-const VALID_ROLES: OrgRoleName[] = ["owner", "admin", "member"]
+const VALID_ROLES: OrgRoleName[] = ["owner", "editor", "viewer"]
 
 function toOrgOut(
   org: typeof organizations.$inferSelect,
@@ -107,6 +107,7 @@ export async function listOrganizationsForUser(
   )
 }
 
+/** owner-only. Renaming is an organization-level action, not a workspace one — editor's write rights don't extend to it. */
 export async function renameOrganization(
   user: AccessUser,
   organizationId: number,
@@ -114,7 +115,7 @@ export async function renameOrganization(
 ): Promise<OrganizationOut> {
   if (!name?.trim())
     throw new ValidationError("Le nom de l'organisation est requis.")
-  const role = await assertOrgAccess(user, organizationId, "write")
+  const role = await assertOrgAccess(user, organizationId, "manage_members")
 
   const [org] = await db
     .update(organizations)

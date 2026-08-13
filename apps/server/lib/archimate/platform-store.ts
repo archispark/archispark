@@ -3,7 +3,9 @@
  * organization content (no join into workspaces/elements/etc.). Mounted
  * behind requireSuperAdmin in app.ts; access.ts's per-org gate is not used
  * here since these routes are role-gated once, globally, at the middleware
- * level rather than per-organization.
+ * level rather than per-organization. For entering an organization's actual
+ * content (workspaces, elements, ...) in admin mode, see
+ * platform-context-store.ts, which reuses toPlatformOrgOut below.
  */
 
 import { asc, eq } from "drizzle-orm"
@@ -19,7 +21,7 @@ export interface PlatformOrganizationOut {
   created_at: number
 }
 
-function toPlatformOrgOut(
+export function toPlatformOrgOut(
   org: typeof organizations.$inferSelect
 ): PlatformOrganizationOut {
   return {

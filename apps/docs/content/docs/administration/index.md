@@ -6,7 +6,9 @@ description: Organizations, invitations, roles, platform administration, and use
 ArchiSpark separates organization administration from platform administration.
 An organization contains its members, API tokens, workspaces, models, and
 dashboards. The Admin role (Keycloak identifier `platform_admin`) manages
-organization metadata only and grants no access to that content.
+organization metadata, and — by explicitly entering an organization (admin
+mode) — gets full Owner-equivalent access to that organization's content,
+including a suspended one.
 
 ## Organization roles
 
@@ -14,8 +16,8 @@ organization metadata only and grants no access to that content.
 | ------------------------------ | ----- | ------ | ------ |
 | Read organization workspaces   | yes   | yes    | yes    |
 | Modify models and dashboards   | yes   | yes    | no     |
-| Rename the organization        | yes   | yes    | no     |
-| Invite or resend an invitation | yes   | yes    | no     |
+| Rename the organization        | yes   | no     | no     |
+| Invite or resend an invitation | yes   | no     | no     |
 | Change roles or remove members | yes   | no     | no     |
 
 The last Owner cannot be demoted or removed. Suspending an organization blocks
@@ -26,15 +28,14 @@ its normal use without changing memberships or deleting data.
 Open **Organizations** from the user menu. Select **Activate** to switch
 context; the workspace list then follows the active organization.
 
-Owners and Editors can rename an organization. Organization members cannot
-create or delete organizations.
+Only an Owner can rename an organization. Organization members cannot create
+or delete organizations.
 
 ## Invite members
 
-From an organization's members dialog, an Owner or Editor enters an e-mail
-and chooses Owner, Editor, or Viewer. The API and database retain the
-stable role identifiers `owner`, `admin`, and `member`; the application
-presents them as Owner, Editor, and Viewer.
+From an organization's members dialog, an Owner enters an e-mail and chooses
+Owner, Editor, or Viewer. The API and database use the same identifiers as
+the display labels: `owner`, `editor`, and `viewer`.
 
 See [Organization invitations by e-mail](../reference/authentication.mdx#organization-invitations-by-e-mail)
 for the full invitation lifecycle (diagram, token hashing, resend/revoke,
@@ -53,11 +54,21 @@ workspace UI to `/platform/organizations`, where they can:
 - delete one, cascading to its workspaces, memberships, invitations,
   dashboards, and organization-scoped tokens;
 - update the site login message and banner through
-  `PUT /api/settings/messages`.
+  `PUT /api/settings/messages`;
+- select **Administer** on an organization to enter **admin mode**
+  (`POST /api/platform/organizations/:id/enter`) — from that point on, the
+  regular workspace UI and API resolve the Admin as Owner for that
+  organization: read/write elements, relationships, views, dashboards,
+  members, and API tokens, even if the organization is suspended. A banner
+  stays visible while in admin mode, with an **Exit** action
+  (`DELETE /api/platform/organizations/active`) that returns to
+  `/platform/organizations`.
 
-They cannot read any workspace, element, relationship, view, dashboard, or API
-token. This denial is enforced centrally by
-`apps/server/lib/archimate/access.ts`, before membership lookup.
+This bypass is centralized in `apps/server/lib/archimate/access.ts`, the
+single authorization gateway every route uses — no per-route special
+casing. Because access this broad shouldn't be pinned indefinitely, Admin
+cannot create a personal API token; its access always goes through a live
+admin-mode session instead.
 
 ## Provision Keycloak users
 

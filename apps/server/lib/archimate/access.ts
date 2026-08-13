@@ -14,11 +14,20 @@
  *     suspended — existence and membership are already established, so 404
  *     would be misleading.
  *
- * platform_admin is structurally rejected by every function here — it always
- * gets NotFoundError, regardless of any organization_members row that may
- * exist for that user. Organization data is never visible to the platform
- * role; this isolation is enforced once, here, rather than left to be
- * remembered at every call site.
+ * platform_admin gets full owner-equivalent access to every organization's
+ * content — including suspended ones — without ever needing an
+ * organization_members row: assertOrgAccess grants it a synthetic "owner"
+ * role before organization_members is even queried. Because platform_admin
+ * has no natural "home" organization, resolveActiveOrganization does not
+ * fall back the way it does for regular members; it requires the caller to
+ * have explicitly "entered" an organization first (admin mode — see
+ * resolveActivePlatformOrganizationId/setActivePlatformOrganization/
+ * clearActivePlatformOrganization below, and platform-context-store.ts for
+ * the routes that drive them). Once entered, every function in this file
+ * (assertWorkspaceAccess, resolveActiveContext, activeWorkspaceId, ...)
+ * works for platform_admin exactly as it does for a regular owner, with no
+ * per-function change needed — the bypass is centralized in assertOrgAccess
+ * alone.
  */
 
 import { and, asc, eq } from "drizzle-orm"
@@ -32,10 +41,14 @@ import {
 } from "@workspace/db"
 import { NotFoundError, ForbiddenError } from "./errors"
 
-export type OrgRoleName = "owner" | "admin" | "member"
+export type OrgRoleName = "owner" | "editor" | "viewer"
 export type Intent = "read" | "write" | "manage_members"
 
 const PLATFORM_ADMIN_ROLE = "platform_admin"
+// Synthetic role granted to platform_admin for any organization it accesses
+// — always satisfies every intent, never persisted to organization_members,
+// never read from it either.
+const PLATFORM_ADMIN_EFFECTIVE_ROLE: OrgRoleName = "owner"
 
 /** The subset of the authenticated user every access check needs. */
 export interface AccessUser {
@@ -73,27 +86,44 @@ export interface ActiveContext {
 function roleSatisfies(role: OrgRoleName, intent: Intent): boolean {
   if (intent === "read") return true
   if (intent === "manage_members") return role === "owner"
-  return role === "owner" || role === "admin" // write
+  return role === "owner" || role === "editor" // write
 }
 
 /**
  * Verifies `user` belongs to `organizationId` with a role sufficient for
  * `intent`, and that the organization isn't suspended. Returns the caller's
  * role on success.
+ *
+ * platform_admin is granted PLATFORM_ADMIN_EFFECTIVE_ROLE unconditionally —
+ * before organization_members is queried and without checking `enabled` —
+ * so it always succeeds for any organization that exists, suspended or not,
+ * regardless of any real membership row for that user.
  */
 export async function assertOrgAccess(
   user: AccessUser,
   organizationId: number,
   intent: Intent
 ): Promise<OrgRoleName> {
-  if (user.role === PLATFORM_ADMIN_ROLE)
-    throw new NotFoundError("Organisation introuvable.")
-
   const [org] = await db
     .select({ enabled: organizations.enabled })
     .from(organizations)
     .where(eq(organizations.id, organizationId))
   if (!org) throw new NotFoundError("Organisation introuvable.")
+
+  if (user.role === PLATFORM_ADMIN_ROLE) {
+    // Minimal structured trace of every platform_admin content access —
+    // this is the single choke point all such access passes through.
+    console.info(
+      JSON.stringify({
+        event: "platform_admin_org_access",
+        userId: user.id,
+        organizationId,
+        intent,
+        at: Date.now(),
+      })
+    )
+    return PLATFORM_ADMIN_EFFECTIVE_ROLE
+  }
 
   const [membership] = await db
     .select({ role: organizationMembers.role })
@@ -148,6 +178,57 @@ export async function resolveActiveOrganizationId(
       set: { organizationId: fallback },
     })
   return fallback
+}
+
+/**
+ * Resolves the organization a platform_admin is currently administering.
+ * Unlike resolveActiveOrganizationId, there is no membership-based fallback
+ * — a platform_admin has no natural "home" organization, and silently
+ * landing them in an arbitrary tenant would be a hazard, not a convenience.
+ * Requires a prior explicit "enter" action (see setActivePlatformOrganization
+ * and platform-context-store.ts).
+ */
+export async function resolveActivePlatformOrganizationId(
+  userId: string
+): Promise<number> {
+  const [active] = await db
+    .select({ organizationId: userActiveOrganization.organizationId })
+    .from(userActiveOrganization)
+    .where(eq(userActiveOrganization.userId, userId))
+  if (!active)
+    throw new NotFoundError(
+      "Aucune organisation sélectionnée en mode administration."
+    )
+  return active.organizationId
+}
+
+/**
+ * Persists which organization a platform_admin is administering ("enter") —
+ * see resolveActivePlatformOrganizationId. Shares user_active_organization
+ * with regular members' active-organization pointer; the two meanings never
+ * overlap because a user's role (regular user vs platform_admin) is fixed
+ * and exclusive.
+ */
+export async function setActivePlatformOrganization(
+  userId: string,
+  organizationId: number
+): Promise<void> {
+  await db
+    .insert(userActiveOrganization)
+    .values({ userId, organizationId })
+    .onConflictDoUpdate({
+      target: userActiveOrganization.userId,
+      set: { organizationId },
+    })
+}
+
+/** Clears a platform_admin's administered-organization pointer ("exit"). */
+export async function clearActivePlatformOrganization(
+  userId: string
+): Promise<void> {
+  await db
+    .delete(userActiveOrganization)
+    .where(eq(userActiveOrganization.userId, userId))
 }
 
 /**
@@ -268,14 +349,18 @@ export async function resolveActiveContext(
  * and asserts their role is sufficient for `intent` — without requiring the
  * organization to already have a workspace. Used by registry.ts to list/
  * create workspaces, where an empty organization is a valid state.
+ *
+ * For platform_admin, "active organization" means the one entered via admin
+ * mode (see resolveActivePlatformOrganizationId) — no membership fallback.
  */
 export async function resolveActiveOrganization(
   user: AccessUser,
   intent: Intent
 ): Promise<{ organizationId: number; orgRole: OrgRoleName }> {
-  if (user.role === PLATFORM_ADMIN_ROLE)
-    throw new NotFoundError("Aucune organisation disponible.")
-  const organizationId = await resolveActiveOrganizationId(user.id)
+  const organizationId =
+    user.role === PLATFORM_ADMIN_ROLE
+      ? await resolveActivePlatformOrganizationId(user.id)
+      : await resolveActiveOrganizationId(user.id)
   const orgRole = await assertOrgAccess(user, organizationId, intent)
   return { organizationId, orgRole }
 }

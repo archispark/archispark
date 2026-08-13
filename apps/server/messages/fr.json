@@ -323,8 +323,8 @@
   "settings.org.invite_delivery_manual": "Lien uniquement",
   "settings.org.invite_sent": "Invitation envoyée à {email}.",
   "settings.org.role_owner": "Propriétaire",
-  "settings.org.role_admin": "Éditeur",
-  "settings.org.role_member": "Lecteur",
+  "settings.org.role_editor": "Éditeur",
+  "settings.org.role_viewer": "Lecteur",
   "settings.org.member_removed": "Membre retiré.",
   "settings.org.remove_member_title": "Retirer le membre",
   "settings.org.remove_member_desc": "Retirer {name} de l'organisation ? Cette action est irréversible.",
@@ -352,7 +352,7 @@
   "settings.general.teams_label": "Équipes",
   "settings.general.teams_hint": "Équipes ayant accès à ce workspace, en plus des propriétaires/éditeurs de l'organisation.",
   "platform_admin_block.title": "Accès non disponible",
-  "platform_admin_block.desc": "Les comptes Admin gèrent les organisations depuis l'interface d'administration et n'ont pas accès aux espaces de travail des organisations.",
+  "platform_admin_block.desc": "Les comptes Admin gèrent les organisations depuis l'interface d'administration. Entrez dans une organisation depuis cette interface pour travailler dans ses espaces de travail avec un accès complet.",
   "no_organization_block.title": "Aucune organisation",
   "no_organization_block.desc": "Votre compte n'est associé à aucune organisation. Contactez un administrateur pour qu'il vous invite dans un espace de travail.",
   "breadcrumb.organizations": "Organisations",
@@ -366,7 +366,7 @@
   "settings.org.delete_org_title": "Supprimer l'organisation",
   "settings.org.delete_org_desc": "Supprimer l'organisation {name} ? Cette action est irréversible.",
   "platform.title": "Organisations (plateforme)",
-  "platform.desc": "Métadonnées uniquement — aucun accès au contenu des organisations.",
+  "platform.desc": "Gérez les organisations, et entrez dans l'une d'elles pour accéder à ses espaces de travail avec un accès complet.",
   "platform.status_enabled": "Active",
   "platform.status_suspended": "Suspendue",
   "platform.suspend": "Suspendre",
@@ -468,5 +468,8 @@
   "image_library.delete_pack_desc": "Supprimer {name} et toutes ses images ? Cette action est irréversible.",
   "image_library.system_pack_badge": "Système",
   "image_library.no_custom_packs": "Aucun pack personnalisé pour cette organisation.",
-  "image_library.blob_not_configured": "Le stockage d'images n'est pas configuré pour cette instance."
+  "image_library.blob_not_configured": "Le stockage d'images n'est pas configuré pour cette instance.",
+  "platform.enter": "Administrer",
+  "platform_admin_banner.label": "Mode administration — {name}",
+  "platform_admin_banner.exit": "Quitter"
 }

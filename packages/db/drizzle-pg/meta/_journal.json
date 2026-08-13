@@ -183,6 +183,13 @@
       "when": 1786628800000,
       "tag": "0025_seed_local_admin",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1786715200000,
+      "tag": "0026_org_roles_owner_editor_viewer",
+      "breakpoints": true
     }
   ]
 }

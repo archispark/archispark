@@ -5,17 +5,17 @@ description: REST API endpoints for organizations, ArchiMate models and dashboar
 
 ## Organizations
 
-Workspaces belong to an organization — see [Authentication](authentication.md#organizations-and-roles) for the full role matrix (`owner`/`admin`/`member`) and the Admin isolation guarantee.
+Workspaces belong to an organization — see [Authentication](authentication.md#organizations-and-roles) for the full role matrix (`owner`/`editor`/`viewer`) and Admin's admin-mode access.
 
-| Method   | Path                                     | Auth        | Description                                                                                            |
-| -------- | ---------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------------ |
-| `GET`    | `/api/organizations`                     | member+     | List organizations the caller belongs to, with their role and which one is active (empty for an Admin) |
-| `PUT`    | `/api/organizations/:id`                 | owner/admin | Rename — body: `{ name }`                                                                              |
-| `POST`   | `/api/organizations/:id/activate`        | member+     | Switch the caller's active organization                                                                |
-| `GET`    | `/api/organizations/:id/members`         | member+     | List members with role and username                                                                    |
-| `POST`   | `/api/organizations/:id/members`         | owner       | Add an existing Keycloak user — body: `{ username, role }` (no email invitation)                       |
-| `PUT`    | `/api/organizations/:id/members/:userId` | owner       | Change a member's role — body: `{ role }`; refuses to demote the last `owner`                          |
-| `DELETE` | `/api/organizations/:id/members/:userId` | owner       | Remove a member, including self-removal; refuses to remove the last `owner`                            |
+| Method   | Path                                     | Auth         | Description                                                                                            |
+| -------- | ---------------------------------------- | ------------ | ------------------------------------------------------------------------------------------------------ |
+| `GET`    | `/api/organizations`                     | viewer+      | List organizations the caller belongs to, with their role and which one is active (empty for an Admin) |
+| `PUT`    | `/api/organizations/:id`                 | owner        | Rename — body: `{ name }`                                                                              |
+| `POST`   | `/api/organizations/:id/activate`        | viewer+      | Switch the caller's active organization                                                                |
+| `GET`    | `/api/organizations/:id/members`         | viewer+      | List members with role and username                                                                    |
+| `POST`   | `/api/organizations/:id/members`         | owner        | Add an existing Keycloak user — body: `{ username, role }` (no email invitation)                       |
+| `PUT`    | `/api/organizations/:id/members/:userId` | owner        | Change a member's role — body: `{ role }`; refuses to demote the last `owner`                          |
+| `DELETE` | `/api/organizations/:id/members/:userId` | owner        | Remove a member, including self-removal; refuses to remove the last `owner`                            |
 
 Invitation routes complement direct member management: `POST` and `GET`
 `/api/organizations/:id/invitations`, `DELETE`
@@ -29,14 +29,20 @@ without credentials and received the finish-registration actions.
 
 ## Platform administration
 
-Admin-only (Keycloak identifier `platform_admin`), metadata only — never
-organization content.
+Admin-only (Keycloak identifier `platform_admin`). The metadata routes never
+touch organization content; the last two enter/exit **admin mode**, after
+which every organization/workspace route (elements, workspaces, members, …)
+resolves the Admin as `owner` for whichever organization was entered — see
+[Authentication](authentication.md#organizations-and-roles).
 
-| Method   | Path                              | Description                                                                      |
-| -------- | --------------------------------- | -------------------------------------------------------------------------------- |
-| `GET`    | `/api/platform/organizations`     | List every organization (id, slug, name, `is_personal`, `enabled`, `created_at`) |
-| `PUT`    | `/api/platform/organizations/:id` | Suspend/reactivate — body: `{ enabled }`                                         |
-| `DELETE` | `/api/platform/organizations/:id` | Delete an organization (cascades to workspaces, members, and tokens)             |
+| Method   | Path                                    | Description                                                                      |
+| -------- | --------------------------------------- | -------------------------------------------------------------------------------- |
+| `GET`    | `/api/platform/organizations`           | List every organization (id, slug, name, `is_personal`, `enabled`, `created_at`) |
+| `PUT`    | `/api/platform/organizations/:id`       | Suspend/reactivate — body: `{ enabled }`                                         |
+| `DELETE` | `/api/platform/organizations/:id`       | Delete an organization (cascades to workspaces, members, and tokens)             |
+| `POST`   | `/api/platform/organizations/:id/enter` | Enter admin mode for this organization                                           |
+| `GET`    | `/api/platform/organizations/active`    | The organization currently entered, or `{ organization: null }`                  |
+| `DELETE` | `/api/platform/organizations/active`    | Exit admin mode                                                                  |
 
 ## Workspace management
 
@@ -46,8 +52,8 @@ Every workspace belongs to exactly one organization (`organization_id`) — a ca
 | -------- | ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `GET`    | `/api/workspaces`              | List the caller's active organization's workspaces                                                                                                                                                                                      |
 | `POST`   | `/api/workspaces`              | Create workspace — body: `{ name, path?, description?, organization_id? }` (`path` = XML file to import; `organization_id` defaults to the caller's active organization, auto-creating a personal one on a user's very first workspace) |
-| `PUT`    | `/api/workspaces/:id`          | Rename workspace and/or update `description` (owner/admin)                                                                                                                                                                              |
-| `DELETE` | `/api/workspaces/:id`          | Delete workspace (owner/admin; deleting the active one switches to another in the same organization; deleting the last one is allowed and leaves zero — the web UI then redirects to its `/workspaces` page to create a new one)        |
+| `PUT`    | `/api/workspaces/:id`          | Rename workspace and/or update `description` (owner/editor)                                                                                                                                                                             |
+| `DELETE` | `/api/workspaces/:id`          | Delete workspace (owner/editor; deleting the active one switches to another in the same organization; deleting the last one is allowed and leaves zero — the web UI then redirects to its `/workspaces` page to create a new one)       |
 | `POST`   | `/api/workspaces/:id/activate` | Switch the caller's active workspace (and active organization, if different)                                                                                                                                                            |
 
 ## Model routes
@@ -125,7 +131,7 @@ relative path for values written before that library existed.
 
 See [Image Library](/docs/reference/image-library) for the packs/items model
 and the `archispark_image` property. Custom packs are organization-scoped;
-creating one or uploading an item requires the `owner`/`admin` role.
+creating one or uploading an item requires the `owner`/`editor` role.
 
 | Method   | Path                                     | Description                                                                                                     |
 | -------- | ---------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
@@ -141,7 +147,7 @@ Uploading to a custom pack requires `BLOB_READ_WRITE_TOKEN` to be configured
 
 ## Dashboards
 
-Org-scoped — see [docs/../development/architecture.md#dashboards](../development/architecture.md#dashboards). Editing requires the `owner`/`admin` role in the active organization; `member` is read-only.
+Org-scoped — see [docs/../development/architecture.md#dashboards](../development/architecture.md#dashboards). Editing requires the `owner`/`editor` role in the active organization; `viewer` is read-only.
 
 | Method   | Path                                                   | Description                                                                          |
 | -------- | ------------------------------------------------------ | ------------------------------------------------------------------------------------ |

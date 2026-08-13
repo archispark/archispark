@@ -2,9 +2,14 @@ import { describe, it, expect, vi, beforeEach } from "vitest"
 import { render, screen, fireEvent, waitFor } from "@testing-library/react"
 import { ClientLayout } from "./client-layout"
 
-const { mockUsePathname, mockUseIsAdmin } = vi.hoisted(() => ({
+const {
+  mockUsePathname,
+  mockUseIsAdmin,
+  mockUseActivePlatformOrganization,
+} = vi.hoisted(() => ({
   mockUsePathname: vi.fn(),
   mockUseIsAdmin: vi.fn(),
+  mockUseActivePlatformOrganization: vi.fn(),
 }))
 
 vi.mock("next/navigation", () => ({
@@ -13,6 +18,10 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("@/hooks/use-current-user", () => ({
   useIsAdmin: mockUseIsAdmin,
+}))
+
+vi.mock("@/lib/queries", () => ({
+  useActivePlatformOrganization: mockUseActivePlatformOrganization,
 }))
 
 vi.mock("@/components/theme-provider", () => ({
@@ -63,6 +72,7 @@ vi.mock("sonner", () => ({
 // jsdom doesn't implement fetch by default — SiteBanner calls it on mount.
 beforeEach(() => {
   vi.clearAllMocks()
+  mockUseActivePlatformOrganization.mockReturnValue({ data: undefined })
   localStorage.clear()
   sessionStorage.clear()
   vi.stubGlobal(

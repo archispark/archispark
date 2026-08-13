@@ -110,7 +110,7 @@ export default function OrganizationsPage() {
               >
                 <Users className="size-3.5" />
               </Button>
-              {(org.role === "owner" || org.role === "admin") && (
+              {org.role === "owner" && (
                 <Button
                   variant="ghost"
                   size="icon-xs"

@@ -24,7 +24,7 @@ import {
   type InvitationEmailKind,
 } from "./invitation-onboarding"
 
-const VALID_ROLES: OrgRoleName[] = ["owner", "admin", "member"]
+const VALID_ROLES: OrgRoleName[] = ["owner", "editor", "viewer"]
 const EXPIRES_IN_SECONDS = 7 * 24 * 3600
 // Postgres unique_violation — see org_invitations_org_email_active_uniq
 // (packages/db/src/schema.ts), the real guarantee behind the "one active

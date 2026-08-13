@@ -2,7 +2,7 @@
  * Demo seed script — loads the ArchiSurance, ArchiMetal and Open Day
  * workspaces into the DB, grouped into demo organizations
  * (packages/db/seeds/demo-orgs.json): "Archi" (ArchiSurance + ArchiMetal),
- * owned by "archi" with "contrib"/"user" as admin/member, and "Open" (Open
+ * owned by "archi" with "contrib"/"user" as editor/viewer, and "Open" (Open
  * Day), owned solely by "open" — the two organizations are deliberately
  * isolated from each other (no shared members), to demonstrate
  * organization-scoped access. "admin" (the platform_admin demo account) is

@@ -49,7 +49,7 @@ async function lastSentToken(): Promise<string> {
 }
 
 const OWNER: AccessUser = { id: `inv-owner-${randomUUID()}`, role: "user" }
-const MEMBER: AccessUser = { id: `inv-member-${randomUUID()}`, role: "user" }
+const VIEWER: AccessUser = { id: `inv-member-${randomUUID()}`, role: "user" }
 
 let orgId: number
 
@@ -61,7 +61,7 @@ beforeAll(async () => {
   orgId = org!.id
   await db.insert(organizationMembers).values([
     { organizationId: orgId, userId: OWNER.id, role: "owner" },
-    { organizationId: orgId, userId: MEMBER.id, role: "member" },
+    { organizationId: orgId, userId: VIEWER.id, role: "viewer" },
   ])
 })
 
@@ -84,10 +84,10 @@ describe("createOrReplaceInvitation", () => {
       OWNER,
       orgId,
       email,
-      "member"
+      "viewer"
     )
     expect(created.email).toBe(email)
-    expect(created.role).toBe("member")
+    expect(created.role).toBe("viewer")
     expect(created.sent_at).not.toBeNull()
     expect(created.expired).toBe(false)
     expect(getSentInvitationEmails()).toHaveLength(1)
@@ -100,7 +100,7 @@ describe("createOrReplaceInvitation", () => {
       OWNER,
       orgId,
       email,
-      "member"
+      "viewer"
     )
     expect(created.email).toBe(email.toLowerCase())
   })
@@ -108,10 +108,10 @@ describe("createOrReplaceInvitation", () => {
   it("member cannot invite (manage_members is owner-only)", async () => {
     await expect(
       createOrReplaceInvitation(
-        MEMBER,
+        VIEWER,
         orgId,
         `forbidden-${randomUUID()}@example.com`,
-        "member"
+        "viewer"
       )
     ).rejects.toBeInstanceOf(ForbiddenError)
   })
@@ -129,10 +129,10 @@ describe("createOrReplaceInvitation", () => {
 
   it("a second invitation for the same e-mail revokes the first — only one active at a time", async () => {
     const email = `resend-race-${randomUUID()}@example.com`
-    await createOrReplaceInvitation(OWNER, orgId, email, "member")
+    await createOrReplaceInvitation(OWNER, orgId, email, "viewer")
     const firstToken = await lastSentToken()
 
-    await createOrReplaceInvitation(OWNER, orgId, email, "admin")
+    await createOrReplaceInvitation(OWNER, orgId, email, "editor")
     const secondToken = await lastSentToken()
     expect(secondToken).not.toBe(firstToken)
 
@@ -140,7 +140,7 @@ describe("createOrReplaceInvitation", () => {
       (i) => i.email === email
     )
     expect(active).toHaveLength(1)
-    expect(active[0]!.role).toBe("admin")
+    expect(active[0]!.role).toBe("editor")
 
     // The old token is revoked, not just superseded.
     await expect(getInvitationPreview(firstToken)).rejects.toBeInstanceOf(
@@ -155,7 +155,7 @@ describe("createOrReplaceInvitation", () => {
       OWNER,
       orgId,
       email,
-      "member"
+      "viewer"
     )
     expect(created.sent_at).toBeNull()
 
@@ -175,7 +175,7 @@ describe("createOrReplaceInvitation", () => {
         OWNER,
         orgId,
         email,
-        "member",
+        "viewer",
         "manual"
       )
       expect(created.sent_at).toBeNull()
@@ -201,7 +201,7 @@ describe("createOrReplaceInvitation", () => {
       OWNER,
       orgId,
       email,
-      "member",
+      "viewer",
       "both"
     )
 
@@ -223,7 +223,7 @@ describe("createOrReplaceInvitation", () => {
       OWNER,
       orgId,
       `both-failure-${randomUUID()}@example.com`,
-      "member",
+      "viewer",
       "both"
     )
 
@@ -240,7 +240,7 @@ describe("resendInvitation", () => {
       OWNER,
       orgId,
       email,
-      "member"
+      "viewer"
     )
     expect(created.sent_at).toBeNull()
 
@@ -262,7 +262,7 @@ describe("resendInvitation", () => {
       OWNER,
       orgId,
       `manual-resend-${randomUUID()}@example.com`,
-      "member",
+      "viewer",
       "manual"
     )
     const firstToken = tokenFromAcceptUrl(created.accept_url!)
@@ -288,7 +288,7 @@ describe("revokeInvitation", () => {
       OWNER,
       orgId,
       email,
-      "member"
+      "viewer"
     )
     await revokeInvitation(OWNER, orgId, Number(created.id))
 
@@ -302,7 +302,7 @@ describe("revokeInvitation", () => {
       OWNER,
       orgId,
       email,
-      "member"
+      "viewer"
     )
     await revokeInvitation(OWNER, orgId, Number(created.id))
     await expect(
@@ -316,10 +316,10 @@ describe("revokeInvitation", () => {
       OWNER,
       orgId,
       email,
-      "member"
+      "viewer"
     )
     await expect(
-      revokeInvitation(MEMBER, orgId, Number(created.id))
+      revokeInvitation(VIEWER, orgId, Number(created.id))
     ).rejects.toBeInstanceOf(ForbiddenError)
   })
 })
@@ -327,17 +327,17 @@ describe("revokeInvitation", () => {
 describe("getInvitationPreview / acceptInvitation", () => {
   it("previews and accepts a valid invitation", async () => {
     const email = `accept-${randomUUID()}@example.com`
-    await createOrReplaceInvitation(OWNER, orgId, email, "admin")
+    await createOrReplaceInvitation(OWNER, orgId, email, "editor")
     const token = await lastSentToken()
 
     const preview = await getInvitationPreview(token)
-    expect(preview.role).toBe("admin")
+    expect(preview.role).toBe("editor")
     expect(preview.email).toBe(email)
 
     const user = invitee(email, true)
     const result = await acceptInvitation(user, token)
     expect(result.organization_id).toBe(String(orgId))
-    expect(result.role).toBe("admin")
+    expect(result.role).toBe("editor")
 
     const [membership] = await db
       .select()
@@ -348,12 +348,12 @@ describe("getInvitationPreview / acceptInvitation", () => {
           eq(organizationMembers.userId, user.id)
         )
       )
-    expect(membership?.role).toBe("admin")
+    expect(membership?.role).toBe("editor")
   })
 
   it("refuses acceptance when the caller's e-mail isn't verified", async () => {
     const email = `unverified-${randomUUID()}@example.com`
-    await createOrReplaceInvitation(OWNER, orgId, email, "member")
+    await createOrReplaceInvitation(OWNER, orgId, email, "viewer")
     const token = await lastSentToken()
 
     await expect(
@@ -363,7 +363,7 @@ describe("getInvitationPreview / acceptInvitation", () => {
 
   it("refuses acceptance when the caller's e-mail doesn't match the invitation", async () => {
     const email = `mismatch-${randomUUID()}@example.com`
-    await createOrReplaceInvitation(OWNER, orgId, email, "member")
+    await createOrReplaceInvitation(OWNER, orgId, email, "viewer")
     const token = await lastSentToken()
 
     await expect(
@@ -389,7 +389,7 @@ describe("getInvitationPreview / acceptInvitation", () => {
       OWNER,
       orgId,
       email,
-      "member"
+      "viewer"
     )
     const token = await lastSentToken()
     await revokeInvitation(OWNER, orgId, Number(created.id))
@@ -408,7 +408,7 @@ describe("getInvitationPreview / acceptInvitation", () => {
       OWNER,
       orgId,
       email,
-      "member"
+      "viewer"
     )
     const token = await lastSentToken()
     // Force expiry directly — createOrReplaceInvitation always issues a
@@ -432,7 +432,7 @@ describe("getInvitationPreview / acceptInvitation", () => {
 
   it("does not error when the invitee is already a member through another path", async () => {
     const email = `already-member-${randomUUID()}@example.com`
-    await createOrReplaceInvitation(OWNER, orgId, email, "member")
+    await createOrReplaceInvitation(OWNER, orgId, email, "viewer")
     const token = await lastSentToken()
     const user = invitee(email, true)
 
@@ -442,7 +442,7 @@ describe("getInvitationPreview / acceptInvitation", () => {
     // "two concurrent accepts" below for the actual double-accept guard).
     await db
       .insert(organizationMembers)
-      .values({ organizationId: orgId, userId: user.id, role: "member" })
+      .values({ organizationId: orgId, userId: user.id, role: "viewer" })
 
     await expect(acceptInvitation(user, token)).resolves.toMatchObject({
       organization_id: String(orgId),
@@ -451,7 +451,7 @@ describe("getInvitationPreview / acceptInvitation", () => {
 
   it("two concurrent accepts on the same token: exactly one succeeds, one member row is created", async () => {
     const email = `concurrent-${randomUUID()}@example.com`
-    await createOrReplaceInvitation(OWNER, orgId, email, "member")
+    await createOrReplaceInvitation(OWNER, orgId, email, "viewer")
     const token = await lastSentToken()
     const user = invitee(email, true)
 

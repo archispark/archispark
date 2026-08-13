@@ -5,14 +5,14 @@ import { useT } from "@/lib/i18n"
 import { type OrgRole, type OrganizationMemberOut } from "@/lib/api"
 import { Button } from "@workspace/ui/components/button"
 
-export const ROLES: OrgRole[] = ["owner", "admin", "member"]
+export const ROLES: OrgRole[] = ["owner", "editor", "viewer"]
 
 export function roleLabel(t: ReturnType<typeof useT>["t"], r: OrgRole): string {
   return r === "owner"
     ? t("settings.org.role_owner")
-    : r === "admin"
-      ? t("settings.org.role_admin")
-      : t("settings.org.role_member")
+    : r === "editor"
+      ? t("settings.org.role_editor")
+      : t("settings.org.role_viewer")
 }
 
 export function MemberList({

@@ -24,9 +24,9 @@ claude mcp add archimate \
   [Authentication](authentication.mdx#organizations-and-roles)).
 - Every tool resolves access through the same
   `apps/server/lib/archimate/access.ts` gateway used by the REST API,
-  honouring the caller's `owner`/`admin`/`member` role: read-only tools
+  honouring the caller's `owner`/`editor`/`viewer` role: read-only tools
   work for any role, mutating tools like `create_element` or
-  `import_model` require `owner`/`admin`.
+  `import_model` require `owner`/`editor`.
 
 **Available tools (38), 2 prompts, 2 resources:**
 

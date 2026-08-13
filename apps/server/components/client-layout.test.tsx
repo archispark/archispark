@@ -2,9 +2,14 @@ import { describe, it, expect, vi, beforeEach } from "vitest"
 import { render, screen, fireEvent } from "@testing-library/react"
 import { ClientLayout } from "./client-layout"
 
-const { mockUsePathname, mockUseIsAdmin } = vi.hoisted(() => ({
+const {
+  mockUsePathname,
+  mockUseIsAdmin,
+  mockUseActivePlatformOrganization,
+} = vi.hoisted(() => ({
   mockUsePathname: vi.fn(),
   mockUseIsAdmin: vi.fn(),
+  mockUseActivePlatformOrganization: vi.fn(),
 }))
 
 vi.mock("next/navigation", () => ({
@@ -13,6 +18,18 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("@/hooks/use-current-user", () => ({
   useIsAdmin: mockUseIsAdmin,
+}))
+
+vi.mock("@/lib/queries", () => ({
+  useActivePlatformOrganization: mockUseActivePlatformOrganization,
+}))
+
+vi.mock("@/components/platform-admin-banner", () => ({
+  PlatformAdminBanner: ({
+    organizationName,
+  }: {
+    organizationName: string
+  }) => <div data-testid="platform-admin-banner">{organizationName}</div>,
 }))
 
 vi.mock("@/components/theme-provider", () => ({
@@ -86,6 +103,7 @@ vi.mock("sonner", () => ({
 // jsdom doesn't implement fetch by default — SiteBanner calls it on mount.
 beforeEach(() => {
   vi.clearAllMocks()
+  mockUseActivePlatformOrganization.mockReturnValue({ data: undefined })
   localStorage.clear()
   sessionStorage.clear()
   vi.stubGlobal(
@@ -120,6 +138,31 @@ describe("ClientLayout", () => {
       expect(screen.queryByTestId("sidebar")).not.toBeInTheDocument()
       expect(screen.queryByTestId("page-content")).not.toBeInTheDocument()
       expect(screen.getByTestId("toaster")).toBeInTheDocument()
+    })
+
+    it("renders the normal layout with the admin banner when a platform admin has entered an organization", () => {
+      // Arrange
+      mockUsePathname.mockReturnValue("/dashboard")
+      mockUseIsAdmin.mockReturnValue(true)
+      mockUseActivePlatformOrganization.mockReturnValue({
+        data: { organization: { id: "1", name: "Acme" } },
+      })
+
+      // Act
+      render(
+        <ClientLayout>
+          <div data-testid="page-content">content</div>
+        </ClientLayout>
+      )
+
+      // Assert
+      expect(
+        screen.queryByTestId("platform-admin-block")
+      ).not.toBeInTheDocument()
+      expect(screen.getByTestId("page-content")).toBeInTheDocument()
+      expect(screen.getByTestId("platform-admin-banner")).toHaveTextContent(
+        "Acme"
+      )
     })
 
     it("renders the normal layout (not PlatformAdminBlock) when the session is a platform admin on a /platform route", () => {

@@ -18,7 +18,7 @@ WASM, in-memory) — full Postgres fidelity, no Docker required.
 `isPersonal`, `enabled` — a suspension flag settable only by an Admin
 (`platform_admin`)), `organizationMembers` (`organizationId`, `userId` — a
 local (`local:<uuid>`) or Keycloak (`sub`) identity id — and `role`:
-`"owner" | "admin" | "member"`),
+`"owner" | "editor" | "viewer"`),
 `organizationInvitations` (email-based invitations — `email`, `role`,
 `tokenHash` (SHA-256 of a random token, the clear-text token itself is
 never persisted), `expiresAt`/`sentAt`/`acceptedAt`/`revokedAt`; a partial
@@ -42,11 +42,14 @@ ArchiMate content tables (`elements`, `relationships`,
 with cascading foreign keys.
 
 A fourth role, Admin (Keycloak identifier `platform_admin`), is a Keycloak
-**realm** role (not an `organization_members` row) — it administers organizations
-(`/api/platform/organizations*`, metadata only) but is structurally denied
-any access to organization content, enforced once in
+**realm** role (not an `organization_members` row) — it administers
+organizations (`/api/platform/organizations*`, metadata) and, via **admin
+mode**, gets full owner-equivalent access to any organization's content
+after explicitly entering it (`POST /api/platform/organizations/:id/enter`),
+including a suspended one. This bypass is centralized once in
 [`apps/server/lib/archimate/access.ts`](https://github.com/archispark/archispark/blob/main/apps/server/lib/archimate/access.ts)
-rather than left to be remembered at every call site. See
+rather than left to be remembered at every call site; every other role- and
+suspension-check there stays unchanged. See
 [Authentication](../reference/authentication.md) for the full role matrix.
 
 Identities live either in the `users` table (id `local:<uuid>`) or in
@@ -92,7 +95,9 @@ authorization gateway,
 [`apps/server/lib/archimate/access.ts`](https://github.com/archispark/archispark/blob/main/apps/server/lib/archimate/access.ts)
 (`resolveActiveContext`/`assertOrgAccess`/`assertWorkspaceAccess`) — a user
 sees and acts on every workspace of every organization they belong to,
-subject to their role (`owner`/`admin`: read+write, `member`: read-only).
+subject to their role (`owner`/`editor`: read+write, `viewer`: read-only).
+Admin acts the same way, but on whichever organization it has entered via
+admin mode, always with owner-equivalent access.
 
 The MCP tools (`apps/server/lib/mcp/`) import `lib/archimate/store.ts`/
 `registry.ts` directly — same process, same module graph, no HTTP hop and no
@@ -176,8 +181,8 @@ access model. Business logic lives in `apps/server/lib/dashboards/`:
 Routes live under `app/api/dashboards/**`, `app/api/explore`, and
 `app/api/panel-visualizations`, gated by the same
 `resolveActiveContext`/`assertOrgAccess` gateway as every other resource —
-editing a dashboard requires the `owner`/`admin` role in the active
-organization, `member` is read-only. There is no separate admin
+editing a dashboard requires the `owner`/`editor` role in the active
+organization, `viewer` is read-only. There is no separate admin
 login/token — the companion project's single-admin-token session
 (`ARCHIMATE_API_TOKEN`) isn't used here.
 

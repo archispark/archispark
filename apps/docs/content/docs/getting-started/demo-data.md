@@ -8,10 +8,10 @@ description: Create demo Keycloak accounts and sample ArchiMate workspaces.
 For a fresh install with just a working login — no sample organizations,
 workspaces, or ArchiMate data:
 
-| Method                  | Auth method                                                                               | Account                                                                                                                                        |
-| ------------------------ | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Automatic (no command)  | [Local account](../reference/authentication.mdx#local-accounts) — no Keycloak required     | `admin` / `admin`, created by migration `0025_seed_local_admin.sql` the first time it runs on an empty `users` table — forced password change at first login |
-| `pnpm seed:minimal`     | [Keycloak](../reference/authentication.mdx#keycloak-login) (`KEYCLOAK_SSO_ENABLED=true`)   | `admin` / `admin` (`.docker/keycloak/minimal-users.json`, Keycloak `platform_admin` role) — provisions the realm first (`pnpm seed:keycloak`)      |
+| Method                 | Auth method                                                                              | Account                                                                                                                                                      |
+| ---------------------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Automatic (no command) | [Local account](../reference/authentication.mdx#local-accounts) — no Keycloak required   | `admin` / `admin`, created by migration `0025_seed_local_admin.sql` the first time it runs on an empty `users` table — forced password change at first login |
+| `pnpm seed:minimal`    | [Keycloak](../reference/authentication.mdx#keycloak-login) (`KEYCLOAK_SSO_ENABLED=true`) | `admin` / `admin` (`.docker/keycloak/minimal-users.json`, Keycloak `platform_admin` role) — provisions the realm first (`pnpm seed:keycloak`)                |
 
 `pnpm seed:local-admin` re-runs the same local account creation on demand
 (`.docker/local-auth/admin-user.json`) — use it to recover a locked-out
@@ -38,13 +38,13 @@ The workspaces are grouped into two demo organizations
 (`packages/db/seeds/demo-orgs.json`), deliberately isolated from each other
 (no shared members):
 
-| Organization | Workspaces               | Account   | Role                                                                                                                |
-| ------------ | ------------------------ | --------- | ------------------------------------------------------------------------------------------------------------------- |
-| Archi        | ArchiSurance, ArchiMetal | `archi`   | `owner`                                                                                                             |
-| Archi        | ArchiSurance, ArchiMetal | `contrib` | `admin`                                                                                                             |
-| Archi        | ArchiSurance, ArchiMetal | `user`    | `member`                                                                                                            |
-| Open         | Open Day                 | `open`    | `owner`                                                                                                             |
-| _(none)_     | —                        | `admin`   | Admin (Keycloak `platform_admin`) — deliberately a member of neither, demonstrating platform/organization isolation |
+| Organization | Workspaces               | Account   | Role                                                                                                                                     |
+| ------------ | ------------------------ | --------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| Archi        | ArchiSurance, ArchiMetal | `archi`   | `owner`                                                                                                                                  |
+| Archi        | ArchiSurance, ArchiMetal | `contrib` | `editor`                                                                                                                                 |
+| Archi        | ArchiSurance, ArchiMetal | `user`    | `viewer`                                                                                                                                 |
+| Open         | Open Day                 | `open`    | `owner`                                                                                                                                  |
+| _(none)_     | —                        | `admin`   | Admin (Keycloak `platform_admin`) — deliberately a member of neither, but can reach either organization's content via admin mode instead |
 
 - **Membership is authoritative on every reseed**: narrowing an
   organization's `members` in `demo-orgs.json` removes any now-unlisted

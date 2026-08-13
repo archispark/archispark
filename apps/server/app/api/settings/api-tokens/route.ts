@@ -6,7 +6,7 @@ import { withErrorHandling } from "@/lib/http/with-error-handling"
 import { withAuth } from "@/lib/http/with-auth"
 import { assertOrgAccess } from "@/lib/archimate/access"
 import { parseBody, ApiTokenCreateSchema } from "@/lib/archimate/validation"
-import { ValidationError } from "@/lib/archimate/errors"
+import { ForbiddenError, ValidationError } from "@/lib/archimate/errors"
 
 export const dynamic = "force-dynamic"
 
@@ -54,6 +54,16 @@ export const GET = withErrorHandling(
 
 export const POST = withErrorHandling(
   withAuth(async (req: NextRequest, auth) => {
+    // A personal token freezes a scope on creation; platform_admin's access
+    // is deliberately the opposite — dynamic, chosen per session via admin
+    // mode (see access.ts) — so it must not be able to mint a token that
+    // would carry full owner-equivalent access to an arbitrary organization
+    // indefinitely, independent of that session.
+    if (auth.user.role === "platform_admin")
+      throw new ForbiddenError(
+        "Les comptes administrateurs plateforme ne peuvent pas créer de jetons personnels."
+      )
+
     const body = parseBody(ApiTokenCreateSchema, await req.json())
 
     const organizationId = parseInt(body.organization_id, 10)

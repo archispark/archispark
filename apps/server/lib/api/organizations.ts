@@ -1,6 +1,6 @@
 import { get, post, put, del } from "./client"
 
-export type OrgRole = "owner" | "admin" | "member"
+export type OrgRole = "owner" | "editor" | "viewer"
 
 export interface OrganizationOut {
   id: string

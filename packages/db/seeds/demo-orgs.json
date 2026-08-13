@@ -4,7 +4,7 @@
       "slug": "archi",
       "name": "Archi",
       "workspaces": ["ArchiSurance", "ArchiMetal"],
-      "members": { "archi": "owner", "contrib": "admin", "user": "member" }
+      "members": { "archi": "owner", "contrib": "editor", "user": "viewer" }
     },
     {
       "slug": "open",

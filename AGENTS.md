@@ -52,8 +52,11 @@ Ces modules sont importés directement par l'API REST et le serveur MCP : ils ne
 forment pas des packages indépendants.
 
 Les espaces de travail appartiennent à une organisation. Les rôles
-d'organisation sont `owner`, `admin` et `member`. Le rôle de royaume
-`platform_admin` n'accorde aucun accès au contenu des organisations.
+d'organisation sont `owner`, `editor` et `viewer`. Le rôle de royaume
+`platform_admin` n'a par défaut aucun rôle dans `organization_members`, mais
+obtient un accès complet (équivalent `owner`) au contenu de n'importe quelle
+organisation, y compris suspendue, une fois qu'il l'a explicitement
+« entrée » en mode administration (`POST /api/platform/organizations/:id/enter`).
 `apps/server/lib/archimate/access.ts` est l'unique point d'entrée pour les
 contrôles d'autorisation : ne pas dupliquer cette logique ailleurs.
 

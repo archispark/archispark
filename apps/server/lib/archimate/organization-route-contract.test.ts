@@ -38,18 +38,18 @@ function request(
 
 async function organizationWithMembers() {
   const ownerId = `owner-${randomUUID()}`
-  const adminId = `admin-${randomUUID()}`
-  const memberId = `member-${randomUUID()}`
+  const editorId = `editor-${randomUUID()}`
+  const viewerId = `viewer-${randomUUID()}`
   const [org] = await db
     .insert(organizations)
     .values({ slug: `contract-${randomUUID()}`, name: "Route Contract" })
     .returning()
   await db.insert(organizationMembers).values([
     { organizationId: org!.id, userId: ownerId, role: "owner" },
-    { organizationId: org!.id, userId: adminId, role: "admin" },
-    { organizationId: org!.id, userId: memberId, role: "member" },
+    { organizationId: org!.id, userId: editorId, role: "editor" },
+    { organizationId: org!.id, userId: viewerId, role: "viewer" },
   ])
-  return { org: org!, ownerId, adminId, memberId }
+  return { org: org!, ownerId, editorId, viewerId }
 }
 
 describe("organization lifecycle route contract", () => {
@@ -60,8 +60,8 @@ describe("organization lifecycle route contract", () => {
 
   it.each([
     ["owner", "ownerId", 200],
-    ["organization admin", "adminId", 200],
-    ["member", "memberId", 403],
+    ["organization editor", "editorId", 403],
+    ["viewer", "viewerId", 403],
   ] as const)(
     "allows %s to rename according to policy",
     async (_role, key, status) => {

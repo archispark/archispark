@@ -323,8 +323,8 @@
   "settings.org.invite_delivery_manual": "Link only",
   "settings.org.invite_sent": "Invitation sent to {email}.",
   "settings.org.role_owner": "Owner",
-  "settings.org.role_admin": "Editor",
-  "settings.org.role_member": "Viewer",
+  "settings.org.role_editor": "Editor",
+  "settings.org.role_viewer": "Viewer",
   "settings.org.member_removed": "Member removed.",
   "settings.org.remove_member_title": "Remove member",
   "settings.org.remove_member_desc": "Remove {name} from the organization? This action is irreversible.",
@@ -352,7 +352,7 @@
   "settings.general.teams_label": "Teams",
   "settings.general.teams_hint": "Teams with access to this workspace, in addition to organization owners/editors.",
   "platform_admin_block.title": "Access unavailable",
-  "platform_admin_block.desc": "Admin accounts manage organizations from the administration interface and don't have access to organization workspaces.",
+  "platform_admin_block.desc": "Admin accounts manage organizations from the administration interface. Enter an organization from there to work in its workspaces with full access.",
   "no_organization_block.title": "No organization",
   "no_organization_block.desc": "Your account isn't a member of any organization yet. Ask an administrator to invite you to a workspace.",
   "breadcrumb.organizations": "Organizations",
@@ -366,7 +366,7 @@
   "settings.org.delete_org_title": "Delete organization",
   "settings.org.delete_org_desc": "Delete organization {name}? This action is irreversible.",
   "platform.title": "Organizations (platform)",
-  "platform.desc": "Metadata only — no access to organization content.",
+  "platform.desc": "Manage organizations, and enter one to access its workspaces with full access.",
   "platform.status_enabled": "Active",
   "platform.status_suspended": "Suspended",
   "platform.suspend": "Suspend",
@@ -468,5 +468,8 @@
   "image_library.delete_pack_desc": "Delete {name} and all its images? This action is irreversible.",
   "image_library.system_pack_badge": "System",
   "image_library.no_custom_packs": "No custom pack for this organization.",
-  "image_library.blob_not_configured": "Image storage isn't configured for this instance."
+  "image_library.blob_not_configured": "Image storage isn't configured for this instance.",
+  "platform.enter": "Administer",
+  "platform_admin_banner.label": "Admin mode — {name}",
+  "platform_admin_banner.exit": "Exit"
 }

@@ -57,7 +57,7 @@ export function OrganizationMembers({
     username: string
   }>()
   const [email, setEmail] = useState("")
-  const [role, setRole] = useState<OrgRole>("member")
+  const [role, setRole] = useState<OrgRole>("viewer")
   const [deliveryMode, setDeliveryMode] =
     useState<InvitationDeliveryMode>("both")
   const [manualLink, setManualLink] = useState<string | null>(null)
@@ -75,7 +75,7 @@ export function OrganizationMembers({
       setManualLink(invitation.accept_url ?? null)
       setCopied(false)
       setEmail("")
-      setRole("member")
+      setRole("viewer")
     })
   }
 

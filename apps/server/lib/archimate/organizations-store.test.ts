@@ -24,8 +24,8 @@ const OWNER: AccessUser = {
   id: `org-store-owner-${randomUUID()}`,
   role: "user",
 }
-const ADMIN: AccessUser = {
-  id: `org-store-admin-${randomUUID()}`,
+const EDITOR: AccessUser = {
+  id: `org-store-editor-${randomUUID()}`,
   role: "user",
 }
 const PLATFORM_ADMIN: AccessUser = {
@@ -43,7 +43,7 @@ beforeAll(async () => {
   orgId = org!.id
   await db.insert(organizationMembers).values([
     { organizationId: orgId, userId: OWNER.id, role: "owner" },
-    { organizationId: orgId, userId: ADMIN.id, role: "admin" },
+    { organizationId: orgId, userId: EDITOR.id, role: "editor" },
   ])
 })
 
@@ -54,12 +54,12 @@ describe("listOrganizationsForUser", () => {
 })
 
 describe("renameOrganization / activateOrganization", () => {
-  it("owner and admin can rename; member cannot", async () => {
+  it("owner can rename; editor cannot (manage_members is owner-only)", async () => {
     const renamed = await renameOrganization(OWNER, orgId, "Renamed by owner")
     expect(renamed.name).toBe("Renamed by owner")
     await expect(
-      renameOrganization(ADMIN, orgId, "Renamed by admin")
-    ).resolves.toMatchObject({ name: "Renamed by admin" })
+      renameOrganization(EDITOR, orgId, "Renamed by editor")
+    ).rejects.toBeInstanceOf(ForbiddenError)
   })
 
   it("activateOrganization marks the organization active for that user", async () => {
@@ -70,26 +70,26 @@ describe("renameOrganization / activateOrganization", () => {
 
 describe("addMember", () => {
   it("owner can add an existing Keycloak user", async () => {
-    const added = await addMember(OWNER, orgId, "contrib", "member")
+    const added = await addMember(OWNER, orgId, "contrib", "viewer")
     expect(added.user_id).toBe(DEMO_KEYCLOAK_SUBS.contrib)
-    expect(added.role).toBe("member")
+    expect(added.role).toBe("viewer")
   })
 
-  it("admin cannot add a member (manage_members is owner-only)", async () => {
+  it("editor cannot add a member (manage_members is owner-only)", async () => {
     await expect(
-      addMember(ADMIN, orgId, "user", "member")
+      addMember(EDITOR, orgId, "user", "viewer")
     ).rejects.toBeInstanceOf(ForbiddenError)
   })
 
   it("rejects a username that doesn't exist in Keycloak", async () => {
     await expect(
-      addMember(OWNER, orgId, "does-not-exist", "member")
+      addMember(OWNER, orgId, "does-not-exist", "viewer")
     ).rejects.toBeInstanceOf(ValidationError)
   })
 
   it("rejects adding a user who is already a member", async () => {
     await expect(
-      addMember(OWNER, orgId, "contrib", "admin")
+      addMember(OWNER, orgId, "contrib", "editor")
     ).rejects.toBeInstanceOf(ValidationError)
   })
 
@@ -129,7 +129,7 @@ describe("last-owner invariant", () => {
 
   it("refuses to demote the last owner", async () => {
     await expect(
-      updateMemberRole(SOLO_OWNER, soloOrgId, SOLO_OWNER.id, "admin")
+      updateMemberRole(SOLO_OWNER, soloOrgId, SOLO_OWNER.id, "editor")
     ).rejects.toBeInstanceOf(ValidationError)
     const [row] = await db
       .select()
@@ -152,7 +152,55 @@ describe("last-owner invariant", () => {
   it("allows demoting an owner once a second owner exists", async () => {
     await addMember(SOLO_OWNER, soloOrgId, "user", "owner")
     await expect(
-      updateMemberRole(SOLO_OWNER, soloOrgId, SOLO_OWNER.id, "admin")
-    ).resolves.toMatchObject({ role: "admin" })
+      updateMemberRole(SOLO_OWNER, soloOrgId, SOLO_OWNER.id, "editor")
+    ).resolves.toMatchObject({ role: "editor" })
+  })
+})
+
+describe("last-owner invariant — platform_admin", () => {
+  // countOwners (organizations-store.ts) counts real organization_members
+  // rows only — platform_admin is never one, so the invariant applies to it
+  // exactly as it does to any other caller: it cannot leave an organization
+  // with zero real owners, even though assertOrgAccess grants it
+  // manage_members unconditionally.
+  let soloOrgId: number
+  const SOLO_OWNER: AccessUser = {
+    id: `org-store-platform-solo-${randomUUID()}`,
+    role: "user",
+  }
+
+  beforeAll(async () => {
+    const [org] = await db
+      .insert(organizations)
+      .values({
+        slug: `org-store-platform-solo-${randomUUID()}`,
+        name: "Platform Admin Solo Owner Org",
+      })
+      .returning()
+    soloOrgId = org!.id
+    await db.insert(organizationMembers).values({
+      organizationId: soloOrgId,
+      userId: SOLO_OWNER.id,
+      role: "owner",
+    })
+  })
+
+  it("refuses to let platform_admin demote the last real owner", async () => {
+    await expect(
+      updateMemberRole(PLATFORM_ADMIN, soloOrgId, SOLO_OWNER.id, "editor")
+    ).rejects.toBeInstanceOf(ValidationError)
+  })
+
+  it("refuses to let platform_admin remove the last real owner", async () => {
+    await expect(
+      removeMember(PLATFORM_ADMIN, soloOrgId, SOLO_OWNER.id)
+    ).rejects.toBeInstanceOf(ValidationError)
+  })
+
+  it("platform_admin can manage members once a second real owner exists", async () => {
+    await addMember(PLATFORM_ADMIN, soloOrgId, "user", "owner")
+    await expect(
+      updateMemberRole(PLATFORM_ADMIN, soloOrgId, SOLO_OWNER.id, "editor")
+    ).resolves.toMatchObject({ role: "editor" })
   })
 })
