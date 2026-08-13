@@ -169,6 +169,20 @@
       "when": 1786456000000,
       "tag": "0023_image_packs",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1786542400000,
+      "tag": "0024_local_auth",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1786628800000,
+      "tag": "0025_seed_local_admin",
+      "breakpoints": true
     }
   ]
 }

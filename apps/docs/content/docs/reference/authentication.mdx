@@ -1,12 +1,12 @@
 ---
 title: Authentication
-description: Keycloak login, API tokens, organizations and access control.
+description: Local accounts, Keycloak login, API tokens, organizations and access control.
 ---
 
 import { InvitationLifecycleDiagram } from "@/components/diagrams/invitation-lifecycle"
 import { OidcLoginFlowDiagram } from "@/components/diagrams/oidc-login-flow"
 
-All routes except `GET /openapi.json`, `GET /docs`, and `GET /settings/messages` require a Keycloak access token — either as an `access_token` cookie (see [Keycloak login](#keycloak-login)) or an `Authorization: Bearer <token>` header — or a personal API token.
+All routes except `GET /openapi.json`, `GET /docs`, and `GET /settings/messages` require a local or Keycloak access token — either as an `access_token` cookie (see [Local accounts](#local-accounts) and [Keycloak login](#keycloak-login)) or an `Authorization: Bearer <token>` header — or a personal API token.
 
 ## Organizations and roles
 
@@ -118,6 +118,29 @@ Admin realm role (`platform_admin`; `requireSuperAdmin`).
 | `GET`  | `/api/me` | user | Returns current user |
 
 Default credentials: `admin` / `admin` (Admin, no organization membership by design), `user` / `user`, `contrib` / `contrib`, `archi` / `archi`, `open` / `open`. The demo seed creates two organizations, deliberately isolated from each other: `Archi` (`archi` as `owner`, `contrib`/`user` as `admin`/`member`) and `Open` (`open` as sole `owner`) — see [Demo seed](../getting-started/demo-data.md#demo-seed).
+
+## Local accounts
+
+The default sign-in method — a username/password account stored in the
+shared `users` table, no external identity provider required. Keycloak SSO
+(below) is an optional, off-by-default alternative (`KEYCLOAK_SSO_ENABLED`),
+offered as a "Continue with {name}" button on the login page when enabled.
+
+| Aspect            | Detail                                                                                                                                                                                                                              |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Password hashing  | argon2id, OWASP-minimum params (`packages/auth/src/local-password.ts`)                                                                                                                                                            |
+| Access token      | HS256 JWT, 15 min, issuer `archispark-local` (`local-jwt.ts`) — same claim shape as a Keycloak token, so `requireAuth` reads either via [`verifyAnyAccessToken`](https://github.com/archispark/archispark/blob/main/packages/auth/src/verify-any.ts) |
+| Refresh token     | Opaque, 30 days, stored as a sha256 hash (`local_refresh_tokens`); rotated on every use — presenting an already-rotated token revokes every session for that user (reuse detection)                                              |
+| Rate limiting     | 5 failed attempts / 15 min, keyed by both username and IP (`local_login_attempts`)                                                                                                                                                |
+| Login             | `POST /api/auth/local/login` — `{ username, password }`                                                                                                                                                                           |
+| Refresh / logout  | `POST /api/auth/refresh`, `GET /api/auth/logout` — same routes as Keycloak, dispatched by an `auth_provider` cookie                                                                                                              |
+| First-boot account | Migration `packages/db/drizzle-pg/0025_seed_local_admin.sql` creates `admin`/`admin` (`platform_admin`) the first time it runs against an empty `users` table — no seed command needed for a bare login                        |
+| Forced password change | `users.mustChangePassword` (set on the seeded account above) is carried as a `must_change_password` JWT claim; `proxy.ts` redirects every page but `/change-password` until `POST /api/auth/local/change-password` clears it |
+| Re-seed           | `pnpm seed:local-admin` — recreates `admin`/`admin` on demand (`.docker/local-auth/admin-user.json`), e.g. after `pnpm db:reset` or to recover a locked-out account                                                              |
+
+Self-registration and "forgot password" (a reset link by e-mail) aren't
+implemented yet — beyond the seeded `admin` account, users are provisioned
+by `pnpm seed:local-admin`, or (in a future admin UI) by a `platform_admin`.
 
 ## Keycloak login
 

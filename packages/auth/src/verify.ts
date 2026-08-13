@@ -8,6 +8,8 @@ export interface KeycloakClaims {
   email_verified?: boolean
   name?: string
   realm_access?: { roles: string[] }
+  /** Local accounts only (see local-jwt.ts) — always absent on a real Keycloak token. */
+  must_change_password?: boolean
 }
 
 // One JWKS fetcher per Keycloak realm URL — jose caches/refreshes the keys internally.

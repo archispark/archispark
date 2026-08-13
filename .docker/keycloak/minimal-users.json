@@ -1,0 +1,10 @@
+[
+  {
+    "username": "admin",
+    "email": "admin@archispark.internal",
+    "firstName": "Admin",
+    "lastName": "Archispark",
+    "password": "admin",
+    "realmRoles": ["platform_admin"]
+  }
+]

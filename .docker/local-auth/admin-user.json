@@ -1,0 +1,9 @@
+[
+  {
+    "username": "admin",
+    "email": "admin@archispark.internal",
+    "password": "admin",
+    "displayName": "Admin",
+    "role": "platform_admin"
+  }
+]

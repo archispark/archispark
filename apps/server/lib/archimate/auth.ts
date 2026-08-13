@@ -1,14 +1,15 @@
 /**
- * Resolves the authenticated caller for a request — verifies a Keycloak
- * access token (Bearer or `access_token` cookie) via JWKS, or a personal
- * `apiTokens` Bearer token. Framework-agnostic: reads the standard Web
- * `Headers` API, usable from Next.js Route Handlers (`NextRequest`).
+ * Resolves the authenticated caller for a request — verifies a local or
+ * Keycloak access token (Bearer or `access_token` cookie, see
+ * `verifyAnyAccessToken`), or a personal `apiTokens` Bearer token.
+ * Framework-agnostic: reads the standard Web `Headers` API, usable from
+ * Next.js Route Handlers (`NextRequest`).
  */
 
 import { eq } from "drizzle-orm"
 import { db, apiTokens } from "@workspace/db"
 import {
-  verifyAccessToken,
+  verifyAnyAccessToken,
   type KeycloakClaims,
   getKeycloakUser,
   getUserRealmRoles,
@@ -70,8 +71,8 @@ export async function lookupApiToken(token: string): Promise<TokenUser | null> {
   return result
 }
 
-/** Builds the resolved user from a verified Keycloak access token's claims. */
-function resolveKeycloakUser(claims: KeycloakClaims): AuthUser {
+/** Builds the resolved user from a verified access token's claims (local or Keycloak — both mirror the same claim shape). */
+function resolveAuthUser(claims: KeycloakClaims): AuthUser {
   return {
     id: claims.sub,
     username: claims.preferred_username ?? claims.sub,
@@ -80,6 +81,7 @@ function resolveKeycloakUser(claims: KeycloakClaims): AuthUser {
       : "user",
     email: claims.email,
     emailVerified: claims.email_verified,
+    mustChangePassword: claims.must_change_password,
   }
 }
 
@@ -133,15 +135,15 @@ export async function requireAuth(req: Request): Promise<AuthContext> {
     }
     if (tokenUser) return tokenUserToContext(tokenUser)
 
-    // Not a personal API token — try a Keycloak-issued access token.
+    // Not a personal API token — try a local or Keycloak-issued access token.
     let claims: KeycloakClaims | null
     try {
-      claims = await verifyAccessToken(token)
+      claims = await verifyAnyAccessToken(token)
     } catch {
       throw new UnauthorizedError("Erreur d'authentification.")
     }
     if (!claims) throw new UnauthorizedError("Token invalide.")
-    return { user: resolveKeycloakUser(claims), tokenContext: null }
+    return { user: resolveAuthUser(claims), tokenContext: null }
   }
 
   const cookieToken = getCookieValue(req.headers.get("cookie"), "access_token")
@@ -149,12 +151,12 @@ export async function requireAuth(req: Request): Promise<AuthContext> {
 
   let claims: KeycloakClaims | null
   try {
-    claims = await verifyAccessToken(cookieToken)
+    claims = await verifyAnyAccessToken(cookieToken)
   } catch {
     throw new UnauthorizedError("Session invalide.")
   }
   if (!claims) throw new UnauthorizedError("Session invalide.")
-  return { user: resolveKeycloakUser(claims), tokenContext: null }
+  return { user: resolveAuthUser(claims), tokenContext: null }
 }
 
 /** Like `requireAuth`, but also rejects anyone who isn't `platform_admin`. */

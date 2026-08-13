@@ -1,70 +1,131 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
-import { NextRequest } from "next/server";
-import proxy from "./proxy";
+import { describe, it, expect, vi, afterEach } from "vitest"
+import { NextRequest } from "next/server"
+import proxy from "./proxy"
 
 function makeToken(payload: Record<string, unknown> | null): string {
-  const header = Buffer.from(JSON.stringify({ alg: "RS256" })).toString("base64url");
-  const body = Buffer.from(JSON.stringify(payload ?? {})).toString("base64url");
-  return `${header}.${body}.sig`;
+  const header = Buffer.from(JSON.stringify({ alg: "RS256" })).toString(
+    "base64url"
+  )
+  const body = Buffer.from(JSON.stringify(payload ?? {})).toString("base64url")
+  return `${header}.${body}.sig`
 }
 
 function makeReq(cookie?: string, path = "/dashboard"): NextRequest {
   return new NextRequest(`http://localhost:8000${path}`, {
     headers: cookie ? { cookie } : {},
-  });
+  })
 }
 
 describe("proxy middleware", () => {
   afterEach(() => {
-    vi.unstubAllGlobals();
-  });
+    vi.unstubAllGlobals()
+  })
 
-  it("redirects to /api/auth/login when there is no access_token cookie", async () => {
-    const res = await proxy(makeReq());
-    expect(res.status).toBe(307);
-    expect(res.headers.get("location")).toContain("/api/auth/login");
-    expect(res.headers.get("location")).toContain("from=%2Fdashboard");
-  });
+  it("redirects to /login when there is no access_token cookie", async () => {
+    const res = await proxy(makeReq())
+    expect(res.status).toBe(307)
+    expect(res.headers.get("location")).toContain("/login")
+    expect(res.headers.get("location")).toContain("from=%2Fdashboard")
+  })
 
   it("allows the request through with a valid (non-expired) access_token", async () => {
-    const token = makeToken({ exp: Math.floor(Date.now() / 1000) + 3600 });
-    const res = await proxy(makeReq(`access_token=${token}`));
-    expect(res.headers.get("location")).toBeNull();
-  });
+    const token = makeToken({ exp: Math.floor(Date.now() / 1000) + 3600 })
+    const res = await proxy(makeReq(`access_token=${token}`))
+    expect(res.headers.get("location")).toBeNull()
+  })
 
   it("treats a garbage access_token as expired and redirects without a refresh_token", async () => {
-    const res = await proxy(makeReq("access_token=not-a-jwt"));
-    expect(res.status).toBe(307);
-    expect(res.headers.get("location")).toContain("/api/auth/login");
-  });
+    const res = await proxy(makeReq("access_token=not-a-jwt"))
+    expect(res.status).toBe(307)
+    expect(res.headers.get("location")).toContain("/login")
+  })
 
   it("silently refreshes when the access_token is expired but refresh succeeds", async () => {
-    const expired = makeToken({ exp: Math.floor(Date.now() / 1000) - 10 });
+    const expired = makeToken({ exp: Math.floor(Date.now() / 1000) - 10 })
     const fetchMock = vi.fn(async (input: string | URL, init?: RequestInit) => {
-      expect(input.toString()).toBe("http://localhost:8000/api/auth/refresh");
-      expect(init?.method).toBe("POST");
-      const headers = new Headers({ "set-cookie": "access_token=new-at; Path=/; HttpOnly" });
-      headers.append("set-cookie", "refresh_token=new-rt; Path=/; HttpOnly");
-      return new Response(null, { status: 204, headers });
-    });
-    vi.stubGlobal("fetch", fetchMock);
+      expect(input.toString()).toBe("http://localhost:8000/api/auth/refresh")
+      expect(init?.method).toBe("POST")
+      const headers = new Headers({
+        "set-cookie": "access_token=new-at; Path=/; HttpOnly",
+      })
+      headers.append("set-cookie", "refresh_token=new-rt; Path=/; HttpOnly")
+      return new Response(null, { status: 204, headers })
+    })
+    vi.stubGlobal("fetch", fetchMock)
 
-    const res = await proxy(makeReq(`access_token=${expired}; refresh_token=rt`));
+    const res = await proxy(
+      makeReq(`access_token=${expired}; refresh_token=rt`)
+    )
 
-    expect(res.headers.get("location")).toBeNull();
+    expect(res.headers.get("location")).toBeNull()
     expect(res.headers.getSetCookie()).toEqual([
       "access_token=new-at; Path=/; HttpOnly",
       "refresh_token=new-rt; Path=/; HttpOnly",
-    ]);
-  });
+    ])
+  })
 
-  it("redirects to /api/auth/login when the refresh request fails", async () => {
-    const expired = makeToken({ exp: Math.floor(Date.now() / 1000) - 10 });
-    vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 401 })));
+  it("redirects to /login when the refresh request fails", async () => {
+    const expired = makeToken({ exp: Math.floor(Date.now() / 1000) - 10 })
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(null, { status: 401 }))
+    )
 
-    const res = await proxy(makeReq(`access_token=${expired}; refresh_token=rt`));
+    const res = await proxy(
+      makeReq(`access_token=${expired}; refresh_token=rt`)
+    )
 
-    expect(res.status).toBe(307);
-    expect(res.headers.get("location")).toContain("/api/auth/login");
-  });
-});
+    expect(res.status).toBe(307)
+    expect(res.headers.get("location")).toContain("/login")
+  })
+
+  it("redirects to /change-password when the access token requires it", async () => {
+    const token = makeToken({
+      exp: Math.floor(Date.now() / 1000) + 3600,
+      must_change_password: true,
+    })
+    const res = await proxy(makeReq(`access_token=${token}`))
+    expect(res.status).toBe(307)
+    expect(res.headers.get("location")).toContain("/change-password")
+  })
+
+  it("does not redirect /change-password itself, even when the flag is set", async () => {
+    const token = makeToken({
+      exp: Math.floor(Date.now() / 1000) + 3600,
+      must_change_password: true,
+    })
+    const res = await proxy(
+      makeReq(`access_token=${token}`, "/change-password")
+    )
+    expect(res.headers.get("location")).toBeNull()
+  })
+
+  it("redirects to /change-password after a silent refresh whose new token requires it", async () => {
+    const expired = makeToken({ exp: Math.floor(Date.now() / 1000) - 10 })
+    const newAccessToken = makeToken({
+      exp: Math.floor(Date.now() / 1000) + 3600,
+      must_change_password: true,
+    })
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        const headers = new Headers({
+          "set-cookie": `access_token=${newAccessToken}; Path=/; HttpOnly`,
+        })
+        headers.append("set-cookie", "refresh_token=new-rt; Path=/; HttpOnly")
+        return new Response(null, { status: 204, headers })
+      })
+    )
+
+    const res = await proxy(
+      makeReq(`access_token=${expired}; refresh_token=rt`)
+    )
+
+    expect(res.status).toBe(307)
+    expect(res.headers.get("location")).toContain("/change-password")
+    expect(res.headers.getSetCookie()).toEqual([
+      `access_token=${newAccessToken}; Path=/; HttpOnly`,
+      "refresh_token=new-rt; Path=/; HttpOnly",
+    ])
+  })
+})

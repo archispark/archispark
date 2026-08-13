@@ -1,9 +1,11 @@
 "use client"
 
-import { Suspense, useState, useEffect } from "react"
+import { Suspense, useState, useEffect, type FormEvent } from "react"
 import { useSearchParams } from "next/navigation"
 import { useT } from "@/lib/i18n"
 import { Button } from "@workspace/ui/components/button"
+import { Input } from "@workspace/ui/components/input"
+import { Label } from "@workspace/ui/components/label"
 import { LocaleSwitcher } from "@/components/locale-switcher"
 import { ThemeToggle } from "@/components/theme-toggle"
 
@@ -15,12 +17,22 @@ export default function LoginPage() {
   )
 }
 
+interface Providers {
+  keycloakSsoEnabled: boolean
+  keycloakProviderName: string
+}
+
 function LoginPageInner() {
   const { t } = useT()
   // useSearchParams() is typed nullable only for pages/-router compat (this
   // app only calls it from app/ client components, where it's always populated).
   const searchParams = useSearchParams()!
   const [loginMessage, setLoginMessage] = useState<string | null>(null)
+  const [providers, setProviders] = useState<Providers | null>(null)
+  const [username, setUsername] = useState("")
+  const [password, setPassword] = useState("")
+  const [error, setError] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
     fetch("/api/settings/messages")
@@ -35,12 +47,43 @@ function LoginPageInner() {
         }
       )
       .catch(() => {})
+    fetch("/api/auth/providers")
+      .then((r) => r.json())
+      .then(setProviders)
+      .catch(() =>
+        setProviders({
+          keycloakSsoEnabled: false,
+          keycloakProviderName: "Keycloak",
+        })
+      )
   }, [])
 
   const from = searchParams.get("from")
-  const loginUrl = from
+  const keycloakLoginUrl = from
     ? `/api/auth/login?from=${encodeURIComponent(from)}`
     : "/api/auth/login"
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault()
+    setError(null)
+    setSubmitting(true)
+    try {
+      const res = await fetch("/api/auth/local/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password }),
+      })
+      if (!res.ok) {
+        setError(t("login.wrong_credentials"))
+        setSubmitting(false)
+        return
+      }
+      window.location.href = from || "/"
+    } catch {
+      setError(t("login.wrong_credentials"))
+      setSubmitting(false)
+    }
+  }
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
@@ -90,9 +133,54 @@ function LoginPageInner() {
             {t("login.subtitle")}
           </p>
 
-          <Button render={<a href={loginUrl} />} className="w-full">
-            {t("login.submit")}
-          </Button>
+          <form onSubmit={handleSubmit} className="space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="login-username">{t("login.username")}</Label>
+              <Input
+                id="login-username"
+                autoComplete="username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                required
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="login-password">{t("login.password")}</Label>
+              <Input
+                id="login-password"
+                type="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+            </div>
+            {error && <p className="text-[13px] text-destructive">{error}</p>}
+            <Button type="submit" className="w-full" disabled={submitting}>
+              {submitting ? t("login.submitting") : t("login.submit")}
+            </Button>
+          </form>
+
+          {providers?.keycloakSsoEnabled && (
+            <>
+              <div className="my-4 flex items-center gap-3">
+                <div className="h-px flex-1 bg-border" />
+                <span className="text-[12px] text-muted-foreground">
+                  {t("login.or")}
+                </span>
+                <div className="h-px flex-1 bg-border" />
+              </div>
+              <Button
+                variant="outline"
+                render={<a href={keycloakLoginUrl} />}
+                className="w-full"
+              >
+                {t("login.continue_with", {
+                  name: providers.keycloakProviderName,
+                })}
+              </Button>
+            </>
+          )}
         </div>
 
         {loginMessage && (

@@ -48,6 +48,8 @@ export interface AuthUser extends AccessUser {
   username: string
   email?: string
   emailVerified?: boolean
+  /** Local accounts only (see local-auth-tokens.ts) — true blocks every page but /change-password (proxy.ts). */
+  mustChangePassword?: boolean
 }
 
 /** An API token's pinned scope (set by auth.ts's requireAuth for Bearer-token requests). */

@@ -19,6 +19,8 @@
     "seed:dashboards": "tsx scripts/seed-dashboards.ts",
     "reset": "tsx scripts/reset.ts",
     "seed:demo-users": "tsx scripts/seed-demo-users.ts",
+    "seed:minimal-users": "tsx scripts/seed-minimal-users.ts",
+    "seed:local-admin": "tsx scripts/seed-local-admin.ts",
     "setup:realm": "tsx scripts/setup-realm.ts",
     "migrate:prod": "tsx scripts/migrate-prod.ts",
     "backfill:prod": "tsx scripts/backfill-prod.ts"

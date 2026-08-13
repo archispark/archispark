@@ -3,6 +3,29 @@ title: Demo Seed
 description: Create demo Keycloak accounts and sample ArchiMate workspaces.
 ---
 
+## Minimal seed
+
+For a fresh install with just a working login — no sample organizations,
+workspaces, or ArchiMate data:
+
+| Method                  | Auth method                                                                               | Account                                                                                                                                        |
+| ------------------------ | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Automatic (no command)  | [Local account](../reference/authentication.mdx#local-accounts) — no Keycloak required     | `admin` / `admin`, created by migration `0025_seed_local_admin.sql` the first time it runs on an empty `users` table — forced password change at first login |
+| `pnpm seed:minimal`     | [Keycloak](../reference/authentication.mdx#keycloak-login) (`KEYCLOAK_SSO_ENABLED=true`)   | `admin` / `admin` (`.docker/keycloak/minimal-users.json`, Keycloak `platform_admin` role) — provisions the realm first (`pnpm seed:keycloak`)      |
+
+`pnpm seed:local-admin` re-runs the same local account creation on demand
+(`.docker/local-auth/admin-user.json`) — use it to recover a locked-out
+`admin` account, or after `pnpm db:reset` (which wipes the `users` table, so
+the migration-driven seed above won't fire again — it only runs once, the
+first time migration `0025` itself applies).
+
+Either way, no organization or workspace is created: signing in and creating
+the first workspace automatically creates a personal organization for that
+user (see
+[Organizations and roles](../reference/authentication.mdx#organizations-and-roles)).
+
+## Demo seed
+
 Three sample ArchiMate models are available for demo or local testing:
 
 | Model        | Elements | Relationships | Views |

@@ -3,7 +3,10 @@
  *
  * Single shared database, applicative multi-tenancy. Hierarchy:
  * organizations → workspaces → elements/relationships/views/... . User
- * identities live in Keycloak; see `@workspace/auth`. An Organization groups
+ * identities live either in the local `users` table below (id
+ * `local:<uuid>`) or in Keycloak (id = the Keycloak `sub`, a bare UUID —
+ * the `local:` prefix makes collision between the two id spaces
+ * structurally impossible); see `@workspace/auth`. An Organization groups
  * Workspaces and members with one of four roles — `platform_admin`
  * (administers organizations, no access to their data, enforced structurally
  * in `apps/server/lib/archimate/access.ts`), `owner`, `admin`, `member` (see
@@ -48,8 +51,9 @@ export const organizations = pgTable(
     // Auto-created on a user's first workspace (see Phase 4 invariant); false
     // for an explicitly created "team" organization.
     isPersonal: boolean("is_personal").notNull().default(false),
-    // Keycloak `sub` of the personal organization's owner — the backfill's
-    // idempotence key (ON CONFLICT DO NOTHING). NULL for team organizations.
+    // Identity id (local or Keycloak) of the personal organization's owner —
+    // the backfill's idempotence key (ON CONFLICT DO NOTHING). NULL for team
+    // organizations.
     personalOwnerId: text("personal_owner_id"),
     // Suspension flag, set by a platform_admin — false blocks all access,
     // including for an `owner` of the organization.
@@ -68,6 +72,112 @@ export const organizations = pgTable(
 )
 
 // ---------------------------------------------------------------------------
+// Local accounts — login/password, the default auth method (Keycloak SSO is
+// the optional alternative, see KEYCLOAK_SSO_ENABLED). `id` is namespaced
+// "local:<uuid>" so it can never collide with a Keycloak `sub` (a bare
+// UUID) in any of the FK-less userId columns above/below.
+// ---------------------------------------------------------------------------
+
+export const users = pgTable(
+  "users",
+  {
+    id: text("id").primaryKey(), // "local:<uuid>"
+    username: text("username").notNull(), // lowercase, login identifier
+    email: text("email").notNull(), // lowercase
+    passwordHash: text("password_hash").notNull(), // argon2id encoded string
+    displayName: text("display_name"),
+    role: text("role").notNull().default("user"), // "platform_admin" | "user" — mirrors Keycloak realm_access.roles
+    enabled: boolean("enabled").notNull().default(true),
+    emailVerified: boolean("email_verified").notNull().default(false),
+    mustChangePassword: boolean("must_change_password")
+      .notNull()
+      .default(false),
+    createdAt: integer("created_at")
+      .notNull()
+      .default(sql`extract(epoch from now())::int`),
+    updatedAt: integer("updated_at")
+      .notNull()
+      .default(sql`extract(epoch from now())::int`),
+    lastLoginAt: integer("last_login_at"),
+  },
+  (t) => [
+    uniqueIndex("users_username_uniq").on(t.username),
+    uniqueIndex("users_email_uniq").on(t.email),
+  ]
+)
+
+// Opaque refresh token (prefixed "lrt_" in its clear-text form, never
+// stored — see apps/server/lib/archimate/local-auth-tokens.ts), stored
+// hashed so a leaked DB row can't itself be replayed. Rotation chain via
+// replacedById enables reuse detection: presenting an already-revoked token
+// revokes every session of that user.
+export const localRefreshTokens = pgTable(
+  "local_refresh_tokens",
+  {
+    id: serial("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    tokenHash: text("token_hash").notNull(), // sha256 of the clear opaque token
+    createdAt: integer("created_at")
+      .notNull()
+      .default(sql`extract(epoch from now())::int`),
+    expiresAt: integer("expires_at").notNull(),
+    revokedAt: integer("revoked_at"),
+    replacedById: integer("replaced_by_id"), // rotation chain, for reuse detection
+    userAgent: text("user_agent"),
+    ipAddress: text("ip_address"),
+  },
+  (t) => [
+    uniqueIndex("local_refresh_tokens_token_hash_uniq").on(t.tokenHash),
+    index("local_refresh_tokens_user_idx").on(t.userId),
+  ]
+)
+
+// Password reset token, same pattern as organizationInvitations.tokenHash.
+export const localPasswordResetTokens = pgTable(
+  "local_password_reset_tokens",
+  {
+    id: serial("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    tokenHash: text("token_hash").notNull(),
+    createdAt: integer("created_at")
+      .notNull()
+      .default(sql`extract(epoch from now())::int`),
+    expiresAt: integer("expires_at").notNull(),
+    usedAt: integer("used_at"),
+  },
+  (t) => [
+    uniqueIndex("local_password_reset_tokens_token_hash_uniq").on(
+      t.tokenHash
+    ),
+  ]
+)
+
+// Failed-login counters for rate limiting (see
+// apps/server/lib/archimate/local-auth-rate-limit.ts). Postgres-backed
+// rather than in-memory because the app may run as multiple serverless
+// instances. identifier is "ip:<addr>" or "user:<username>".
+export const localLoginAttempts = pgTable(
+  "local_login_attempts",
+  {
+    id: serial("id").primaryKey(),
+    identifier: text("identifier").notNull(),
+    createdAt: integer("created_at")
+      .notNull()
+      .default(sql`extract(epoch from now())::int`),
+  },
+  (t) => [
+    index("local_login_attempts_identifier_idx").on(
+      t.identifier,
+      t.createdAt
+    ),
+  ]
+)
+
+// ---------------------------------------------------------------------------
 // Organization members — role-based access (owner/admin/member)
 // ---------------------------------------------------------------------------
 
@@ -78,7 +188,7 @@ export const organizationMembers = pgTable(
     organizationId: integer("organization_id")
       .notNull()
       .references(() => organizations.id, { onDelete: "cascade" }),
-    // Keycloak `sub` of the member (no FK: identities live in Keycloak).
+    // Identity id, local or Keycloak (no FK: identities live in either place).
     userId: text("user_id").notNull(),
     role: text("role").notNull(), // "owner" | "admin" | "member"
     createdAt: integer("created_at")
@@ -108,7 +218,7 @@ export const organizationInvitations = pgTable(
     // sha256 of the invitation token — the clear-text token is never
     // persisted, only emailed; lookups hash the received token and compare.
     tokenHash: text("token_hash").notNull(),
-    // Keycloak `sub` of the inviter (no FK: identities live in Keycloak).
+    // Identity id, local or Keycloak (no FK: identities live in either place).
     invitedByUserId: text("invited_by_user_id").notNull(),
     createdAt: integer("created_at")
       .notNull()
@@ -151,7 +261,7 @@ export const apiTokens = pgTable(
     id: serial("id").primaryKey(),
     token: text("token").notNull(),
     name: text("name").notNull(),
-    // Keycloak `sub` of the token's owner (no FK: identities live in Keycloak).
+    // Identity id, local or Keycloak (no FK: identities live in either place).
     userId: text("user_id").notNull(),
     // Organization this token is scoped to (required at creation — see
     // apps/server/lib/archimate/access.ts). Nullable at the DB level only during the
@@ -217,8 +327,9 @@ export const workspaces = pgTable(
       () => organizations.id,
       { onDelete: "cascade" }
     ),
-    // Keycloak `sub` of the user who created the workspace — traceability
-    // only, non-authoritative (never used for access control; see access.ts).
+    // Identity id (local or Keycloak) of the user who created the workspace
+    // — traceability only, non-authoritative (never used for access
+    // control; see access.ts).
     createdById: text("created_by_id").notNull(),
     createdAt: integer("created_at")
       .notNull()

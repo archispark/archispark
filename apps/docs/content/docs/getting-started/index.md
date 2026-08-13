@@ -28,11 +28,13 @@ the public Internet.
 First run:
 
 - `apps/server`'s `instrumentation.ts` (Next.js's `register()` hook)
-  applies pending PostgreSQL migrations (`packages/db/drizzle-pg/`).
-- Demo users and workspaces are **not** seeded automatically — run
-  `pnpm setup-demo` (or the individual `pnpm keycloak-setup` /
-  `seed-demo-users` / `seed-demo` scripts, see
-  [Demo seed](demo-data.md#demo-seed)).
+  applies pending PostgreSQL migrations (`packages/db/drizzle-pg/`) — this
+  also creates a local `admin`/`admin` login (forced password change at
+  first sign-in, see [Demo seed](demo-data.md#minimal-seed)), so there's
+  nothing to seed for a bare login. Run `pnpm setup-demo` for the full demo
+  dataset (organizations, workspaces, ArchiMate models) on top of it.
+- No organization exists yet — creating the first workspace after sign-in
+  automatically creates a personal organization.
 - `DATABASE_URL` is **required**, no hardcoded default. `pnpm dev` sources
   `.env.dev`, which sets it to
   `postgresql://archispark:${DB_PASSWORD}@localhost:5432/archispark` to
@@ -68,6 +70,8 @@ pnpm keycloak-setup  # create/update the Keycloak realm (roles, clients, service
 pnpm seed:demo-users # create/update the 5 Keycloak demo accounts (admin/user/contrib/archi/open)
 pnpm seed:demo       # seed demo ArchiMate data (ArchiMetal/ArchiSurance/Open Day, see Demo seed)
 pnpm setup-demo      # all three above, in order
+pnpm seed:local-admin # re-creates the local admin login on demand (already created automatically by migrations on first boot)
+pnpm seed:minimal    # realm + a single admin login, no organization/workspace/ArchiMate data
 pnpm reset           # delete all ArchiSpark PostgreSQL and Neo4j data (no seed)
 pnpm reset-demo      # migrate, replace demo data, and export all workspaces to Neo4j
 

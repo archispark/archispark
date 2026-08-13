@@ -32,7 +32,7 @@ La documentation Fumadocs vit dans [`apps/docs`](apps/docs) et se lance avec
 | [Installation & local development](apps/docs/content/docs/getting-started/index.md) | Stack, quick start, Docker & pnpm scripts                    |
 | [Deployment](apps/docs/content/docs/development/deployment.md)                 | Docker Compose, Vercel                                             |
 | [Architecture](apps/docs/content/docs/development/architecture.md)             | Persistence, database schema, `apps/server`, dashboards            |
-| [Authentication](apps/docs/content/docs/reference/authentication.md)           | Keycloak login, tokens, access control                             |
+| [Authentication](apps/docs/content/docs/reference/authentication.md)           | Local accounts, Keycloak login, tokens, access control              |
 | [Administration](apps/docs/content/docs/administration/index.md)               | Admin, user provisioning                                           |
 | [API reference](apps/docs/content/docs/reference/api-reference.md)             | Workspaces, elements, relationships, views, property definitions   |
 | [MCP server](apps/docs/content/docs/reference/mcp-tools.md)                    | Model Context Protocol tools for AI agents                         |

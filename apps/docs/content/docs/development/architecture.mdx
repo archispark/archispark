@@ -17,7 +17,8 @@ WASM, in-memory) — full Postgres fidelity, no Docker required.
 **Organisation → Workspace** hierarchy: `organizations` (`slug`, `name`,
 `isPersonal`, `enabled` — a suspension flag settable only by an Admin
 (`platform_admin`)), `organizationMembers` (`organizationId`, `userId` — a
-Keycloak `sub` — and `role`: `"owner" | "admin" | "member"`),
+local (`local:<uuid>`) or Keycloak (`sub`) identity id — and `role`:
+`"owner" | "admin" | "member"`),
 `organizationInvitations` (email-based invitations — `email`, `role`,
 `tokenHash` (SHA-256 of a random token, the clear-text token itself is
 never persisted), `expiresAt`/`sentAt`/`acceptedAt`/`revokedAt`; a partial
@@ -29,8 +30,11 @@ invitation per organization/e-mail pair — see
 use), `siteSettings` (login/banner messages), `apiTokens` (personal API
 tokens, each scoped to one `organizationId` and optionally pinned to one
 `workspaceId`), `workspaces` (each belonging to exactly one organization —
-`organizationId`; `createdById`, a Keycloak `sub`, is traceability only and
-never used for access control), `userActiveWorkspace` (per-user,
+`organizationId`; `createdById`, a local or Keycloak identity id, is
+traceability only and never used for access control), `users` (local
+username/password accounts, id `local:<uuid>` — see
+[Local accounts](../reference/authentication.mdx#local-accounts)),
+`userActiveWorkspace` (per-user,
 per-organization pointer to the workspace currently in use), and the
 ArchiMate content tables (`elements`, `relationships`,
 `propertyDefinitions`, `elementProperties`, `relationshipProperties`,
@@ -45,9 +49,11 @@ any access to organization content, enforced once in
 rather than left to be remembered at every call site. See
 [Authentication](../reference/authentication.md) for the full role matrix.
 
-There is no local `users` table — identities live entirely in Keycloak.
+Identities live either in the `users` table (id `local:<uuid>`) or in
+Keycloak (id = the bare Keycloak `sub`) — the `local:` prefix keeps the two
+id spaces from ever colliding.
 `apiTokens.userId`/`organizationMembers.userId`/`workspaces.createdById` are
-plain Keycloak `sub` values.
+FK-less text columns holding either form.
 
 `apiTokens.organizationId`/`workspaces.organizationId` are nullable at the
 DB level only during the expand→backfill→contract
@@ -67,8 +73,9 @@ npx drizzle-kit generate   # writes to drizzle-pg/
 
 `apps/server` is the single application — a Next.js app combining the
 workspace UI, the REST API, and the MCP server in one process and one
-deployment. It owns authentication (`requireAuth`, verifying a Keycloak
-access token via JWKS or a personal API token), personal settings (`/api/me`,
+deployment. It owns authentication (`requireAuth`, verifying a local or
+Keycloak access token — see [Local accounts](../reference/authentication.mdx#local-accounts)
+— or a personal API token), personal settings (`/api/me`,
 `/api/settings/api-tokens`, `/api/settings/messages`), organization/member
 management (`/api/organizations*`, `/api/platform/organizations*`), every
 ArchiMate modeling route (`/api/workspaces`, `/api/elements`,
