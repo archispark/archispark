@@ -1,17 +1,37 @@
 # ─────────────────────────────────────────────────────────────────────────────
 #  ArchiSpark — Docker Compose (dev local / pnpm)
 #
-#  Lance uniquement l'infrastructure (Postgres + Keycloak).
-#  L'application tourne en local via pnpm :
+#  Lance uniquement l'infrastructure. L'application tourne en local via pnpm :
 #
-#    pnpm start       # démarre Postgres + Keycloak, puis pnpm dev
+#    pnpm start       # démarre l'infra complète, puis pnpm dev
 #                      # (apps/server avec hot-reload : web, API REST et MCP)
 #
-#  Arrêt (en conservant les données) :
-#    docker compose -f .docker/docker-compose.dev.yml down
+#  Postgres démarre toujours (base partagée par tout le reste). Les autres
+#  services sont rattachés à un profil et ne démarrent que si on l'active
+#  explicitement, ou s'ils sont dépendance d'un service dont le profil est
+#  actif (ex: `--profile auth` démarre aussi mailpit, dont keycloak dépend) :
+#
+#    mailpit   → profil "mail"
+#    keycloak  → profil "auth"  (dépend de "mail")
+#    neo4j     → profil "neo4j"
+#
+#  Raccourcis pnpm (voir package.json) :
+#
+#    pnpm infra:up         # tout (comportement historique)
+#    pnpm infra:up:db      # postgres seul
+#    pnpm infra:up:mail    # postgres + mailpit
+#    pnpm infra:up:auth    # postgres + mailpit + keycloak
+#    pnpm infra:up:neo4j   # postgres + neo4j
+#
+#  Équivalent manuel, ex. postgres + neo4j uniquement :
+#    docker compose -f .docker/docker-compose.yml --profile neo4j up -d --wait
+#
+#  Arrêt (en conservant les données) — toujours avec tous les profils, pour
+#  arrêter l'ensemble des conteneurs quel que soit le sous-ensemble démarré :
+#    pnpm infra:down
 #
 #  Arrêt + suppression des volumes :
-#    docker compose -f .docker/docker-compose.dev.yml down -v
+#    docker compose -f .docker/docker-compose.yml --profile auth --profile mail --profile neo4j down -v
 # ─────────────────────────────────────────────────────────────────────────────
 
 services:
@@ -39,6 +59,7 @@ services:
   # ── Base de données (Neo4j) ───────────────────────────────────────────────
   neo4j:
     image: neo4j:5-community
+    profiles: ["neo4j"]
     ports:
       - '7474:7474' # Neo4j Browser
       - '7687:7687' # Bolt (apps/server, NEO4J_URI=bolt://localhost:7687)
@@ -54,6 +75,10 @@ services:
   mailpit:
     image: axllent/mailpit:latest
     restart: unless-stopped
+    # keycloak (profil "auth") en dépend : rattaché aussi à "auth" pour que
+    # `--profile auth` seul suffise (profiles inactifs référencés par
+    # depends_on ne sont pas démarrés implicitement par Compose).
+    profiles: ["mail", "auth"]
     ports:
       - "1025:1025" # SMTP for apps/server running on the host
       - "8025:8025" # Mailpit web UI
@@ -62,6 +87,7 @@ services:
   keycloak:
     image: quay.io/keycloak/keycloak:26.0.2
     restart: unless-stopped
+    profiles: ["auth"]
     command: start-dev --import-realm
     environment:
       KC_DB:          postgres

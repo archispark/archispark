@@ -17,9 +17,9 @@
  * environment still take priority.
  */
 
-import { readFileSync, existsSync } from "fs"
-import { fileURLToPath } from "url"
-import { dirname, isAbsolute, join, resolve } from "path"
+import { existsSync } from "fs"
+import { isAbsolute, join, resolve } from "path"
+import { applyEnvFile, repoRoot as envRepoRoot } from "@workspace/env"
 
 // ── 1. Parse args, load env file — explicit arg, or .env.$ENV at the repo root if present ──
 
@@ -35,7 +35,7 @@ if (!workspaceUuid) {
 // .env.dev/.env.prod live at the repo root — resolve a relative path
 // against the repo root rather than cwd, so `pnpm import:workspace --
 // <uuid> .env.dev` works whether invoked from the repo root or a package.
-const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "../../..")
+const repoRoot = envRepoRoot()
 const envFile = envFileArg
   ? isAbsolute(envFileArg)
     ? envFileArg
@@ -48,27 +48,7 @@ if (envFileArg && !existsSync(envFile)) {
   console.error(`Env file not found: ${envFile}`)
   process.exit(1)
 }
-if (existsSync(envFile)) {
-  for (const line of readFileSync(envFile, "utf-8").split("\n")) {
-    const trimmed = line.trim()
-    if (!trimmed || trimmed.startsWith("#")) continue
-    const eq = trimmed.indexOf("=")
-    if (eq === -1) continue
-    const key = trimmed.slice(0, eq).trim()
-    const rawVal = trimmed
-      .slice(eq + 1)
-      .trim()
-      .replace(/^["']|["']$/g, "")
-    // .env.dev/.env.prod interpolate other vars from the same file (e.g.
-    // DATABASE_URL referencing DB_PASSWORD), same as docker-compose does —
-    // resolve those against vars already loaded earlier in this file.
-    const val = rawVal.replace(
-      /\$\{(\w+)\}/g,
-      (_, name) => process.env[name] ?? ""
-    )
-    if (key && !(key in process.env)) process.env[key] = val
-  }
-}
+applyEnvFile(envFile)
 
 if (!process.env["DATABASE_URL"]) {
   console.error(

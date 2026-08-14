@@ -52,3 +52,21 @@ jobs:
         with:
           name: server
           working-directory: apps/server
+
+      - name: Install Playwright browser
+        run: pnpm --filter server exec playwright install --with-deps chromium
+
+      # apps/server/e2e/start-server.sh (this suite's Playwright webServer)
+      # starts its own throwaway Postgres container — no service container
+      # needed here, just Docker itself (preinstalled on ubuntu-latest).
+      - name: Run e2e tests
+        run: pnpm --filter server test:e2e
+        timeout-minutes: 5
+
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report
+          path: apps/server/playwright-report/
+          retention-days: 7

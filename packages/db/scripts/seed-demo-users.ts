@@ -16,6 +16,7 @@
  * manage-users/view-users on the target realm).
  */
 
+import "@workspace/env/register"
 import { readFileSync } from "fs"
 import { resolve } from "path"
 import { seedKeycloakUsers, type SeedUser } from "./lib/seed-keycloak-users.js"

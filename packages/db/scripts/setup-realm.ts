@@ -34,6 +34,7 @@
  * KEYCLOAK_SETUP_USERNAME/KEYCLOAK_SETUP_PASSWORD to a realm-admin user.
  */
 
+import "@workspace/env/register"
 import { readFileSync } from "fs"
 import { resolve } from "path"
 

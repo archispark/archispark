@@ -22,6 +22,7 @@
   },
   "dependencies": {
     "@workspace/db": "workspace:*",
+    "@workspace/env": "workspace:*",
     "drizzle-orm": "^0.45.2",
     "neo4j-driver": "^6.2.0"
   },

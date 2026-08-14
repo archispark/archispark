@@ -17,6 +17,8 @@ acme.json
 
 # Testing
 coverage
+apps/server/playwright-report/
+apps/server/test-results/
 
 # Turbo
 .turbo

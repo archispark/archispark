@@ -5,11 +5,13 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "dev": "[ ! -f ../../.env ] || { set -a && . ../../.env && set +a; }; next dev --turbopack --hostname 0.0.0.0 --port 8000",
+    "dev": "next dev --turbopack --hostname 0.0.0.0 --port 8000",
     "build": "next build",
-    "start": "[ ! -f ../../.env ] || { set -a && . ../../.env && set +a; }; next start --hostname 0.0.0.0 --port 8000",
+    "start": "next start --hostname 0.0.0.0 --port 8000",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
     "lint": "eslint",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
     "typecheck": "tsc --noEmit",
@@ -28,6 +30,7 @@
     "@workspace/auth": "workspace:*",
     "@workspace/db": "workspace:*",
     "@workspace/db-neo4j": "workspace:*",
+    "@workspace/env": "workspace:*",
     "@workspace/image-library": "workspace:*",
     "@workspace/ui": "workspace:*",
     "@xyflow/react": "^12.11.0",
@@ -50,6 +53,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "@tailwindcss/postcss": "^4.1.18",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",

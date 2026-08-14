@@ -35,10 +35,11 @@ First run:
   dataset (organizations, workspaces, ArchiMate models) on top of it.
 - No organization exists yet — creating the first workspace after sign-in
   automatically creates a personal organization.
-- `DATABASE_URL` is **required**, no hardcoded default. `pnpm dev` sources
-  `.env.dev`, which sets it to
+- `DATABASE_URL` is **required**, no hardcoded default. `apps/server` loads
+  the repo root `.env` itself at startup, if present (a real environment
+  variable always takes priority over the file), which sets it to
   `postgresql://archispark:${DB_PASSWORD}@localhost:5432/archispark` to
-  match the Postgres container started by the same command.
+  match the Postgres container started by `pnpm dev`.
 
 ## Docker & pnpm scripts
 
@@ -49,8 +50,10 @@ Two Docker Compose files cover every deployment mode:
 | `docker-compose.yml`     | **Production** — pulls published images from Docker Hub (Traefik, server, PostgreSQL, Neo4j) |
 | `docker-compose.dev.yml` | **Development infra** — PostgreSQL + Keycloak + Neo4j, started by `pnpm dev`                 |
 
-Root `package.json` scripts load `.env.dev` for local development. Run
-`pnpm run` (no script name) to list every script.
+`apps/server` and the `packages/db`/`packages/db-neo4j` CLI scripts each load
+the repo root `.env` themselves at startup, if present — no manual sourcing
+needed, and a real environment variable always takes priority over the file.
+Run `pnpm run` (no script name) to list every script.
 
 ```bash
 # First-time setup
@@ -60,6 +63,15 @@ pnpm env             # copy .env.example → .env.dev (edit DB_PASSWORD, KEYCLOA
 # Development
 pnpm dev              # starts Docker infrastructure, then hot-reload: server on :8000 and docs on :3000
 pnpm down
+
+# Selective infra startup — PostgreSQL always starts, the rest is opt-in via
+# Docker Compose profiles (see .docker/docker-compose.yml)
+pnpm infra:up         # everything: PostgreSQL + Mailpit + Keycloak + Neo4j
+pnpm infra:up:db      # PostgreSQL only
+pnpm infra:up:mail    # PostgreSQL + Mailpit
+pnpm infra:up:auth    # PostgreSQL + Mailpit + Keycloak
+pnpm infra:up:neo4j   # PostgreSQL + Neo4j
+pnpm infra:down       # stops everything, regardless of which subset is running
 docker compose -f .docker/docker-compose.dev.yml --env-file .env.dev logs -f
 # Note: on a Postgres volume that pre-dates Keycloak, .docker/initdb/02-create-keycloak-db.sql
 # won't run (it only fires on first init). Create the DB once manually:

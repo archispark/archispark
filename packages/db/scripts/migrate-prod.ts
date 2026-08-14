@@ -6,18 +6,20 @@
  *   # or pass an env file:
  *   pnpm --filter @workspace/db migrate:prod /tmp/vercel-prod.env
  *
- * Reads DATABASE_URL from the environment or from the .env file passed as
- * the first argument. Runs all pending migrations from packages/db/drizzle-pg/
- * and exits.
+ * Reads DATABASE_URL from the environment, from the .env file passed as the
+ * first argument, or from the repo root `.env` when present and no argument
+ * is given (vars already set in the environment always take priority). Runs
+ * all pending migrations from packages/db/drizzle-pg/ and exits.
  */
 
-import { readFileSync, existsSync } from "fs";
+import { existsSync } from "fs";
 import { resolve } from "path";
 import pg from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
+import { applyEnvFile, loadEnv } from "@workspace/env";
 
-// ── 1. Load env file if provided ────────────────────────────────────────────
+// ── 1. Load env file — explicit arg, or the repo root `.env` if present ────
 
 const envFile = process.argv[2];
 if (envFile) {
@@ -25,15 +27,9 @@ if (envFile) {
     console.error(`Env file not found: ${envFile}`);
     process.exit(1);
   }
-  for (const line of readFileSync(envFile, "utf-8").split("\n")) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) continue;
-    const eq = trimmed.indexOf("=");
-    if (eq === -1) continue;
-    const key = trimmed.slice(0, eq).trim();
-    const val = trimmed.slice(eq + 1).trim().replace(/^["']|["']$/g, "");
-    if (key && !(key in process.env)) process.env[key] = val;
-  }
+  applyEnvFile(envFile);
+} else {
+  loadEnv();
 }
 
 // ── 2. Resolve connection string ─────────────────────────────────────────────

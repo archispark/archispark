@@ -63,9 +63,15 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   // An invitee accepting an invitation isn't a member of any organization
   // yet, so the org-scoped nav/sidebar would just error or look empty —
-  // same full-bleed chrome as /login.
+  // same full-bleed chrome as /login. /change-password is reachable before
+  // any organization context exists too (a platform_admin's forced
+  // first-login password change, e.g. the seeded admin/admin account, has
+  // no active org yet) — without this, PlatformAdminBlock below would
+  // replace the change-password form and strand that account.
   const isChromeless =
-    pathname === "/login" || !!pathname?.startsWith("/invitations")
+    pathname === "/login" ||
+    pathname === "/change-password" ||
+    !!pathname?.startsWith("/invitations")
   // platform_admin has no workspace access of its own, but IS meant to
   // reach /platform/* (organization administration) — see
   // apps/server/app/platform/organizations/page.tsx — and, once it has

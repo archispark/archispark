@@ -138,6 +138,17 @@ Les tests utilisent PGlite, donc Docker n'est pas requis. Ne jamais placer de
 fichier `*.test.ts` dans `apps/server/pages/api/` : Next.js le traiterait comme
 une route active.
 
+Une suite Playwright distincte (`apps/server/e2e/`) fait tourner un build réel
+dans un navigateur, en comptes locaux uniquement (pas de Keycloak). Elle
+nécessite Docker (son `webServer` démarre un conteneur Postgres jetable) et un
+build préalable :
+
+```bash
+pnpm --filter server exec playwright install chromium  # une fois
+pnpm --filter server build
+pnpm --filter server test:e2e
+```
+
 ## Règles de modification
 
 ### Code

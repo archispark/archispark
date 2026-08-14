@@ -15,6 +15,11 @@ Neo4j), then starts Turbo in hot-reload mode. The main application is available
 on port 8000 and the documentation on port 3000. Stop the local infrastructure
 with `pnpm down`.
 
+Only PostgreSQL is required; Mailpit, Keycloak, and Neo4j start on demand via
+Docker Compose profiles (`pnpm infra:up:db`, `infra:up:mail`, `infra:up:auth`,
+`infra:up:neo4j` — see
+[Installation & Local Development](apps/docs/content/docs/getting-started/index.md#docker--pnpm-scripts)).
+
 To run the built main application without starting Docker, run:
 
 ```bash

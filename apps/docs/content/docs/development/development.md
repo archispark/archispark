@@ -41,11 +41,12 @@ pnpm dev
 then launches Turbo development tasks. The main application listens on port
 8000 and the documentation on port 3000.
 
-To run a single application after infrastructure is already ready, load
-`.env.dev` in your shell first, then use its workspace script:
+To run a single application after infrastructure is already ready, use its
+workspace script directly — `apps/server` loads the repo root `.env` itself
+at startup, if present (a real environment variable always takes priority
+over the file, no manual sourcing needed):
 
 ```bash
-pnpm dev
 pnpm --filter server dev
 pnpm --filter @archispark/docs dev
 ```
@@ -79,6 +80,17 @@ pnpm build
 Vitest has `server` (Node) and `web` (jsdom) projects. Never place a
 `*.test.ts` file under `apps/server/pages/api`: Next.js would expose it as a
 page route.
+
+A separate Playwright suite in `apps/server/e2e` drives a real build in a
+browser — local accounts only, no Keycloak. Unlike the tests above it needs
+Docker (its `webServer` command starts a throwaway Postgres container) and a
+build (`pnpm --filter server build`):
+
+```bash
+pnpm --filter server exec playwright install chromium # once
+pnpm --filter server build
+pnpm --filter server test:e2e
+```
 
 ## Add or change a REST route
 

@@ -27,6 +27,7 @@
   },
   "dependencies": {
     "@workspace/auth": "workspace:*",
+    "@workspace/env": "workspace:*",
     "drizzle-orm": "^0.45.2",
     "pg": "^8.13.3"
   },

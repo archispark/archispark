@@ -7,6 +7,7 @@
  *   DATABASE_URL=<url> pnpm --filter @workspace/db reset
  */
 
+import "@workspace/env/register"
 import pg from "pg"
 
 const dbUrl = process.env["DATABASE_URL"]

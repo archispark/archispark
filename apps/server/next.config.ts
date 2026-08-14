@@ -1,5 +1,11 @@
 import type { NextConfig } from "next"
 import os from "node:os"
+import { loadEnv } from "@workspace/env"
+
+// Must run before anything below reads process.env (e.g. ALLOWED_DEV_ORIGINS
+// just below): next.config.ts is the first user code Next.js executes for
+// `next dev` / `next build` / `next start`, earlier than instrumentation.ts.
+loadEnv()
 
 // In dev mode, Next.js only initializes its client runtime (HMR + hydration)
 // for requests whose origin is "allowed". Accessing the dev server from another

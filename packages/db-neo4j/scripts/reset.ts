@@ -7,6 +7,8 @@
  *     pnpm --filter @workspace/db-neo4j reset
  */
 
+import "@workspace/env/register"
+
 if (!process.env["NEO4J_URI"]) {
   console.error("Missing NEO4J_URI.")
   process.exit(1)

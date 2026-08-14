@@ -10,6 +10,7 @@ Thanks for considering a contribution to ArchiSpark!
 ```bash
 pnpm run -w test            # 500+ tests across all packages
 pnpm run -w test:coverage   # ≥80% coverage required
+pnpm --filter server build && pnpm --filter server test:e2e # Playwright, needs Docker — see development.md
 ```
 
 ## Code of Conduct

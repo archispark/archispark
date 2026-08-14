@@ -3,6 +3,7 @@
  * intentionally workspace-scoped: two workspaces
  * in the same organization receive independent copies and revision histories.
  */
+import "@workspace/env/register"
 import { readFileSync } from "fs"
 import { resolve } from "path"
 import pg from "pg"

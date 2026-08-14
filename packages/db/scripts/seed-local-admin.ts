@@ -19,6 +19,7 @@
  * reset.ts/seed-dashboards.ts.
  */
 
+import "@workspace/env/register"
 import { readFileSync } from "fs"
 import { resolve } from "path"
 import { randomUUID } from "crypto"

@@ -42,6 +42,7 @@
  * multiple times.
  */
 
+import "@workspace/env/register"
 import { readFileSync } from "fs"
 import { resolve } from "path"
 import pg from "pg"
