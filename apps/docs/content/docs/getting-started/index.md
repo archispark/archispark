@@ -18,8 +18,12 @@ transport, all in one process:
 
 ```bash
 pnpm install      # Node >=22.13 required (.nvmrc pins 24 — `nvm use` if you use nvm)
-pnpm dev          # Docker development infrastructure, then hot-reload — server on :8000 (web + API + MCP), docs on :3000
+pnpm infra:up     # Docker development infrastructure (PostgreSQL, Keycloak, Neo4j) — separate step
+pnpm dev          # hot-reload — server on :8000 (web + API + MCP)
 ```
+
+`pnpm dev` only runs `apps/server`. The Fumadocs site (`apps/docs`, this
+site) is a separate app: run `pnpm dev:docs` for it, on port 3000.
 
 Mailpit captures local invitation, verification, and password-reset e-mails
 at [http://localhost:8025](http://localhost:8025); it never delivers them to
@@ -39,7 +43,7 @@ First run:
   the repo root `.env` itself at startup, if present (a real environment
   variable always takes priority over the file), which sets it to
   `postgresql://archispark:${DB_PASSWORD}@localhost:5432/archispark` to
-  match the Postgres container started by `pnpm dev`.
+  match the Postgres container started by `pnpm infra:up`.
 
 ## Docker & pnpm scripts
 
@@ -48,7 +52,7 @@ Two Docker Compose files cover every deployment mode:
 | File                     | Purpose                                                                                      |
 | ------------------------ | -------------------------------------------------------------------------------------------- |
 | `docker-compose.yml`     | **Production** — pulls published images from Docker Hub (Traefik, server, PostgreSQL, Neo4j) |
-| `docker-compose.dev.yml` | **Development infra** — PostgreSQL + Keycloak + Neo4j, started by `pnpm dev`                 |
+| `docker-compose.dev.yml` | **Development infra** — PostgreSQL + Keycloak + Neo4j, started by `pnpm infra:up`            |
 
 `apps/server` and the `packages/db`/`packages/db-neo4j` CLI scripts each load
 the repo root `.env` themselves at startup, if present — no manual sourcing
@@ -60,18 +64,20 @@ Run `pnpm run` (no script name) to list every script.
 pnpm install         # pnpm install (Node >=22.13 — see .nvmrc)
 pnpm env             # copy .env.example → .env.dev (edit DB_PASSWORD, KEYCLOAK_ADMIN_CLIENT_SECRET)
 
-# Development
-pnpm dev              # starts Docker infrastructure, then hot-reload: server on :8000 and docs on :3000
-pnpm down
-
 # Selective infra startup — PostgreSQL always starts, the rest is opt-in via
-# Docker Compose profiles (see .docker/docker-compose.yml)
+# Docker Compose profiles (see .docker/docker-compose.yml). `dev`/`start`
+# never start or stop Docker themselves — run one of these first.
 pnpm infra:up         # everything: PostgreSQL + Mailpit + Keycloak + Neo4j
 pnpm infra:up:db      # PostgreSQL only
 pnpm infra:up:mail    # PostgreSQL + Mailpit
 pnpm infra:up:auth    # PostgreSQL + Mailpit + Keycloak
 pnpm infra:up:neo4j   # PostgreSQL + Neo4j
 pnpm infra:down       # stops everything, regardless of which subset is running
+
+# Development (infrastructure must already be running)
+pnpm dev              # hot-reload: server only, on :8000
+pnpm dev:docs         # hot-reload: Fumadocs site only, on :3000
+pnpm stop
 docker compose -f .docker/docker-compose.dev.yml --env-file .env.dev logs -f
 # Note: on a Postgres volume that pre-dates Keycloak, .docker/initdb/02-create-keycloak-db.sql
 # won't run (it only fires on first init). Create the DB once manually:
@@ -87,9 +93,10 @@ pnpm seed:minimal    # realm + a single admin login, no organization/workspace/A
 pnpm reset           # delete all ArchiSpark PostgreSQL and Neo4j data (no seed)
 pnpm reset-demo      # migrate, replace demo data, and export all workspaces to Neo4j
 
-# Run the built main application (infrastructure must already be available)
+# Run the built application (infrastructure must already be available)
 pnpm build
-pnpm start
+pnpm start        # server only, on :8000
+pnpm start:docs   # Fumadocs site only, on :3000
 
 # Production (Hub images)
 cp .env.example .env.prod # edit the production values before continuing

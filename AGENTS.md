@@ -88,11 +88,14 @@ selon le domaine modifié.
 ```bash
 pnpm install
 pnpm env
-pnpm dev    # infrastructure Docker + Turbo en hot reload : serveur :8000, documentation :3000
-pnpm down   # arrête l'infrastructure de développement
+pnpm infra:up   # infrastructure Docker (étape séparée, jamais lancée par dev/start)
+pnpm dev        # Turbo en hot reload, serveur uniquement : :8000
+pnpm dev:docs   # documentation Fumadocs en hot reload : :3000
+pnpm stop       # arrête l'infrastructure de développement
 
-pnpm build  # compile tous les workspaces avant le démarrage de production local
-pnpm start  # application principale compilée sur :8000 ; ne démarre pas Docker
+pnpm build       # compile tous les workspaces avant le démarrage de production local
+pnpm start       # application principale compilée sur :8000 ; ne démarre pas Docker
+pnpm start:docs  # documentation Fumadocs compilée sur :3000
 ```
 
 Après `pnpm env`, renseigner au minimum `DB_PASSWORD` et

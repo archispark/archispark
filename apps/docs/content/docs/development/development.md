@@ -34,26 +34,27 @@ nvm use
 pnpm install
 pnpm env
 # Set DB_PASSWORD and KEYCLOAK_ADMIN_CLIENT_SECRET in .env
+pnpm infra:up
 pnpm dev
 ```
 
-`pnpm dev` starts PostgreSQL, Keycloak, and Neo4j through Docker Compose,
-then launches Turbo development tasks. The main application listens on port
-8000 and the documentation on port 3000.
+`pnpm infra:up` starts PostgreSQL, Keycloak, and Neo4j through Docker
+Compose — a separate step, never run implicitly by `dev` or `start`.
+`pnpm dev` then launches the main application's Turbo development task on
+port 8000 only. `apps/server` loads the repo root `.env` itself at startup,
+if present (a real environment variable always takes priority over the
+file, no manual sourcing needed).
 
-To run a single application after infrastructure is already ready, use its
-workspace script directly — `apps/server` loads the repo root `.env` itself
-at startup, if present (a real environment variable always takes priority
-over the file, no manual sourcing needed):
+The Fumadocs site (`apps/docs`) is a separate app, run independently:
 
 ```bash
-pnpm --filter server dev
-pnpm --filter @archispark/docs dev
+pnpm dev:docs               # equivalent to pnpm --filter @archispark/docs dev
 ```
 
 `pnpm start` has the standard production role: it runs the already-built main
 application on port 8000. Run `pnpm build` first; it neither builds the
-application nor starts Docker services.
+application nor starts Docker services. `pnpm start:docs` does the same for
+the Fumadocs site, on port 3000.
 
 Database migrations are applied by `apps/server/instrumentation.ts` before the
 server accepts traffic. Keycloak setup and demo content remain explicit:

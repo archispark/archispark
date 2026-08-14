@@ -53,10 +53,10 @@ Mark both as secrets. Nothing else is required: the `vercel` plugin
 authenticates via OAuth through the Claude Code Web UI, and `playwright`
 launches its own headless browser.
 
-> Running the full app (`pnpm dev`, with real Postgres + Keycloak, e.g. to
-> drive the UI with Playwright via the `run` skill) needs Docker inside the
-> sandbox plus `pnpm keycloak-setup` — heavier, and not covered by the setup
-> script above.
+> Running the full app (`pnpm infra:up` then `pnpm dev`, with real Postgres +
+> Keycloak, e.g. to drive the UI with Playwright via the `run` skill) needs
+> Docker inside the sandbox plus `pnpm keycloak-setup` — heavier, and not
+> covered by the setup script above.
 
 ## MCP servers (`.mcp.json`)
 

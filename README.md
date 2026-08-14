@@ -7,20 +7,21 @@ ArchiMate 3.1 modeling tool — a single Next.js app serving the web UI, REST AP
 ```bash
 pnpm install
 pnpm env # edit DB_PASSWORD and KEYCLOAK_ADMIN_CLIENT_SECRET in .env.dev
+pnpm infra:up
 pnpm dev
 ```
 
-`pnpm dev` starts the local Docker infrastructure (PostgreSQL, Keycloak, and
-Neo4j), then starts Turbo in hot-reload mode. The main application is available
-on port 8000 and the documentation on port 3000. Stop the local infrastructure
-with `pnpm down`.
+`pnpm infra:up` starts the local Docker infrastructure (PostgreSQL, Keycloak,
+and Neo4j) — it is a separate step, never run implicitly by `dev` or `start`.
+`pnpm dev` then starts the main application in hot-reload mode on port 8000.
+Stop the local infrastructure with `pnpm stop`.
 
 Only PostgreSQL is required; Mailpit, Keycloak, and Neo4j start on demand via
 Docker Compose profiles (`pnpm infra:up:db`, `infra:up:mail`, `infra:up:auth`,
 `infra:up:neo4j` — see
 [Installation & Local Development](apps/docs/content/docs/getting-started/index.md#docker--pnpm-scripts)).
 
-To run the built main application without starting Docker, run:
+To run the built main application (infrastructure must already be running):
 
 ```bash
 pnpm build
@@ -29,8 +30,9 @@ pnpm start
 
 ## Documentation
 
-La documentation Fumadocs vit dans [`apps/docs`](apps/docs) et se lance avec
-`pnpm --filter @archispark/docs dev`.
+La documentation Fumadocs vit dans [`apps/docs`](apps/docs) et se lance
+indépendamment de l'application principale, avec `pnpm dev:docs` (ou
+`pnpm start:docs` pour la version buildée).
 
 | Topic                                                                          | Description                                                        |
 | ------------------------------------------------------------------------------ | ------------------------------------------------------------------ |
