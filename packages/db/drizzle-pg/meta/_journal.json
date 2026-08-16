@@ -190,6 +190,27 @@
       "when": 1786715200000,
       "tag": "0026_org_roles_owner_editor_viewer",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1786801600000,
+      "tag": "0027_image_pack_aws",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1786888000000,
+      "tag": "0028_image_pack_azure",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1786974400000,
+      "tag": "0029_image_pack_gcp",
+      "breakpoints": true
     }
   ]
 }

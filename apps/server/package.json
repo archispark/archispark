@@ -16,7 +16,8 @@
     "format": "prettier --write \"**/*.{ts,tsx}\"",
     "typecheck": "tsc --noEmit",
     "openapi": "tsx scripts/generate-openapi.ts",
-    "gen:icon-pack": "tsx scripts/generate-archimate-icon-pack.ts"
+    "gen:icon-pack": "tsx scripts/generate-archimate-icon-pack.ts",
+    "gen:cloud-icon-packs": "tsx scripts/generate-cloud-icon-packs.ts"
   },
   "dependencies": {
     "@asteasolutions/zod-to-openapi": "^8.5.0",

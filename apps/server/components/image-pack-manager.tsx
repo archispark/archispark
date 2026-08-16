@@ -126,7 +126,7 @@ export function ImagePackManager() {
   const [name, setName] = useState("")
   const [slug, setSlug] = useState("")
 
-  const systemPack = packs.find((p) => p.is_system)
+  const systemPacks = packs.filter((p) => p.is_system)
   const customPacks = packs.filter((p) => !p.is_system)
 
   async function handleCreate() {
@@ -159,7 +159,9 @@ export function ImagePackManager() {
         {t("image_library.manage_desc")}
       </p>
 
-      {systemPack && <PackRow pack={systemPack} />}
+      {systemPacks.map((pack) => (
+        <PackRow key={pack.identifier} pack={pack} />
+      ))}
       {customPacks.length === 0 ? (
         <p className="text-sm text-muted-foreground">
           {t("image_library.no_custom_packs")}
