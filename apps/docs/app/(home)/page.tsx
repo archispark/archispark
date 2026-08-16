@@ -252,13 +252,10 @@ cd archispark && pnpm install`}</code>
           <article>
             <span>2</span>
             <h3>Start the services</h3>
-            <p>
-              Configure the environment and start PostgreSQL, Keycloak and
-              Neo4j.
-            </p>
+            <p>Configure the environment, then start PostgreSQL.</p>
             <code>{`pnpm env
-docker compose -f .docker/docker-compose.dev.yml up -d --wait
-pnpm keycloak-setup`}</code>
+# edit DB_PASSWORD in .env.dev
+pnpm infra:up:db`}</code>
           </article>
           <article>
             <span>3</span>
