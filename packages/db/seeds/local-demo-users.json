@@ -1,0 +1,33 @@
+[
+  {
+    "username": "admin",
+    "email": "admin@archispark.internal",
+    "password": "admin",
+    "displayName": "Admin",
+    "role": "platform_admin"
+  },
+  {
+    "username": "user",
+    "email": "user@archispark.internal",
+    "password": "user",
+    "displayName": "User"
+  },
+  {
+    "username": "contrib",
+    "email": "contrib@archispark.internal",
+    "password": "contrib",
+    "displayName": "Contrib"
+  },
+  {
+    "username": "archi",
+    "email": "archi@archispark.internal",
+    "password": "archi",
+    "displayName": "Archi"
+  },
+  {
+    "username": "open",
+    "email": "open@archispark.internal",
+    "password": "open",
+    "displayName": "Open"
+  }
+]

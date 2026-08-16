@@ -109,6 +109,30 @@ run-it-ahead-of-the-first-request reason.
 
 5. **Redeploy** `archispark`.
 
+6. **(Demo project only) Configure the demo reset cron** — `apps/server/vercel.json`
+   declares a Vercel Cron Job at `GET /api/cron/reset-demo`, scheduled
+   `0 3 * * *` (once daily — the Hobby plan's cron frequency ceiling). It's
+   inert on every deployment by default; only set these two environment
+   variables on the actual public demo project (never on a customer
+   deployment, since `vercel.json`'s `crons` entry is committed and
+   therefore inherited by any fork of this codebase):
+   - `CRON_SECRET` — a random secret; Vercel automatically attaches
+     `Authorization: Bearer $CRON_SECRET` to its own cron invocations once
+     this is set.
+   - `DEMO_RESET_ENABLED=true` — a second, independent gate; the route
+     returns 404 even with a valid `CRON_SECRET` when this isn't set.
+
+   The cron does a full fresh-reinstall-style wipe of every application
+   table and the whole Neo4j graph (schema/migration history preserved),
+   then reseeds the demo accounts (**local accounts, not Keycloak** — no
+   `KEYCLOAK_*` variables are needed for this path), organizations,
+   workspaces, and dashboards — see
+   [Restore demo data on Vercel (Cron Job)](../getting-started/demo-data.md#restore-demo-data-on-vercel-cron-job)
+   for the full behavior, including why it's a full wipe rather than a
+   scoped delete. It replaces the previous manual **Actions → Restore demo
+   data** GitHub workflow (`seed-demo.yml`, removed once the cron has been
+   observed to run successfully in production).
+
 ## Self-hosted Docker Compose
 
 `.docker/docker-compose.prod.yml` is a self-hosted alternative to Vercel: it

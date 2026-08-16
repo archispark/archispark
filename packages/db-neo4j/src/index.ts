@@ -13,3 +13,7 @@ export type {
 export { importModelToNeo4j } from "./import-model.js";
 export type { Neo4jImportResult } from "./import-model.js";
 export { runNeo4jMigrations, ensureNeo4jSchema } from "./schema/migrate.js";
+export { importAllWorkspacesToNeo4j } from "./import-all-workspaces.js";
+export type { ImportAllWorkspacesResult } from "./import-all-workspaces.js";
+export { resetGraphData } from "./reset-graph-data.js";
+export type { ResetGraphDataResult } from "./reset-graph-data.js";

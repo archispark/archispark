@@ -11,159 +11,45 @@
  *
  * Membership is authoritative, not additive: for each organization, any
  * `organization_members` row for a user not listed in `demo-orgs.json` is
- * removed (see `removeStaleMembers`) — so narrowing an organization's
- * `members` (e.g. dropping a demo user's access) takes effect on rerun
- * instead of leaving stale rows behind. Stale `user_active_organization`
- * rows self-heal automatically on the affected user's next request
- * (`resolveActiveOrganizationId` in `apps/server/lib/archimate/access.ts` falls back to
- * another organization they're still a member of).
+ * removed — so narrowing an organization's `members` (e.g. dropping a demo
+ * user's access) takes effect on rerun instead of leaving stale rows
+ * behind. Stale `user_active_organization` rows self-heal automatically on
+ * the affected user's next request (`resolveActiveOrganizationId` in
+ * `apps/server/lib/archimate/access.ts` falls back to another organization
+ * they're still a member of).
  *
  * Self-healing legacy cleanup: `demo-orgs.json`'s `legacySlugs` lists slugs
  * retired by a past org restructuring (e.g. the `archisurance`/`archimetal`
  * → `archi`/`open` regroup). Each run deletes any organization matching one
- * of those slugs, but only if it now holds zero workspaces — this also
- * cascades away stale `user_active_organization` rows pointing at it, so a
- * demo user's active org self-heals to a valid one on their next request
- * instead of silently showing "no workspace". When retiring/renaming a slug
- * in `organizations`, add the old slug to `legacySlugs` so future runs clean
- * it up automatically.
+ * of those slugs, but only if it now holds zero workspaces. When
+ * retiring/renaming a slug in `organizations`, add the old slug to
+ * `legacySlugs` so future runs clean it up automatically.
+ *
+ * Demo usernames (admin/user/contrib/archi/open) are resolved to a user id
+ * either via Keycloak or via the local `users` table, depending on
+ * `KEYCLOAK_SSO_ENABLED` (see `@workspace/auth`'s `isKeycloakSsoEnabled()`)
+ * — run `seed:demo-users` (Keycloak) or `seed:local-demo-users` (local,
+ * the default) first. See `../src/seed-demo-data.ts` and
+ * `../src/seed-demo-organizations.ts` for the reusable core, also used by
+ * the demo reset cron (`apps/server/app/api/cron/reset-demo/route.ts`).
  *
  * Usage:
  *   pnpm --filter @workspace/db seed:demo
  *
- * Requires:
- *   DATABASE_URL — the shared database (organizations, workspaces, elements, …)
- *   KEYCLOAK_URL, KEYCLOAK_REALM, KEYCLOAK_ADMIN_CLIENT_ID,
- *   KEYCLOAK_ADMIN_CLIENT_SECRET — used to look up the demo users' Keycloak
- *                                  subs (run seed:demo-users first)
+ * Requires DATABASE_URL, plus either the Keycloak Admin API env vars or a
+ * populated local `users` table, depending on KEYCLOAK_SSO_ENABLED.
  *
- * Destructive reset: deletes existing ArchiSurance/ArchiMetal/Open Day
- * workspaces (CASCADE) then reimports from the generated SQL. Safe to run
- * multiple times.
+ * Destructive reset: replaces the ArchiSurance/ArchiMetal/Open Day
+ * workspaces' content. Safe to run multiple times.
  */
 
 import "@workspace/env/register"
-import { readFileSync } from "fs"
-import { resolve } from "path"
-import pg from "pg"
-import { findUserByUsername } from "@workspace/auth"
+import { isKeycloakSsoEnabled, findUserByUsername } from "@workspace/auth"
+import { findLocalUserIdByUsername } from "../src/local-users.js"
+import { seedDemoWorkspaces } from "../src/seed-demo-data.js"
+import { seedDashboardsForAllWorkspaces } from "../src/seed-dashboards-data.js"
 
-interface DemoOrg {
-  slug: string
-  name: string
-  workspaces: string[]
-  members: Record<string, string>
-}
-
-interface DemoOrgsFile {
-  organizations: DemoOrg[]
-  legacySlugs?: string[]
-}
-
-function organizationIdPlaceholder(workspace: string): string {
-  return `__${workspace.toUpperCase().replace(/[^A-Z0-9]/g, "")}_ORGANIZATION_ID__`
-}
-
-async function cleanupLegacyOrganizations(
-  client: pg.Client,
-  slugs: string[]
-): Promise<void> {
-  for (const slug of slugs) {
-    const { rowCount } = await client.query(
-      `DELETE FROM organizations o
-       WHERE o.slug = $1
-         AND NOT EXISTS (SELECT 1 FROM workspaces w WHERE w.organization_id = o.id)`,
-      [slug]
-    )
-    if (rowCount) {
-      console.log(
-        `Cleaned up legacy organization "${slug}" (empty, no workspaces).`
-      )
-    }
-  }
-}
-
-const SQL_PATH = resolve(import.meta.dirname, "../seeds/demo.sql")
-const sqlTemplate = readFileSync(SQL_PATH, "utf-8")
-
-const ORGS_PATH = resolve(import.meta.dirname, "../seeds/demo-orgs.json")
-const demoOrgsFile: DemoOrgsFile = JSON.parse(readFileSync(ORGS_PATH, "utf-8"))
-const demoOrgs = demoOrgsFile.organizations
-const legacySlugs = demoOrgsFile.legacySlugs ?? []
-
-const dbUrl = process.env["DATABASE_URL"]
-if (!dbUrl) {
-  console.error("Error: DATABASE_URL is required.")
-  process.exit(1)
-}
-
-const isLocal = (url: string) =>
-  /@(localhost|127\.0\.0\.1|\[::1\]|postgres)[:/]/.test(url)
-
-function stripSslmode(cs: string): string {
-  try {
-    const u = new URL(cs)
-    u.searchParams.delete("sslmode")
-    return u.toString()
-  } catch {
-    return cs
-  }
-}
-
-function makeClient(url: string): pg.Client {
-  const local = isLocal(url)
-  return new pg.Client({
-    connectionString: local ? url : stripSslmode(url),
-    ssl: local ? undefined : { rejectUnauthorized: false },
-  })
-}
-
-async function getOrCreateOrganization(
-  client: pg.Client,
-  slug: string,
-  name: string
-): Promise<number> {
-  const { rows } = await client.query<{ id: number }>(
-    `INSERT INTO organizations (slug, name, is_personal, enabled)
-     VALUES ($1, $2, false, true)
-     ON CONFLICT (slug) DO UPDATE SET name = EXCLUDED.name
-     RETURNING id`,
-    [slug, name]
-  )
-  return rows[0]!.id
-}
-
-async function upsertMember(
-  client: pg.Client,
-  organizationId: number,
-  userId: string,
-  role: string
-): Promise<void> {
-  await client.query(
-    `INSERT INTO organization_members (organization_id, user_id, role)
-     VALUES ($1, $2, $3)
-     ON CONFLICT (organization_id, user_id) DO UPDATE SET role = EXCLUDED.role`,
-    [organizationId, userId, role]
-  )
-}
-
-async function removeStaleMembers(
-  client: pg.Client,
-  organizationId: number,
-  keepUserIds: string[]
-): Promise<void> {
-  await client.query(
-    `DELETE FROM organization_members
-     WHERE organization_id = $1 AND user_id <> ALL($2::text[])`,
-    [organizationId, keepUserIds]
-  )
-}
-
-// ── 1. Resolve demo users' Keycloak subs ────────────────────────────────────
-
-const usernames = new Set(demoOrgs.flatMap((org) => Object.keys(org.members)))
-const userIds = new Map<string, string>()
-for (const username of usernames) {
+async function resolveViaKeycloak(username: string): Promise<string> {
   const user = await findUserByUsername(username)
   if (!user?.id) {
     console.error(
@@ -171,51 +57,34 @@ for (const username of usernames) {
     )
     process.exit(1)
   }
-  userIds.set(username, user.id)
   console.log(`Resolved user: ${user.id} (${username})`)
+  return user.id
 }
-const archiId = userIds.get("archi")!
 
-// ── 2. Create organizations + memberships ───────────────────────────────────
-
-const client = makeClient(dbUrl)
-await client.connect()
-
-const orgIdByWorkspace = new Map<string, number>()
-for (const org of demoOrgs) {
-  const orgId = await getOrCreateOrganization(client, org.slug, org.name)
-  for (const workspace of org.workspaces) {
-    orgIdByWorkspace.set(workspace, orgId)
+async function resolveViaLocalAccounts(username: string): Promise<string> {
+  const id = await findLocalUserIdByUsername(username)
+  if (!id) {
+    console.error(
+      `Error: demo user "${username}" not found locally. Run \`pnpm --filter @workspace/db seed:local-demo-users\` first.`
+    )
+    process.exit(1)
   }
-  for (const [username, role] of Object.entries(org.members)) {
-    await upsertMember(client, orgId, userIds.get(username)!, role)
-  }
-  await removeStaleMembers(
-    client,
-    orgId,
-    Object.keys(org.members).map((username) => userIds.get(username)!)
-  )
-  console.log(
-    `Organization "${org.name}" (id=${orgId}): ${org.workspaces.length} workspace(s), ${Object.keys(org.members).length} member(s).`
-  )
+  console.log(`Resolved user: ${id} (${username})`)
+  return id
 }
 
-// ── 2b. Clean up organizations retired by a past restructuring ─────────────
-
-await cleanupLegacyOrganizations(client, legacySlugs)
-
-// ── 3. Seed the workspaces (elements, views) into their organization ───────
-
-let sql = sqlTemplate.replaceAll("'__CREATED_BY_ID__'", `'${archiId}'`)
-for (const [workspace, orgId] of orgIdByWorkspace) {
-  sql = sql.replaceAll(organizationIdPlaceholder(workspace), String(orgId))
-}
+const resolveUserId = isKeycloakSsoEnabled()
+  ? resolveViaKeycloak
+  : resolveViaLocalAccounts
 
 console.log("Seeding workspaces (elements, views)…")
-await client.query(sql)
-await client.end()
+const { orgIdByWorkspace } = await seedDemoWorkspaces(resolveUserId)
+for (const [workspace, orgId] of orgIdByWorkspace) {
+  console.log(`Workspace "${workspace}" → organization id ${orgId}`)
+}
 
 console.log("Seeding dashboards for each workspace…")
-await import("./seed-dashboards.js")
+await seedDashboardsForAllWorkspaces()
 
 console.log("Done.")
+process.exit(0)

@@ -60,23 +60,9 @@ const { db, workspaces, organizations, modelFromDb } =
   await import("@workspace/db")
 const { importModelToNeo4j } = await import("../src/import-model.js")
 const { closeDriver } = await import("../src/connection.js")
-
-const MAX_IMPORT_ATTEMPTS = 3
-
-function isRetriableNeo4jFailure(error: unknown): boolean {
-  if (error && typeof error === "object") {
-    const candidate = error as { retriable?: unknown; retryable?: unknown }
-    if (candidate.retriable === true || candidate.retryable === true)
-      return true
-  }
-  return /ECONNRESET|SessionExpired|Failed to connect/i.test(
-    error instanceof Error ? error.message : String(error)
-  )
-}
-
-function wait(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
-}
+const { MAX_IMPORT_ATTEMPTS, isRetriableNeo4jFailure, wait } = await import(
+  "../src/retry.js"
+)
 
 const allWorkspaces = await db.select().from(workspaces)
 if (allWorkspaces.length === 0) {
