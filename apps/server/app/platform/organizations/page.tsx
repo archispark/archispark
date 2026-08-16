@@ -1,8 +1,17 @@
 "use client"
 
 import { useState } from "react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ShieldAlert, Trash2, Ban, Play, LogOut, LogIn } from "lucide-react"
+import {
+  ShieldAlert,
+  Trash2,
+  Ban,
+  Play,
+  LogOut,
+  LogIn,
+  Settings2,
+} from "lucide-react"
 import { useT } from "@/lib/i18n"
 import { type PlatformOrganizationOut } from "@/lib/api"
 import {
@@ -68,10 +77,20 @@ export default function PlatformOrganizationsPage() {
             {t("platform.desc")}
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={logout}>
-          <LogOut className="size-4" />
-          {t("nav.logout")}
-        </Button>
+        <div className="flex shrink-0 gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            render={<Link href="/platform/settings" />}
+          >
+            <Settings2 className="size-4" />
+            {t("platform.settings.title")}
+          </Button>
+          <Button variant="outline" size="sm" onClick={logout}>
+            <LogOut className="size-4" />
+            {t("nav.logout")}
+          </Button>
+        </div>
       </div>
 
       {isLoading ? (

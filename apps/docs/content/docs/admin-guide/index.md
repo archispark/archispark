@@ -64,8 +64,9 @@ users redirected to `/platform/organizations`, where they can:
 - suspend or reactivate one;
 - delete one, cascading to its workspaces, memberships, invitations,
   dashboards, and organization-scoped tokens;
-- update the site login message and banner through
-  `PUT /api/settings/messages`;
+- edit the site login message and in-app banner from
+  `/platform/settings` (e.g. to list demo account credentials on the login
+  page), backed by `PUT /api/settings/messages`;
 - select **Administer** on an organization to switch admin mode to it
   (`POST /api/platform/organizations/:id/enter`), or **Exit** admin mode
   entirely (`DELETE /api/platform/organizations/active`), which returns to

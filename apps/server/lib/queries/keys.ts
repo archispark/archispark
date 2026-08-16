@@ -29,7 +29,11 @@ export const queryKeys = {
   dashboard: (id: string) => ["dashboard", id] as const,
   dashboardsAdmin: () => ["dashboardsAdmin"] as const,
   panelVisualizations: () => ["panelVisualizations"] as const,
-  panelResult: (dashboardId: string, panelInstanceId: string, parameters: Record<string, string>) =>
-    ["panelResult", dashboardId, panelInstanceId, parameters] as const,
+  panelResult: (
+    dashboardId: string,
+    panelInstanceId: string,
+    parameters: Record<string, string>
+  ) => ["panelResult", dashboardId, panelInstanceId, parameters] as const,
   imagePacks: () => ["imagePacks"] as const,
+  siteMessages: () => ["siteMessages"] as const,
 }
