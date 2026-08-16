@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from "vitest"
 import { NextRequest } from "next/server"
-import { GET } from "./route"
+import { GET, maxDuration } from "./route"
 
 vi.mock("@workspace/db", () => ({
   truncateApplicationTables: vi.fn(),
@@ -53,6 +53,10 @@ describe("GET /api/cron/reset-demo", () => {
     expect(wrong.status).toBe(404)
 
     expect(truncateApplicationTables).not.toHaveBeenCalled()
+  })
+
+  it("allows the demo reset up to five minutes", () => {
+    expect(maxDuration).toBe(300)
   })
 
   it("runs the full reset-and-reseed sequence and returns a 200 summary when both gates pass", async () => {

@@ -122,6 +122,12 @@ run-it-ahead-of-the-first-request reason.
    - `DEMO_RESET_ENABLED=true` — a second, independent gate; the route
      returns 404 even with a valid `CRON_SECRET` when this isn't set.
 
+   The reset route requests a **300-second** function duration. Keep Fluid
+   Compute enabled (or use a Vercel plan/configuration that permits this
+   duration); the default 60-second cap is not enough for the Neo4j rebuild.
+   Vercel logs one duration per reset step, so a timeout identifies the last
+   completed step.
+
    The cron does a full fresh-reinstall-style wipe of every application
    table and the whole Neo4j graph (schema/migration history preserved),
    then reseeds the demo accounts (**local accounts, not Keycloak** — no

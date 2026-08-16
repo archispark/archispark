@@ -10,7 +10,27 @@ import { resetGraphData, importAllWorkspacesToNeo4j } from "@workspace/db-neo4j"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
-export const maxDuration = 60
+export const maxDuration = 300
+
+async function runStep<T>(name: string, action: () => Promise<T>): Promise<T> {
+  const startedAt = Date.now()
+  console.info("Demo reset cron step started", { name })
+  try {
+    const result = await action()
+    console.info("Demo reset cron step completed", {
+      name,
+      durationMs: Date.now() - startedAt,
+    })
+    return result
+  } catch (err) {
+    console.error("Demo reset cron step failed", {
+      name,
+      durationMs: Date.now() - startedAt,
+      err,
+    })
+    throw err
+  }
+}
 
 // Vercel Cron replacement for the old `seed-demo.yml` GitHub Action:
 // full fresh-reinstall-style reset (every application table + the whole
@@ -38,20 +58,37 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   }
 
   try {
-    const tables = await truncateApplicationTables()
-    const graph = await resetGraphData()
-    const users = await seedLocalDemoUsers()
-    const { orgIdByWorkspace } = await seedDemoWorkspaces(async (username) => {
-      const id = await findLocalUserIdByUsername(username)
-      if (!id) throw new Error(`Demo user "${username}" introuvable après seedLocalDemoUsers`)
-      return id
-    })
-    const dashboards = await seedDashboardsForAllWorkspaces()
-    const neo4j = await importAllWorkspacesToNeo4j()
+    const startedAt = Date.now()
+    const tables = await runStep(
+      "truncate PostgreSQL",
+      truncateApplicationTables
+    )
+    const graph = await runStep("reset Neo4j", resetGraphData)
+    const users = await runStep("seed demo users", seedLocalDemoUsers)
+    const { orgIdByWorkspace } = await runStep("seed demo workspaces", () =>
+      seedDemoWorkspaces(async (username) => {
+        const id = await findLocalUserIdByUsername(username)
+        if (!id) {
+          throw new Error(
+            `Demo user "${username}" introuvable après seedLocalDemoUsers`
+          )
+        }
+        return id
+      })
+    )
+    const dashboards = await runStep(
+      "seed dashboards",
+      seedDashboardsForAllWorkspaces
+    )
+    const neo4j = await runStep(
+      "import workspaces into Neo4j",
+      importAllWorkspacesToNeo4j
+    )
 
     return NextResponse.json({
       ok: true,
       resetAt: new Date().toISOString(),
+      durationMs: Date.now() - startedAt,
       tables,
       graph,
       workspaces: [...orgIdByWorkspace.keys()],
@@ -61,6 +98,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     })
   } catch (err) {
     console.error("Demo reset cron failed:", err)
-    return NextResponse.json({ ok: false, error: "Demo reset failed." }, { status: 500 })
+    return NextResponse.json(
+      { ok: false, error: "Demo reset failed." },
+      { status: 500 }
+    )
   }
 }
