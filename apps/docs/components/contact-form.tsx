@@ -33,7 +33,7 @@ export function ContactForm() {
     } catch {
       setStatus("error")
       setErrorMessage(
-        "Something went wrong. Try again, or email us directly at contact@archispark.io."
+        "Something went wrong. Try again, or email us directly at mailto:contact@archispark.io."
       )
     }
   }
