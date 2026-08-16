@@ -1,10 +1,10 @@
 /**
  * Tests for the single authorization gateway (src/access.ts) — the
  * {owner, editor, viewer, non-member} × {read, write, manage_members} ×
- * {org active/suspended} × {stale active pointer} matrix. platform_admin's
- * full-access bypass and admin-mode pointer live in
- * access-platform-admin.test.ts (split out to stay under the max-lines
- * limit).
+ * {org active/suspended} × {stale active pointer} matrix. platform_admin
+ * follows these exact same rules for organization content; its dedicated
+ * cases live in access-platform-admin.test.ts (split out to stay under the
+ * max-lines limit).
  */
 
 import { describe, it, expect, beforeAll } from "vitest"

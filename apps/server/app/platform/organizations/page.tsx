@@ -1,72 +1,53 @@
 "use client"
 
 import { useState } from "react"
-import Link from "next/link"
 import { useRouter } from "next/navigation"
-import {
-  ShieldAlert,
-  Trash2,
-  Ban,
-  Play,
-  LogOut,
-  LogIn,
-  Settings2,
-} from "lucide-react"
+import { ShieldAlert } from "lucide-react"
 import { useT } from "@/lib/i18n"
-import { type PlatformOrganizationOut } from "@/lib/api"
 import {
   usePlatformOrganizations,
-  useSetPlatformOrganizationEnabled,
-  useDeletePlatformOrganization,
-  useEnterPlatformOrganization,
+  useCreatePlatformOrganization,
 } from "@/lib/queries"
 import { useFormModal } from "@/hooks/use-form-modal"
-import { Button } from "@workspace/ui/components/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-  DialogClose,
-} from "@workspace/ui/components/dialog"
+import { usePlatformOrganizationColumns } from "@/components/platform-organization-columns"
+import { CreatePlatformOrganizationDialog } from "@/components/platform-organization-dialogs"
+import { DataTable } from "@/components/data-table"
 
 /**
- * platform_admin-only view — organization metadata (suspend/reactivate/
- * delete) plus the entry point into admin mode ("Administer"), which grants
- * full owner-equivalent access to that organization's actual content (see
- * access.ts and platform-context-store.ts). Reachable even though
- * client-layout.tsx otherwise blocks platform_admin sessions from the
- * regular app until one is entered (see PlatformAdminBlock).
+ * platform_admin-only view — organization metadata, read-only besides
+ * creation. Row click goes to the detail page, which owns name/description
+ * editing, suspend/reactivate, member management, and deletion.
  */
 export default function PlatformOrganizationsPage() {
   const { t } = useT()
   const router = useRouter()
   const { data: organizations = [], isLoading } = usePlatformOrganizations()
-  const setEnabled = useSetPlatformOrganizationEnabled()
-  const deleteOrg = useDeletePlatformOrganization()
-  const enterOrg = useEnterPlatformOrganization()
-  const [deleteModal, deleteActions] = useFormModal<PlatformOrganizationOut>()
+  const columns = usePlatformOrganizationColumns()
+  const createOrg = useCreatePlatformOrganization()
 
-  async function handleDelete() {
-    if (!deleteModal.target) return
-    await deleteActions.run(async () => {
-      await deleteOrg.mutateAsync(deleteModal.target!.id)
+  const [createModal, createActions] = useFormModal<null>()
+  const [name, setName] = useState("")
+  const [description, setDescription] = useState("")
+
+  function openCreate() {
+    setName("")
+    setDescription("")
+    createActions.openNew()
+  }
+
+  async function handleCreate() {
+    if (!name.trim()) return
+    await createActions.run(async () => {
+      const org = await createOrg.mutateAsync({
+        name: name.trim(),
+        description: description.trim() || null,
+      })
+      router.push(`/platform/organizations/${org.id}`)
     })
   }
 
-  async function handleEnter(org: PlatformOrganizationOut) {
-    await enterOrg.mutateAsync(org.id)
-    router.push("/")
-  }
-
-  function logout() {
-    window.location.href = "/api/auth/logout"
-  }
-
   return (
-    <div className="max-w-3xl p-7">
+    <div className="max-w-4xl p-7">
       <div className="mb-6 flex items-start justify-between gap-4">
         <div>
           <h1 className="flex items-center gap-2 text-lg font-semibold">
@@ -77,129 +58,25 @@ export default function PlatformOrganizationsPage() {
             {t("platform.desc")}
           </p>
         </div>
-        <div className="flex shrink-0 gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            render={<Link href="/platform/settings" />}
-          >
-            <Settings2 className="size-4" />
-            {t("platform.settings.title")}
-          </Button>
-          <Button variant="outline" size="sm" onClick={logout}>
-            <LogOut className="size-4" />
-            {t("nav.logout")}
-          </Button>
-        </div>
+        <CreatePlatformOrganizationDialog
+          modal={createModal}
+          actions={createActions}
+          onOpenCreate={openCreate}
+          name={name}
+          onNameChange={setName}
+          description={description}
+          onDescriptionChange={setDescription}
+          onCreate={handleCreate}
+        />
       </div>
 
-      {isLoading ? (
-        <div className="flex items-center gap-2 text-muted-foreground">
-          <div className="size-4 shrink-0 animate-spin rounded-full border-2 border-border border-t-primary" />
-          {t("common.loading")}
-        </div>
-      ) : (
-        <div className="divide-y divide-border overflow-hidden rounded-lg border border-border">
-          {organizations.map((org) => (
-            <div key={org.id} className="flex items-center gap-3 px-4 py-3">
-              <div className="min-w-0 flex-1">
-                <p className="flex items-center gap-2 truncate text-[14px] font-medium">
-                  {org.name}
-                  {org.is_personal && (
-                    <span className="rounded-full border border-border px-1.5 py-0.5 text-[10px] font-normal text-muted-foreground">
-                      {t("organizations.personal_badge")}
-                    </span>
-                  )}
-                </p>
-                <p className="font-mono text-[11px] text-muted-foreground">
-                  {org.slug}
-                </p>
-              </div>
-              <span
-                className={`shrink-0 text-[11px] font-medium ${org.enabled ? "text-primary" : "text-destructive"}`}
-              >
-                {org.enabled
-                  ? t("platform.status_enabled")
-                  : t("platform.status_suspended")}
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleEnter(org)}
-                disabled={enterOrg.isPending}
-                className="shrink-0"
-              >
-                <LogIn className="size-3.5" />
-                {t("platform.enter")}
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() =>
-                  setEnabled.mutate({ id: org.id, enabled: !org.enabled })
-                }
-                disabled={setEnabled.isPending}
-                className="shrink-0"
-              >
-                {org.enabled ? (
-                  <>
-                    <Ban className="size-3.5" />
-                    {t("platform.suspend")}
-                  </>
-                ) : (
-                  <>
-                    <Play className="size-3.5" />
-                    {t("platform.reactivate")}
-                  </>
-                )}
-              </Button>
-              <Button
-                variant="destructive"
-                size="icon-xs"
-                onClick={() => deleteActions.openWith(org)}
-                aria-label={t("common.delete")}
-              >
-                <Trash2 className="size-3.5" />
-              </Button>
-            </div>
-          ))}
-        </div>
-      )}
-
-      <Dialog
-        open={deleteModal.open}
-        onOpenChange={(o) => !o && deleteActions.close()}
-      >
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle>{t("settings.org.delete_org_title")}</DialogTitle>
-            <DialogDescription>
-              {t("platform.delete_org_desc", {
-                name: deleteModal.target?.name ?? "",
-              })}
-            </DialogDescription>
-          </DialogHeader>
-          {deleteModal.error && (
-            <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-              {deleteModal.error}
-            </div>
-          )}
-          <DialogFooter>
-            <DialogClose render={<Button variant="outline" />}>
-              {t("common.cancel")}
-            </DialogClose>
-            <Button
-              variant="destructive"
-              onClick={handleDelete}
-              disabled={deleteModal.isPending}
-            >
-              {deleteModal.isPending
-                ? t("common.deleting")
-                : t("common.delete")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <DataTable
+        columns={columns}
+        data={organizations}
+        loading={isLoading}
+        searchable
+        searchPlaceholder={t("common.search_by_name")}
+      />
     </div>
   )
 }

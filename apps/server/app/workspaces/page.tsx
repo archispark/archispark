@@ -36,7 +36,7 @@ export default function WorkspacesPage() {
       setDescription("")
       setShowForm(false)
       setError(null)
-      router.push("/")
+      router.push("/overview")
     } catch (err) {
       setError((err as Error).message)
     }
@@ -48,7 +48,7 @@ export default function WorkspacesPage() {
     try {
       if (!active) await activateWs.mutateAsync(id)
       setError(null)
-      router.push("/")
+      router.push("/overview")
     } catch (err) {
       setError((err as Error).message)
     }

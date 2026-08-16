@@ -3,10 +3,7 @@
 import { ThemeProvider } from "@/components/theme-provider"
 import { PanelHeader } from "@/components/panel-header"
 import { Sidebar } from "@/components/sidebar"
-import { PlatformAdminBlock } from "@/components/platform-admin-block"
-import { PlatformAdminBanner } from "@/components/platform-admin-banner"
-import { useIsAdmin } from "@/hooks/use-current-user"
-import { useActivePlatformOrganization } from "@/lib/queries"
+import { PlatformSidebar } from "@/components/platform-sidebar"
 import { useState, useEffect, useCallback } from "react"
 import { usePathname } from "next/navigation"
 import { Toaster } from "sonner"
@@ -66,25 +63,18 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
   // same full-bleed chrome as /login. /change-password is reachable before
   // any organization context exists too (a platform_admin's forced
   // first-login password change, e.g. the seeded admin/admin account, has
-  // no active org yet) — without this, PlatformAdminBlock below would
-  // replace the change-password form and strand that account.
+  // no organization membership yet).
   const isChromeless =
     pathname === "/login" ||
     pathname === "/change-password" ||
     !!pathname?.startsWith("/invitations")
-  // platform_admin has no workspace access of its own, but IS meant to
-  // reach /platform/* (organization administration) — see
-  // apps/server/app/platform/organizations/page.tsx — and gets the regular
-  // app chrome for an organization's content, same as a real owner, as soon
-  // as login enters it into one (defaults to the smallest existing
-  // organization; can switch to another one from /platform/organizations).
+  // platform_admin is a regular user for organization content — it has no
+  // workspaces until it becomes a real member of an organization (see
+  // apps/server/app/platform/organizations/[id]/page.tsx, member
+  // management) — but always reaches /platform/* (organization/user/plugin
+  // administration) regardless of membership.
   const isPlatformRoute = pathname?.startsWith("/platform")
-  const isPlatformAdmin = useIsAdmin()
-  const { data: activePlatformOrgData } =
-    useActivePlatformOrganization(isPlatformAdmin)
-  const activePlatformOrg = activePlatformOrgData?.organization ?? null
-  // Organizations is a full-width chrome-light page, without a sidebar.
-  const hideSidebar = isChromeless || pathname === "/organizations"
+  const hideSidebar = isChromeless
 
   useEffect(() => {
     setSidebarCollapsed(localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "1")
@@ -98,29 +88,22 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
     })
   }, [])
 
-  if (
-    !isChromeless &&
-    isPlatformAdmin &&
-    !isPlatformRoute &&
-    !activePlatformOrg
-  ) {
-    return (
-      <ThemeProvider>
-        <PlatformAdminBlock />
-        <Toaster richColors position="bottom-right" />
-      </ThemeProvider>
-    )
-  }
-
   return (
     <ThemeProvider>
-      {!hideSidebar && (
-        <Sidebar
-          open={sidebarOpen}
-          onClose={() => setSidebarOpen(false)}
-          collapsed={sidebarCollapsed}
-        />
-      )}
+      {!hideSidebar &&
+        (isPlatformRoute ? (
+          <PlatformSidebar
+            open={sidebarOpen}
+            onClose={() => setSidebarOpen(false)}
+            collapsed={sidebarCollapsed}
+          />
+        ) : (
+          <Sidebar
+            open={sidebarOpen}
+            onClose={() => setSidebarOpen(false)}
+            collapsed={sidebarCollapsed}
+          />
+        ))}
       <main
         className={
           isChromeless
@@ -144,9 +127,6 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
               onToggleSidebar={toggleSidebarCollapsed}
               onToggleMobileSidebar={() => setSidebarOpen((open) => !open)}
             />
-            {isPlatformAdmin && !isPlatformRoute && activePlatformOrg && (
-              <PlatformAdminBanner organizationName={activePlatformOrg.name} />
-            )}
             <SiteBanner />
             <div className="min-h-0 flex-1 overflow-auto">{children}</div>
           </section>

@@ -19,9 +19,10 @@ workspaces, or ArchiMate data:
 the migration-driven seed above won't fire again — it only runs once, the
 first time migration `0025` itself applies).
 
-Either way, no organization or workspace is created: signing in and creating
-the first workspace automatically creates a personal organization for that
-user (see
+Either way, no organization or workspace is created: signing in lands on the
+starter home page with no organization until an owner, editor, or an Admin
+adding itself from `/platform/organizations/:id` grants that account
+membership (see
 [Organizations and roles](../reference/authentication.mdx#organizations-and-roles)).
 
 ## Demo seed
@@ -44,7 +45,7 @@ The workspaces are grouped into two demo organizations
 | Archi        | ArchiSurance, ArchiMetal | `contrib` | `editor`                                                                                                                                                                              |
 | Archi        | ArchiSurance, ArchiMetal | `user`    | `viewer`                                                                                                                                                                              |
 | Open         | Open Day                 | `open`    | `owner`                                                                                                                                                                               |
-| _(none)_     | —                        | `admin`   | Admin (Keycloak `platform_admin`) — deliberately a member of neither; admin mode defaults to the smallest existing organization, and can switch to any organization's content instead |
+| _(none)_     | —                        | `admin`   | Admin (Keycloak `platform_admin`) — deliberately a member of neither; can add itself to one from `/platform/organizations/:id`'s member management, like any other user               |
 
 - **Membership is authoritative on every reseed**: narrowing an
   organization's `members` in `demo-orgs.json` removes any now-unlisted

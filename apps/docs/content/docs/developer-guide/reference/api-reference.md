@@ -5,7 +5,7 @@ description: REST API endpoints for organizations, ArchiMate models and dashboar
 
 ## Organizations
 
-Workspaces belong to an organization — see [Authentication](authentication.md#organizations-and-roles) for the full role matrix (`owner`/`editor`/`viewer`) and Admin's admin-mode access.
+Workspaces belong to an organization — see [Authentication](authentication.md#organizations-and-roles) for the full role matrix (`owner`/`editor`/`viewer`), which applies to Admin exactly as it does to any other user.
 
 | Method   | Path                                     | Auth    | Description                                                                                            |
 | -------- | ---------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------ |
@@ -29,13 +29,11 @@ without credentials and received the finish-registration actions.
 
 ## Platform administration
 
-Admin-only (Keycloak identifier `platform_admin`). The metadata routes never
-touch organization content. On login, admin mode is entered into the
-smallest existing organization by default — no explicit `enter` call
-needed — after which every organization/workspace route (elements,
-workspaces, members, …) resolves the Admin as `owner` for that
-organization; the last two routes below switch admin mode to a different
-organization or exit it (until the next login) — see
+Admin-only (Keycloak identifier `platform_admin`). These metadata routes
+never grant access to organization content — an Admin needs a real
+`organization_members` row on an organization (addable to itself through
+the member-management routes below) to see or act on its workspaces,
+exactly like any other user — see
 [Authentication](authentication.md#organizations-and-roles).
 
 | Method   | Path                                    | Description                                                                      |
@@ -43,9 +41,6 @@ organization or exit it (until the next login) — see
 | `GET`    | `/api/platform/organizations`           | List every organization (id, slug, name, `is_personal`, `enabled`, `created_at`) |
 | `PUT`    | `/api/platform/organizations/:id`       | Suspend/reactivate — body: `{ enabled }`                                         |
 | `DELETE` | `/api/platform/organizations/:id`       | Delete an organization (cascades to workspaces, members, and tokens)             |
-| `POST`   | `/api/platform/organizations/:id/enter` | Enter admin mode for this organization                                           |
-| `GET`    | `/api/platform/organizations/active`    | The organization currently entered, or `{ organization: null }`                  |
-| `DELETE` | `/api/platform/organizations/active`    | Exit admin mode                                                                  |
 
 ## Workspace management
 
@@ -54,7 +49,7 @@ Every workspace belongs to exactly one organization (`organization_id`) — a ca
 | Method   | Path                           | Description                                                                                                                                                                                                                             |
 | -------- | ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `GET`    | `/api/workspaces`              | List the caller's active organization's workspaces                                                                                                                                                                                      |
-| `POST`   | `/api/workspaces`              | Create workspace — body: `{ name, path?, description?, organization_id? }` (`path` = XML file to import; `organization_id` defaults to the caller's active organization, auto-creating a personal one on a user's very first workspace) |
+| `POST`   | `/api/workspaces`              | Create workspace — body: `{ name, path?, description?, organization_id? }` (`path` = XML file to import; `organization_id` defaults to the caller's active organization — `403` if the caller has no organization membership at all) |
 | `PUT`    | `/api/workspaces/:id`          | Rename workspace and/or update `description` (owner/editor)                                                                                                                                                                             |
 | `DELETE` | `/api/workspaces/:id`          | Delete workspace (owner/editor; deleting the active one switches to another in the same organization; deleting the last one is allowed and leaves zero — the web UI then redirects to its `/workspaces` page to create a new one)       |
 | `POST`   | `/api/workspaces/:id/activate` | Switch the caller's active workspace (and active organization, if different)                                                                                                                                                            |

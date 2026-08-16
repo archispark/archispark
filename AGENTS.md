@@ -53,12 +53,18 @@ forment pas des packages indépendants.
 
 Les espaces de travail appartiennent à une organisation. Les rôles
 d'organisation sont `owner`, `editor` et `viewer`. Le rôle de royaume
-`platform_admin` n'a par défaut aucun rôle dans `organization_members`, mais
-obtient un accès complet (équivalent `owner`) au contenu de n'importe quelle
-organisation, y compris suspendue, une fois qu'il l'a explicitement
-« entrée » en mode administration (`POST /api/platform/organizations/:id/enter`).
-`apps/server/lib/archimate/access.ts` est l'unique point d'entrée pour les
-contrôles d'autorisation : ne pas dupliquer cette logique ailleurs.
+`platform_admin` donne un accès total et indépendant aux pages
+`/platform/**` (organisations, utilisateurs, plugins, bibliothèque
+d'images), protégées par `withSuperAdmin` seul. Pour le contenu applicatif
+d'une organisation (espaces de travail, vues, éléments, tableaux de bord),
+`platform_admin` est un utilisateur comme un autre : il doit être membre
+réel (`owner`, `editor` ou `viewer` dans `organization_members`) — ce qu'il
+peut obtenir en s'ajoutant lui-même depuis la gestion des membres sur
+`/platform/organizations/[id]` — et suit alors les mêmes règles que
+n'importe quel membre, y compris le refus d'accès sur une organisation
+suspendue. `apps/server/lib/archimate/access.ts` est l'unique point
+d'entrée pour les contrôles d'autorisation : ne pas dupliquer cette logique
+ailleurs.
 
 ### Données et services partagés
 

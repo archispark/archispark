@@ -1,7 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server"
 import { withErrorHandling } from "@/lib/http/with-error-handling"
-import { withAuth } from "@/lib/http/with-auth"
-import { resolveActiveContext } from "@/lib/archimate/access"
+import { withSuperAdmin } from "@/lib/http/with-auth"
 import { uploadImagePackItem } from "@/lib/archimate/image-library-upload"
 import { ValidationError } from "@/lib/archimate/errors"
 
@@ -12,13 +11,8 @@ type Ctx = { params: Promise<{ packId: string }> }
 
 // Upload one or more images to a custom pack — multipart/form-data, field "files".
 export const POST = withErrorHandling(
-  withAuth(async (req: NextRequest, auth, { params }: Ctx) => {
+  withSuperAdmin(async (req: NextRequest, _auth, { params }: Ctx) => {
     const { packId } = await params
-    const { organizationId } = await resolveActiveContext(
-      auth.user,
-      "write",
-      auth.tokenContext
-    )
 
     const form = await req.formData()
     const files = form.getAll("files").filter((f): f is File => f instanceof File)
@@ -31,7 +25,7 @@ export const POST = withErrorHandling(
     for (const file of files) {
       const buffer = Buffer.from(await file.arrayBuffer())
       items.push(
-        await uploadImagePackItem(organizationId, packId, {
+        await uploadImagePackItem(packId, {
           name: file.name,
           type: file.type,
           buffer,

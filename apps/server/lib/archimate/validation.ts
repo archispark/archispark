@@ -154,7 +154,7 @@ export const OrganizationUpdateSchema = z.object({
   name: z.string().min(1, "Le champ 'name' est requis."),
 })
 
-const orgRole = z.enum(["owner", "editor", "viewer"], {
+export const orgRole = z.enum(["owner", "editor", "viewer"], {
   error: "Rôle invalide.",
 })
 
@@ -175,10 +175,6 @@ export const OrganizationInvitationCreateSchema = z.object({
 
 export const OrganizationInvitationResendSchema = z.object({
   delivery_mode: z.enum(["email", "manual", "both"]).default("both"),
-})
-
-export const PlatformOrganizationUpdateSchema = z.object({
-  enabled: z.boolean(),
 })
 
 export const ApiTokenCreateSchema = z.object({

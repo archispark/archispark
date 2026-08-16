@@ -43,16 +43,15 @@ with cascading foreign keys.
 
 A fourth role, Admin (Keycloak identifier `platform_admin`), is a Keycloak
 **realm** role (not an `organization_members` row) — it administers
-organizations (`/api/platform/organizations*`, metadata) and, via **admin
-mode**, gets full owner-equivalent access to any organization's content by
-default (the smallest existing organization, entered automatically on
-login — see `ensureDefaultPlatformOrganization` in
-`lib/archimate/platform-context-store.ts` — no explicit
-`POST /api/platform/organizations/:id/enter` call required unless switching
-to a different one), including a suspended one. This bypass is centralized once in
+organizations, users, plugins and the image library
+(`/platform/**`, `/api/platform/**`, metadata only), gated by
+`withSuperAdmin` and independent of organization membership. For an
+organization's actual content (workspaces, elements, views, dashboards),
+platform_admin has no special access: it goes through the exact same
 [`apps/server/lib/archimate/access.ts`](https://github.com/archispark/archispark/blob/main/apps/server/lib/archimate/access.ts)
-rather than left to be remembered at every call site; every other role- and
-suspension-check there stays unchanged. See
+role/suspension checks as any other user, and must be a real
+`organization_members` row (which it can create for itself from
+`/platform/organizations/[id]`'s member management) to access anything. See
 [Authentication](../reference/authentication.md) for the full role matrix.
 
 Identities live either in the `users` table (id `local:<uuid>`) or in
@@ -99,9 +98,8 @@ authorization gateway,
 (`resolveActiveContext`/`assertOrgAccess`/`assertWorkspaceAccess`) — a user
 sees and acts on every workspace of every organization they belong to,
 subject to their role (`owner`/`editor`: read+write, `viewer`: read-only).
-Admin acts the same way, but on whichever organization admin mode currently
-resolves to (the smallest existing organization by default), always with
-owner-equivalent access.
+platform_admin follows the exact same rule, based on its own real
+`organization_members` rows (see above) — none, by default.
 
 The MCP tools (`apps/server/lib/mcp/`) import `lib/archimate/store.ts`/
 `registry.ts` directly — same process, same module graph, no HTTP hop and no

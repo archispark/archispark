@@ -1,6 +1,6 @@
 /**
  * Organization + member CRUD, gated exclusively through access.ts
- * (assertOrgAccess) — for the NotFoundError vs ForbiddenError convention. 
+ * (assertOrgAccess) — for the NotFoundError vs ForbiddenError convention.
  * Split out of registry.ts to keep it under the ESLint max-lines limit.
  */
 
@@ -80,12 +80,9 @@ async function countOwners(organizationId: number): Promise<number> {
 // Organizations
 // ---------------------------------------------------------------------------
 
-/** platform_admin has no organization membership by design — returns []. */
 export async function listOrganizationsForUser(
   user: AccessUser
 ): Promise<OrganizationOut[]> {
-  if (user.role === "platform_admin") return []
-
   const rows = await db
     .select({ org: organizations, role: organizationMembers.role })
     .from(organizationMembers)

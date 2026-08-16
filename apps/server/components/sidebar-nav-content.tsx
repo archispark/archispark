@@ -10,7 +10,7 @@ import {
   CircleHelp,
 } from "lucide-react"
 import { useT } from "@/lib/i18n"
-import { useWorkspaces } from "@/lib/queries"
+import { useWorkspaces, useOrganizations } from "@/lib/queries"
 import { Section } from "@/components/sidebar-section"
 import { ElementsNavSection } from "@/components/sidebar-elements-nav"
 import { UserMenu } from "@/components/user-menu"
@@ -27,14 +27,19 @@ export function SidebarNavContent({
   t: ReturnType<typeof useT>["t"]
 }) {
   const { data: workspaces = [] } = useWorkspaces()
+  const { data: organizations = [] } = useOrganizations()
   const activeWorkspace = workspaces.find((workspace) => workspace.active)
   const isWorkspacesOverview = pathname === "/workspaces"
+  // No organization means no accessible section besides the home page — see
+  // registry.ts, users can no longer self-provision one.
+  const hasOrganization = organizations.length > 0
+  const hideNav = isWorkspacesOverview || !hasOrganization
 
   return (
     <>
       <div className="border-b border-border px-4 pt-4 pb-3">
         <Link
-          href="/workspaces"
+          href="/"
           onClick={onClose}
           className="mb-4 flex items-center gap-2.5 no-underline"
         >
@@ -72,22 +77,24 @@ export function SidebarNavContent({
             <span className="font-bold text-primary">Spark</span>
           </span>
         </Link>
-        <WorkspaceSwitcher
-          workspaces={workspaces}
-          activeWorkspace={activeWorkspace}
-        />
+        {hasOrganization && (
+          <WorkspaceSwitcher
+            workspaces={workspaces}
+            activeWorkspace={activeWorkspace}
+          />
+        )}
       </div>
 
-      {isWorkspacesOverview ? (
+      {hideNav ? (
         <div className="flex-1" />
       ) : (
         <div className="flex-1 overflow-y-auto py-2">
           {/* Overview */}
           <Link
-            href="/"
+            href="/overview"
             onClick={onClose}
             className={`mx-2 flex items-center gap-2.5 rounded-md px-3 py-2 text-sm no-underline transition-colors ${
-              pathname === "/"
+              pathname === "/overview"
                 ? "bg-card font-medium text-foreground shadow-sm"
                 : "text-muted-foreground hover:bg-muted hover:text-foreground"
             }`}

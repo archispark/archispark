@@ -54,11 +54,9 @@ export const GET = withErrorHandling(
 
 export const POST = withErrorHandling(
   withAuth(async (req: NextRequest, auth) => {
-    // A personal token freezes a scope on creation; platform_admin's access
-    // is deliberately the opposite — dynamic, chosen per session via admin
-    // mode (see access.ts) — so it must not be able to mint a token that
-    // would carry full owner-equivalent access to an arbitrary organization
-    // indefinitely, independent of that session.
+    // platform_admin manages organizations/users/plugins/images from
+    // /platform/** independently of any organization membership — a
+    // personal API token, scoped to one organization, doesn't fit that role.
     if (auth.user.role === "platform_admin")
       throw new ForbiddenError(
         "Les comptes administrateurs plateforme ne peuvent pas créer de jetons personnels."

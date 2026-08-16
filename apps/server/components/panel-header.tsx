@@ -6,7 +6,13 @@ import { useEffect } from "react"
 import { Menu, PanelLeftClose, PanelLeftOpen } from "lucide-react"
 import { useQueryClient } from "@tanstack/react-query"
 import { type ElementOut } from "@/lib/api"
-import { useWorkspaces, useElement, useView } from "@/lib/queries"
+import {
+  useWorkspaces,
+  useOrganizations,
+  useElement,
+  useView,
+  usePlatformUser,
+} from "@/lib/queries"
 import { useDashboard } from "@/lib/queries/dashboards"
 import { useT } from "@/lib/i18n"
 import { ThemeToggle } from "@/components/theme-toggle"
@@ -26,14 +32,37 @@ export function PanelHeader({
   const router = useRouter()
   const { t } = useT()
   const { data: workspaces = [], isSuccess: wsLoaded } = useWorkspaces()
+  const { data: organizations = [], isSuccess: orgsLoaded } = useOrganizations()
   const qc = useQueryClient()
   const segments = pathname.split("/").filter(Boolean)
 
   useEffect(() => {
-    if (wsLoaded && workspaces.length === 0 && pathname !== "/workspaces") {
+    // A platform_admin with no real organization membership has zero
+    // organizations and zero workspaces (both list endpoints return []
+    // rather than erroring — see registry.ts / organizations-store.ts) —
+    // must not be bounced out of /platform/* while managing organizations,
+    // users, plugins or images.
+    if (!wsLoaded || !orgsLoaded || pathname.startsWith("/platform")) return
+
+    // No organization at all: users can no longer self-provision one by
+    // creating a workspace (see registry.ts), so /workspaces would only
+    // dead-end them — send them to the simple starter home page instead.
+    if (organizations.length === 0) {
+      if (pathname !== "/") router.push("/")
+      return
+    }
+
+    if (workspaces.length === 0 && pathname !== "/workspaces") {
       router.push("/workspaces")
     }
-  }, [wsLoaded, workspaces.length, pathname, router])
+  }, [
+    wsLoaded,
+    orgsLoaded,
+    organizations.length,
+    workspaces.length,
+    pathname,
+    router,
+  ])
 
   const elementId =
     segments[0] === "elements" && segments.length === 2
@@ -56,6 +85,13 @@ export function PanelHeader({
           : ""
       : ""
   const { data: breadcrumbDashboard } = useDashboard(dashboardId)
+  const platformUserId =
+    segments[0] === "platform" &&
+    segments[1] === "users" &&
+    segments.length === 3
+      ? decodeURIComponent(segments[2]!)
+      : ""
+  const { data: breadcrumbPlatformUser } = usePlatformUser(platformUserId)
 
   function segmentLabel(segment: string, index: number): string {
     const keys: Record<string, Parameters<typeof t>[0]> = {
@@ -65,13 +101,16 @@ export function PanelHeader({
       validator: "breadcrumb.validator",
       properties: "breadcrumb.properties",
       users: "breadcrumb.users",
+      plugins: "platform.plugins.title",
+      "image-library": "image_library.manage_title",
       settings: "breadcrumb.settings",
       workspaces: "breadcrumb.workspaces",
+      overview: "sidebar.overview",
       dashboards: "sidebar.dashboards",
       explore: "sidebar.explore",
       "panel-visualizations": "sidebar.panel_catalog",
       organizations: "breadcrumb.organizations",
-      platform: "platform.title",
+      platform: "platform.sidebar_badge",
       admin: "breadcrumb.admin",
       new: "common.create",
       edit: "common.edit",
@@ -103,6 +142,14 @@ export function PanelHeader({
     ) {
       return breadcrumbDashboard?.definition.title ?? "…"
     }
+    if (id === platformUserId && segments[index - 1] === "users") {
+      const name =
+        (breadcrumbPlatformUser?.id === id
+          ? breadcrumbPlatformUser.username
+          : undefined) ??
+        qc.getQueryData<{ username?: string }>(["platformUser", id])?.username
+      return name ?? "…"
+    }
     return id
   }
 
@@ -119,7 +166,7 @@ export function PanelHeader({
         </button>
       )}
       <Link
-        href="/workspaces"
+        href="/"
         aria-label="ArchiSpark"
         className="flex shrink-0 items-center gap-1.5 no-underline md:hidden"
       >

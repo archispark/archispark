@@ -50,6 +50,7 @@ export const organizations = pgTable(
     id: serial("id").primaryKey(),
     slug: text("slug").notNull(),
     name: text("name").notNull(),
+    description: text("description"),
     // Auto-created on a user's first workspace (see Phase 4 invariant); false
     // for an explicitly created "team" organization.
     isPersonal: boolean("is_personal").notNull().default(false),
@@ -87,6 +88,12 @@ export const users = pgTable(
     username: text("username").notNull(), // lowercase, login identifier
     email: text("email").notNull(), // lowercase
     passwordHash: text("password_hash").notNull(), // argon2id encoded string
+    // firstName/lastName are the source of truth once set by a platform_admin
+    // (see platform-users-store.ts) — displayName is kept in sync from them
+    // so every other reader (login, user menu, invitations...) can keep
+    // using the single field unchanged.
+    firstName: text("first_name"),
+    lastName: text("last_name"),
     displayName: text("display_name"),
     role: text("role").notNull().default("user"), // "platform_admin" | "user" — mirrors Keycloak realm_access.roles
     enabled: boolean("enabled").notNull().default(true),
@@ -152,9 +159,7 @@ export const localPasswordResetTokens = pgTable(
     usedAt: integer("used_at"),
   },
   (t) => [
-    uniqueIndex("local_password_reset_tokens_token_hash_uniq").on(
-      t.tokenHash
-    ),
+    uniqueIndex("local_password_reset_tokens_token_hash_uniq").on(t.tokenHash),
   ]
 )
 
@@ -172,10 +177,7 @@ export const localLoginAttempts = pgTable(
       .default(sql`extract(epoch from now())::int`),
   },
   (t) => [
-    index("local_login_attempts_identifier_idx").on(
-      t.identifier,
-      t.createdAt
-    ),
+    index("local_login_attempts_identifier_idx").on(t.identifier, t.createdAt),
   ]
 )
 

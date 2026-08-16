@@ -1,8 +1,14 @@
 "use client"
 
 import { useState, useRef, useEffect, useSyncExternalStore } from "react"
-import { LogOut, User, Building2, ChevronsUpDown } from "lucide-react"
-import { useCurrentUser } from "@/hooks/use-current-user"
+import {
+  LogOut,
+  User,
+  Building2,
+  ShieldAlert,
+  ChevronsUpDown,
+} from "lucide-react"
+import { useCurrentUser, useIsAdmin } from "@/hooks/use-current-user"
 import { useOrganizations } from "@/lib/queries"
 import { useT } from "@/lib/i18n"
 import Link from "next/link"
@@ -19,6 +25,7 @@ export function UserMenu({
   align?: "left" | "right"
 }) {
   const user = useCurrentUser()
+  const isAdmin = useIsAdmin()
   const { data: organizations = [] } = useOrganizations()
   const activeOrg = organizations.find((o) => o.active)
   const { t } = useT()
@@ -125,6 +132,17 @@ export function UserMenu({
             <Building2 className="size-3.5 shrink-0 text-muted-foreground" />
             {t("sidebar.organizations")}
           </Link>
+
+          {isAdmin && (
+            <Link
+              href="/platform"
+              onClick={() => setOpen(false)}
+              className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[13px] text-foreground no-underline transition-colors hover:bg-muted"
+            >
+              <ShieldAlert className="size-3.5 shrink-0 text-muted-foreground" />
+              {t("platform.sidebar_badge")}
+            </Link>
+          )}
 
           <div className="mt-1 border-t border-border pt-1">
             <button

@@ -10,7 +10,7 @@ import { put, del } from "@vercel/blob"
 import { db, imagePackItems, imagePacks } from "@workspace/db"
 import { NotFoundError, ValidationError } from "./errors"
 import {
-  getOwnedCustomPack,
+  getManageableCustomPack,
   imagePackItemOut,
   type ImagePackItemOut,
 } from "./image-library-store"
@@ -42,7 +42,6 @@ function slugifyFileName(name: string, uuid: string): string {
 }
 
 export async function uploadImagePackItem(
-  organizationId: number,
   packUuid: string,
   file: { name: string; type: string; buffer: Buffer }
 ): Promise<ImagePackItemOut> {
@@ -54,11 +53,11 @@ export async function uploadImagePackItem(
   if (file.buffer.byteLength > MAX_FILE_BYTES)
     throw new ValidationError("Le fichier dépasse la taille maximale de 2 Mo.")
 
-  const pack = await getOwnedCustomPack(organizationId, packUuid)
+  const pack = await getManageableCustomPack(packUuid)
   const itemUuid = randomUUID()
   const slug = slugifyFileName(file.name, itemUuid)
   const blob = await put(
-    `image-library/${organizationId}/${packUuid}/${slug}`,
+    `image-library/${packUuid}/${slug}`,
     file.buffer,
     { access: "public", contentType: file.type, token }
   )
@@ -80,31 +79,25 @@ export async function uploadImagePackItem(
   return imagePackItemOut(row)
 }
 
-export async function deleteImagePackItem(
-  organizationId: number,
-  itemUuid: string
-): Promise<void> {
+export async function deleteImagePackItem(itemUuid: string): Promise<void> {
   const [row] = await db
     .select({
       id: imagePackItems.id,
       blobPathname: imagePackItems.blobPathname,
-      packOrganizationId: imagePacks.organizationId,
+      packIsSystem: imagePacks.isSystem,
     })
     .from(imagePackItems)
     .innerJoin(imagePacks, eq(imagePackItems.packId, imagePacks.id))
     .where(eq(imagePackItems.uuid, itemUuid))
-  if (!row || row.packOrganizationId !== organizationId)
+  if (!row || row.packIsSystem)
     throw new NotFoundError(`Image '${itemUuid}' introuvable.`)
 
   if (row.blobPathname) await del(row.blobPathname, { token: blobToken() })
   await db.delete(imagePackItems).where(eq(imagePackItems.id, row.id))
 }
 
-export async function deleteCustomImagePack(
-  organizationId: number,
-  packUuid: string
-): Promise<void> {
-  const pack = await getOwnedCustomPack(organizationId, packUuid)
+export async function deleteCustomImagePack(packUuid: string): Promise<void> {
+  const pack = await getManageableCustomPack(packUuid)
   const items = await db
     .select({ blobPathname: imagePackItems.blobPathname })
     .from(imagePackItems)

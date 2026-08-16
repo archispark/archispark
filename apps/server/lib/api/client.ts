@@ -11,6 +11,28 @@ export interface Property {
   value: string
 }
 
+// Shared across all callers so concurrent 401s (e.g. several hooks mounting
+// at once after the 15min access token expires) trigger a single refresh
+// instead of each racing its own: the local refresh token is single-use, and
+// the server treats a second presentation of an already-rotated one as theft
+// — revoking the whole session. See local-auth-tokens.ts rotateRefreshToken.
+let refreshInFlight: Promise<boolean> | null = null
+
+function refreshSession(): Promise<boolean> {
+  if (!refreshInFlight) {
+    refreshInFlight = fetch(`${BASE}/auth/refresh`, {
+      method: "POST",
+      credentials: "include",
+    })
+      .then((res) => res.ok)
+      .catch(() => false)
+      .finally(() => {
+        refreshInFlight = null
+      })
+  }
+  return refreshInFlight
+}
+
 /** Replays one API request after silently renewing an expired session cookie. */
 async function fetchWithSessionRefresh(
   path: string,
@@ -19,11 +41,8 @@ async function fetchWithSessionRefresh(
   const response = await fetch(`${BASE}${path}`, init)
   if (response.status !== 401) return response
 
-  const refresh = await fetch(`${BASE}/auth/refresh`, {
-    method: "POST",
-    credentials: "include",
-  })
-  if (!refresh.ok) return response
+  const refreshed = await refreshSession()
+  if (!refreshed) return response
 
   return fetch(`${BASE}${path}`, init)
 }

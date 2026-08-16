@@ -211,6 +211,20 @@
       "when": 1786974400000,
       "tag": "0029_image_pack_gcp",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1787060800000,
+      "tag": "0030_users_first_last_name",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1787147200000,
+      "tag": "0031_organization_description",
+      "breakpoints": true
     }
   ]
 }

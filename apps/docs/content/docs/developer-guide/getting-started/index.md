@@ -37,8 +37,11 @@ First run:
   first sign-in, see [Demo seed](demo-data.md#minimal-seed)), so there's
   nothing to seed for a bare login. Run `pnpm setup-demo` for the full demo
   dataset (organizations, workspaces, ArchiMate models) on top of it.
-- No organization exists yet — creating the first workspace after sign-in
-  automatically creates a personal organization.
+- No organization exists yet, and none is created automatically: an owner,
+  editor, or an Admin adding itself from `/platform/organizations/:id` must
+  grant membership before the account can create a workspace. Until then,
+  the account lands on the simple starter home page (`/`) instead of the
+  workspace picker.
 - `DATABASE_URL` is **required**, no hardcoded default. `apps/server` loads
   the repo root `.env` itself at startup, if present (a real environment
   variable always takes priority over the file), which sets it to

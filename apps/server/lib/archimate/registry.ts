@@ -22,10 +22,9 @@ import {
   userActiveWorkspace,
   organizationMembers,
   seedWorkspace,
-  getOrCreatePersonalOrganization,
 } from "@workspace/db"
 import { parseOpenExchange } from "./oxf-parser"
-import { NotFoundError, ValidationError } from "./errors"
+import { ForbiddenError, NotFoundError, ValidationError } from "./errors"
 import {
   assertOrgAccess,
   assertWorkspaceAccess,
@@ -80,7 +79,10 @@ async function resolveTargetOrganizationId(user: AccessUser): Promise<number> {
     .select({ organizationId: organizationMembers.organizationId })
     .from(organizationMembers)
     .where(eq(organizationMembers.userId, user.id))
-  if (!membership) return getOrCreatePersonalOrganization(user.id)
+  if (!membership)
+    throw new ForbiddenError(
+      "Vous devez appartenir à une organisation pour créer un espace de travail."
+    )
   const { organizationId } = await resolveActiveOrganization(user, "write")
   return organizationId
 }

@@ -3,10 +3,16 @@
  * Blob access; see image-library-upload.ts for the blob-backed parts of
  * custom packs: uploading an item and deleting a pack/item, which both need
  * to clean up blob objects alongside their DB rows).
+ *
+ * Packs are instance-wide, not organization-scoped: platform_admin manages
+ * them from /platform/plugins and every organization sees the same list —
+ * see `organizationId` on `imagePacks` (packages/db/src/schema.ts), always
+ * NULL here, and packages/db/src/image-library.ts's resolveImageReference,
+ * which already treats a NULL-org pack as resolvable from any workspace.
  */
 
 import { randomUUID } from "crypto"
-import { eq, inArray, isNull, or } from "drizzle-orm"
+import { eq, inArray } from "drizzle-orm"
 import { db, imagePacks, imagePackItems } from "@workspace/db"
 import { NotFoundError, ValidationError } from "./errors"
 
@@ -65,19 +71,9 @@ function imagePackOut(
   }
 }
 
-/** System pack first, then this organization's custom packs — each with its items. */
-export async function listAccessibleImagePacks(
-  organizationId: number
-): Promise<ImagePackOut[]> {
-  const packs = await db
-    .select()
-    .from(imagePacks)
-    .where(
-      or(
-        isNull(imagePacks.organizationId),
-        eq(imagePacks.organizationId, organizationId)
-      )
-    )
+/** System packs first, then every custom pack — each with its items. */
+export async function listAllImagePacks(): Promise<ImagePackOut[]> {
+  const packs = await db.select().from(imagePacks)
   if (packs.length === 0) return []
 
   const items = await db
@@ -101,16 +97,16 @@ export async function listAccessibleImagePacks(
     .map((pack) => imagePackOut(pack, itemsByPack.get(pack.id) ?? []))
 }
 
-export async function createCustomImagePack(
-  organizationId: number,
-  input: { name: string; slug: string }
-): Promise<ImagePackOut> {
+export async function createCustomImagePack(input: {
+  name: string
+  slug: string
+}): Promise<ImagePackOut> {
   try {
     const [row] = await db
       .insert(imagePacks)
       .values({
         uuid: randomUUID(),
-        organizationId,
+        organizationId: null,
         isSystem: false,
         slug: input.slug,
         name: input.name,
@@ -121,30 +117,29 @@ export async function createCustomImagePack(
   } catch (err) {
     if (isUniqueViolation(err)) {
       throw new ValidationError(
-        `Un pack d'images avec le slug '${input.slug}' existe déjà pour cette organisation.`
+        `Un pack d'images avec le slug '${input.slug}' existe déjà.`
       )
     }
     throw err
   }
 }
 
-/** Verifies `packUuid` is a custom pack owned by `organizationId`. */
-export async function getOwnedCustomPack(
-  organizationId: number,
+/** Verifies `packUuid` is a (non-system) custom pack, manageable by platform_admin. */
+export async function getManageableCustomPack(
   packUuid: string
 ): Promise<typeof imagePacks.$inferSelect> {
   const [pack] = await db
     .select()
     .from(imagePacks)
     .where(eq(imagePacks.uuid, packUuid))
-  if (!pack || pack.organizationId !== organizationId)
+  if (!pack || pack.isSystem)
     throw new NotFoundError(`Pack d'images '${packUuid}' introuvable.`)
   return pack
 }
 
-/** Public — serves the inline SVG of a system-pack item only (no auth, no
- *  org scoping: custom-pack items are always storageKind "blob" and use
- *  their own public Blob URL instead). */
+/** Public — serves the inline SVG of a system-pack item only (no auth:
+ *  custom-pack items are always storageKind "blob" and use their own public
+ *  Blob URL instead). */
 export async function getSystemInlineSvgItem(
   itemUuid: string
 ): Promise<string | null> {
@@ -152,12 +147,12 @@ export async function getSystemInlineSvgItem(
     .select({
       storageKind: imagePackItems.storageKind,
       svgContent: imagePackItems.svgContent,
-      packOrganizationId: imagePacks.organizationId,
+      packIsSystem: imagePacks.isSystem,
     })
     .from(imagePackItems)
     .innerJoin(imagePacks, eq(imagePackItems.packId, imagePacks.id))
     .where(eq(imagePackItems.uuid, itemUuid))
   if (!row || row.storageKind !== "inline_svg" || !row.svgContent) return null
-  if (row.packOrganizationId !== null) return null
+  if (!row.packIsSystem) return null
   return row.svgContent
 }

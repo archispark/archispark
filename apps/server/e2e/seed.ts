@@ -2,22 +2,20 @@
  * Runs before `next start` in start-server.sh: applies migrations (creating
  * the seeded admin/admin platform_admin account —
  * packages/db/drizzle-pg/0025_seed_local_admin.sql) and adds a second,
- * ordinary local account.
+ * ordinary local account with its own organization.
  *
- * Every real page in the app except /login, /change-password,
- * /invitations/*, and /platform/* is gated behind "has an active
- * organization" for a platform_admin session (see
- * components/client-layout.tsx's PlatformAdminBlock). Login now enters
- * platform_admin into the smallest existing organization automatically
- * (ensureDefaultPlatformOrganization, lib/archimate/platform-context-store.ts),
- * but auth.spec.ts (the only spec touching admin/admin) always runs before
- * any organization exists in this run's throwaway DB — organizations are
- * only auto-created on a user's first workspace, and this script doesn't
- * create one — so that default entry is a no-op there. admin/admin is
- * therefore only usable for auth.spec.ts (login, the forced password
- * change, logout); every other spec needs an ordinary "user"-role account
- * to reach workspaces/elements/relationships/views/dashboards/settings at
- * all — this script seeds exactly that account.
+ * admin/admin (platform_admin) is a regular user for organization content
+ * (see lib/archimate/access.ts): it has no workspaces unless it's a real
+ * member of an organization, and this script doesn't add it to one — it
+ * always reaches /platform/*, /login, /change-password and /invitations/*
+ * regardless, so it's only usable for auth.spec.ts (login, the forced
+ * password change, logout). Every other spec needs an ordinary "user"-role
+ * account with an organization to reach workspaces/elements/relationships/
+ * views/dashboards/settings at all — this script seeds exactly that account.
+ * Organization membership is granted explicitly here rather than relying on
+ * the first-workspace auto-provisioning that used to exist (see
+ * registry.ts's resolveTargetOrganizationId — users can no longer
+ * self-provision an organization).
  */
 import { randomUUID } from "crypto"
 import { hashPassword } from "@workspace/auth"
@@ -26,11 +24,13 @@ export const E2E_USER_USERNAME = "e2e-user"
 export const E2E_USER_PASSWORD = "E2E-user-2026!"
 
 async function main(): Promise<void> {
-  const { runMigrations, db, users } = await import("@workspace/db")
+  const { runMigrations, db, users, getOrCreatePersonalOrganization } =
+    await import("@workspace/db")
+  const { eq } = await import("drizzle-orm")
   await runMigrations()
 
   const passwordHash = await hashPassword(E2E_USER_PASSWORD)
-  await db
+  const [inserted] = await db
     .insert(users)
     .values({
       id: `local:${randomUUID()}`,
@@ -42,7 +42,19 @@ async function main(): Promise<void> {
       enabled: true,
       emailVerified: true,
     })
-    .onConflictDoNothing()
+    .onConflictDoNothing({ target: users.username })
+    .returning({ id: users.id })
+
+  const userId =
+    inserted?.id ??
+    (
+      await db
+        .select({ id: users.id })
+        .from(users)
+        .where(eq(users.username, E2E_USER_USERNAME))
+    )[0]!.id
+
+  await getOrCreatePersonalOrganization(userId)
 }
 
 // fixtures.ts imports E2E_USER_USERNAME/E2E_USER_PASSWORD from this module,

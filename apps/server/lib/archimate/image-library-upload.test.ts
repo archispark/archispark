@@ -1,8 +1,7 @@
-import { describe, it, expect, beforeAll, beforeEach, vi } from "vitest"
+import { describe, it, expect, beforeEach, vi } from "vitest"
 import { randomUUID } from "crypto"
-import { getOrCreatePersonalOrganization } from "@workspace/db"
 import { NotFoundError, ValidationError } from "./errors"
-import { createCustomImagePack } from "./image-library-store"
+import { createCustomImagePack, listAllImagePacks } from "./image-library-store"
 
 const put = vi.fn()
 const del = vi.fn()
@@ -17,18 +16,6 @@ const {
   deleteCustomImagePack,
 } = await import("./image-library-upload")
 
-let orgId: number
-let otherOrgId: number
-
-beforeAll(async () => {
-  orgId = await getOrCreatePersonalOrganization(
-    `image-lib-upload-owner-${randomUUID()}`
-  )
-  otherOrgId = await getOrCreatePersonalOrganization(
-    `image-lib-upload-other-${randomUUID()}`
-  )
-})
-
 beforeEach(() => {
   put.mockReset()
   del.mockReset()
@@ -41,26 +28,31 @@ beforeEach(() => {
 
 const FILE = { name: "icon.png", type: "image/png", buffer: Buffer.from("x") }
 
+async function systemPackId(): Promise<string> {
+  const packs = await listAllImagePacks()
+  return packs.find((p) => p.is_system)!.identifier
+}
+
 describe("uploadImagePackItem", () => {
   it("rejects when BLOB_READ_WRITE_TOKEN is not configured", async () => {
-    const pack = await createCustomImagePack(orgId, {
+    const pack = await createCustomImagePack({
       name: "Pack",
       slug: `pack-${randomUUID()}`,
     })
     await expect(
-      uploadImagePackItem(orgId, pack.identifier, FILE)
+      uploadImagePackItem(pack.identifier, FILE)
     ).rejects.toThrow(ValidationError)
     expect(put).not.toHaveBeenCalled()
   })
 
   it("rejects an unsupported mime type", async () => {
     process.env["BLOB_READ_WRITE_TOKEN"] = "test-token"
-    const pack = await createCustomImagePack(orgId, {
+    const pack = await createCustomImagePack({
       name: "Pack",
       slug: `pack-${randomUUID()}`,
     })
     await expect(
-      uploadImagePackItem(orgId, pack.identifier, {
+      uploadImagePackItem(pack.identifier, {
         ...FILE,
         type: "application/pdf",
       })
@@ -70,12 +62,12 @@ describe("uploadImagePackItem", () => {
 
   it("rejects a file over the size limit", async () => {
     process.env["BLOB_READ_WRITE_TOKEN"] = "test-token"
-    const pack = await createCustomImagePack(orgId, {
+    const pack = await createCustomImagePack({
       name: "Pack",
       slug: `pack-${randomUUID()}`,
     })
     await expect(
-      uploadImagePackItem(orgId, pack.identifier, {
+      uploadImagePackItem(pack.identifier, {
         ...FILE,
         buffer: Buffer.alloc(3 * 1024 * 1024),
       })
@@ -83,25 +75,21 @@ describe("uploadImagePackItem", () => {
     expect(put).not.toHaveBeenCalled()
   })
 
-  it("rejects uploading to a pack owned by another organization", async () => {
+  it("rejects uploading to a system pack", async () => {
     process.env["BLOB_READ_WRITE_TOKEN"] = "test-token"
-    const pack = await createCustomImagePack(otherOrgId, {
-      name: "Pack",
-      slug: `pack-${randomUUID()}`,
-    })
     await expect(
-      uploadImagePackItem(orgId, pack.identifier, FILE)
+      uploadImagePackItem(await systemPackId(), FILE)
     ).rejects.toThrow(NotFoundError)
     expect(put).not.toHaveBeenCalled()
   })
 
   it("uploads a valid file and inserts the item", async () => {
     process.env["BLOB_READ_WRITE_TOKEN"] = "test-token"
-    const pack = await createCustomImagePack(orgId, {
+    const pack = await createCustomImagePack({
       name: "Pack",
       slug: `pack-${randomUUID()}`,
     })
-    const item = await uploadImagePackItem(orgId, pack.identifier, FILE)
+    const item = await uploadImagePackItem(pack.identifier, FILE)
     expect(put).toHaveBeenCalledTimes(1)
     expect(item.resolved_url).toBe(
       "https://blob.example.test/image-library/icon.png"
@@ -111,41 +99,37 @@ describe("uploadImagePackItem", () => {
 })
 
 describe("deleteImagePackItem", () => {
-  it("deletes the blob and the row when owned by the organization", async () => {
+  it("deletes the blob and the row for a custom pack item", async () => {
     process.env["BLOB_READ_WRITE_TOKEN"] = "test-token"
-    const pack = await createCustomImagePack(orgId, {
+    const pack = await createCustomImagePack({
       name: "Pack",
       slug: `pack-${randomUUID()}`,
     })
-    const item = await uploadImagePackItem(orgId, pack.identifier, FILE)
-    await deleteImagePackItem(orgId, item.identifier)
+    const item = await uploadImagePackItem(pack.identifier, FILE)
+    await deleteImagePackItem(item.identifier)
     expect(del).toHaveBeenCalledWith("image-library/icon.png", {
       token: "test-token",
     })
   })
 
-  it("throws NotFoundError for an item owned by another organization", async () => {
-    process.env["BLOB_READ_WRITE_TOKEN"] = "test-token"
-    const pack = await createCustomImagePack(otherOrgId, {
-      name: "Pack",
-      slug: `pack-${randomUUID()}`,
-    })
-    const item = await uploadImagePackItem(otherOrgId, pack.identifier, FILE)
-    await expect(deleteImagePackItem(orgId, item.identifier)).rejects.toThrow(
-      NotFoundError
-    )
+  it("throws NotFoundError for a system pack item", async () => {
+    const packs = await listAllImagePacks()
+    const systemItem = packs.find((p) => p.is_system)?.items[0]
+    await expect(
+      deleteImagePackItem(systemItem!.identifier)
+    ).rejects.toThrow(NotFoundError)
   })
 })
 
 describe("deleteCustomImagePack", () => {
   it("deletes every item's blob then the pack", async () => {
     process.env["BLOB_READ_WRITE_TOKEN"] = "test-token"
-    const pack = await createCustomImagePack(orgId, {
+    const pack = await createCustomImagePack({
       name: "Pack",
       slug: `pack-${randomUUID()}`,
     })
-    await uploadImagePackItem(orgId, pack.identifier, FILE)
-    await deleteCustomImagePack(orgId, pack.identifier)
+    await uploadImagePackItem(pack.identifier, FILE)
+    await deleteCustomImagePack(pack.identifier)
     expect(del).toHaveBeenCalledWith(
       ["image-library/icon.png"],
       { token: "test-token" }
@@ -153,13 +137,19 @@ describe("deleteCustomImagePack", () => {
   })
 
   it("does not require a token to delete an empty pack", async () => {
-    const pack = await createCustomImagePack(orgId, {
+    const pack = await createCustomImagePack({
       name: "Empty Pack",
       slug: `empty-pack-${randomUUID()}`,
     })
     await expect(
-      deleteCustomImagePack(orgId, pack.identifier)
+      deleteCustomImagePack(pack.identifier)
     ).resolves.toBeUndefined()
     expect(del).not.toHaveBeenCalled()
+  })
+
+  it("rejects deleting a system pack", async () => {
+    await expect(deleteCustomImagePack(await systemPackId())).rejects.toThrow(
+      NotFoundError
+    )
   })
 })

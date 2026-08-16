@@ -1,8 +1,7 @@
 /**
  * Guard test for app/api/settings/api-tokens POST — platform_admin must not
- * be able to mint a personal token pinned to an organization, since its
- * access is meant to stay dynamic (admin mode, see access.ts) rather than
- * frozen indefinitely on a token. See route.ts for the rationale.
+ * be able to mint a personal token pinned to an organization. See route.ts
+ * for the rationale.
  */
 
 import { randomUUID } from "node:crypto"
@@ -12,7 +11,11 @@ import { db, organizations, organizationMembers } from "@workspace/db"
 import { POST as createApiToken } from "../../app/api/settings/api-tokens/route"
 import { makeFakeAccessToken } from "./test/keycloak-token-fake"
 
-function request(userId: string, platformAdmin: boolean, body: unknown): NextRequest {
+function request(
+  userId: string,
+  platformAdmin: boolean,
+  body: unknown
+): NextRequest {
   const token = makeFakeAccessToken({
     sub: userId,
     preferred_username: userId,
