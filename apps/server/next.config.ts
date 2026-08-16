@@ -1,11 +1,14 @@
 import type { NextConfig } from "next"
 import os from "node:os"
+import path from "node:path"
 import { loadEnv } from "@workspace/env"
 
 // Must run before anything below reads process.env (e.g. ALLOWED_DEV_ORIGINS
 // just below): next.config.ts is the first user code Next.js executes for
 // `next dev` / `next build` / `next start`, earlier than instrumentation.ts.
 loadEnv()
+
+const monorepoRoot = path.join(/* turbopackIgnore: true */ __dirname, "../..")
 
 // In dev mode, Next.js only initializes its client runtime (HMR + hydration)
 // for requests whose origin is "allowed". Accessing the dev server from another
@@ -29,6 +32,17 @@ function lanDevOrigins(): string[] {
 const nextConfig: NextConfig = {
   output: "standalone",
   transpilePackages: ["@workspace/ui"],
+  // The database packages load these files through fs at runtime. Their
+  // computed paths cannot be discovered reliably by Next.js's file tracer,
+  // so explicitly ship them with every Node.js function on Vercel.
+  outputFileTracingRoot: monorepoRoot,
+  outputFileTracingIncludes: {
+    "/*": [
+      "../../packages/db/dist/drizzle-pg/**/*",
+      "../../packages/db/dist/seeds/**/*",
+      "../../packages/db-neo4j/dist/schema/migrations/**/*",
+    ],
+  },
   // Without this, Next's own trailing-slash redirect (/mcp/ → /mcp, 308)
   // fires *before* rewrites are evaluated, so the /mcp/:path* rewrite below
   // never even sees the request the pre-fusion external contract actually
