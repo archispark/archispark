@@ -8,9 +8,13 @@
     "start": "next start --port 3000",
     "typecheck": "next typegen && tsc --noEmit",
     "lint": "eslint",
-    "format": "prettier --write \"**/*.{md,mdx,ts,tsx}\""
+    "format": "prettier --write \"**/*.{md,mdx,ts,tsx}\"",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:watch": "vitest"
   },
   "dependencies": {
+    "@workspace/env": "workspace:*",
     "@workspace/image-library": "workspace:*",
     "@xyflow/react": "^12.11.0",
     "cnfast": "^0.1.0",
@@ -19,6 +23,7 @@
     "fumadocs-ui": "npm:@fumadocs/base-ui@16.14.2",
     "lucide-react": "^1.28.0",
     "next": "16.3.0",
+    "nodemailer": "^9.0.3",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },
@@ -26,12 +31,15 @@
     "@tailwindcss/postcss": "^4.3.3",
     "@types/mdx": "^2.0.14",
     "@types/node": "^26.1.2",
+    "@types/nodemailer": "^8.0.1",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
+    "@vitest/coverage-v8": "^4.1.8",
     "postcss": "^8.5.25",
     "tailwindcss": "^4.3.3",
     "typescript": "^6.0.3",
     "eslint": "^9.39.4",
-    "eslint-config-next": "16.3.0"
+    "eslint-config-next": "16.3.0",
+    "vitest": "^4.1.8"
   }
 }

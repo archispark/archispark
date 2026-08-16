@@ -9,7 +9,7 @@
     "lint": "turbo lint",
     "format": "turbo format",
     "typecheck": "turbo typecheck",
-    "test": "turbo run test:coverage --filter=server --filter=@workspace/db --filter=@workspace/db-neo4j --filter=@workspace/env",
+    "test": "turbo run test:coverage --filter=server --filter=@workspace/db --filter=@workspace/db-neo4j --filter=@workspace/env --filter=@archispark/docs",
     "env": "[ -f .env ] || (cp .env.example .env && echo 'Fichier .env créé depuis .env.example — modifiez-le avant de lancer l’application.')",
     "start": "pnpm --filter server start",
     "start:docs": "pnpm --filter @archispark/docs start",

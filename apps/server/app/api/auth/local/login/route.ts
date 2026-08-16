@@ -8,6 +8,7 @@ import {
   LOCAL_ACCESS_TOKEN_TTL_SECONDS,
 } from "@workspace/auth"
 import { UnauthorizedError, TooManyRequestsError } from "@/lib/archimate/errors"
+import { ensureDefaultPlatformOrganization } from "@/lib/archimate/platform-context-store"
 import { parseBody } from "@/lib/archimate/validation"
 import { setLocalAuthCookies } from "@/lib/auth-cookies"
 import { withErrorHandling } from "@/lib/http/with-error-handling"
@@ -81,6 +82,9 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     .update(users)
     .set({ lastLoginAt: sql`extract(epoch from now())::int` })
     .where(eq(users.id, user.id))
+
+  if (user.role === "platform_admin")
+    await ensureDefaultPlatformOrganization(user.id)
 
   const res = NextResponse.json({
     id: user.id,

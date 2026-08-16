@@ -278,4 +278,4 @@ Background colours by layer follow the Archi reference palette:
 | Implementation        | `#FFE0E0` (light pink)   |
 
 Setting the `archispark_image` system property on an element replaces its
-notation glyph with a picked icon — see [Image Library](/docs/reference/image-library).
+notation glyph with a picked icon — see [Image Library](/docs/developer-guide/reference/image-library).

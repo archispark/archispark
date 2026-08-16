@@ -12,7 +12,7 @@ transport, all in one process:
 | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Web + API | Next.js 16 App Router (Route Handlers under `app/api/**`), React, shadcn/ui, Vercel Analytics + Speed Insights                                                      |
 | MCP       | `pages/api/mcp.ts` (Pages Router — the MCP SDK's transport needs raw Node `http` objects), `@modelcontextprotocol/sdk` Streamable HTTP transport, Bearer token auth |
-| Data      | PostgreSQL (Drizzle ORM), Keycloak (auth), Mailpit (local e-mail), Neo4j (optional graph export, see [Neo4j export](../development/architecture.md#neo4j-export))   |
+| Data      | PostgreSQL (Drizzle ORM), Keycloak (auth), Mailpit (local e-mail), Neo4j (optional graph export, see [Neo4j export](development/architecture.md#neo4j-export))      |
 
 ## Quick start
 

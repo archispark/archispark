@@ -6,9 +6,14 @@ description: Organizations, invitations, roles, platform administration, and use
 ArchiSpark separates organization administration from platform administration.
 An organization contains its members, API tokens, workspaces, models, and
 dashboards. The Admin role (Keycloak identifier `platform_admin`) manages
-organization metadata, and — by explicitly entering an organization (admin
-mode) — gets full Owner-equivalent access to that organization's content,
-including a suspended one.
+organization metadata, and gets full Owner-equivalent access to any
+organization's content, including a suspended one, through admin mode.
+Admin mode is entered automatically on login — the smallest existing
+organization by default — with no manual step required; an Admin can switch
+to a different organization, or exit admin mode for the rest of the
+session, from `/platform/organizations` at any time.
+
+![Platform administration page listing organizations with Administer and Suspend actions](/screenshots/admin-mode.png)
 
 ## Organization roles
 
@@ -37,17 +42,23 @@ From an organization's members dialog, an Owner enters an e-mail and chooses
 Owner, Editor, or Viewer. The API and database use the same identifiers as
 the display labels: `owner`, `editor`, and `viewer`.
 
-See [Organization invitations by e-mail](../reference/authentication.mdx#organization-invitations-by-e-mail)
+See [Organization invitations by e-mail](developer-guide/reference/authentication.mdx#organization-invitations-by-e-mail)
 for the full invitation lifecycle (diagram, token hashing, resend/revoke,
 missing-identity provisioning, delivery modes). SMTP settings and delivery
 behavior are described in
-[Deployment](../development/deployment.md#e-mail-invitations-smtp).
+[Deployment](developer-guide/development/deployment.md#e-mail-invitations-smtp).
 
 ## Admin administration
 
 Assign the Admin Keycloak realm role (`platform_admin`) directly, or use the helpers in
-`packages/auth/src/admin-users.ts`. These users are redirected away from the
-workspace UI to `/platform/organizations`, where they can:
+`packages/auth/src/admin-users.ts`. On login, as soon as at least one
+organization exists, these users are automatically entered into the
+smallest existing one and land in the regular workspace UI, resolved as
+Owner: read/write elements, relationships, views, dashboards, members, and
+API tokens, even if the organization is suspended — no manual "enter" step
+required. A banner stays visible while in admin mode. Only when no
+organization exists yet, or after explicitly exiting admin mode, are these
+users redirected to `/platform/organizations`, where they can:
 
 - list all organizations;
 - suspend or reactivate one;
@@ -55,14 +66,10 @@ workspace UI to `/platform/organizations`, where they can:
   dashboards, and organization-scoped tokens;
 - update the site login message and banner through
   `PUT /api/settings/messages`;
-- select **Administer** on an organization to enter **admin mode**
-  (`POST /api/platform/organizations/:id/enter`) — from that point on, the
-  regular workspace UI and API resolve the Admin as Owner for that
-  organization: read/write elements, relationships, views, dashboards,
-  members, and API tokens, even if the organization is suspended. A banner
-  stays visible while in admin mode, with an **Exit** action
-  (`DELETE /api/platform/organizations/active`) that returns to
-  `/platform/organizations`.
+- select **Administer** on an organization to switch admin mode to it
+  (`POST /api/platform/organizations/:id/enter`), or **Exit** admin mode
+  entirely (`DELETE /api/platform/organizations/active`), which returns to
+  `/platform/organizations` with no organization administered.
 
 This bypass is centralized in `apps/server/lib/archimate/access.ts`, the
 single authorization gateway every route uses — no per-route special
@@ -82,5 +89,5 @@ The Keycloak `sub` is stored as `organization_members.user_id`,
 `api_tokens.user_id`, and `workspaces.created_by_id`. The latter is audit
 metadata, never an authorization rule.
 
-See [Authentication](../reference/authentication.md) for token scopes and the
-complete authorization model.
+See [Authentication](developer-guide/reference/authentication.md) for token
+scopes and the complete authorization model.

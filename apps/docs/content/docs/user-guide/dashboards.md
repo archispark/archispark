@@ -53,5 +53,5 @@ ORDER BY count DESC
 - Declared client-side `transformations` are accepted but not yet applied.
 - Explorer queries are read-only and results may be truncated.
 
-See [Architecture](../development/architecture.md#dashboards) for persistence
-and tenant-isolation details.
+See [Architecture](../developer-guide/development/architecture.md#dashboards)
+for persistence and tenant-isolation details.

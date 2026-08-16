@@ -73,12 +73,12 @@ contrôles d'autorisation : ne pas dupliquer cette logique ailleurs.
 
 Avant toute modification transverse de l'authentification ou de la base de
 données, lire
-[architecture.md](apps/docs/content/docs/development/architecture.md) et
-[authentication.md](apps/docs/content/docs/reference/authentication.md).
+[architecture.md](apps/docs/content/docs/developer-guide/development/architecture.md) et
+[authentication.md](apps/docs/content/docs/developer-guide/reference/authentication.md).
 Consulter aussi les sections sur les
-[tableaux de bord](apps/docs/content/docs/development/architecture.md#dashboards)
+[tableaux de bord](apps/docs/content/docs/developer-guide/development/architecture.md#dashboards)
 et
-[l'export Neo4j](apps/docs/content/docs/development/architecture.md#neo4j-export)
+[l'export Neo4j](apps/docs/content/docs/developer-guide/development/architecture.md#neo4j-export)
 selon le domaine modifié.
 
 ## Commandes
@@ -102,8 +102,8 @@ Après `pnpm env`, renseigner au minimum `DB_PASSWORD` et
 `KEYCLOAK_ADMIN_CLIENT_SECRET` dans `.env.dev`.
 
 Pour Docker et Vercel, consulter
-[installation.md](apps/docs/content/docs/getting-started/index.md) et
-[deployment.md](apps/docs/content/docs/development/deployment.md).
+[installation.md](apps/docs/content/docs/developer-guide/getting-started/index.md) et
+[deployment.md](apps/docs/content/docs/developer-guide/development/deployment.md).
 
 ### Vérifications
 
@@ -176,6 +176,27 @@ pnpm --filter server test:e2e
   correspondant et minimiser les écarts de formes, couleurs, disposition,
   connecteurs, libellés et polices.
 
+### Captures d'écran produit
+
+- `apps/docs/public/screenshots/` contient les captures utilisées par
+  `README.md`, la landing page (`apps/docs/app/(home)/page.tsx`) et les pages
+  Fumadocs sous `apps/docs/content/docs/`.
+- Toute capture ajoutée ou remplacée doit avoir une ligne à jour dans
+  `apps/docs/public/screenshots/SOURCES.md` (route, compte/rôle, source,
+  viewport, date) — c'est ce qui permet de la reproduire à l'identique.
+- Capturer depuis `https://demo.archispark.cloud/` par défaut ; si la
+  fonctionnalité n'y est pas accessible (compte manquant, données absentes),
+  utiliser un environnement local seedé (`pnpm seed:demo-users` puis
+  `pnpm seed:demo`, `KEYCLOAK_SSO_ENABLED=true`) et le noter dans la colonne
+  « Source » de `SOURCES.md`.
+- Viewport 1400×900, thème clair, badge Next.js dev tools masqué avant la
+  capture (`[data-nextjs-dev-tools-button], nextjs-portal` en
+  `display:none`) — il n'existe qu'en `pnpm dev`, jamais dans le build livré.
+- Ne jamais laisser de token, e-mail ou autre donnée personnelle réelle
+  visible dans une capture.
+- Mettre à jour la capture existante (même nom de fichier) plutôt que d'en
+  ajouter une nouvelle quand seule l'UI change.
+
 ## Documentation versionnée avec le code
 
 La documentation fait partie du produit. Dans le même changement que le code :
@@ -196,12 +217,12 @@ La documentation fait partie du produit. Dans le même changement que le code :
 
 Utiliser cette table pour trouver la documentation concernée :
 
-| Changement                                                                | Emplacement à vérifier                                                     |
-| ------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| Positionnement produit, fonctionnalités, captures, liens ou connexion MCP | `apps/docs/app/(home)/page.tsx`                                            |
-| Structure et parcours de la documentation                                 | `apps/docs/content/docs/index.mdx`                                         |
-| Prérequis, installation, configuration ou usage                           | `apps/docs/content/docs/getting-started/`, `apps/docs/content/docs/usage/` |
-| API, MCP, authentification ou ArchiMate                                   | `apps/docs/content/docs/reference/`                                        |
-| Architecture, déploiement ou contribution                                 | `apps/docs/content/docs/development/`                                      |
-| Administration, configuration ou permissions                              | `apps/docs/content/docs/administration/`                                   |
-| Ajout, déplacement ou suppression d'une page                              | `meta.json` du dossier concerné                                            |
+| Changement                                                                | Emplacement à vérifier                                                                          |
+| ------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| Positionnement produit, fonctionnalités, captures, liens ou connexion MCP | `apps/docs/app/(home)/page.tsx`                                                                 |
+| Structure et parcours de la documentation                                 | `apps/docs/content/docs/meta.json`, `apps/docs/next.config.mjs` (redirection `/docs`)           |
+| Prérequis, installation, configuration ou usage                           | `apps/docs/content/docs/developer-guide/getting-started/`, `apps/docs/content/docs/user-guide/` |
+| API, MCP, authentification ou ArchiMate                                   | `apps/docs/content/docs/developer-guide/reference/`                                             |
+| Architecture, déploiement ou contribution                                 | `apps/docs/content/docs/developer-guide/development/`                                           |
+| Administration, configuration ou permissions                              | `apps/docs/content/docs/admin-guide/`                                                           |
+| Ajout, déplacement ou suppression d'une page                              | `meta.json` du dossier concerné                                                                 |

@@ -7,13 +7,17 @@
  * Every real page in the app except /login, /change-password,
  * /invitations/*, and /platform/* is gated behind "has an active
  * organization" for a platform_admin session (see
- * components/client-layout.tsx's PlatformAdminBlock) — platform_admin is
- * meant to manage *other* organizations' content via
- * POST /api/platform/organizations/:id/enter, not hold workspaces of its
- * own. admin/admin is therefore only usable for auth.spec.ts (login, the
- * forced password change, logout); every other spec needs an ordinary
- * "user"-role account to reach workspaces/elements/relationships/views/
- * dashboards/settings at all — this script seeds exactly that account.
+ * components/client-layout.tsx's PlatformAdminBlock). Login now enters
+ * platform_admin into the smallest existing organization automatically
+ * (ensureDefaultPlatformOrganization, lib/archimate/platform-context-store.ts),
+ * but auth.spec.ts (the only spec touching admin/admin) always runs before
+ * any organization exists in this run's throwaway DB — organizations are
+ * only auto-created on a user's first workspace, and this script doesn't
+ * create one — so that default entry is a no-op there. admin/admin is
+ * therefore only usable for auth.spec.ts (login, the forced password
+ * change, logout); every other spec needs an ordinary "user"-role account
+ * to reach workspaces/elements/relationships/views/dashboards/settings at
+ * all — this script seeds exactly that account.
  */
 import { randomUUID } from "crypto"
 import { hashPassword } from "@workspace/auth"

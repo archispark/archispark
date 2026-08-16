@@ -14,12 +14,16 @@ import { defineConfig, devices } from "@playwright/test"
 // every other route hits "relation ... does not exist".
 //
 // Two accounts, two purposes: admin/admin (platform_admin) only exercises
-// auth.spec.ts's login/forced-password-change/logout flow — it has no
-// organization of its own, so components/client-layout.tsx's
-// PlatformAdminBlock gates it out of every other page. Every other spec
-// logs in as e2e-user (an ordinary "user"-role account, fixtures.ts) to
-// actually reach workspaces/elements/relationships/views/dashboards/
-// settings.
+// auth.spec.ts's login/forced-password-change/logout flow. Login now
+// defaults platform_admin into the smallest existing organization
+// automatically (ensureDefaultPlatformOrganization,
+// lib/archimate/platform-context-store.ts), but auth-setup always runs
+// before any organization exists in this run's throwaway DB, so that
+// default entry is a no-op and components/client-layout.tsx's
+// PlatformAdminBlock still gates admin/admin out of every other page for
+// that spec. Every other spec logs in as e2e-user (an ordinary "user"-role
+// account, fixtures.ts) to actually reach
+// workspaces/elements/relationships/views/dashboards/settings.
 //
 // Multi-role (owner/editor/viewer), invitations, and platform-admin-mode
 // (entering another organization) scenarios need Keycloak-backed accounts

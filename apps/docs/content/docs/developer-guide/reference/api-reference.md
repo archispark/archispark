@@ -7,15 +7,15 @@ description: REST API endpoints for organizations, ArchiMate models and dashboar
 
 Workspaces belong to an organization — see [Authentication](authentication.md#organizations-and-roles) for the full role matrix (`owner`/`editor`/`viewer`) and Admin's admin-mode access.
 
-| Method   | Path                                     | Auth         | Description                                                                                            |
-| -------- | ---------------------------------------- | ------------ | ------------------------------------------------------------------------------------------------------ |
-| `GET`    | `/api/organizations`                     | viewer+      | List organizations the caller belongs to, with their role and which one is active (empty for an Admin) |
-| `PUT`    | `/api/organizations/:id`                 | owner        | Rename — body: `{ name }`                                                                              |
-| `POST`   | `/api/organizations/:id/activate`        | viewer+      | Switch the caller's active organization                                                                |
-| `GET`    | `/api/organizations/:id/members`         | viewer+      | List members with role and username                                                                    |
-| `POST`   | `/api/organizations/:id/members`         | owner        | Add an existing Keycloak user — body: `{ username, role }` (no email invitation)                       |
-| `PUT`    | `/api/organizations/:id/members/:userId` | owner        | Change a member's role — body: `{ role }`; refuses to demote the last `owner`                          |
-| `DELETE` | `/api/organizations/:id/members/:userId` | owner        | Remove a member, including self-removal; refuses to remove the last `owner`                            |
+| Method   | Path                                     | Auth    | Description                                                                                            |
+| -------- | ---------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------ |
+| `GET`    | `/api/organizations`                     | viewer+ | List organizations the caller belongs to, with their role and which one is active (empty for an Admin) |
+| `PUT`    | `/api/organizations/:id`                 | owner   | Rename — body: `{ name }`                                                                              |
+| `POST`   | `/api/organizations/:id/activate`        | viewer+ | Switch the caller's active organization                                                                |
+| `GET`    | `/api/organizations/:id/members`         | viewer+ | List members with role and username                                                                    |
+| `POST`   | `/api/organizations/:id/members`         | owner   | Add an existing Keycloak user — body: `{ username, role }` (no email invitation)                       |
+| `PUT`    | `/api/organizations/:id/members/:userId` | owner   | Change a member's role — body: `{ role }`; refuses to demote the last `owner`                          |
+| `DELETE` | `/api/organizations/:id/members/:userId` | owner   | Remove a member, including self-removal; refuses to remove the last `owner`                            |
 
 Invitation routes complement direct member management: `POST` and `GET`
 `/api/organizations/:id/invitations`, `DELETE`
@@ -30,9 +30,12 @@ without credentials and received the finish-registration actions.
 ## Platform administration
 
 Admin-only (Keycloak identifier `platform_admin`). The metadata routes never
-touch organization content; the last two enter/exit **admin mode**, after
-which every organization/workspace route (elements, workspaces, members, …)
-resolves the Admin as `owner` for whichever organization was entered — see
+touch organization content. On login, admin mode is entered into the
+smallest existing organization by default — no explicit `enter` call
+needed — after which every organization/workspace route (elements,
+workspaces, members, …) resolves the Admin as `owner` for that
+organization; the last two routes below switch admin mode to a different
+organization or exit it (until the next login) — see
 [Authentication](authentication.md#organizations-and-roles).
 
 | Method   | Path                                    | Description                                                                      |
@@ -129,7 +132,8 @@ relative path for values written before that library existed.
 
 ## Image library
 
-See [Image Library](/docs/reference/image-library) for the packs/items model
+See [Image Library](/docs/developer-guide/reference/image-library) for the
+packs/items model
 and the `archispark_image` property. Custom packs are organization-scoped;
 creating one or uploading an item requires the `owner`/`editor` role.
 

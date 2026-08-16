@@ -20,14 +20,19 @@
  * role before organization_members is even queried. Because platform_admin
  * has no natural "home" organization, resolveActiveOrganization does not
  * fall back the way it does for regular members; it requires the caller to
- * have explicitly "entered" an organization first (admin mode — see
+ * have "entered" an organization first (admin mode — see
  * resolveActivePlatformOrganizationId/setActivePlatformOrganization/
  * clearActivePlatformOrganization below, and platform-context-store.ts for
- * the routes that drive them). Once entered, every function in this file
- * (assertWorkspaceAccess, resolveActiveContext, activeWorkspaceId, ...)
- * works for platform_admin exactly as it does for a regular owner, with no
- * per-function change needed — the bypass is centralized in assertOrgAccess
- * alone.
+ * the routes that drive them). A platform_admin is entered into the
+ * smallest existing organization automatically on login (see
+ * ensureDefaultPlatformOrganization in platform-context-store.ts, called
+ * from the login routes) so it has default access without a manual step,
+ * while "exit" (DELETE /api/platform/organizations/active) still leaves it
+ * with none until it next logs in or explicitly enters one. Once entered,
+ * every function in this file (assertWorkspaceAccess, resolveActiveContext,
+ * activeWorkspaceId, ...) works for platform_admin exactly as it does for a
+ * regular owner, with no per-function change needed — the bypass is
+ * centralized in assertOrgAccess alone.
  */
 
 import { and, asc, eq } from "drizzle-orm"
@@ -185,8 +190,10 @@ export async function resolveActiveOrganizationId(
  * Unlike resolveActiveOrganizationId, there is no membership-based fallback
  * — a platform_admin has no natural "home" organization, and silently
  * landing them in an arbitrary tenant would be a hazard, not a convenience.
- * Requires a prior explicit "enter" action (see setActivePlatformOrganization
- * and platform-context-store.ts).
+ * Requires a prior "enter" action — either explicit
+ * (setActivePlatformOrganization via platform-context-store.ts's
+ * enterOrganizationAsPlatformAdmin) or the default one performed at login
+ * (ensureDefaultPlatformOrganization, also in platform-context-store.ts).
  */
 export async function resolveActivePlatformOrganizationId(
   userId: string
@@ -351,7 +358,8 @@ export async function resolveActiveContext(
  * create workspaces, where an empty organization is a valid state.
  *
  * For platform_admin, "active organization" means the one entered via admin
- * mode (see resolveActivePlatformOrganizationId) — no membership fallback.
+ * mode (see resolveActivePlatformOrganizationId) — no membership fallback,
+ * but login (ensureDefaultPlatformOrganization) enters one by default.
  */
 export async function resolveActiveOrganization(
   user: AccessUser,

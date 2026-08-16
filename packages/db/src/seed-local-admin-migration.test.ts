@@ -1,6 +1,6 @@
 /**
  * Tests for migration 0025_seed_local_admin.sql — the first-boot admin/admin
- * account (see apps/docs/content/docs/reference/authentication.mdx#local-accounts).
+ * account (see apps/docs/content/docs/developer-guide/reference/authentication.mdx#local-accounts).
  */
 
 import { describe, it, expect, beforeAll } from "vitest"

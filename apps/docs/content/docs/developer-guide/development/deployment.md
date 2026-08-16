@@ -158,6 +158,22 @@ this auto-injects `BLOB_READ_WRITE_TOKEN`. Without it, uploading to a custom
 pack fails with a clear error; the system pack (bundled ArchiMate icons)
 stays fully usable regardless.
 
+## Contact form (SMTP)
+
+The landing page's contact form (`apps/docs/app/(home)/page.tsx`, section
+`#contact`) posts to `apps/docs/app/api/contact/route.ts`, which sends the
+message with nodemailer through the same `SMTP_*` variables as `apps/server`'s
+invitation mail (see [E-mail invitations](#e-mail-invitations-smtp)) — one
+SMTP account (e.g. an OVH mailbox) for the whole monorepo, plus
+`CONTACT_TO_EMAIL` for the inbox that receives submissions.
+
+Set `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM`, and
+`CONTACT_TO_EMAIL` on the `apps/docs` Vercel project (root directory
+`apps/docs`). Without `SMTP_HOST` or `CONTACT_TO_EMAIL`, `/api/contact`
+returns `502` and the rest of the landing page keeps working. A hidden
+honeypot field in the form silently discards bot submissions before they
+reach the SMTP server.
+
 ## Onboard a new customer with a dedicated Keycloak realm
 
 ArchiSpark can run as a **dedicated platform per customer**: a separate
@@ -230,8 +246,9 @@ Two sets of variables share one SMTP service:
   dedicated realms.
 - `SMTP_HOST`, `SMTP_PORT`, `SMTP_STARTTLS`, `SMTP_USER`, `SMTP_PASSWORD`, and
   `SMTP_FROM` are
-  used both by `apps/server` for invitation mail and by Keycloak for address
-  verification and password reset. When Keycloak reaches the SMTP server from
+  used by `apps/server` for invitation mail, by Keycloak for address
+  verification and password reset, and by `apps/docs` for its
+  [contact form](#contact-form-smtp). When Keycloak reaches the SMTP server from
   a different network, set `KEYCLOAK_SMTP_HOST` to its network-visible host;
   it overrides `SMTP_HOST` only in the realm configuration. Local development
   uses `localhost:1025` for `apps/server`, `mailpit:1025` for Keycloak, and

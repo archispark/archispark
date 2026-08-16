@@ -38,13 +38,13 @@ The workspaces are grouped into two demo organizations
 (`packages/db/seeds/demo-orgs.json`), deliberately isolated from each other
 (no shared members):
 
-| Organization | Workspaces               | Account   | Role                                                                                                                                     |
-| ------------ | ------------------------ | --------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| Archi        | ArchiSurance, ArchiMetal | `archi`   | `owner`                                                                                                                                  |
-| Archi        | ArchiSurance, ArchiMetal | `contrib` | `editor`                                                                                                                                 |
-| Archi        | ArchiSurance, ArchiMetal | `user`    | `viewer`                                                                                                                                 |
-| Open         | Open Day                 | `open`    | `owner`                                                                                                                                  |
-| _(none)_     | —                        | `admin`   | Admin (Keycloak `platform_admin`) — deliberately a member of neither, but can reach either organization's content via admin mode instead |
+| Organization | Workspaces               | Account   | Role                                                                                                                                                                                  |
+| ------------ | ------------------------ | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Archi        | ArchiSurance, ArchiMetal | `archi`   | `owner`                                                                                                                                                                               |
+| Archi        | ArchiSurance, ArchiMetal | `contrib` | `editor`                                                                                                                                                                              |
+| Archi        | ArchiSurance, ArchiMetal | `user`    | `viewer`                                                                                                                                                                              |
+| Open         | Open Day                 | `open`    | `owner`                                                                                                                                                                               |
+| _(none)_     | —                        | `admin`   | Admin (Keycloak `platform_admin`) — deliberately a member of neither; admin mode defaults to the smallest existing organization, and can switch to any organization's content instead |
 
 - **Membership is authoritative on every reseed**: narrowing an
   organization's `members` in `demo-orgs.json` removes any now-unlisted

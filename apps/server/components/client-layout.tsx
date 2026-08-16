@@ -74,9 +74,10 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
     !!pathname?.startsWith("/invitations")
   // platform_admin has no workspace access of its own, but IS meant to
   // reach /platform/* (organization administration) — see
-  // apps/server/app/platform/organizations/page.tsx — and, once it has
-  // "entered" an organization there (admin mode), the regular app chrome
-  // for that organization's content, same as a real owner.
+  // apps/server/app/platform/organizations/page.tsx — and gets the regular
+  // app chrome for an organization's content, same as a real owner, as soon
+  // as login enters it into one (defaults to the smallest existing
+  // organization; can switch to another one from /platform/organizations).
   const isPlatformRoute = pathname?.startsWith("/platform")
   const isPlatformAdmin = useIsAdmin()
   const { data: activePlatformOrgData } =

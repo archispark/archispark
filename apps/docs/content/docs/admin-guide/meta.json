@@ -1,4 +1,6 @@
 {
-  "title": "Administration",
+  "title": "Administrator Guide",
+  "icon": "ShieldCheck",
+  "root": true,
   "pages": ["index"]
 }

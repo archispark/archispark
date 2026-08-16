@@ -44,9 +44,12 @@ with cascading foreign keys.
 A fourth role, Admin (Keycloak identifier `platform_admin`), is a Keycloak
 **realm** role (not an `organization_members` row) — it administers
 organizations (`/api/platform/organizations*`, metadata) and, via **admin
-mode**, gets full owner-equivalent access to any organization's content
-after explicitly entering it (`POST /api/platform/organizations/:id/enter`),
-including a suspended one. This bypass is centralized once in
+mode**, gets full owner-equivalent access to any organization's content by
+default (the smallest existing organization, entered automatically on
+login — see `ensureDefaultPlatformOrganization` in
+`lib/archimate/platform-context-store.ts` — no explicit
+`POST /api/platform/organizations/:id/enter` call required unless switching
+to a different one), including a suspended one. This bypass is centralized once in
 [`apps/server/lib/archimate/access.ts`](https://github.com/archispark/archispark/blob/main/apps/server/lib/archimate/access.ts)
 rather than left to be remembered at every call site; every other role- and
 suspension-check there stays unchanged. See
@@ -96,8 +99,9 @@ authorization gateway,
 (`resolveActiveContext`/`assertOrgAccess`/`assertWorkspaceAccess`) — a user
 sees and acts on every workspace of every organization they belong to,
 subject to their role (`owner`/`editor`: read+write, `viewer`: read-only).
-Admin acts the same way, but on whichever organization it has entered via
-admin mode, always with owner-equivalent access.
+Admin acts the same way, but on whichever organization admin mode currently
+resolves to (the smallest existing organization by default), always with
+owner-equivalent access.
 
 The MCP tools (`apps/server/lib/mcp/`) import `lib/archimate/store.ts`/
 `registry.ts` directly — same process, same module graph, no HTTP hop and no

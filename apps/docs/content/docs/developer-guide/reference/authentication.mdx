@@ -33,17 +33,22 @@ organization has members with one of three roles:
   `organization_members` row). It administers organizations from
   `/api/platform/organizations*` (metadata: list, suspend/reactivate,
   delete) and, via **admin mode**, gets full owner-equivalent access to any
-  organization's content: `POST /api/platform/organizations/:id/enter`
-  selects the organization, after which every organization/workspace route
-  resolves Admin as a synthetic `owner` — including on a **suspended**
-  organization, which blocks every other role. There is no implicit
-  fallback: Admin has no membership row anywhere, so nothing is resolved
-  until it explicitly enters one, and any stray `organization_members` row
-  for that account is ignored either way. `GET /api/platform/organizations/active`
-  and `DELETE /api/platform/organizations/active` read and clear which
-  organization is currently entered ("exit"). Because admin mode is meant
-  to stay dynamic per session rather than frozen, Admin cannot create a
-  personal API token (`POST /api/settings/api-tokens` returns `403` for it).
+  organization's content — including a **suspended** organization, which
+  blocks every other role. Admin has no membership row anywhere; instead,
+  login (local sign-in or the Keycloak callback) enters it into the
+  smallest existing organization automatically, so every
+  organization/workspace route resolves Admin as a synthetic `owner` as
+  soon as one organization exists, with no explicit
+  `POST /api/platform/organizations/:id/enter` call required first. Any
+  stray `organization_members` row for that account is ignored either way.
+  `POST /api/platform/organizations/:id/enter` switches admin mode to a
+  different organization; `GET /api/platform/organizations/active` and
+  `DELETE /api/platform/organizations/active` read and clear which
+  organization is currently entered ("exit") — exiting leaves Admin with
+  none until it next logs in or explicitly enters one. Because admin mode
+  is meant to stay dynamic per session rather than frozen, Admin cannot
+  create a personal API token (`POST /api/settings/api-tokens` returns
+  `403` for it).
 - Every user gets a personal organization (`is_personal = true`)
   auto-created the first time they create a workspace with no organization
   selected — this preserves frictionless solo use. Organization members

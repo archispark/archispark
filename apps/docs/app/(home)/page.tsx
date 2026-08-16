@@ -1,5 +1,6 @@
 import Image from "next/image"
 import Link from "next/link"
+import { ContactForm } from "@/components/contact-form"
 
 const features = [
   [
@@ -80,6 +81,13 @@ const screenshots = [
     "Conflicts highlighted with suggested alternatives",
     true,
   ],
+  ["elements.png", "Element catalog", "Filter and edit every element", false],
+  [
+    "organizations.png",
+    "Organizations",
+    "Manage members and roles per organization",
+    false,
+  ],
 ] as const
 
 export default function HomePage() {
@@ -114,7 +122,7 @@ export default function HomePage() {
           explore and manage ArchiMate 3.1 architecture.
         </p>
         <div className="landing-actions">
-          <Link className="landing-primary" href="/docs/getting-started">
+          <Link className="landing-primary" href="/docs">
             Read the docs →
           </Link>
           <a
@@ -201,7 +209,10 @@ export default function HomePage() {
               <li>Manage property definitions and workspaces</li>
               <li>Secure Bearer token authentication</li>
             </ul>
-            <Link className="landing-primary" href="/docs/mcp-tools">
+            <Link
+              className="landing-primary"
+              href="/docs/developer-guide/reference/mcp-tools"
+            >
               Explore MCP tools →
             </Link>
           </div>
@@ -268,28 +279,7 @@ open http://localhost:8000/workspaces`}</code>
             deployment you have in mind.
           </p>
         </div>
-        <form
-          action="mailto:contact@archispark.io"
-          method="post"
-          encType="text/plain"
-        >
-          <label>
-            Name
-            <input name="name" autoComplete="name" required />
-          </label>
-          <label>
-            Email
-            <input name="email" type="email" autoComplete="email" required />
-          </label>
-          <label>
-            Message
-            <textarea name="message" rows={5} required />
-          </label>
-          <button type="submit" className="landing-primary">
-            Send message →
-          </button>
-          <small>Your email application will open to send the message.</small>
-        </form>
+        <ContactForm />
       </section>
 
       <a className="landing-back-to-top" href="#top" aria-label="Back to top">
@@ -299,7 +289,7 @@ open http://localhost:8000/workspaces`}</code>
       <footer className="landing-footer">
         <span>© 2026 ArchiSpark</span>
         <Link href="/docs/user-guide">User guide</Link>
-        <Link href="/docs/mcp-tools">MCP tools</Link>
+        <Link href="/docs/developer-guide/reference/mcp-tools">MCP tools</Link>
         <a href="https://github.com/Archimatetool/archispark">GitHub</a>
       </footer>
     </main>

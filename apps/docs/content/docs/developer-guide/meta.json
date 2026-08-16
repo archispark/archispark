@@ -1,0 +1,6 @@
+{
+  "title": "Developer Guide",
+  "icon": "Code",
+  "root": true,
+  "pages": ["index", "getting-started", "development", "reference"]
+}

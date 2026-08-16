@@ -21,7 +21,7 @@ A pack is either:
 - **Custom** — scoped to one organization, created and populated by an
   `owner`/`editor` member via **Settings → Image library**, or the
   `POST /api/image-library/packs` / `POST /api/image-library/packs/:packId/items`
-  API (see [API reference](/docs/reference/api-reference#image-library)).
+  API (see [API reference](/docs/developer-guide/reference/api-reference#image-library)).
   Custom pack files are stored in Vercel Blob.
 
 Setting `archispark_image` on an element stores an `img-<uuid>` reference to
@@ -31,12 +31,12 @@ HTTP(S) URL or a relative path) keep working as a legacy fallback.
 
 ## System packs
 
-| Pack               | Slug      | Icons | Source                                                            |
-| ------------------ | --------- | ----- | ------------------------------------------------------------------ |
-| ArchiMate Notation | `archimate` | 74    | ArchiSpark's own vector glyphs (see below)                        |
-| AWS Icons          | `aws`       | 282   | Official AWS Architecture Service Icons                           |
-| Azure Icons        | `azure`     | 638   | Official Microsoft Azure service icons                            |
-| GCP Icons          | `gcp`       | 45    | Official Google Cloud product icons                                |
+| Pack               | Slug        | Icons | Source                                     |
+| ------------------ | ----------- | ----- | ------------------------------------------ |
+| ArchiMate Notation | `archimate` | 74    | ArchiSpark's own vector glyphs (see below) |
+| AWS Icons          | `aws`       | 282   | Official AWS Architecture Service Icons    |
+| Azure Icons        | `azure`     | 638   | Official Microsoft Azure service icons     |
+| GCP Icons          | `gcp`       | 45    | Official Google Cloud product icons        |
 
 The AWS, Azure, and GCP packs are the vendors' own icon sets, published for
 use in architecture-diagramming tools (the same practice as draw.io or

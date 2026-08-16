@@ -6,7 +6,7 @@
  * organization metadata.
  */
 
-import { eq } from "drizzle-orm"
+import { asc, eq } from "drizzle-orm"
 import { db, organizations } from "@workspace/db"
 import { NotFoundError } from "./errors"
 import {
@@ -16,7 +16,36 @@ import {
   clearActivePlatformOrganization,
   type AccessUser,
 } from "./access"
-import { toPlatformOrgOut, type PlatformOrganizationOut } from "./platform-store"
+import {
+  toPlatformOrgOut,
+  type PlatformOrganizationOut,
+} from "./platform-store"
+
+/**
+ * Called from the login routes (local login, Keycloak callback) for a
+ * platform_admin: enters it into the smallest existing organization if it
+ * isn't administering one yet, so it gets owner-equivalent access by
+ * default without a manual "enter" step. A no-op if it already has an
+ * active organization (e.g. it's still administering one from a prior
+ * login) or if no organization exists yet — "exit"
+ * (clearActivePlatformOrganization) is left alone here, so it still returns
+ * to /platform/organizations for the rest of that session.
+ */
+export async function ensureDefaultPlatformOrganization(
+  userId: string
+): Promise<void> {
+  try {
+    await resolveActivePlatformOrganizationId(userId)
+    return
+  } catch {
+    // No active organization yet — fall through to the default below.
+  }
+  const [firstOrg] = await db
+    .select({ id: organizations.id })
+    .from(organizations)
+    .orderBy(asc(organizations.id))
+  if (firstOrg) await setActivePlatformOrganization(userId, firstOrg.id)
+}
 
 /** "Enters" `organizationId` for `user` (a platform_admin) — see access.ts's setActivePlatformOrganization. */
 export async function enterOrganizationAsPlatformAdmin(
