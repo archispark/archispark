@@ -146,7 +146,7 @@ Uploading to a custom pack requires `BLOB_READ_WRITE_TOKEN` to be configured
 
 ## Dashboards
 
-Org-scoped — see [docs/../development/architecture.md#dashboards](../development/architecture.md#dashboards). Editing requires the `owner`/`editor` role in the active organization; `viewer` is read-only.
+Workspace-scoped — see [docs/../development/architecture.md#dashboards](../development/architecture.md#dashboards). Editing requires the `owner`/`editor` role in the active organization; `viewer` is read-only.
 
 | Method   | Path                                                   | Description                                                                          |
 | -------- | ------------------------------------------------------ | ------------------------------------------------------------------------------------ |

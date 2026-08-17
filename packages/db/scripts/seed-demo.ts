@@ -47,7 +47,7 @@ import "@workspace/env/register"
 import { isKeycloakSsoEnabled, findUserByUsername } from "@workspace/auth"
 import { findLocalUserIdByUsername } from "../src/local-users.js"
 import { seedDemoWorkspaces } from "../src/seed-demo-data.js"
-import { seedDashboardsForAllWorkspaces } from "../src/seed-dashboards-data.js"
+import { seedSystemDashboards } from "../src/seed-dashboards-data.js"
 
 async function resolveViaKeycloak(username: string): Promise<string> {
   const user = await findUserByUsername(username)
@@ -83,8 +83,8 @@ for (const [workspace, orgId] of orgIdByWorkspace) {
   console.log(`Workspace "${workspace}" → organization id ${orgId}`)
 }
 
-console.log("Seeding dashboards for each workspace…")
-await seedDashboardsForAllWorkspaces()
+console.log("Seeding system dashboards…")
+await seedSystemDashboards()
 
 console.log("Done.")
 process.exit(0)

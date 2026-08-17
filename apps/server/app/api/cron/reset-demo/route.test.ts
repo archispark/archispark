@@ -7,7 +7,7 @@ vi.mock("@workspace/db", () => ({
   seedLocalDemoUsers: vi.fn(),
   seedDemoWorkspaces: vi.fn(),
   findLocalUserIdByUsername: vi.fn(),
-  seedDashboardsForAllWorkspaces: vi.fn(),
+  seedSystemDashboards: vi.fn(),
 }))
 vi.mock("@workspace/db-neo4j", () => ({
   resetGraphData: vi.fn(),
@@ -19,7 +19,7 @@ import {
   seedLocalDemoUsers,
   seedDemoWorkspaces,
   findLocalUserIdByUsername,
-  seedDashboardsForAllWorkspaces,
+  seedSystemDashboards,
 } from "@workspace/db"
 import { resetGraphData, importAllWorkspacesToNeo4j } from "@workspace/db-neo4j"
 
@@ -75,9 +75,9 @@ describe("GET /api/cron/reset-demo", () => {
       ["Open Day", 2],
     ])
     vi.mocked(seedDemoWorkspaces).mockResolvedValue({ orgIdByWorkspace })
-    vi.mocked(seedDashboardsForAllWorkspaces).mockResolvedValue({
+    vi.mocked(seedSystemDashboards).mockResolvedValue({
       seededRevisions: 12,
-      workspaces: 3,
+      seededDashboards: 7,
     })
     vi.mocked(importAllWorkspacesToNeo4j).mockResolvedValue({
       imported: ["ArchiSurance", "ArchiMetal", "Open Day"],
@@ -101,7 +101,7 @@ describe("GET /api/cron/reset-demo", () => {
       resetGraphData,
       seedLocalDemoUsers,
       seedDemoWorkspaces,
-      seedDashboardsForAllWorkspaces,
+      seedSystemDashboards,
       importAllWorkspacesToNeo4j,
     ].map((fn) => vi.mocked(fn).mock.invocationCallOrder[0])
     expect(order).toEqual([...order].sort((a, b) => a! - b!))

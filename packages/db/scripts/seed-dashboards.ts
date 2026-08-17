@@ -1,9 +1,13 @@
 /**
- * Seeds the default dashboards for every workspace. Dashboards are
- * intentionally workspace-scoped: two workspaces in the same organization
- * receive independent copies and revision histories. Reusable core in
+ * Seeds (or resyncs) the fixed set of system dashboards, shared by every
+ * workspace (`dashboards.workspaceId IS NULL`). Reusable core in
  * `../src/seed-dashboards-data.ts` (also used by `seed-demo.ts` and the
  * demo reset cron).
+ *
+ * System dashboards are seeded once, at deploy time, by migration
+ * `0032_dashboard_system_seed.sql`. This script is a manual repair tool:
+ * rerun it if `seeds/dashboards.sql` changes without a dedicated backfill
+ * migration, to resync the already-deployed system dashboards.
  *
  * Usage:
  *   pnpm --filter @workspace/db seed:dashboards
@@ -12,10 +16,10 @@
  */
 
 import "@workspace/env/register"
-import { seedDashboardsForAllWorkspaces } from "../src/seed-dashboards-data.js"
+import { seedSystemDashboards } from "../src/seed-dashboards-data.js"
 
-const { seededRevisions, workspaces } = await seedDashboardsForAllWorkspaces()
+const { seededDashboards, seededRevisions } = await seedSystemDashboards()
 console.log(
-  `Seeded ${seededRevisions} dashboard revision(s) into ${workspaces} workspace(s).`
+  `Seeded ${seededRevisions} revision(s) across ${seededDashboards} system dashboard(s).`
 )
 process.exit(0)

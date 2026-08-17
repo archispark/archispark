@@ -225,6 +225,13 @@
       "when": 1787147200000,
       "tag": "0031_organization_description",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1786953989718,
+      "tag": "0032_dashboard_system_seed",
+      "breakpoints": true
     }
   ]
 }

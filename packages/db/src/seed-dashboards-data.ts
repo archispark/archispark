@@ -1,16 +1,17 @@
 /**
- * Seeds the default dashboards for every workspace — the reusable core of
- * `packages/db/scripts/seed-dashboards.ts`, ported to Drizzle so it can be
- * shared with the demo reset cron. Dashboards are intentionally
- * workspace-scoped: two workspaces in the same organization receive
- * independent copies and revision histories.
+ * Seeds the fixed set of system dashboards, once, shared by every workspace
+ * (`dashboards.workspaceId IS NULL` — see 0032_dashboard_system_seed.sql) —
+ * the reusable core of `packages/db/scripts/seed-dashboards.ts`, ported to
+ * Drizzle so it can be shared with the demo reset cron.
  */
 
 import { readFileSync } from "fs"
 import { sql } from "drizzle-orm"
 import { db as defaultDb } from "./connection.js"
 import { seedsPath } from "./seeds-path.js"
-import { workspaces, dashboards, dashboardRevisions } from "./schema.js"
+import { dashboards, dashboardRevisions } from "./schema.js"
+
+const SYSTEM_DASHBOARDS_AUTHOR = "system"
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Db = any
@@ -87,60 +88,71 @@ export function parseSourceRevisions(sqlText: string): SourceRevision[] {
 }
 
 export interface SeedDashboardsResult {
+  seededDashboards: number
   seededRevisions: number
-  workspaces: number
 }
 
-export async function seedDashboardsForAllWorkspaces(
+/**
+ * Seeds (or resyncs) the system dashboards, once, shared by every workspace
+ * — idempotent (`onConflictDoUpdate`), safe to rerun. Runs once at deploy
+ * time via `0032_dashboard_system_seed.sql`; this function is the manual
+ * repair path (`pnpm --filter @workspace/db seed:dashboards`) if
+ * `seeds/dashboards.sql` changes later, and is also called by the demo
+ * reset cron after `truncateApplicationTables()` wipes the table.
+ */
+export async function seedSystemDashboards(
   database: Db = defaultDb
 ): Promise<SeedDashboardsResult> {
   const revisions = parseSourceRevisions(
     readFileSync(seedsPath("dashboards.sql"), "utf-8")
   )
-  const workspaceRows = await database
-    .select({ id: workspaces.id, createdById: workspaces.createdById })
-    .from(workspaces)
-    .orderBy(workspaces.id)
+  const latestByDashboard = new Map<string, number>()
+  for (const source of revisions) {
+    latestByDashboard.set(
+      source.dashboardId,
+      Math.max(latestByDashboard.get(source.dashboardId) ?? 0, source.revision)
+    )
+  }
 
   await database.transaction(async (tx: Db) => {
-    for (const workspace of workspaceRows) {
-      for (const source of revisions) {
-        const [dashboardRow] = await tx
-          .insert(dashboards)
-          .values({
-            workspaceId: workspace.id,
-            dashboardId: source.dashboardId,
-            isProvisioned: true,
-            latestRevision: source.revision,
-            createdById: workspace.createdById,
-          })
-          .onConflictDoUpdate({
-            target: [dashboards.workspaceId, dashboards.dashboardId],
-            set: {
-              isProvisioned: true,
-              latestRevision: sql`GREATEST(${dashboards.latestRevision}, excluded.latest_revision)`,
-            },
-          })
-          .returning({ id: dashboards.id })
+    for (const [dashboardId, latestRevision] of latestByDashboard) {
+      const [dashboardRow] = await tx
+        .insert(dashboards)
+        .values({
+          dashboardId,
+          isSystem: true,
+          latestRevision,
+          createdById: SYSTEM_DASHBOARDS_AUTHOR,
+        })
+        .onConflictDoUpdate({
+          target: [dashboards.dashboardId],
+          targetWhere: sql`${dashboards.workspaceId} is null`,
+          set: {
+            isSystem: true,
+            latestRevision: sql`GREATEST(${dashboards.latestRevision}, excluded.latest_revision)`,
+          },
+        })
+        .returning({ id: dashboards.id })
 
+      for (const source of revisions.filter((r) => r.dashboardId === dashboardId)) {
         await tx
           .insert(dashboardRevisions)
           .values({
             dashboardId: dashboardRow!.id,
             revision: source.revision,
             definition: source.definition,
-            createdById: workspace.createdById,
+            createdById: SYSTEM_DASHBOARDS_AUTHOR,
           })
           .onConflictDoUpdate({
             target: [dashboardRevisions.dashboardId, dashboardRevisions.revision],
             set: {
               definition: source.definition,
-              createdById: workspace.createdById,
+              createdById: SYSTEM_DASHBOARDS_AUTHOR,
             },
           })
       }
     }
   })
 
-  return { seededRevisions: revisions.length, workspaces: workspaceRows.length }
+  return { seededDashboards: latestByDashboard.size, seededRevisions: revisions.length }
 }

@@ -8,7 +8,7 @@ import type {
 
 export interface DashboardAdministrationEntry {
   revision: DashboardRevision
-  isProvisioned: boolean
+  isSystem: boolean
   deletedAt: string | null
 }
 

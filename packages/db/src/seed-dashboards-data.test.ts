@@ -1,47 +1,34 @@
 import { describe, it, expect, beforeAll } from "vitest"
-import { eq } from "drizzle-orm"
+import { eq, isNull } from "drizzle-orm"
 import { runMigrations } from "./migrate.js"
 import { db } from "./connection.js"
-import { workspaces, dashboards, dashboardRevisions } from "./schema.js"
-import { seedDemoWorkspaces } from "./seed-demo-data.js"
-import {
-  seedDashboardsForAllWorkspaces,
-  parseSourceRevisions,
-} from "./seed-dashboards-data.js"
+import { dashboards, dashboardRevisions } from "./schema.js"
+import { seedSystemDashboards, parseSourceRevisions } from "./seed-dashboards-data.js"
 
 beforeAll(async () => {
   await runMigrations()
-  await seedDemoWorkspaces(async (username) => `local:${username}`)
 })
 
-describe("seedDashboardsForAllWorkspaces", () => {
-  it("seeds the same dashboard revisions into every workspace, idempotently", async () => {
-    const first = await seedDashboardsForAllWorkspaces()
-    expect(first.workspaces).toBe(3)
-    expect(first.seededRevisions).toBeGreaterThan(0)
+describe("seedSystemDashboards", () => {
+  it("seeds the system dashboards once, shared globally, idempotently", async () => {
+    const first = await seedSystemDashboards()
+    expect(first.seededDashboards).toBeGreaterThan(0)
+    expect(first.seededRevisions).toBeGreaterThanOrEqual(first.seededDashboards)
 
-    const [workspace] = await db.select({ id: workspaces.id }).from(workspaces).limit(1)
-    const dashboardRows = await db
-      .select()
-      .from(dashboards)
-      .where(eq(dashboards.workspaceId, workspace!.id))
-    expect(dashboardRows.length).toBeGreaterThan(0)
-    expect(dashboardRows.length).toBeLessThanOrEqual(first.seededRevisions)
-    for (const row of dashboardRows) expect(row.isProvisioned).toBe(true)
+    const dashboardRows = await db.select().from(dashboards).where(isNull(dashboards.workspaceId))
+    expect(dashboardRows.length).toBe(first.seededDashboards)
+    for (const row of dashboardRows) expect(row.isSystem).toBe(true)
 
     const revisionRows = await db
       .select()
       .from(dashboardRevisions)
       .innerJoin(dashboards, eq(dashboardRevisions.dashboardId, dashboards.id))
-      .where(eq(dashboards.workspaceId, workspace!.id))
+      .where(isNull(dashboards.workspaceId))
     expect(revisionRows.length).toBe(first.seededRevisions)
 
-    const second = await seedDashboardsForAllWorkspaces()
+    const second = await seedSystemDashboards()
     expect(second.seededRevisions).toBe(first.seededRevisions)
-    const dashboardRowsAfter = await db
-      .select()
-      .from(dashboards)
-      .where(eq(dashboards.workspaceId, workspace!.id))
+    const dashboardRowsAfter = await db.select().from(dashboards).where(isNull(dashboards.workspaceId))
     expect(dashboardRowsAfter.length).toBe(dashboardRows.length)
   })
 })

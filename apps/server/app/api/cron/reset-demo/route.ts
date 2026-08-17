@@ -4,7 +4,7 @@ import {
   seedLocalDemoUsers,
   seedDemoWorkspaces,
   findLocalUserIdByUsername,
-  seedDashboardsForAllWorkspaces,
+  seedSystemDashboards,
 } from "@workspace/db"
 import { resetGraphData, importAllWorkspacesToNeo4j } from "@workspace/db-neo4j"
 
@@ -76,10 +76,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         return id
       })
     )
-    const dashboards = await runStep(
-      "seed dashboards",
-      seedDashboardsForAllWorkspaces
-    )
+    const dashboards = await runStep("seed dashboards", seedSystemDashboards)
     const neo4j = await runStep(
       "import workspaces into Neo4j",
       importAllWorkspacesToNeo4j

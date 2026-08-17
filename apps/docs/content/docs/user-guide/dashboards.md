@@ -36,6 +36,9 @@ ORDER BY count DESC
   returns `graph`, `table`, or `metrics`.
 - Owners and admins can create and edit dashboards — saving an edit creates
   an immutable revision, deletion is soft.
+- Every workspace sees the same fixed set of system dashboards (marked
+  "System" in the admin list), shared globally rather than copied per
+  workspace. They can be neither edited nor deleted.
 - Graph panels provide controls for filtering element and relationship
   types, choosing the edge style and layout direction, and entering
   fullscreen (Escape or the minimize control to exit).

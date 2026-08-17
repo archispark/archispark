@@ -678,24 +678,29 @@ export const bendpoints = pgTable(
 )
 
 // ---------------------------------------------------------------------------
-// Dashboards  (configurable reporting dashboards, workspace-scoped — see
+// Dashboards  (configurable reporting dashboards — see
 // apps/server/lib/dashboards/). Each edit creates a new immutable revision
 // in dashboardRevisions rather than mutating one in place; dashboards.
 // latestRevision points at the current one. Deletion is a soft delete
-// (deletedAt) that preserves revision history.
+// (deletedAt) that preserves revision history. A dashboard is either owned
+// by one workspace (workspaceId set, created from the admin UI) or a system
+// dashboard shared by every workspace (workspaceId NULL, isSystem: true,
+// seeded once by 0032_dashboard_system_seed.sql) — same NULL-scope
+// convention as imagePacks.organizationId. System dashboards cannot be
+// edited or deleted (apps/server/lib/dashboards/repository.ts).
 // ---------------------------------------------------------------------------
 
 export const dashboards = pgTable(
   "dashboards",
   {
     id: serial("id").primaryKey(),
-    workspaceId: integer("workspace_id")
-      .notNull()
-      .references(() => workspaces.id, { onDelete: "cascade" }),
-    dashboardId: text("dashboard_id").notNull(), // kebab-case slug, unique per workspace
-    isProvisioned: boolean("is_provisioned").notNull().default(false),
+    workspaceId: integer("workspace_id").references(() => workspaces.id, {
+      onDelete: "cascade",
+    }), // NULL = system dashboard, shared by every workspace
+    dashboardId: text("dashboard_id").notNull(), // kebab-case slug, unique per workspace (or globally among system dashboards)
+    isSystem: boolean("is_system").notNull().default(false),
     latestRevision: integer("latest_revision").notNull(),
-    createdById: text("created_by_id").notNull(), // Keycloak sub — traceability only
+    createdById: text("created_by_id").notNull(), // Keycloak sub — traceability only ("system" for system dashboards)
     createdAt: integer("created_at")
       .notNull()
       .default(sql`extract(epoch from now())::int`),
@@ -706,6 +711,9 @@ export const dashboards = pgTable(
       t.workspaceId,
       t.dashboardId
     ),
+    uniqueIndex("dashboards_system_dashboard_id_uniq")
+      .on(t.dashboardId)
+      .where(sql`workspace_id is null`),
     index("dashboards_workspace_idx").on(t.workspaceId),
   ]
 )

@@ -8,6 +8,7 @@ import { useT } from "@/lib/i18n"
 import { Button } from "@workspace/ui/components/button"
 import { Badge } from "@workspace/ui/components/badge"
 import { DeleteDashboardButton } from "@/components/dashboards/admin-dashboard-actions"
+import { datasourceTypesUsed } from "@/lib/dashboards/datasource-badge"
 
 export default function DashboardsAdminPage() {
   const { t } = useT()
@@ -57,7 +58,7 @@ export default function DashboardsAdminPage() {
       )}
 
       <div className="flex flex-col gap-2">
-        {entries.map(({ revision, isProvisioned, deletedAt }) => (
+        {entries.map(({ revision, isSystem, deletedAt }) => (
           <div
             key={revision.dashboardId}
             className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-card p-3"
@@ -65,15 +66,16 @@ export default function DashboardsAdminPage() {
             <div>
               <div className="flex items-center gap-2">
                 <span className="font-medium text-card-foreground">
-                  {revision.definition.title}
+                  {revision.definition.title} (
+                  {datasourceTypesUsed(revision.definition).join(", ")})
                 </span>
                 <Badge variant="outline">{revision.dashboardId}</Badge>
                 <Badge variant="outline">
                   {t("dashboards.revision_badge", { n: revision.revision })}
                 </Badge>
-                {isProvisioned && (
+                {isSystem && (
                   <Badge variant="secondary">
-                    {t("dashboards.provisioned_badge")}
+                    {t("dashboards.system_badge")}
                   </Badge>
                 )}
                 {deletedAt && (
@@ -86,7 +88,7 @@ export default function DashboardsAdminPage() {
                 {revision.definition.description}
               </p>
             </div>
-            {!deletedAt && (
+            {!deletedAt && !isSystem && (
               <div className="flex items-center gap-2">
                 <Button
                   render={

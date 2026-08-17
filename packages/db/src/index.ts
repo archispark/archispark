@@ -32,7 +32,7 @@ export {
   type SeedDemoWorkspacesResult,
 } from "./seed-demo-data.js"
 export {
-  seedDashboardsForAllWorkspaces,
+  seedSystemDashboards,
   parseSourceRevisions,
   type SeedDashboardsResult,
 } from "./seed-dashboards-data.js"
