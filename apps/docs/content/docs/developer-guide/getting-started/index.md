@@ -94,8 +94,9 @@ pnpm setup-demo      # all three above, in order
 pnpm seed:local-admin # re-creates the local admin login on demand (already created automatically by migrations on first boot)
 pnpm seed:local-demo-users # local-accounts equivalent of seed:demo-users, no Keycloak required (default auth mode)
 pnpm seed:minimal    # realm + a single admin login, no organization/workspace/ArchiMate data
-pnpm reset           # delete all ArchiSpark PostgreSQL and Neo4j data (no seed)
-pnpm db:reset-demo   # reset, then replace demo data, and export all workspaces to Neo4j
+pnpm --filter @workspace/db reset       # delete all ArchiSpark PostgreSQL application data (no seed)
+pnpm --filter @workspace/db-neo4j reset # delete the Neo4j graph
+# No composite reset+reseed command — see "Demo seed" for the manual sequence.
 
 # Run the built application (infrastructure must already be available)
 pnpm build

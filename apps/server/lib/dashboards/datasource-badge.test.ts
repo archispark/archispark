@@ -48,4 +48,12 @@ describe("datasourceTypesUsed", () => {
     ])
     expect(datasourceTypesUsed(dashboard)).toEqual(["neo4j"])
   })
+
+  it("returns both native datasource types, sorted, for a mixed dashboard", () => {
+    const dashboard = definition([
+      panel("neo4j", "architecture-neo4j"),
+      panel("postgres", "postgres-app-db"),
+    ])
+    expect(datasourceTypesUsed(dashboard)).toEqual(["neo4j", "postgres"])
+  })
 })

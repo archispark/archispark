@@ -5378,6 +5378,15 @@ BEGIN
       RETURNING id INTO node_db_id;
 
 
+  -- Fournisseurs (démonstration du dashboard "demonstration-datasources",
+  -- panneau PostgreSQL — voir apps/server/lib/dashboards/datasource-executors/postgres.ts)
+  DELETE FROM fournisseurs WHERE organization_id = v_organization_id;
+  INSERT INTO fournisseurs (organization_id, nom, actif) VALUES
+    (v_organization_id, 'Atlas Assurance Services', true),
+    (v_organization_id, 'Nordic Claims Partners', true),
+    (v_organization_id, 'Meridian Risk Consulting', true),
+    (v_organization_id, 'Legacy Data Systems', false);
+
   -- =================================================================
   -- Workspace: ArchiMetal  (294 elements, 476 rels, 33 views)
   -- =================================================================
@@ -11312,6 +11321,14 @@ BEGIN
       RETURNING id INTO node_db_id;
 
 
+  -- Fournisseurs (démonstration du dashboard "demonstration-datasources",
+  -- panneau PostgreSQL — voir apps/server/lib/dashboards/datasource-executors/postgres.ts)
+  DELETE FROM fournisseurs WHERE organization_id = v_organization_id;
+  INSERT INTO fournisseurs (organization_id, nom, actif) VALUES
+    (v_organization_id, 'Ruhr Steel Logistics', true),
+    (v_organization_id, 'Baltic Freight Forwarding', true),
+    (v_organization_id, 'Continental Metals Trading', false);
+
   -- =================================================================
   -- Workspace: Open Day  (27 elements, 37 rels, 4 views)
   -- =================================================================
@@ -11850,5 +11867,12 @@ BEGIN
     INSERT INTO connections (view_id, uuid, name, relationship_uuid, source_node_uuid, target_node_uuid, line_color_r, line_color_g, line_color_b, line_color_a, line_width, font_name, font_size, font_color_r, font_color_g, font_color_b, font_color_a)
       VALUES (view_db_id, 'id-aeb3ea72', NULL, 'id-0a4fa37c', 'id-a7863852', 'id-5877e6a2', 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)
       RETURNING id INTO conn_db_id;
+
+  -- Fournisseurs (démonstration du dashboard "demonstration-datasources",
+  -- panneau PostgreSQL — voir apps/server/lib/dashboards/datasource-executors/postgres.ts)
+  DELETE FROM fournisseurs WHERE organization_id = v_organization_id;
+  INSERT INTO fournisseurs (organization_id, nom, actif) VALUES
+    (v_organization_id, 'Open Day Catering', true),
+    (v_organization_id, 'Campus Print Services', false);
 
 END $$;

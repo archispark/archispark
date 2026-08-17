@@ -37,9 +37,9 @@ async function runStep<T>(name: string, action: () => Promise<T>): Promise<T> {
 // the demo accounts/organizations/workspaces — the public demo lets
 // visitors create their own accounts/organizations/workspaces, so a scoped
 // delete of just the 3 demo workspaces would leave that behind. System
-// dashboards (wiped by the truncate, since they're global rows — see
-// packages/db/src/schema.ts) are reseeded manually afterwards, not by this
-// route: `pnpm --filter @workspace/db seed:dashboards`.
+// dashboards (global rows, see packages/db/src/schema.ts) are wiped by the
+// truncate and NOT restored: they're seeded exactly once, by migration
+// `0032_dashboard_system_seed.sql` — there is no seed/reseed path.
 //
 // Gated by two independent checks: `DEMO_RESET_ENABLED` must be `"true"`
 // (never set outside the actual demo Vercel project — apps/server/vercel.json's

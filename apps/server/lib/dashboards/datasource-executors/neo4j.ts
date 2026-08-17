@@ -14,26 +14,8 @@
  */
 import neo4j, { type Session } from "neo4j-driver"
 import { getDriver } from "@workspace/db-neo4j"
-import type { DashboardDefinition, PanelContent, PanelResult } from "./contracts"
-
-export type QueryParameters = Record<string, string | number | boolean>
-export type QueryRow = Record<string, unknown>
-export interface GraphEdgeRow {
-  id: string
-  source: string
-  target: string
-  type: string
-}
-export interface GraphNodeRow {
-  id: string
-  name: string
-  type: string
-}
-export interface DatasourceExecution {
-  rows: QueryRow[]
-  nodes?: GraphNodeRow[]
-  edges?: GraphEdgeRow[]
-}
+import type { PanelContent } from "../contracts"
+import type { DatasourceExecution, GraphEdgeRow, GraphNodeRow, QueryParameters } from "./shared"
 
 const MAX_ROWS = 500
 
@@ -58,18 +40,6 @@ export function assertOrganizationScoped(text: string): void {
 export function assertPanelQuerySafe(text: string): void {
   assertReadOnly(text)
   assertOrganizationScoped(text)
-}
-
-/** Validates every embedded panel's query at dashboard-save time — throws with the offending panel's title in the message. */
-export function assertDashboardQueriesSafe(definition: DashboardDefinition): void {
-  for (const instance of definition.panels) {
-    try {
-      assertPanelQuerySafe(instance.panel.query.text)
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
-      throw new Error(`Panneau « ${instance.panel.title} » (${instance.id}) : ${message}`)
-    }
-  }
 }
 
 export function boundedCypher(text: string): string {
@@ -146,49 +116,3 @@ export async function executeNeo4jQuery(
     await session.close()
   }
 }
-
-export type DatasourceFailureCode = "query" | "timeout" | "unavailable"
-
-export function classifyDatasourceFailure(message: string): DatasourceFailureCode {
-  if (/timeout|timed out|statement timeout/i.test(message)) return "timeout"
-  if (/connect|connection|unavailable|ECONNREFUSED/i.test(message)) return "unavailable"
-  return "query"
-}
-
-function jsonValue(value: unknown): unknown {
-  if (typeof value === "bigint") return Number.isSafeInteger(Number(value)) ? Number(value) : value.toString()
-  if (value instanceof Date) return value.toISOString()
-  if (
-    value &&
-    typeof value === "object" &&
-    "toNumber" in value &&
-    typeof (value as { toNumber: unknown }).toNumber === "function"
-  ) {
-    return (value as { toNumber: () => number }).toNumber()
-  }
-  if (Array.isArray(value)) return value.map(jsonValue)
-  if (value && typeof value === "object")
-    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, jsonValue(item)]))
-  return value
-}
-
-/** Normalizes every row's values to JSON-safe types (neo4j-driver returns Integer/DateTime wrapper objects). */
-export function normalizeExecution(execution: DatasourceExecution): DatasourceExecution {
-  return {
-    rows: execution.rows.map((row) => jsonValue(row) as QueryRow),
-    nodes: execution.nodes,
-    edges: execution.edges,
-  }
-}
-
-export async function executeDatasourceQuery(
-  query: PanelContent["query"],
-  resultType: PanelContent["resultType"],
-  parameters: QueryParameters,
-  organizationId: number
-): Promise<DatasourceExecution> {
-  const execution = await executeNeo4jQuery(query, resultType, parameters, organizationId)
-  return normalizeExecution(execution)
-}
-
-export type { PanelResult }

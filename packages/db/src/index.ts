@@ -31,11 +31,7 @@ export {
   seedDemoWorkspaces,
   type SeedDemoWorkspacesResult,
 } from "./seed-demo-data.js"
-export {
-  seedSystemDashboards,
-  parseSourceRevisions,
-  type SeedDashboardsResult,
-} from "./seed-dashboards-data.js"
+export { parseSourceRevisions } from "./seed-dashboards-data.js"
 export {
   ARCHISPARK_IMAGE_PROPERTY_ID,
   SYSTEM_PROPERTY_DEFINITIONS,

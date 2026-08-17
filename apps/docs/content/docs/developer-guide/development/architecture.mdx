@@ -168,17 +168,19 @@ Configured via `NEO4J_URI` (defaults to `bolt://localhost:7687`),
 ## Dashboards
 
 Configurable reporting dashboards — composed of panels (graph/table/metric),
-each embedding its own Cypher query, parameters and visualization inline (no
-external panel/query catalogue) — built on top of ArchiSpark's own data and
-access model. Business logic lives in `apps/server/lib/dashboards/`:
+each embedding its own query (Cypher or SQL), parameters and visualization
+inline (no external panel/query catalogue) — built on top of ArchiSpark's own
+data and access model. Business logic lives in `apps/server/lib/dashboards/`:
 
-| Module                    | Role                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `contracts.ts`            | Zod schemas for `DashboardDefinition`, `PanelContent`, `PanelResult`, `PanelVisualizationMetadata`. `ELEMENT_TYPES`/layers reuse `lib/archimate-helpers.ts` (`getLayer`, `ALL_ELEMENT_TYPES`) rather than a separate ArchiMate domain module.                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| `repository.ts`           | CRUD over `dashboards`/`dashboard_revisions` (`packages/db/src/schema.ts`), on Drizzle/Postgres like every other table. Every method takes `workspaceId`, which resolves to either a dashboard owned by that workspace (`workspaceId` set, created from the admin UI) or a system dashboard shared by every workspace (`workspaceId IS NULL`, see below) — `listLatestRevisions`/`listForAdministration` merge both scopes. Edits create a new immutable revision, deletes are soft (`deletedAt`). System dashboards can be neither edited nor deleted — `createRevision()`/`deleteDashboard()` throw a `ValidationError`, the same convention as `propertyDefinitions.isSystem`/`imagePacks.isSystem`.                                 |
-| `panel-execution.ts`      | Resolves a panel instance's parameters and runs its query, normalizing the result to the `graph`/`table`/`metrics` shape the frontend expects.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| `datasource-executors.ts` | Executes a panel's Cypher against the same Neo4j graph as [the Neo4j export](#neo4j-export) (`@workspace/db-neo4j`'s driver singleton). **Multi-tenant scoping**: `organizationId` is injected into the query's bound parameters by the executor — never trusted from the query text — and `assertPanelQuerySafe` statically requires every panel's Cypher to reference `$organizationId`, checked both when a dashboard revision is saved and again before every execution (defense in depth). `Element` nodes also carry a `layer` property (added by the Neo4j export, see `packages/db-neo4j/src/layer.ts`) so panels can filter by ArchiMate layer without recomputing it from `type`. |
-| `explore.ts`              | The ad hoc Cypher query page (`/explore`) runs arbitrary read-only queries, so its text can't be statically validated the way a saved panel's can. Scoping is instead enforced on the _result_: any row containing a Neo4j node or relationship whose `organizationId` doesn't match the caller's is dropped in its entirety, regardless of the query's own `WHERE` clause.                                                                                                                                                                                                                                                                                                                 |
+| Module                                | Role                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `contracts.ts`                        | Zod schemas for `DashboardDefinition`, `PanelContent`, `PanelResult`, `PanelVisualizationMetadata`, and the two native `DatasourceDefinition`s (`ARCHITECTURE_DATASOURCE`, `POSTGRES_DATASOURCE`). `ELEMENT_TYPES`/layers reuse `lib/archimate-helpers.ts` (`getLayer`, `ALL_ELEMENT_TYPES`) rather than a separate ArchiMate domain module.                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `repository.ts`                       | CRUD over `dashboards`/`dashboard_revisions` (`packages/db/src/schema.ts`), on Drizzle/Postgres like every other table. Every method takes `workspaceId`, which resolves to either a dashboard owned by that workspace (`workspaceId` set, created from the admin UI) or a system dashboard shared by every workspace (`workspaceId IS NULL`, see below) — `listLatestRevisions`/`listForAdministration` merge both scopes. Edits create a new immutable revision, deletes are soft (`deletedAt`). System dashboards can be neither edited nor deleted — `createRevision()`/`deleteDashboard()` throw a `ValidationError`, the same convention as `propertyDefinitions.isSystem`/`imagePacks.isSystem`.                                 |
+| `panel-execution.ts`                  | Resolves a panel instance's parameters and runs its query, normalizing the result to the `graph`/`table`/`metrics` shape the frontend expects.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `datasource-executors/neo4j.ts`       | Executes a panel's Cypher against the same Neo4j graph as [the Neo4j export](#neo4j-export) (`@workspace/db-neo4j`'s driver singleton). **Multi-tenant scoping**: `organizationId` is injected into the query's bound parameters by the executor — never trusted from the query text — and `assertPanelQuerySafe` statically requires every panel's Cypher to reference `$organizationId`, checked both when a dashboard revision is saved and again before every execution (defense in depth). `Element` nodes also carry a `layer` property (added by the Neo4j export, see `packages/db-neo4j/src/layer.ts`) so panels can filter by ArchiMate layer without recomputing it from `type`. |
+| `datasource-executors/postgres.ts`    | Executes a panel's read-only SQL against ArchiSpark's own application database (`@workspace/db`, `postgres-app-db`). Same `$organizationId` scoping contract as Neo4j, plus defense in depth the Neo4j graph doesn't need — the application database also holds every other organization's business data — the query runs inside a `READ ONLY` transaction with a short `statement_timeout`, and only a single `SELECT` statement is accepted (rejecting `;`, DDL/DML keywords). Named `$parameter` placeholders are bound through Drizzle's `sql` template, never string-interpolated. Panels are capped to 500 rows via an outer `LIMIT`, same as Cypher panels.                                                                                                    |
+| `datasource-executors/index.ts`       | Routes a panel's query to the Cypher or SQL executor based on `query.language`, and validates every panel's query (`assertDashboardQueriesSafe`) at dashboard-save time (`app/api/dashboards/**`).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `explore.ts`                          | The ad hoc Cypher query page (`/explore`) runs arbitrary read-only queries, so its text can't be statically validated the way a saved panel's can. Scoping is instead enforced on the _result_: any row containing a Neo4j node or relationship whose `organizationId` doesn't match the caller's is dropped in its entirety, regardless of the query's own `WHERE` clause.                                                                                                                                                                                                                                                                                                                 |
 
 A fixed set of system dashboards (`dashboards.isSystem`) is shared by every
 workspace rather than duplicated into one row per workspace: `workspaceId`
@@ -189,17 +191,23 @@ single row, a system dashboard is visible to every workspace automatically
 through any workspace; `createRevision()` also rejects creating a
 workspace-owned dashboard whose id collides with a system dashboard's,
 rather than silently shadowing it. Migration
-`0032_dashboard_system_seed.sql` seeds them once, at deploy time; if
-`packages/db/seeds/dashboards.sql` changes later, rerun
-`packages/db/scripts/seed-dashboards.ts` (`seedSystemDashboards()`) to
-resync. The demo reset cron (`app/api/cron/reset-demo`) does **not** call
-it: `truncateApplicationTables()` wipes the system dashboards along with
-every other table, and the demo database is reseeded with them manually
-(`pnpm seed:dashboards`) rather than automatically. The admin dashboard list
-(`app/dashboards/admin`) shows each dashboard's datasource type(s) in
-parentheses next to its title, derived from its panels'
-`query.datasourceId` — always `(neo4j)` today, since Neo4j is the only
-native datasource (see `contracts.ts`'s `DATASOURCE_TYPES`).
+`0032_dashboard_system_seed.sql` is the only place these rows are written —
+there is deliberately no runtime seed/reseed function or script (the demo
+reset cron's `truncateApplicationTables()` wipes them along with every
+other table and does not restore them). If `packages/db/seeds/dashboards.sql`
+changes later (new dashboard, new revision), regenerate the JSON with
+`parseSourceRevisions()` (`packages/db/src/seed-dashboards-data.ts`) and
+hand-write a new numbered backfill migration, the same way
+`0032_dashboard_system_seed.sql` was produced — `0034_demonstration_datasources_postgres.sql`
+is the only such backfill so far, pointing both of `demonstration-datasources`'s
+panels at the new Postgres datasource: `elements-postgres` aggregates the
+`elements`/`workspaces` tables directly, `fournisseurs-postgres` queries the
+dedicated `fournisseurs` demo table. Both dashboard lists
+(`app/dashboards` and `app/dashboards/admin`) show each dashboard's
+datasource type(s) in parentheses next to its title, derived from its
+panels' `query.datasourceId` — `(neo4j)`, `(postgres)`, or `(neo4j, postgres)`
+for a mixed dashboard (see `contracts.ts`'s `DATASOURCE_TYPES` and
+`datasource-badge.ts`).
 
 Routes live under `app/api/dashboards/**`, `app/api/explore`, and
 `app/api/panel-visualizations`, gated by the same
@@ -230,10 +238,13 @@ read-only edge renderer ensure that relationship types such as `Realization`
 use the same line pattern and endpoint symbols on every graph.
 
 Not carried over from the companion project: the XML-import worker
-(`apps/worker`) and its Postgres demo datasource (superseded by the live
-Neo4j export above), the single-admin-token auth, the third-party panel
-plugin system (`plugins/`), and the "Reports" pages (legacy redirects to
-specific provisioned dashboards the companion project seeded from its own
-demo data — there's no equivalent seed here). Panel `transformations`
-(client-side result reshaping, e.g. `extractFields`) are accepted by the
-schema for forward-compatibility but not yet applied by the renderer.
+(`apps/worker`) and its standalone demo Postgres instance (superseded by the
+live Neo4j export above for ArchiMate content — ArchiSpark's own native
+`postgres-app-db` datasource, see the table above, is unrelated: it queries
+ArchiSpark's own application database, not an imported dataset), the
+single-admin-token auth, the third-party panel plugin system (`plugins/`),
+and the "Reports" pages (legacy redirects to specific provisioned dashboards
+the companion project seeded from its own demo data — there's no equivalent
+seed here). Panel `transformations` (client-side result reshaping, e.g.
+`extractFields`) are accepted by the schema for forward-compatibility but not
+yet applied by the renderer.

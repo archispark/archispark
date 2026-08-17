@@ -35,14 +35,9 @@
     "seed:local-admin": "pnpm --filter @workspace/db seed:local-admin",
     "seed:local-demo-users": "pnpm --filter @workspace/db seed:local-demo-users",
     "seed:demo": "pnpm --filter @workspace/db seed:demo",
-    "seed:dashboards": "pnpm --filter @workspace/db seed:dashboards",
     "setup:realm": "pnpm --filter @workspace/db setup:realm",
     "import:workspace": "pnpm --filter @workspace/db-neo4j import:workspace",
-    "import:workspaces": "pnpm --filter @workspace/db-neo4j import:workspaces",
-    "db:reset": "pnpm run db:reset:postgres && pnpm run db:reset:neo4j && pnpm run db:migrate",
-    "db:reset:postgres": "pnpm --filter @workspace/db reset",
-    "db:reset:neo4j": "pnpm --filter @workspace/db-neo4j reset",
-    "db:reset-demo": "pnpm run db:reset && pnpm run seed && pnpm run import:workspaces"
+    "import:workspaces": "pnpm --filter @workspace/db-neo4j import:workspaces"
   },
   "devDependencies": {
     "@workspace/eslint-config": "workspace:*",

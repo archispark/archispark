@@ -740,3 +740,26 @@ export const dashboardRevisions = pgTable(
     index("dashboard_revisions_dashboard_idx").on(t.dashboardId),
   ]
 )
+
+// ---------------------------------------------------------------------------
+// Fournisseurs — demo table backing the native Postgres dashboard datasource
+// (apps/server/lib/dashboards/datasource-executors/postgres.ts). Organization-
+// scoped like every business table: a dashboard panel querying it must filter
+// on organization_id, enforced by that module's assertPanelQuerySafe.
+// ---------------------------------------------------------------------------
+
+export const fournisseurs = pgTable(
+  "fournisseurs",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    nom: text("nom").notNull(),
+    actif: boolean("actif").notNull().default(true),
+    createdAt: integer("created_at")
+      .notNull()
+      .default(sql`extract(epoch from now())::int`),
+  },
+  (t) => [index("fournisseurs_organization_idx").on(t.organizationId)]
+)

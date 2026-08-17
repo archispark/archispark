@@ -14,9 +14,12 @@ ALTER TABLE "dashboards" ALTER COLUMN "workspace_id" DROP NOT NULL;
 CREATE UNIQUE INDEX "dashboards_system_dashboard_id_uniq" ON "dashboards" USING btree ("dashboard_id") WHERE "workspace_id" IS NULL;
 --> statement-breakpoint
 
--- Seeds the fixed set of system dashboards, once, shared globally — see
--- packages/db/src/seed-dashboards-data.ts (seedSystemDashboards()) for how
--- this stays in sync if packages/db/seeds/dashboards.sql changes later.
+-- Seeds the fixed set of system dashboards, once, shared globally. This is
+-- the only place that writes these rows — there is no runtime seed/reseed
+-- path. If packages/db/seeds/dashboards.sql changes later (new dashboard,
+-- new revision), regenerate the JSON below with parseSourceRevisions()
+-- (packages/db/src/seed-dashboards-data.ts) and hand-write a new numbered
+-- backfill migration.
 INSERT INTO "dashboards" ("dashboard_id", "is_system", "latest_revision", "created_by_id")
 VALUES
   ('demonstration-datasources', true, 1, 'system'),

@@ -15,9 +15,9 @@ workspaces, or ArchiMate data:
 
 `pnpm seed:local-admin` re-runs the same local account creation on demand
 (`.docker/local-auth/admin-user.json`) — use it to recover a locked-out
-`admin` account, or after `pnpm db:reset` (which wipes the `users` table, so
-the migration-driven seed above won't fire again — it only runs once, the
-first time migration `0025` itself applies).
+`admin` account, or after `pnpm --filter @workspace/db reset` (which wipes
+the `users` table, so the migration-driven seed above won't fire again — it
+only runs once, the first time migration `0025` itself applies).
 
 Either way, no organization or workspace is created: signing in lands on the
 starter home page with no organization until an owner, editor, or an Admin
@@ -85,34 +85,33 @@ placeholders are only substituted by `seed-demo.ts`, so run it via `pnpm
 seed:demo` rather than `psql -f` directly.
 
 To fully reset and reload the demo data locally (the same behavior as the
-Vercel cron job below), run:
+Vercel cron job below), run each step manually — there is no single
+composite command, on purpose:
 
 ```bash
-pnpm db:reset-demo
+pnpm --filter @workspace/db reset       # wipe PostgreSQL app data (schema/migration history preserved)
+pnpm --filter @workspace/db-neo4j reset # wipe the Neo4j graph
+pnpm run db:migrate                     # reapply/backfill migrations
+pnpm run seed                           # recreate the demo accounts, organizations and workspaces
+pnpm run import:workspaces              # export every workspace to Neo4j
 ```
-
-`pnpm db:reset-demo`:
-
-1. Removes all ArchiSpark PostgreSQL and Neo4j data — schema and migration
-   history preserved (same as `pnpm reset`).
-2. Creates or updates the demo accounts (local or Keycloak, depending on
-   `KEYCLOAK_SSO_ENABLED`).
-3. Re-seeds the demo organizations and workspaces.
-4. Exports every workspace to Neo4j.
 
 This is a full wipe, not scoped to the 3 demo workspaces: any other
 organization or workspace in the same database is removed too.
 
-System dashboards are global rows (`dashboards.workspaceId IS NULL`), so
-the wipe above removes them too — this reset intentionally does **not**
-reseed them. Run `pnpm seed:dashboards` afterwards if you need them back.
+System dashboards are global rows (`dashboards.workspaceId IS NULL`),
+seeded only once by migration `0032_dashboard_system_seed.sql` — there is
+no seed script or reseed path. `pnpm --filter @workspace/db reset` preserves
+Drizzle's migration history, so this wipe removes them and they are **not**
+restored by the `pnpm run db:migrate` step above.
 
 ## Restore demo data on Vercel (Cron Job)
 
 A Vercel Cron Job (`GET /api/cron/reset-demo`, configured in
 `apps/server/vercel.json`) resets the demo Vercel/Neon project once a day
-(`0 3 * * *`) — the same full fresh-reinstall-style wipe and reseed as
-`pnpm db:reset-demo` above, using **local accounts, not Keycloak**
+(`0 3 * * *`) — the same full fresh-reinstall-style wipe, reseed, and Neo4j
+export as the manual sequence above (same caveat on system dashboards not
+being restored), using **local accounts, not Keycloak**
 (demo.archispark.cloud runs with `KEYCLOAK_SSO_ENABLED` unset). Every
 application table and the whole Neo4j graph are wiped (schema/migration
 history preserved) before reseeding — **not** a scoped delete of just the 3

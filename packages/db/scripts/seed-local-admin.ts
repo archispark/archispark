@@ -8,9 +8,9 @@
  * A fresh install no longer needs this: migration
  * `0025_seed_local_admin.sql` creates the same `admin`/`admin` account the
  * first time it runs against an empty `users` table. This script is for
- * re-seeding on demand — after `pnpm db:reset` (which wipes `users`, so the
- * migration won't fire again — it only ever runs once), or to recover a
- * locked-out account.
+ * re-seeding on demand — after `pnpm --filter @workspace/db reset` (which
+ * wipes `users`, so the migration won't fire again — it only ever runs
+ * once), or to recover a locked-out account.
  *
  * Usage:
  *   pnpm --filter @workspace/db seed:local-admin

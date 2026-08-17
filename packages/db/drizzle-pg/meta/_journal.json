@@ -232,6 +232,20 @@
       "when": 1786953989718,
       "tag": "0032_dashboard_system_seed",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1787233600000,
+      "tag": "0033_fournisseurs",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1787233700000,
+      "tag": "0034_demonstration_datasources_postgres",
+      "breakpoints": true
     }
   ]
 }

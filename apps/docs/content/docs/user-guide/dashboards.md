@@ -3,8 +3,11 @@ title: Dashboards and Neo4j exploration
 description: Export a model to Neo4j, run Cypher and build organization dashboards.
 ---
 
-Dashboards query the Neo4j read model. PostgreSQL remains authoritative: export
-the workspace again whenever its ArchiMate content changes.
+Dashboard panels query one of two native datasources: the Neo4j read model
+(ArchiMate content, exported from PostgreSQL) or ArchiSpark's own PostgreSQL
+application database directly (organization-scoped business tables such as
+`fournisseurs`). PostgreSQL remains authoritative for ArchiMate content:
+export the workspace again whenever it changes.
 
 ## Prepare the graph
 
@@ -45,9 +48,12 @@ ORDER BY count DESC
 - The form uses structured metadata fields and validated JSON for
   parameters, panels, layouts, and tab groups; identifiers use lowercase
   kebab-case.
-- Every panel query must use `architecture-neo4j`, reference
-  `$organizationId`, and select a compatible visualization: `core/graph`,
-  `core/table`, or `core/metric`.
+- Every panel query must target a native datasource (`architecture-neo4j`
+  Cypher, or `postgres-app-db` read-only SQL), reference `$organizationId`,
+  and select a compatible visualization: `core/graph`, `core/table`, or
+  `core/metric`. Only `architecture-neo4j` supports `graph` panels.
+- The dashboard and admin lists show each dashboard's datasource type(s) in
+  parentheses next to its title — e.g. `(neo4j)`, `(neo4j, postgres)`.
 
 ## Current limits
 

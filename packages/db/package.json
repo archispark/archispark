@@ -16,7 +16,6 @@
     "test:coverage": "vitest run --coverage",
     "typecheck": "tsc --noEmit",
     "seed:demo": "tsx scripts/seed-demo.ts",
-    "seed:dashboards": "tsx scripts/seed-dashboards.ts",
     "reset": "tsx scripts/reset.ts",
     "seed:demo-users": "tsx scripts/seed-demo-users.ts",
     "seed:minimal-users": "tsx scripts/seed-minimal-users.ts",

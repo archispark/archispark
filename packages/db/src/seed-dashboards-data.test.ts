@@ -1,40 +1,37 @@
-import { describe, it, expect, beforeAll } from "vitest"
-import { eq, isNull } from "drizzle-orm"
-import { runMigrations } from "./migrate.js"
-import { db } from "./connection.js"
-import { dashboards, dashboardRevisions } from "./schema.js"
-import { seedSystemDashboards, parseSourceRevisions } from "./seed-dashboards-data.js"
-
-beforeAll(async () => {
-  await runMigrations()
-})
-
-describe("seedSystemDashboards", () => {
-  it("seeds the system dashboards once, shared globally, idempotently", async () => {
-    const first = await seedSystemDashboards()
-    expect(first.seededDashboards).toBeGreaterThan(0)
-    expect(first.seededRevisions).toBeGreaterThanOrEqual(first.seededDashboards)
-
-    const dashboardRows = await db.select().from(dashboards).where(isNull(dashboards.workspaceId))
-    expect(dashboardRows.length).toBe(first.seededDashboards)
-    for (const row of dashboardRows) expect(row.isSystem).toBe(true)
-
-    const revisionRows = await db
-      .select()
-      .from(dashboardRevisions)
-      .innerJoin(dashboards, eq(dashboardRevisions.dashboardId, dashboards.id))
-      .where(isNull(dashboards.workspaceId))
-    expect(revisionRows.length).toBe(first.seededRevisions)
-
-    const second = await seedSystemDashboards()
-    expect(second.seededRevisions).toBe(first.seededRevisions)
-    const dashboardRowsAfter = await db.select().from(dashboards).where(isNull(dashboards.workspaceId))
-    expect(dashboardRowsAfter.length).toBe(dashboardRows.length)
-  })
-})
+import { readFileSync } from "fs"
+import { describe, it, expect } from "vitest"
+import { seedsPath } from "./seeds-path.js"
+import { parseSourceRevisions } from "./seed-dashboards-data.js"
 
 describe("parseSourceRevisions", () => {
   it("throws when no dashboard tuple is found in the source text", () => {
     expect(() => parseSourceRevisions("select 1;")).toThrow()
+  })
+
+  it("parses and normalizes every dashboard revision from the source seed", () => {
+    const revisions = parseSourceRevisions(
+      readFileSync(seedsPath("dashboards.sql"), "utf-8")
+    )
+    expect(revisions.length).toBeGreaterThan(0)
+    expect(new Set(revisions.map((r) => r.dashboardId)).size).toBeGreaterThan(0)
+    for (const revision of revisions) {
+      expect(revision.definition["id"]).toBe(revision.dashboardId)
+    }
+  })
+
+  it("retargets an imported SQL panel at the native Postgres datasource, organization-scoped", () => {
+    const revisions = parseSourceRevisions(
+      readFileSync(seedsPath("dashboards.sql"), "utf-8")
+    )
+    const demonstration = revisions.find((r) => r.dashboardId === "demonstration-datasources")
+    const panels = (demonstration!.definition["panels"] as Record<string, unknown>[])
+    const postgresPanel = panels
+      .map((p) => (p["panel"] as Record<string, unknown>)["query"] as Record<string, unknown>)
+      .find((query) => query["language"] === "sql")
+    expect(postgresPanel).toEqual({
+      datasourceId: "postgres-app-db",
+      language: "sql",
+      text: "SELECT count(*)::integer AS count FROM fournisseurs WHERE organization_id = $organizationId AND actif = $actif",
+    })
   })
 })
