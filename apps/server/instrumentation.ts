@@ -11,6 +11,9 @@
  * crash, since `pg` needs Node's `net`/`tls`.
  */
 export async function register(): Promise<void> {
+  console.info("instrumentation register() invoked", {
+    NEXT_RUNTIME: process.env.NEXT_RUNTIME,
+  })
   if (process.env.NEXT_RUNTIME === "nodejs") {
     // ./env validates process.env as an import side effect (see next.config.ts)
     // and throws on a malformed value — re-imported here (Node module cache
