@@ -1,6 +1,6 @@
 import { Handle, Position, type NodeProps } from "@xyflow/react"
 import { getLayer, LAYER_HEX_COLORS } from "@/lib/archimate-helpers"
-import { ArchimateLayerBadge } from "@/components/archimate-layer-badge"
+import { ArchimateTypeBadge } from "@/components/archimate-type-badge"
 import { ArchimateNotationBadge } from "@/components/archimate-notation-badge"
 import { NODE_W, NODE_H } from "@/components/element-graph-markers"
 
@@ -71,7 +71,7 @@ export function ArchiNode({ data }: NodeProps) {
               }}
             />
           ) : (
-            <ArchimateLayerBadge layer={layer} />
+            <ArchimateTypeBadge elementType={d.elementType} />
           )}
         </div>
         <div style={{ position: "absolute", top: -13, right: -4 }}>

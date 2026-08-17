@@ -13,6 +13,7 @@ import { sanitizeSvg } from "./svg-sanitize"
 import {
   getManageableCustomPack,
   imagePackItemOut,
+  isUniqueViolation,
   slugifyFileName,
   type ImagePackItemOut,
 } from "./image-library-store"
@@ -62,19 +63,29 @@ export async function uploadImagePackItem(
     token,
   })
 
-  const [row] = await db
-    .insert(imagePackItems)
-    .values({
-      uuid: itemUuid,
-      packId: pack.id,
-      slug,
-      name: file.name,
-      storageKind: "blob",
-      blobUrl: blob.url,
-      blobPathname: blob.pathname,
-      mimeType: file.type,
-    })
-    .returning()
+  let row
+  try {
+    ;[row] = await db
+      .insert(imagePackItems)
+      .values({
+        uuid: itemUuid,
+        packId: pack.id,
+        organizationId: pack.organizationId,
+        slug,
+        name: file.name,
+        storageKind: "blob",
+        blobUrl: blob.url,
+        blobPathname: blob.pathname,
+        mimeType: file.type,
+      })
+      .returning()
+  } catch (err) {
+    if (isUniqueViolation(err))
+      throw new ValidationError(
+        `Le slug '${slug}' est déjà utilisé par une autre image (le slug doit être unique parmi les packs système et, pour ce pack, parmi ceux de son organisation).`
+      )
+    throw err
+  }
   if (!row) throw new Error("Failed to create image pack item")
   return imagePackItemOut(row)
 }

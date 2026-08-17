@@ -76,7 +76,7 @@ describe("ImagePicker", () => {
       "fetch",
       vi.fn(async () => new Response(JSON.stringify(PACKS), { status: 200 }))
     )
-    renderPicker("img-item-1")
+    renderPicker("business-actor")
     await waitFor(() =>
       expect(
         screen.getByRole("button", { name: /Business Actor/i })
@@ -91,22 +91,26 @@ describe("ImagePicker", () => {
     )
     renderPicker()
     fireEvent.click(screen.getByRole("button", { name: "Choisir une image" }))
-    await waitFor(() => expect(screen.getByText("ArchiMate Notation")).toBeInTheDocument())
+    await waitFor(() =>
+      expect(screen.getByText("ArchiMate Notation")).toBeInTheDocument()
+    )
     expect(screen.getByText("My Custom Pack")).toBeInTheDocument()
     expect(screen.getByTitle("Business Actor")).toBeInTheDocument()
     expect(screen.getByTitle("Company Logo")).toBeInTheDocument()
   })
 
-  it("calls onChange with the img-<uuid> reference when an item is picked", async () => {
+  it("calls onChange with the item's slug when an item is picked", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => new Response(JSON.stringify(PACKS), { status: 200 }))
     )
     const { onChange } = renderPicker()
     fireEvent.click(screen.getByRole("button", { name: "Choisir une image" }))
-    await waitFor(() => expect(screen.getByTitle("Company Logo")).toBeInTheDocument())
+    await waitFor(() =>
+      expect(screen.getByTitle("Company Logo")).toBeInTheDocument()
+    )
     fireEvent.click(screen.getByTitle("Company Logo"))
-    expect(onChange).toHaveBeenCalledWith("img-item-2")
+    expect(onChange).toHaveBeenCalledWith("logo")
   })
 
   it("filters items by search text", async () => {
@@ -116,7 +120,9 @@ describe("ImagePicker", () => {
     )
     renderPicker()
     fireEvent.click(screen.getByRole("button", { name: "Choisir une image" }))
-    await waitFor(() => expect(screen.getByTitle("Business Actor")).toBeInTheDocument())
+    await waitFor(() =>
+      expect(screen.getByTitle("Business Actor")).toBeInTheDocument()
+    )
     fireEvent.change(screen.getByPlaceholderText("Rechercher une icône…"), {
       target: { value: "logo" },
     })

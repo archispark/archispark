@@ -355,7 +355,7 @@ describe("store – property definitions", () => {
       })
     ).rejects.toThrow(/URL HTTP/)
 
-    // A resolvable img-<uuid> reference into a pack owned by this workspace's
+    // A resolvable slug reference into a pack owned by this workspace's
     // organization is accepted and resolves to the public svg route.
     const [pack] = await db
       .insert(imagePacks)
@@ -368,10 +368,12 @@ describe("store – property definitions", () => {
       })
       .returning({ id: imagePacks.id })
     const itemUuid = randomUUID()
+    const itemSlug = `icon-${randomUUID()}`
     await db.insert(imagePackItems).values({
       uuid: itemUuid,
       packId: pack!.id,
-      slug: "icon",
+      organizationId,
+      slug: itemSlug,
       name: "Icon",
       storageKind: "inline_svg",
       svgContent: "<svg/>",
@@ -381,7 +383,7 @@ describe("store – property definitions", () => {
       properties: [
         {
           property_definition_ref: ARCHISPARK_IMAGE_PROPERTY_ID,
-          value: `img-${itemUuid}`,
+          value: itemSlug,
         },
       ],
     })
@@ -389,8 +391,8 @@ describe("store – property definitions", () => {
       `/api/image-library/items/${itemUuid}/svg`
     )
 
-    // An img-<uuid> reference to a pack owned by a *different* organization
-    // does not resolve and is rejected.
+    // A slug reference to a pack owned by a *different* organization does
+    // not resolve and is rejected.
     const otherOrgId = await getOrCreatePersonalOrganization(
       `owner-store-test-other-${randomUUID()}`
     )
@@ -405,10 +407,12 @@ describe("store – property definitions", () => {
       })
       .returning({ id: imagePacks.id })
     const otherItemUuid = randomUUID()
+    const otherItemSlug = `icon-${randomUUID()}`
     await db.insert(imagePackItems).values({
       uuid: otherItemUuid,
       packId: otherPack!.id,
-      slug: "icon",
+      organizationId: otherOrgId,
+      slug: otherItemSlug,
       name: "Icon",
       storageKind: "inline_svg",
       svgContent: "<svg/>",
@@ -418,7 +422,7 @@ describe("store – property definitions", () => {
         properties: [
           {
             property_definition_ref: ARCHISPARK_IMAGE_PROPERTY_ID,
-            value: `img-${otherItemUuid}`,
+            value: otherItemSlug,
           },
         ],
       })

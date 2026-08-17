@@ -1,8 +1,0 @@
-import type { SystemArchimateIcon } from "../types.js"
-
-export const distributionNetwork: SystemArchimateIcon = {
-  slug: "distribution-network",
-  name: "Distribution Network",
-  archimateType: "DistributionNetwork",
-  svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 32 32\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linejoin=\"round\" stroke-linecap=\"round\"><g transform=\"translate(28 2)\"><path d=\"M-19 10 L-6 10 M-19 14 L-6 14 M-16 7 L-21 12 L-16 17 M-9 7 L-4 12 L-9 17\" fill=\"none\"/></g></svg>",
-}

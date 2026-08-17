@@ -50,15 +50,17 @@ beforeAll(async () => {
     })
     .returning({ id: imagePacks.id })
   const itemUuid = randomUUID()
+  const itemSlug = `icon-${randomUUID()}`
   await db.insert(imagePackItems).values({
     uuid: itemUuid,
     packId: pack!.id,
-    slug: "icon",
+    organizationId,
+    slug: itemSlug,
     name: "Icon",
     storageKind: "blob",
     blobUrl: "https://blob.example.test/icon.png",
   })
-  validRef = `img-${itemUuid}`
+  validRef = itemSlug
 })
 
 function emptyModel(): ArchiModel {
@@ -101,7 +103,9 @@ describe("resolveElementImages", () => {
         source: "el-with-image",
         target: "el-without-image",
         desc: null,
-        props: { [ARCHISPARK_IMAGE_PROPERTY_ID]: `img-${randomUUID()}` },
+        props: {
+          [ARCHISPARK_IMAGE_PROPERTY_ID]: `no-such-icon-${randomUUID()}`,
+        },
         access_type: null,
         is_directed: null,
         influence_strength: null,
@@ -136,19 +140,23 @@ describe("attachResolvedElementImage", () => {
 
   it("attaches the resolved url when archispark_image is present", async () => {
     const element = elementOutFixture([
-      { property_definition_ref: ARCHISPARK_IMAGE_PROPERTY_ID, value: validRef },
+      {
+        property_definition_ref: ARCHISPARK_IMAGE_PROPERTY_ID,
+        value: validRef,
+      },
     ])
     const result = await attachResolvedElementImage(element, wsId)
-    expect(result.resolved_image_url).toBe(
-      "https://blob.example.test/icon.png"
-    )
+    expect(result.resolved_image_url).toBe("https://blob.example.test/icon.png")
   })
 })
 
 describe("attachResolvedElementImages", () => {
   it("resolves a batch, preserving order", async () => {
     const withImage = elementOutFixture([
-      { property_definition_ref: ARCHISPARK_IMAGE_PROPERTY_ID, value: validRef },
+      {
+        property_definition_ref: ARCHISPARK_IMAGE_PROPERTY_ID,
+        value: validRef,
+      },
     ])
     const withoutImage = elementOutFixture([])
     const results = await attachResolvedElementImages(

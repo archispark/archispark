@@ -123,8 +123,8 @@ function itemInsertSql(vendor: Vendor, icon: CloudIcon): string {
   const itemUuid = randomUUID()
   return (
     `INSERT INTO "image_pack_items" ` +
-    `("uuid", "pack_id", "slug", "name", "storage_kind", "svg_content") ` +
-    `SELECT '${itemUuid}', "id", '${sqlEscape(icon.slug)}', '${sqlEscape(icon.name)}', ` +
+    `("uuid", "pack_id", "organization_id", "slug", "name", "storage_kind", "svg_content") ` +
+    `SELECT '${itemUuid}', "id", "organization_id", '${sqlEscape(icon.slug)}', '${sqlEscape(icon.name)}', ` +
     `'inline_svg', '${sqlEscape(icon.content)}' ` +
     `FROM "image_packs" WHERE "slug" = '${vendor.slug}' AND "organization_id" IS NULL ` +
     `ON CONFLICT ("pack_id", "slug") DO NOTHING;`

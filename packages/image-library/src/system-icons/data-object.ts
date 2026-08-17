@@ -1,8 +1,0 @@
-import type { SystemArchimateIcon } from "../types.js"
-
-export const dataObject: SystemArchimateIcon = {
-  slug: "data-object",
-  name: "Data Object",
-  archimateType: "DataObject",
-  svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 32 32\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linejoin=\"round\" stroke-linecap=\"round\"><g transform=\"translate(28 2)\"><rect x=\"-18\" y=\"6\" width=\"13\" height=\"10\" fill=\"none\"/><path d=\"M-18 9 L-5 9\" fill=\"none\"/></g></svg>",
-}

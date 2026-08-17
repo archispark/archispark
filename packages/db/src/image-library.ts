@@ -1,19 +1,17 @@
-import { eq } from "drizzle-orm"
+import { and, eq, isNull } from "drizzle-orm"
 import { db } from "./connection.js"
-import { imagePackItems, imagePacks, workspaces } from "./schema.js"
+import { imagePackItems, workspaces } from "./schema.js"
 
-export const IMAGE_REF_PREFIX = "img-"
-
-/** `img-<uuid>` — a reference to an `image_pack_items` row. */
-export function isImageReference(value: string): boolean {
-  return /^img-[0-9a-f-]{36}$/i.test(value)
+/** A slug referencing an `image_pack_items` row (e.g. "aws-lambda"). */
+export function isImageSlugReference(value: string): boolean {
+  return /^[a-z0-9]+(-[a-z0-9]+)*$/.test(value)
 }
 
 /**
  * Pre-image-library format: an http(s) URL or a relative path. Kept as a
  * legacy passthrough so elements that already stored a raw URL in
- * `archispark_image` keep working — new values should be `img-<uuid>`
- * references instead.
+ * `archispark_image` keep working — new values should be slug references
+ * instead.
  */
 export function isLegacyImageUrl(value: string): boolean {
   if (!value || /\s/.test(value)) return false
@@ -26,44 +24,65 @@ export function isLegacyImageUrl(value: string): boolean {
   }
 }
 
+function toUrl(row: {
+  uuid: string
+  storageKind: string
+  blobUrl: string | null
+}): string | null {
+  return row.storageKind === "blob"
+    ? (row.blobUrl ?? null)
+    : `/api/image-library/items/${row.uuid}/svg`
+}
+
 /**
  * Resolves an `archispark_image` value to a displayable URL, scoped to the
- * caller's workspace: an `img-<uuid>` reference only resolves if it points
- * to the system pack or to a pack owned by the workspace's organization.
- * A legacy URL/path resolves to itself. Returns null if unresolved.
+ * caller's workspace: a slug reference resolves against the workspace's
+ * organization's own packs first (so a custom pack can override a vendor
+ * icon by reusing its slug), then against the system packs shared by every
+ * organization. A legacy URL/path resolves to itself. Returns null if
+ * unresolved.
  */
 export async function resolveImageReference(
   value: string,
   wsId: number,
   dbClient: typeof db = db
 ): Promise<string | null> {
-  if (!isImageReference(value)) {
+  if (!isImageSlugReference(value)) {
     return isLegacyImageUrl(value) ? value : null
   }
 
-  const uuid = value.slice(IMAGE_REF_PREFIX.length)
-  const [row] = await dbClient
-    .select({
-      packOrganizationId: imagePacks.organizationId,
-      storageKind: imagePackItems.storageKind,
-      blobUrl: imagePackItems.blobUrl,
-    })
-    .from(imagePackItems)
-    .innerJoin(imagePacks, eq(imagePackItems.packId, imagePacks.id))
-    .where(eq(imagePackItems.uuid, uuid))
-  if (!row) return null
+  const [ws] = await dbClient
+    .select({ organizationId: workspaces.organizationId })
+    .from(workspaces)
+    .where(eq(workspaces.id, wsId))
+  if (!ws) return null
 
-  if (row.packOrganizationId !== null) {
-    const [ws] = await dbClient
-      .select({ organizationId: workspaces.organizationId })
-      .from(workspaces)
-      .where(eq(workspaces.id, wsId))
-    if (!ws || ws.organizationId !== row.packOrganizationId) return null
+  const itemColumns = {
+    uuid: imagePackItems.uuid,
+    storageKind: imagePackItems.storageKind,
+    blobUrl: imagePackItems.blobUrl,
   }
 
-  return row.storageKind === "blob"
-    ? (row.blobUrl ?? null)
-    : `/api/image-library/items/${uuid}/svg`
+  if (ws.organizationId !== null) {
+    const [orgRow] = await dbClient
+      .select(itemColumns)
+      .from(imagePackItems)
+      .where(
+        and(
+          eq(imagePackItems.organizationId, ws.organizationId),
+          eq(imagePackItems.slug, value)
+        )
+      )
+    if (orgRow) return toUrl(orgRow)
+  }
+
+  const [systemRow] = await dbClient
+    .select(itemColumns)
+    .from(imagePackItems)
+    .where(
+      and(isNull(imagePackItems.organizationId), eq(imagePackItems.slug, value))
+    )
+  return systemRow ? toUrl(systemRow) : null
 }
 
 /** Throws if `value` isn't a resolvable image reference nor a legacy URL. */

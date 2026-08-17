@@ -1,8 +1,0 @@
-import type { SystemArchimateIcon } from "../types.js"
-
-export const plateau: SystemArchimateIcon = {
-  slug: "plateau",
-  name: "Plateau",
-  archimateType: "Plateau",
-  svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 32 32\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linejoin=\"round\" stroke-linecap=\"round\"><g transform=\"translate(28 2)\"><rect x=\"-18\" y=\"7\" width=\"14\" height=\"3\" fill=\"none\"/><rect x=\"-18\" y=\"11\" width=\"14\" height=\"3\" fill=\"none\"/><rect x=\"-18\" y=\"15\" width=\"14\" height=\"3\" fill=\"none\"/></g></svg>",
-}

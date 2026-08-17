@@ -19,8 +19,9 @@ export function isSystemPropertyDefinition(id: string): boolean {
 
 /**
  * Validates system property values, scoped to `wsId` — `archispark_image`
- * must be a resolvable image-library reference (`img-<uuid>`) or a legacy
- * URL/path (see image-library.ts).
+ * must be a resolvable image-library reference (a pack item slug) or a
+ * legacy URL/path (see image-library.ts). An empty value means "no image
+ * set" and skips validation, same as the property being absent.
  */
 export async function assertSystemPropertyValues(
   properties: Record<string, string>,
@@ -28,6 +29,6 @@ export async function assertSystemPropertyValues(
   dbClient: typeof db = db
 ): Promise<void> {
   const image = properties[ARCHISPARK_IMAGE_PROPERTY_ID]
-  if (image === undefined) return
+  if (!image) return
   await assertImageReferenceValid(image, wsId, dbClient)
 }

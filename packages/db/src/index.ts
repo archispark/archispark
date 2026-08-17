@@ -39,8 +39,7 @@ export {
   assertSystemPropertyValues,
 } from "./system-properties.js"
 export {
-  IMAGE_REF_PREFIX,
-  isImageReference,
+  isImageSlugReference,
   isLegacyImageUrl,
   resolveImageReference,
   assertImageReferenceValid,

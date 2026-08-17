@@ -20,7 +20,7 @@ const UNIQUE_VIOLATION = "23505"
 
 // Drizzle wraps the raw pg error in a DrizzleQueryError, with the pg error
 // (and its `.code`) as `.cause` — check both shapes.
-function isUniqueViolation(err: unknown): boolean {
+export function isUniqueViolation(err: unknown): boolean {
   const e = err as { code?: string; cause?: { code?: string } }
   return e?.code === UNIQUE_VIOLATION || e?.cause?.code === UNIQUE_VIOLATION
 }

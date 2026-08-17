@@ -6,7 +6,7 @@ import { db } from "./connection.js"
 import { organizations, imagePacks, imagePackItems } from "./schema.js"
 import type { ArchiModel } from "./model.js"
 import {
-  isImageReference,
+  isImageSlugReference,
   isLegacyImageUrl,
   resolveImageReference,
   assertImageReferenceValid,
@@ -49,14 +49,16 @@ beforeAll(async () => {
   )
 })
 
-describe("isImageReference", () => {
-  it("matches img-<uuid>", () => {
-    expect(isImageReference(`img-${randomUUID()}`)).toBe(true)
+describe("isImageSlugReference", () => {
+  it("matches a kebab-case slug", () => {
+    expect(isImageSlugReference("business-actor")).toBe(true)
+    expect(isImageSlugReference("aws-lambda")).toBe(true)
   })
   it("rejects anything else", () => {
-    expect(isImageReference("https://example.test/a.png")).toBe(false)
-    expect(isImageReference("img-not-a-uuid")).toBe(false)
-    expect(isImageReference("")).toBe(false)
+    expect(isImageSlugReference("https://example.test/a.png")).toBe(false)
+    expect(isImageSlugReference("Business-Actor")).toBe(false)
+    expect(isImageSlugReference("business_actor")).toBe(false)
+    expect(isImageSlugReference("")).toBe(false)
   })
 })
 
@@ -85,19 +87,18 @@ describe("resolveImageReference", () => {
       })
       .returning({ id: imagePacks.id })
     const itemUuid = randomUUID()
+    const slug = `icon-${randomUUID()}`
     await db.insert(imagePackItems).values({
       uuid: itemUuid,
       packId: pack!.id,
-      slug: "icon",
+      organizationId: null,
+      slug,
       name: "Icon",
       storageKind: "inline_svg",
       svgContent: "<svg/>",
     })
 
-    const resolved = await resolveImageReference(
-      `img-${itemUuid}`,
-      ownerWsId
-    )
+    const resolved = await resolveImageReference(slug, ownerWsId)
     expect(resolved).toBe(`/api/image-library/items/${itemUuid}/svg`)
   })
 
@@ -113,20 +114,19 @@ describe("resolveImageReference", () => {
       })
       .returning({ id: imagePacks.id })
     const itemUuid = randomUUID()
+    const slug = `icon-${randomUUID()}`
     await db.insert(imagePackItems).values({
       uuid: itemUuid,
       packId: pack!.id,
-      slug: "icon",
+      organizationId: ownerOrgId,
+      slug,
       name: "Icon",
       storageKind: "blob",
       blobUrl: "https://blob.example.test/icon.png",
       blobPathname: "image-library/icon.png",
     })
 
-    const resolved = await resolveImageReference(
-      `img-${itemUuid}`,
-      ownerWsId
-    )
+    const resolved = await resolveImageReference(slug, ownerWsId)
     expect(resolved).toBe("https://blob.example.test/icon.png")
   })
 
@@ -142,21 +142,69 @@ describe("resolveImageReference", () => {
       })
       .returning({ id: imagePacks.id })
     const itemUuid = randomUUID()
+    const slug = `icon-${randomUUID()}`
     await db.insert(imagePackItems).values({
       uuid: itemUuid,
       packId: pack!.id,
-      slug: "icon",
+      organizationId: otherOrgId,
+      slug,
       name: "Icon",
       storageKind: "blob",
       blobUrl: "https://blob.example.test/icon.png",
       blobPathname: "image-library/icon.png",
     })
 
-    const resolved = await resolveImageReference(
-      `img-${itemUuid}`,
-      ownerWsId
-    )
+    const resolved = await resolveImageReference(slug, ownerWsId)
     expect(resolved).toBeNull()
+  })
+
+  it("prefers the workspace's organization's own item over a system item sharing the same slug", async () => {
+    const slug = `shared-${randomUUID()}`
+
+    const [systemPack] = await db
+      .insert(imagePacks)
+      .values({
+        uuid: randomUUID(),
+        organizationId: null,
+        isSystem: true,
+        slug: `sys-${randomUUID()}`,
+        name: "System Test Pack",
+      })
+      .returning({ id: imagePacks.id })
+    await db.insert(imagePackItems).values({
+      uuid: randomUUID(),
+      packId: systemPack!.id,
+      organizationId: null,
+      slug,
+      name: "System Icon",
+      storageKind: "blob",
+      blobUrl: "https://blob.example.test/system.png",
+      blobPathname: "image-library/system.png",
+    })
+
+    const [orgPack] = await db
+      .insert(imagePacks)
+      .values({
+        uuid: randomUUID(),
+        organizationId: ownerOrgId,
+        isSystem: false,
+        slug: `custom-${randomUUID()}`,
+        name: "Custom Pack",
+      })
+      .returning({ id: imagePacks.id })
+    await db.insert(imagePackItems).values({
+      uuid: randomUUID(),
+      packId: orgPack!.id,
+      organizationId: ownerOrgId,
+      slug,
+      name: "Org Icon",
+      storageKind: "blob",
+      blobUrl: "https://blob.example.test/org.png",
+      blobPathname: "image-library/org.png",
+    })
+
+    const resolved = await resolveImageReference(slug, ownerWsId)
+    expect(resolved).toBe("https://blob.example.test/org.png")
   })
 
   it("passes through a legacy URL unchanged", async () => {
@@ -169,9 +217,11 @@ describe("resolveImageReference", () => {
 
   it("returns null for an unresolvable reference", async () => {
     expect(
-      await resolveImageReference(`img-${randomUUID()}`, ownerWsId)
+      await resolveImageReference(`no-such-icon-${randomUUID()}`, ownerWsId)
     ).toBeNull()
-    expect(await resolveImageReference("not an image value", ownerWsId)).toBeNull()
+    expect(
+      await resolveImageReference("not an image value", ownerWsId)
+    ).toBeNull()
   })
 })
 

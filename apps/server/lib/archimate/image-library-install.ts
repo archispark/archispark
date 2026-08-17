@@ -14,6 +14,7 @@ import { sanitizeSvg } from "./svg-sanitize"
 import {
   getManageableCustomPack,
   imagePackItemOut,
+  isUniqueViolation,
   slugifyFileName,
   type ImagePackItemOut,
 } from "./image-library-store"
@@ -108,20 +109,30 @@ export async function installImagePackItems(
   return db.transaction(async (tx) => {
     const rows = []
     for (const e of entries) {
-      const [row] = await tx
-        .insert(imagePackItems)
-        .values({
-          uuid: randomUUID(),
-          packId: pack.id,
-          slug: e.slug,
-          name: e.name,
-          storageKind: "inline_svg",
-          svgContent: e.svg,
-        })
-        .onConflictDoNothing({
-          target: [imagePackItems.packId, imagePackItems.slug],
-        })
-        .returning()
+      let row
+      try {
+        ;[row] = await tx
+          .insert(imagePackItems)
+          .values({
+            uuid: randomUUID(),
+            packId: pack.id,
+            organizationId: pack.organizationId,
+            slug: e.slug,
+            name: e.name,
+            storageKind: "inline_svg",
+            svgContent: e.svg,
+          })
+          .onConflictDoNothing({
+            target: [imagePackItems.packId, imagePackItems.slug],
+          })
+          .returning()
+      } catch (err) {
+        if (isUniqueViolation(err))
+          throw new ValidationError(
+            `Le slug '${e.slug}' est déjà utilisé par une autre image (le slug doit être unique parmi les packs système et, pour ce pack, parmi ceux de son organisation).`
+          )
+        throw err
+      }
       if (row) rows.push(row)
     }
     return rows.map(imagePackItemOut)

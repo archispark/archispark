@@ -28,7 +28,7 @@ export function ImagePicker({
 
   const selectedItem = useMemo(() => {
     for (const pack of packs ?? []) {
-      const item = pack.items.find((i) => `img-${i.identifier}` === value)
+      const item = pack.items.find((i) => i.slug === value)
       if (item) return item
     }
     return null
@@ -57,7 +57,11 @@ export function ImagePicker({
       >
         {selectedItem ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={selectedItem.resolved_url} alt="" className="size-4 shrink-0" />
+          <img
+            src={selectedItem.resolved_url}
+            alt=""
+            className="size-4 shrink-0"
+          />
         ) : null}
         <span className="truncate">
           {selectedItem ? selectedItem.name : t("image_library.choose")}
@@ -97,7 +101,7 @@ export function ImagePicker({
                       type="button"
                       title={item.name}
                       onClick={() => {
-                        onChange(`img-${item.identifier}`)
+                        onChange(item.slug)
                         setOpen(false)
                       }}
                       className="flex aspect-square items-center justify-center rounded-md border border-border p-1.5 hover:bg-muted"

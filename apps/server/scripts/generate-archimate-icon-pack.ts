@@ -1,20 +1,18 @@
 /**
- * Syncs the "ArchiMate Notation" system image pack from the SVG files in
+ * Regenerates the default ArchiMate type icons from the SVG files in
  * packages/image-library/assets/archimate/ (one file per ArchiMate type,
  * named {ArchimateType}.svg) — that folder is the source of truth for the
- * pack's artwork, hand-authored or exported from draw.io.
+ * icons' artwork, hand-authored or exported from draw.io.
  *
  * For each of ArchiMate 3.1's canonical types (borrowed, as a read-only
  * type list, from lib/archimate/archimate-icons.ts plus PACK_ONLY_TYPES —
  * never ARCHIMATE_ICONS' glyph data, which only feeds the server SVG
- * renderer's corner icon and is unrelated to this pack), reads the matching
- * asset file verbatim and regenerates:
- *   - one module per icon + a barrel under packages/image-library/src/system-icons/
- *   - an incremental migration under packages/db/drizzle-pg/ — INSERT for a
- *     type with no existing pack item, UPDATE for one whose svg content
- *     changed — covering only what actually changed since the last run. The
- *     original seed, 0023_image_packs.sql, is never rewritten — it has
- *     already run everywhere.
+ * renderer's corner icon and is unrelated to these default node icons),
+ * reads the matching asset file, converts it to a self-contained TSX
+ * component, and writes it under packages/image-library/src/archimate-icons/
+ * alongside a regenerated barrel. These icons are compiled into
+ * @workspace/image-library and imported directly at runtime by the
+ * ReactFlow canvas — there is no database pack backing them.
  *
  * Run via `pnpm --filter server gen:icon-pack`. Fails loudly if an asset
  * file is missing for a canonical type, or if assets/archimate/ contains a
@@ -22,25 +20,39 @@
  * orphans that are intentionally skipped).
  */
 
-import { randomUUID } from "node:crypto"
-import { readdirSync, readFileSync, writeFileSync } from "node:fs"
+import {
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs"
 import path from "node:path"
+import { XMLParser } from "fast-xml-parser"
+import * as prettier from "prettier"
 import { ARCHIMATE_ICONS } from "../lib/archimate/archimate-icons"
-import { nextMigrationFile, appendJournalEntry } from "./lib/migration-journal"
 
 const ROOT = path.resolve(import.meta.dirname, "../../..")
 const IMAGE_LIBRARY_DIR = path.join(ROOT, "packages/image-library")
 const ASSETS_DIR = path.join(IMAGE_LIBRARY_DIR, "assets/archimate")
-const ICONS_SRC_DIR = path.join(IMAGE_LIBRARY_DIR, "src/system-icons")
-const MIGRATIONS_DIR = path.join(ROOT, "packages/db/drizzle-pg")
+const ICONS_SRC_DIR = path.join(IMAGE_LIBRARY_DIR, "src/archimate-icons")
+
+const PRETTIER_OPTIONS: prettier.Options = {
+  parser: "typescript",
+  semi: false,
+  singleQuote: false,
+  tabWidth: 2,
+  trailingComma: "es5",
+  printWidth: 80,
+}
 
 // Manual backups or scratch files in assets/archimate/ that don't correspond
-// to a real ArchiMate type — never treated as pack input.
+// to a real ArchiMate type — never treated as icon input.
 const IGNORED_ASSET_FILES = new Set(["Resource_old.svg"])
 
-// Types with a pack icon but no entry in ARCHIMATE_ICONS: Value has no
+// Types with an icon but no entry in ARCHIMATE_ICONS: Value has no
 // corner-glyph notation in the server SVG renderer, but it's still a valid
-// pack icon once an asset file is provided for it.
+// default icon once an asset file is provided for it.
 const PACK_ONLY_TYPES = ["Value"]
 
 function splitWords(type: string): string[] {
@@ -57,8 +69,11 @@ function toName(type: string): string {
   return splitWords(type).join(" ")
 }
 
-function sqlEscape(value: string): string {
-  return value.replace(/'/g, "''")
+function toPascal(slug: string): string {
+  return slug
+    .split("-")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join("")
 }
 
 function checkCoverage(types: string[]): void {
@@ -84,115 +99,215 @@ function checkCoverage(types: string[]): void {
   }
 }
 
-/** Prior svg content of an already-generated module, or null on first run. */
-function existingModuleSvg(slug: string): string | null {
-  let src: string
-  try {
-    src = readFileSync(path.join(ICONS_SRC_DIR, `${slug}.ts`), "utf8")
-  } catch {
-    return null
-  }
-  const match = /svg: (".*"),\n}/.exec(src)
-  return match ? (JSON.parse(match[1]!) as string) : null
+// ---------------------------------------------------------------------------
+// SVG (draw.io export or hand-authored) -> JSX conversion
+// ---------------------------------------------------------------------------
+
+const ATTR_KEY = ":@"
+const TEXT_KEY = "#text"
+
+// Editor/tooling metadata that carries no rendering meaning: draw.io's
+// embedded project file, the interactivity hint it adds to every shape, and
+// its per-cell bookkeeping id.
+const DROP_ATTRS = new Set([
+  "xmlns",
+  "xmlns:xlink",
+  "version",
+  "content",
+  "data-cell-id",
+  "pointer-events",
+])
+
+// draw.io always wraps a shape's (here always empty, value="") text label in
+// a <switch> offering an HTML <foreignObject> rendering with a raster
+// <image> fallback — no ArchiMate icon in this set has a label, so this
+// subtree never carries visible content and is dropped outright.
+const DROP_TAGS = new Set(["switch", "foreignObject"])
+
+const CAMEL_CASE_ATTRS: Record<string, string> = {
+  "stroke-width": "strokeWidth",
+  "stroke-linejoin": "strokeLinejoin",
+  "stroke-linecap": "strokeLinecap",
+  "stroke-miterlimit": "strokeMiterlimit",
+  "stroke-dasharray": "strokeDasharray",
+  "fill-rule": "fillRule",
+  "clip-rule": "clipRule",
+  "clip-path": "clipPath",
 }
 
-function main(): void {
+function attrName(name: string): string {
+  return CAMEL_CASE_ATTRS[name] ?? name
+}
+
+function kebabToCamel(name: string): string {
+  return name.replace(/-([a-z])/g, (_, c: string) => c.toUpperCase())
+}
+
+/** "fill: rgb(0,0,0); stroke: light-dark(...)" -> { fill: "...", stroke: "..." } */
+function parseStyle(style: string): Record<string, string> {
+  const out: Record<string, string> = {}
+  for (const decl of style.split(";")) {
+    const idx = decl.indexOf(":")
+    if (idx === -1) continue
+    const prop = decl.slice(0, idx).trim()
+    const value = decl.slice(idx + 1).trim()
+    if (!prop || !value) continue
+    out[kebabToCamel(prop)] = value
+  }
+  return out
+}
+
+function serializeElement(
+  tagName: string,
+  attrs: Record<string, string>,
+  childrenJsx: string[],
+  options: { isRoot: boolean }
+): string {
+  const parts: string[] = []
+  let styleObj: Record<string, string> | null = null
+
+  for (const [rawName, rawValue] of Object.entries(attrs)) {
+    const name = rawName.slice(2) // strip the "@_" prefix fast-xml-parser adds
+    if (DROP_ATTRS.has(name)) continue
+    if (
+      options.isRoot &&
+      (name === "style" || name === "width" || name === "height")
+    )
+      continue // editor-preview cosmetics / fixed pixel sizing — icons scale via props
+    if (name === "style") {
+      styleObj = parseStyle(rawValue)
+      continue
+    }
+    parts.push(`${attrName(name)}=${JSON.stringify(rawValue)}`)
+  }
+
+  if (styleObj) {
+    // The inline style (with its light-dark() values) supersedes the plain
+    // fill/stroke presentation attributes draw.io also emits — keep one.
+    const kept = parts.filter(
+      (p) => !p.startsWith("fill=") && !p.startsWith("stroke=")
+    )
+    parts.length = 0
+    parts.push(...kept)
+    const styleEntries = Object.entries(styleObj)
+      .map(([k, v]) => `${k}: ${JSON.stringify(v)}`)
+      .join(", ")
+    parts.push(`style={{ ${styleEntries} }}`)
+  }
+
+  if (options.isRoot) parts.push("{...props}")
+
+  const attrsStr = parts.length > 0 ? " " + parts.join(" ") : ""
+  if (childrenJsx.length === 0) return `<${tagName}${attrsStr} />`
+  return `<${tagName}${attrsStr}>${childrenJsx.join("")}</${tagName}>`
+}
+
+function walk(nodes: unknown[]): string[] {
+  const out: string[] = []
+  for (const raw of nodes) {
+    const node = raw as Record<string, unknown>
+    const tagKey = Object.keys(node).find((k) => k !== ATTR_KEY)
+    if (!tagKey || tagKey === TEXT_KEY) continue
+    if (DROP_TAGS.has(tagKey)) continue
+
+    const rawChildren = node[tagKey] as unknown[]
+    const attrs = (node[ATTR_KEY] as Record<string, string>) ?? {}
+    const childrenJsx = walk(rawChildren)
+
+    if (tagKey === "defs" && childrenJsx.length === 0) continue
+    if (tagKey === "g" && childrenJsx.length === 0) continue // empty draw.io cell
+
+    const meaningfulAttrCount = Object.keys(attrs).filter(
+      (k) => !DROP_ATTRS.has(k.slice(2))
+    ).length
+    if (tagKey === "g" && meaningfulAttrCount === 0) {
+      // Pass-through wrapper (draw.io nests every shape several <g> deep) —
+      // inline its children directly instead of an empty <g>.
+      out.push(...childrenJsx)
+      continue
+    }
+
+    out.push(serializeElement(tagKey, attrs, childrenJsx, { isRoot: false }))
+  }
+  return out
+}
+
+function svgToJsxBody(svgSource: string): string {
+  const parser = new XMLParser({
+    ignoreAttributes: false,
+    attributeNamePrefix: "@_",
+    attributesGroupName: ATTR_KEY,
+    preserveOrder: true,
+    parseAttributeValue: false,
+    ignoreDeclaration: true,
+  })
+  const parsed = parser.parse(svgSource) as Record<string, unknown>[]
+  const svgNode = parsed.find((n) => "svg" in n)
+  if (!svgNode) throw new Error("No <svg> root element found")
+
+  const svgAttrs = (svgNode[ATTR_KEY] as Record<string, string>) ?? {}
+  const svgChildren = svgNode["svg"] as unknown[]
+  return serializeElement("svg", svgAttrs, walk(svgChildren), { isRoot: true })
+}
+
+async function main(): Promise<void> {
   const types = [...Object.keys(ARCHIMATE_ICONS), ...PACK_ONLY_TYPES].sort()
   checkCoverage(types)
 
+  rmSync(ICONS_SRC_DIR, { recursive: true, force: true })
+  mkdirSync(ICONS_SRC_DIR, { recursive: true })
+
   const barrelImports: string[] = []
-  const barrelLines: string[] = []
-  const changedUpdates: string[] = []
+  const iconEntries: string[] = []
+  const nameEntries: string[] = []
 
   for (const type of types) {
     const slug = toSlug(type)
     const name = toName(type)
+    const pascal = toPascal(slug)
+    const componentName = `${pascal}Icon`
     const svg = readFileSync(
       path.join(ASSETS_DIR, `${type}.svg`),
       "utf8"
     ).trim()
-    const camel = slug.replace(/-([a-z0-9])/g, (_, c: string) =>
-      c.toUpperCase()
-    )
 
-    const priorSvg = existingModuleSvg(slug)
-    if (priorSvg === null) {
-      const itemUuid = randomUUID()
-      changedUpdates.push(
-        `INSERT INTO "image_pack_items" ` +
-          `("uuid", "pack_id", "slug", "name", "archimate_type", "storage_kind", "svg_content") ` +
-          `SELECT '${itemUuid}', "id", '${sqlEscape(slug)}', '${sqlEscape(name)}', ` +
-          `'${sqlEscape(type)}', 'inline_svg', '${sqlEscape(svg)}' ` +
-          `FROM "image_packs" WHERE "slug" = 'archimate' AND "organization_id" IS NULL ` +
-          `ON CONFLICT ("pack_id", "slug") DO NOTHING;`
-      )
-    } else if (priorSvg !== svg) {
-      changedUpdates.push(
-        `UPDATE "image_pack_items" AS ipi\n` +
-          `SET "svg_content" = '${sqlEscape(svg)}'\n` +
-          `FROM "image_packs" AS ip\n` +
-          `WHERE ipi."pack_id" = ip."id"\n` +
-          `  AND ip."slug" = 'archimate'\n` +
-          `  AND ip."organization_id" IS NULL\n` +
-          `  AND ipi."slug" = '${sqlEscape(slug)}';`
-      )
-    }
+    const jsxBody = svgToJsxBody(svg)
+    const moduleSrc = `import type { SVGProps } from "react"
 
-    const moduleSrc = `import type { SystemArchimateIcon } from "../types.js"
-
-export const ${camel}: SystemArchimateIcon = {
-  slug: ${JSON.stringify(slug)},
-  name: ${JSON.stringify(name)},
-  archimateType: ${JSON.stringify(type)},
-  svg: ${JSON.stringify(svg)},
+export function ${componentName}(props: SVGProps<SVGSVGElement>) {
+  return ${jsxBody}
 }
 `
-    writeFileSync(path.join(ICONS_SRC_DIR, `${slug}.ts`), moduleSrc)
+    const formatted = await prettier.format(moduleSrc, PRETTIER_OPTIONS)
+    writeFileSync(path.join(ICONS_SRC_DIR, `${slug}.tsx`), formatted)
 
-    barrelImports.push(`import { ${camel} } from "./${slug}.js"`)
-    barrelLines.push(camel)
+    barrelImports.push(`import { ${componentName} } from "./${slug}.js"`)
+    iconEntries.push(`${JSON.stringify(type)}: ${componentName}`)
+    nameEntries.push(`${JSON.stringify(type)}: ${JSON.stringify(name)}`)
   }
 
   const barrelSrc = `${barrelImports.join("\n")}
-import type { SystemArchimateIcon } from "../types.js"
+import type { ArchimateIconComponent } from "../types.js"
 
-export const SYSTEM_ARCHIMATE_ICONS: SystemArchimateIcon[] = [
-  ${barrelLines.join(",\n  ")},
-]
+export const ARCHIMATE_TYPE_ICONS: Record<string, ArchimateIconComponent> = {
+  ${iconEntries.join(",\n  ")},
+}
 
-export function getSystemArchimateIcon(
-  slug: string
-): SystemArchimateIcon | undefined {
-  return SYSTEM_ARCHIMATE_ICONS.find((icon) => icon.slug === slug)
+export const ARCHIMATE_TYPE_NAMES: Record<string, string> = {
+  ${nameEntries.join(",\n  ")},
+}
+
+export function getArchimateTypeIcon(
+  type: string
+): ArchimateIconComponent | undefined {
+  return ARCHIMATE_TYPE_ICONS[type]
 }
 `
-  writeFileSync(path.join(ICONS_SRC_DIR, "index.ts"), barrelSrc)
-
-  if (changedUpdates.length === 0) {
-    console.log(
-      `Regenerated ${types.length} icon modules into ${ICONS_SRC_DIR}; ` +
-        `no svg_content changes, no migration written.`
-    )
-    return
-  }
-
-  const { file, tag, idx } = nextMigrationFile(
-    MIGRATIONS_DIR,
-    "sync_archimate_icon_pack_assets"
-  )
-  const migrationSql =
-    `-- Syncs image_pack_items for the system "ArchiMate Notation" pack from\n` +
-    `-- packages/image-library/assets/archimate/*.svg (see\n` +
-    `-- apps/server/scripts/generate-archimate-icon-pack.ts). Never touches\n` +
-    `-- 0023_image_packs.sql, which seeds the pack and its original rows once.\n` +
-    changedUpdates.join("\n--> statement-breakpoint\n") +
-    "\n"
-  writeFileSync(file, migrationSql)
-  appendJournalEntry(MIGRATIONS_DIR, idx, tag)
+  const formattedBarrel = await prettier.format(barrelSrc, PRETTIER_OPTIONS)
+  writeFileSync(path.join(ICONS_SRC_DIR, "index.ts"), formattedBarrel)
 
   console.log(
-    `Regenerated ${types.length} icon modules into ${ICONS_SRC_DIR}; ` +
-      `wrote ${file} (${changedUpdates.length} icon(s) changed).`
+    `Regenerated ${types.length} icon components into ${ICONS_SRC_DIR}.`
   )
 }
 
