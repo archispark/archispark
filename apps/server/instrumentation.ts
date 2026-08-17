@@ -4,6 +4,19 @@
  * function. Replaces the two separate migration triggers that used to live
  * in `apps/api/src/main.ts` and `apps/api/api/index.ts`.
  *
+ * On Vercel, this is a fallback only: `.github/workflows/migrate-prod.yml`
+ * (see deployment.md) applies pending migrations from a plain CI job on
+ * every push to `main` touching a migration path — the canonical trigger.
+ * Fluid Compute freezes any work, including this hook's
+ * `await runMigrations()` below, that outlives the HTTP response of
+ * whichever request happened to trigger the cold start. That's silent, not
+ * an error: register() doesn't reliably block request handling the way
+ * `next start`'s persistent process does, so a slow first migration run
+ * (many pending migrations at once, e.g. a schema restored from empty) can
+ * get frozen mid-transaction with no log and no thrown error. On `next
+ * start` (Docker/self-hosted, see deployment.md) there is no CI deploy gate,
+ * so this hook remains the only trigger and runs to completion normally.
+ *
  * Guarded to the Node.js runtime: this app also has an Edge middleware
  * (`proxy.ts`), and `register()` runs once per runtime present in the app.
  * `@workspace/db` opens a real `pg.Pool` at import time (see
