@@ -4,7 +4,6 @@ import {
   seedLocalDemoUsers,
   seedDemoWorkspaces,
   findLocalUserIdByUsername,
-  seedSystemDashboards,
 } from "@workspace/db"
 import { resetGraphData, importAllWorkspacesToNeo4j } from "@workspace/db-neo4j"
 
@@ -35,9 +34,12 @@ async function runStep<T>(name: string, action: () => Promise<T>): Promise<T> {
 // Vercel Cron replacement for the old `seed-demo.yml` GitHub Action:
 // full fresh-reinstall-style reset (every application table + the whole
 // Neo4j graph, schema/migration history preserved) followed by a reseed of
-// the demo accounts/organizations/workspaces/dashboards — the public demo
-// lets visitors create their own accounts/organizations/workspaces, so a
-// scoped delete of just the 3 demo workspaces would leave that behind.
+// the demo accounts/organizations/workspaces — the public demo lets
+// visitors create their own accounts/organizations/workspaces, so a scoped
+// delete of just the 3 demo workspaces would leave that behind. System
+// dashboards (wiped by the truncate, since they're global rows — see
+// packages/db/src/schema.ts) are reseeded manually afterwards, not by this
+// route: `pnpm --filter @workspace/db seed:dashboards`.
 //
 // Gated by two independent checks: `DEMO_RESET_ENABLED` must be `"true"`
 // (never set outside the actual demo Vercel project — apps/server/vercel.json's
@@ -76,7 +78,6 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         return id
       })
     )
-    const dashboards = await runStep("seed dashboards", seedSystemDashboards)
     const neo4j = await runStep(
       "import workspaces into Neo4j",
       importAllWorkspacesToNeo4j
@@ -90,7 +91,6 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       graph,
       workspaces: [...orgIdByWorkspace.keys()],
       users: users.length,
-      dashboards,
       neo4j,
     })
   } catch (err) {

@@ -97,11 +97,15 @@ pnpm db:reset-demo
    history preserved (same as `pnpm reset`).
 2. Creates or updates the demo accounts (local or Keycloak, depending on
    `KEYCLOAK_SSO_ENABLED`).
-3. Re-seeds the demo organizations, workspaces, and dashboards.
+3. Re-seeds the demo organizations and workspaces.
 4. Exports every workspace to Neo4j.
 
 This is a full wipe, not scoped to the 3 demo workspaces: any other
 organization or workspace in the same database is removed too.
+
+System dashboards are global rows (`dashboards.workspaceId IS NULL`), so
+the wipe above removes them too — this reset intentionally does **not**
+reseed them. Run `pnpm seed:dashboards` afterwards if you need them back.
 
 ## Restore demo data on Vercel (Cron Job)
 

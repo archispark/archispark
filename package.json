@@ -26,7 +26,7 @@
     "db:migrate:postgres": "pnpm --filter @workspace/db migrate:prod",
     "db:migrate:backfill": "pnpm --filter @workspace/db backfill:prod",
     "db:migrate:neo4j": "pnpm --filter @workspace/db-neo4j migrate:prod",
-    "seed": "pnpm run seed:accounts && pnpm run seed:demo && pnpm run seed:dashboards",
+    "seed": "pnpm run seed:accounts && pnpm run seed:demo",
     "seed:accounts": "pnpm --filter @workspace/db seed:accounts",
     "seed:keycloak": "pnpm setup:realm",
     "seed:demo-users": "pnpm --filter @workspace/db seed:demo-users",

@@ -192,8 +192,10 @@ rather than silently shadowing it. Migration
 `0032_dashboard_system_seed.sql` seeds them once, at deploy time; if
 `packages/db/seeds/dashboards.sql` changes later, rerun
 `packages/db/scripts/seed-dashboards.ts` (`seedSystemDashboards()`) to
-resync — it's also called by the demo reset cron after
-`truncateApplicationTables()` wipes the table. The admin dashboard list
+resync. The demo reset cron (`app/api/cron/reset-demo`) does **not** call
+it: `truncateApplicationTables()` wipes the system dashboards along with
+every other table, and the demo database is reseeded with them manually
+(`pnpm seed:dashboards`) rather than automatically. The admin dashboard list
 (`app/dashboards/admin`) shows each dashboard's datasource type(s) in
 parentheses next to its title, derived from its panels'
 `query.datasourceId` — always `(neo4j)` today, since Neo4j is the only
