@@ -41,6 +41,10 @@ exactly like any other user — see
 | `GET`    | `/api/platform/organizations`           | List every organization (id, slug, name, `is_personal`, `enabled`, `created_at`) |
 | `PUT`    | `/api/platform/organizations/:id`       | Suspend/reactivate — body: `{ enabled }`                                         |
 | `DELETE` | `/api/platform/organizations/:id`       | Delete an organization (cascades to workspaces, members, and tokens)             |
+| `GET`    | `/api/platform/plugins`                 | List every plugin discovered in `plugins/` (name, version, `icon_count`, `enabled`) |
+| `GET`    | `/api/platform/plugins/:slug`           | One plugin's detail — `type` plus its full icon list, for the `/platform/plugins/:slug` content view |
+| `PUT`    | `/api/platform/plugins/:slug`           | Enable/disable a plugin — body: `{ enabled }`                                    |
+| `GET`    | `/api/platform/plugins/:slug/icons/:iconSlug` | Admin preview of one icon's SVG — unlike the public route below, works even when the plugin is disabled |
 
 ## Workspace management
 
@@ -120,37 +124,24 @@ Every workspace belongs to exactly one organization (`organization_id`) — a ca
 
 Each returned definition includes `is_system`. System definitions, including
 `archispark_image`, are read-only at the definition level: update and delete
-requests are rejected. Its value on an element or relationship must be an
-image library item's slug (system or organization pack — see
-[Image library](#image-library)), resolved with priority given to an item
-owned by the workspace's own organization over a same-slug system item, or a
-legacy HTTP(S) URL / relative path for values written before that library
-existed.
+requests are rejected. Its value on an element or relationship must be a
+plugin icon's slug (see [Plugins](#plugins)), resolved against the enabled
+plugin that declares it, or a legacy HTTP(S) URL / relative path for values
+written before the plugin system existed.
 
-## Image library
+## Plugins
 
-See [Image Library](/docs/developer-guide/reference/image-library) for the
-packs/items model
-and the `archispark_image` property. Packs are instance-wide, not
+See [Plugins](/docs/developer-guide/reference/plugins) for the
+`plugins/<slug>/` folder format, the discovery/activation split, and the
+`archispark_image` property. Plugins are instance-wide, not
 organization-scoped — every organization sees the same list. Reading is
-open to any authenticated user; creating, populating, or deleting a pack
-requires the `platform_admin` realm role.
+open to any authenticated user; enabling or disabling a plugin requires the
+`platform_admin` realm role (see the `/api/platform/plugins` routes above).
 
-| Method   | Path                                     | Description                                                                                                     |
-| -------- | ---------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `GET`    | `/api/image-library/packs`                 | List every pack (system + custom)                                                                                             |
-| `POST`   | `/api/image-library/packs`                 | Create a custom pack — `{ name, slug }`                                                                                       |
-| `DELETE` | `/api/image-library/packs/:packId`         | Delete a custom pack and its items                                                                                            |
-| `POST`   | `/api/image-library/packs/:packId/items`   | Upload one image to a custom pack — `multipart/form-data`, field `files` (SVG/PNG/JPEG/WebP, 2 MB max), stored in Vercel Blob |
-| `POST`   | `/api/image-library/packs/:packId/install` | Bulk-install a plugin pack's SVG files — `multipart/form-data`, field `files` (SVG only) and an optional `manifest` (JSON)    |
-| `DELETE` | `/api/image-library/items/:itemUuid`       | Delete a custom pack item                                                                                                     |
-| `GET`    | `/api/image-library/items/:itemUuid/svg`   | Public — inline SVG of a system-pack item, no auth required                                                                   |
-
-Uploading a single item to a custom pack (`POST .../items`) requires
-`BLOB_READ_WRITE_TOKEN` to be configured (Vercel Blob) — see
-[Deployment](../development/deployment.md). Bulk-installing a plugin pack
-(`POST .../install`) does not — its items are stored inline in Postgres,
-like system packs.
+| Method | Path                                       | Description                                                                          |
+| ------ | ------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `GET`  | `/api/plugins`                              | List enabled plugins with their icons (slug, name, url)                                |
+| `GET`  | `/api/plugins/:pluginSlug/icons/:iconSlug`  | Public — inline SVG of one icon, no auth required, 404 if the plugin is disabled       |
 
 ## Dashboards
 

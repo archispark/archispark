@@ -3,8 +3,8 @@
  * Un dashboard est soit propre à un workspace (`workspaceId` défini, créé
  * depuis l'admin), soit système et partagé par tous les workspaces
  * (`workspaceId` NULL, `isSystem: true` — voir migration
- * `0032_dashboard_system_seed.sql`, même convention que
- * `imagePacks.organizationId` NULL). Toutes les méthodes prennent
+ * `0032_dashboard_system_seed.sql`, même esprit instance-wide que la table
+ * `plugins`). Toutes les méthodes prennent
  * `workspaceId` en premier paramètre : c'est le point d'application du
  * scoping — l'appelant (routes API) le résout via
  * `resolveActiveContext`/`assertOrgAccess` (lib/archimate/access.ts), jamais
@@ -49,10 +49,16 @@ function toRevision(row: {
 
 /** A workspace sees its own dashboards plus every system dashboard (`workspaceId IS NULL`). */
 function visibleToWorkspace(workspaceId: number) {
-  return or(eq(dashboards.workspaceId, workspaceId), isNull(dashboards.workspaceId))
+  return or(
+    eq(dashboards.workspaceId, workspaceId),
+    isNull(dashboards.workspaceId)
+  )
 }
 
-async function selectLatestRevisions(workspaceId: number, includeDeleted: boolean) {
+async function selectLatestRevisions(
+  workspaceId: number,
+  includeDeleted: boolean
+) {
   return db
     .select({
       dashboardId: dashboards.dashboardId,
@@ -78,7 +84,9 @@ async function selectLatestRevisions(workspaceId: number, includeDeleted: boolea
     )
 }
 
-export async function listLatestRevisions(workspaceId: number): Promise<DashboardRevision[]> {
+export async function listLatestRevisions(
+  workspaceId: number
+): Promise<DashboardRevision[]> {
   const rows = await selectLatestRevisions(workspaceId, false)
   return rows.map(toRevision)
 }
@@ -99,7 +107,12 @@ async function findWorkspaceHead(workspaceId: number, dashboardId: string) {
   const [head] = await db
     .select()
     .from(dashboards)
-    .where(and(eq(dashboards.workspaceId, workspaceId), eq(dashboards.dashboardId, dashboardId)))
+    .where(
+      and(
+        eq(dashboards.workspaceId, workspaceId),
+        eq(dashboards.dashboardId, dashboardId)
+      )
+    )
   return head
 }
 
@@ -107,13 +120,21 @@ async function findSystemHead(dashboardId: string) {
   const [head] = await db
     .select()
     .from(dashboards)
-    .where(and(isNull(dashboards.workspaceId), eq(dashboards.dashboardId, dashboardId)))
+    .where(
+      and(
+        isNull(dashboards.workspaceId),
+        eq(dashboards.dashboardId, dashboardId)
+      )
+    )
   return head
 }
 
 /** Workspace-owned dashboard if one exists under this id, else the shared system dashboard. */
 async function findHead(workspaceId: number, dashboardId: string) {
-  return (await findWorkspaceHead(workspaceId, dashboardId)) ?? (await findSystemHead(dashboardId))
+  return (
+    (await findWorkspaceHead(workspaceId, dashboardId)) ??
+    (await findSystemHead(dashboardId))
+  )
 }
 
 export async function getLatestRevision(
@@ -130,7 +151,12 @@ export async function getLatestRevision(
       createdById: dashboardRevisions.createdById,
     })
     .from(dashboardRevisions)
-    .where(and(eq(dashboardRevisions.dashboardId, head.id), eq(dashboardRevisions.revision, head.latestRevision)))
+    .where(
+      and(
+        eq(dashboardRevisions.dashboardId, head.id),
+        eq(dashboardRevisions.revision, head.latestRevision)
+      )
+    )
   return row ? toRevision({ ...row, dashboardId }) : undefined
 }
 
@@ -149,11 +175,19 @@ export async function getRevision(
       createdById: dashboardRevisions.createdById,
     })
     .from(dashboardRevisions)
-    .where(and(eq(dashboardRevisions.dashboardId, head.id), eq(dashboardRevisions.revision, revision)))
+    .where(
+      and(
+        eq(dashboardRevisions.dashboardId, head.id),
+        eq(dashboardRevisions.revision, revision)
+      )
+    )
   return row ? toRevision({ ...row, dashboardId }) : undefined
 }
 
-export async function isSystemDashboard(workspaceId: number, dashboardId: string): Promise<boolean> {
+export async function isSystemDashboard(
+  workspaceId: number,
+  dashboardId: string
+): Promise<boolean> {
   const head = await findHead(workspaceId, dashboardId)
   return head?.isSystem ?? false
 }
@@ -182,14 +216,24 @@ export async function createRevision(
     const [head] = await tx
       .select()
       .from(dashboards)
-      .where(and(eq(dashboards.workspaceId, workspaceId), eq(dashboards.dashboardId, dashboardId)))
+      .where(
+        and(
+          eq(dashboards.workspaceId, workspaceId),
+          eq(dashboards.dashboardId, dashboardId)
+        )
+      )
       .for("update")
 
     if (!head) {
       const [systemHead] = await tx
         .select({ id: dashboards.id })
         .from(dashboards)
-        .where(and(isNull(dashboards.workspaceId), eq(dashboards.dashboardId, dashboardId)))
+        .where(
+          and(
+            isNull(dashboards.workspaceId),
+            eq(dashboards.dashboardId, dashboardId)
+          )
+        )
       if (systemHead)
         throw new ValidationError(
           `L'identifiant « ${dashboardId} » est déjà utilisé par un dashboard système.`
@@ -235,10 +279,14 @@ export async function createRevision(
   })
 }
 
-export async function deleteDashboard(workspaceId: number, dashboardId: string): Promise<void> {
+export async function deleteDashboard(
+  workspaceId: number,
+  dashboardId: string
+): Promise<void> {
   const head = await findWorkspaceHead(workspaceId, dashboardId)
   if (head) {
-    if (head.deletedAt !== null) throw new NotFoundError(`Dashboard introuvable : ${dashboardId}`)
+    if (head.deletedAt !== null)
+      throw new NotFoundError(`Dashboard introuvable : ${dashboardId}`)
     await db
       .update(dashboards)
       .set({ deletedAt: Math.floor(Date.now() / 1000) })

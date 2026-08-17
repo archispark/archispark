@@ -37,10 +37,5 @@ export {
   SYSTEM_PROPERTY_DEFINITIONS,
   isSystemPropertyDefinition,
   assertSystemPropertyValues,
+  type ImageReferenceValidator,
 } from "./system-properties.js"
-export {
-  isImageSlugReference,
-  isLegacyImageUrl,
-  resolveImageReference,
-  assertImageReferenceValid,
-} from "./image-library.js"

@@ -1,8 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import Link from "next/link"
-import { Settings2, ArrowLeft } from "lucide-react"
+import { Settings2 } from "lucide-react"
 import { toast } from "sonner"
 import { useT } from "@/lib/i18n"
 import { useSiteMessages, useUpdateSiteMessages } from "@/lib/queries"
@@ -60,24 +59,14 @@ export default function PlatformSettingsPage() {
 
   return (
     <div className="max-w-xl p-7">
-      <div className="mb-6 flex items-start justify-between gap-4">
-        <div>
-          <h1 className="flex items-center gap-2 text-lg font-semibold">
-            <Settings2 className="size-5 text-primary" />
-            {t("platform.settings.title")}
-          </h1>
-          <p className="mt-0.5 text-[13px] text-muted-foreground">
-            {t("platform.settings.desc")}
-          </p>
-        </div>
-        <Button
-          variant="outline"
-          size="sm"
-          render={<Link href="/platform/organizations" />}
-        >
-          <ArrowLeft className="size-4" />
-          {t("platform.title")}
-        </Button>
+      <div className="mb-6">
+        <h1 className="flex items-center gap-2 text-lg font-semibold">
+          <Settings2 className="size-5 text-primary" />
+          {t("platform.settings.title")}
+        </h1>
+        <p className="mt-0.5 text-[13px] text-muted-foreground">
+          {t("platform.settings.desc")}
+        </p>
       </div>
 
       {isLoading ? (

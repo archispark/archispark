@@ -23,6 +23,7 @@ import {
   assertSystemPropertyValues,
   isSystemPropertyDefinition,
   SYSTEM_PROPERTY_DEFINITIONS,
+  type ImageReferenceValidator,
 } from "./system-properties.js"
 import type {
   ArchiModel,
@@ -337,7 +338,8 @@ export async function modelFromDb(workspaceId: number): Promise<ArchiModel> {
 // Replaces all rows for the workspace atomically (PostgreSQL async transaction).
 export async function modelToDb(
   workspaceId: number,
-  model: ArchiModel
+  model: ArchiModel,
+  isValidImageReference: ImageReferenceValidator
 ): Promise<void> {
   await (db as any).transaction(async (tx: any) => {
     await tx
@@ -373,7 +375,7 @@ export async function modelToDb(
     }
 
     for (const e of model.elements) {
-      await assertSystemPropertyValues(e.props, workspaceId, tx)
+      assertSystemPropertyValues(e.props, isValidImageReference)
       const [res] = await tx
         .insert(elements)
         .values({
@@ -394,7 +396,7 @@ export async function modelToDb(
     }
 
     for (const r of model.relationships) {
-      await assertSystemPropertyValues(r.props, workspaceId, tx)
+      assertSystemPropertyValues(r.props, isValidImageReference)
       const srcUuid = typeof r.source === "string" ? r.source : r.source.uuid
       const tgtUuid = typeof r.target === "string" ? r.target : r.target.uuid
       const [res] = await tx
@@ -490,7 +492,8 @@ export async function seedWorkspace(
   name: string,
   model: ArchiModel,
   createdById: string,
-  organizationId: number
+  organizationId: number,
+  isValidImageReference: ImageReferenceValidator
 ): Promise<number> {
   const [existing] = await db
     .select({ id: workspaces.id })
@@ -519,6 +522,6 @@ export async function seedWorkspace(
     .returning({ id: workspaces.id })
   if (!ws) throw new Error("Failed to create workspace")
 
-  await modelToDb(ws.id, model)
+  await modelToDb(ws.id, model, isValidImageReference)
   return ws.id
 }

@@ -18,7 +18,6 @@ const serverEnvSchema = smtpEnvSchema.extend({
   ALLOWED_DEV_ORIGINS: optionalEnvString(),
   KEYCLOAK_CLIENT_ID_WEB: optionalEnvString(),
   KEYCLOAK_SSO_PROVIDER_NAME: optionalEnvString(),
-  BLOB_READ_WRITE_TOKEN: optionalEnvString(),
   DEMO_RESET_ENABLED: z.preprocess(
     blankToUndefined,
     z.enum(["true", "false"]).optional()

@@ -33,6 +33,10 @@ export const PlatformOrganizationUpdateSchema = z
     message: "Aucune modification fournie.",
   })
 
+export const PlatformPluginUpdateSchema = z.object({
+  enabled: z.boolean(),
+})
+
 export const PlatformOrganizationMemberAddSchema = z.object({
   user_id: z.string().min(1, "Le champ 'user_id' est requis."),
   role: orgRole,

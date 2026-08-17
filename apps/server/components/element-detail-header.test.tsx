@@ -43,11 +43,11 @@ describe("ElementHeader", () => {
   it("renders the resolved image next to the name", () => {
     const { container } = renderHeader(
       baseElement({
-        resolved_image_url: "/api/image-library/items/abc/svg",
+        resolved_image_url: "/api/plugins/aws/icons/aws-lambda",
       })
     )
     const image = container.querySelector("img")
     expect(image).not.toBeNull()
-    expect(image?.getAttribute("src")).toBe("/api/image-library/items/abc/svg")
+    expect(image?.getAttribute("src")).toBe("/api/plugins/aws/icons/aws-lambda")
   })
 })

@@ -6,7 +6,7 @@ description: Organizations, invitations, roles, platform administration, and use
 ArchiSpark separates organization administration from platform administration.
 An organization contains its members, API tokens, workspaces, models, and
 dashboards. The Admin role (Keycloak identifier `platform_admin`) manages
-organization, user, plugin, and image-library metadata from `/platform/**`,
+organization, user, and plugin metadata from `/platform/**`,
 independently of any organization membership. For an organization's actual
 content (workspaces, models, dashboards), Admin has no special access: like
 any other user, it needs to be a real Owner, Editor, or Viewer of that
@@ -75,19 +75,18 @@ every route uses — no per-route special casing, and no special casing for
 Admin either. Because it has no cross-organization access to pin, Admin
 cannot create a personal API token.
 
-## Image library & plugin packs
+## Plugins
 
-Admin manages the instance-wide icon packs behind the `archispark_image`
-system property from two `/platform/**` pages:
+Admin enables or disables the instance-wide icon plugins behind the
+`archispark_image` system property from `/platform/plugins` — a table of
+every plugin discovered in the `plugins/` folder at build time, each with a
+toggle, no deployment needed to flip it. Installing a *new* plugin means
+adding a `plugins/<slug>/` folder to the repository and deploying, not
+something done from this page.
 
-- `/platform/image-library` — browse every pack, upload images to a custom
-  pack one at a time, or delete a pack/item.
-- `/platform/plugins` — install a whole new pack in one action from a
-  bundle of `.svg` files (plus an optional `manifest.json`), without a
-  deployment.
-
-See [Image Library](developer-guide/reference/image-library.mdx) for the
-packs/items model, storage details, and the plugin bundle format.
+See [Plugins](developer-guide/reference/plugins.mdx) for the plugin folder
+format, the discovery/activation split, and the built-in AWS/Azure/GCP
+plugins.
 
 ## Provision Keycloak users
 

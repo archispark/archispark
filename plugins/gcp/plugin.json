@@ -1,0 +1,7 @@
+{
+  "id": "gcp",
+  "name": "GCP Icons",
+  "version": "1.0.0",
+  "description": "Official Google Cloud product icons, for use in ReactFlow diagrams.",
+  "type": "icon-pack"
+}

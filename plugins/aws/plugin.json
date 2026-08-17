@@ -1,0 +1,7 @@
+{
+  "id": "aws",
+  "name": "AWS Icons",
+  "version": "1.0.0",
+  "description": "Official AWS Architecture Service Icons, for use in ReactFlow diagrams.",
+  "type": "icon-pack"
+}

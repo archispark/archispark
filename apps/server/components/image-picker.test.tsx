@@ -3,38 +3,30 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { ImagePicker } from "./image-picker"
 import { I18nProvider } from "@/lib/i18n"
-import type { ImagePackOut } from "@/lib/api"
+import type { PluginOut } from "@/lib/api"
 
-const PACKS: ImagePackOut[] = [
+const PLUGINS: PluginOut[] = [
   {
-    identifier: "pack-system",
     slug: "archimate",
     name: "ArchiMate Notation",
     description: null,
-    is_system: true,
-    items: [
+    icons: [
       {
-        identifier: "item-1",
         slug: "business-actor",
         name: "Business Actor",
-        archimate_type: "BusinessActor",
-        resolved_url: "/api/image-library/items/item-1/svg",
+        url: "/api/plugins/archimate/icons/business-actor",
       },
     ],
   },
   {
-    identifier: "pack-custom",
-    slug: "my-pack",
-    name: "My Custom Pack",
+    slug: "my-plugin",
+    name: "My Custom Plugin",
     description: null,
-    is_system: false,
-    items: [
+    icons: [
       {
-        identifier: "item-2",
         slug: "logo",
         name: "Company Logo",
-        archimate_type: null,
-        resolved_url: "https://blob.example.test/logo.png",
+        url: "/api/plugins/my-plugin/icons/logo",
       },
     ],
   },
@@ -63,7 +55,7 @@ describe("ImagePicker", () => {
   it("shows a placeholder when no image is selected", () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () => new Response(JSON.stringify(PACKS), { status: 200 }))
+      vi.fn(async () => new Response(JSON.stringify(PLUGINS), { status: 200 }))
     )
     renderPicker()
     expect(
@@ -71,10 +63,10 @@ describe("ImagePicker", () => {
     ).toBeInTheDocument()
   })
 
-  it("shows the selected item's name when value matches a pack item", async () => {
+  it("shows the selected icon's name when value matches a plugin icon", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () => new Response(JSON.stringify(PACKS), { status: 200 }))
+      vi.fn(async () => new Response(JSON.stringify(PLUGINS), { status: 200 }))
     )
     renderPicker("business-actor")
     await waitFor(() =>
@@ -84,25 +76,25 @@ describe("ImagePicker", () => {
     )
   })
 
-  it("opens the dialog and lists both packs with their items", async () => {
+  it("opens the dialog and lists both plugins with their icons", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () => new Response(JSON.stringify(PACKS), { status: 200 }))
+      vi.fn(async () => new Response(JSON.stringify(PLUGINS), { status: 200 }))
     )
     renderPicker()
     fireEvent.click(screen.getByRole("button", { name: "Choisir une image" }))
     await waitFor(() =>
       expect(screen.getByText("ArchiMate Notation")).toBeInTheDocument()
     )
-    expect(screen.getByText("My Custom Pack")).toBeInTheDocument()
+    expect(screen.getByText("My Custom Plugin")).toBeInTheDocument()
     expect(screen.getByTitle("Business Actor")).toBeInTheDocument()
     expect(screen.getByTitle("Company Logo")).toBeInTheDocument()
   })
 
-  it("calls onChange with the item's slug when an item is picked", async () => {
+  it("calls onChange with the icon's slug when an icon is picked", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () => new Response(JSON.stringify(PACKS), { status: 200 }))
+      vi.fn(async () => new Response(JSON.stringify(PLUGINS), { status: 200 }))
     )
     const { onChange } = renderPicker()
     fireEvent.click(screen.getByRole("button", { name: "Choisir une image" }))
@@ -113,10 +105,10 @@ describe("ImagePicker", () => {
     expect(onChange).toHaveBeenCalledWith("logo")
   })
 
-  it("filters items by search text", async () => {
+  it("filters icons by search text", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () => new Response(JSON.stringify(PACKS), { status: 200 }))
+      vi.fn(async () => new Response(JSON.stringify(PLUGINS), { status: 200 }))
     )
     renderPicker()
     fireEvent.click(screen.getByRole("button", { name: "Choisir une image" }))

@@ -24,6 +24,7 @@ import {
   seedWorkspace,
 } from "@workspace/db"
 import { parseOpenExchange } from "./oxf-parser"
+import { isResolvableImageReference } from "../plugins/resolve"
 import { ForbiddenError, NotFoundError, ValidationError } from "./errors"
 import {
   assertOrgAccess,
@@ -206,7 +207,13 @@ export async function createWorkspace(
     }
   }
 
-  const dbId = await seedWorkspace(name.trim(), model, user.id, orgId)
+  const dbId = await seedWorkspace(
+    name.trim(),
+    model,
+    user.id,
+    orgId,
+    isResolvableImageReference
+  )
   await db
     .insert(userActiveOrganization)
     .values({ userId: user.id, organizationId: orgId })

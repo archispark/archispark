@@ -103,9 +103,7 @@ run-it-ahead-of-the-first-request reason.
    Authentication itself (Keycloak realm, client ids/secrets) is configured
    via the project's Vercel dashboard — see
    [Keycloak login](../reference/authentication.md#keycloak-login). SMTP config is also
-   detailed in [E-mail invitations](#e-mail-invitations-smtp). Custom image
-   pack uploads need `BLOB_READ_WRITE_TOKEN` — see
-   [Image library storage](#image-library-storage-vercel-blob).
+   detailed in [E-mail invitations](#e-mail-invitations-smtp).
 
 5. **Redeploy** `archispark`.
 
@@ -177,16 +175,6 @@ prod:down`). Postgres and Neo4j publish no host port; only Traefik's `80`
    dedicated realm instead with
    [`setup:realm`](#onboard-a-new-customer-with-a-dedicated-keycloak-realm)
    below.
-
-## Image library storage (Vercel Blob)
-
-Organization-scoped custom image packs (see
-[Image Library](../reference/image-library.md)) store their uploaded files in
-[Vercel Blob](https://vercel.com/docs/storage/vercel-blob). In Vercel →
-Storage, create a Blob store and attach it to the `archispark` project —
-this auto-injects `BLOB_READ_WRITE_TOKEN`. Without it, uploading to a custom
-pack fails with a clear error; the system pack (bundled ArchiMate icons)
-stays fully usable regardless.
 
 ## Contact form (SMTP)
 

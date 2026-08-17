@@ -8,7 +8,6 @@ import {
   Building2,
   Users,
   Puzzle,
-  Images,
   Settings2,
   CircleHelp,
 } from "lucide-react"
@@ -28,11 +27,6 @@ const NAV_ITEMS = [
     href: "/platform/plugins",
     icon: Puzzle,
     labelKey: "platform.plugins.title",
-  },
-  {
-    href: "/platform/image-library",
-    icon: Images,
-    labelKey: "image_library.manage_title",
   },
   {
     href: "/platform/settings",

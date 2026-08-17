@@ -29,6 +29,7 @@ Node 24).
 │   ├── typescript-config/ Configurations TypeScript partagées
 │   └── ui/           Composants React partagés
 ├── models/           Modèles ArchiMate, XSD et ressources de référence
+├── plugins/          Plugins d'icônes (aws/, azure/, gcp/, …) — voir la section dédiée
 ├── .docker/          Environnement Docker de développement
 ├── .github/          Workflows et modèles GitHub
 ├── docs/             Documentation technique historique du dépôt
@@ -184,6 +185,23 @@ pnpm --filter server test:e2e
   `apps/server/lib/archimate/renderer.ts`, comparer le rendu au SVG
   correspondant et minimiser les écarts de formes, couleurs, disposition,
   connecteurs, libellés et polices.
+
+### Plugins d'icônes
+
+- `plugins/<slug>/` contient les icônes personnalisées assignables à un
+  élément ArchiMate (propriété système `archispark_image`) : `plugin.json`
+  (métadonnées), `manifest.ts` (liste des icônes) et `icons/*.svg`. Ces
+  plugins sont instance-wide, découverts au build (pas en base de données) et
+  activables/désactivables sans redéploiement sur `/platform/plugins`. Voir
+  `apps/docs/content/docs/developer-guide/reference/plugins.mdx`.
+- Après toute modification de `plugins/**`, régénérer le registre via
+  `pnpm --filter server gen:plugin-registry`
+  (`apps/server/scripts/generate-plugin-registry.ts`), qui écrit
+  `apps/server/lib/plugins/registry.generated.ts`.
+- Les plugins vendor (`aws`, `azure`, `gcp`) sont regénérés depuis une source
+  externe via `pnpm --filter server gen:cloud-icon-packs -- --source <dir>`
+  (`apps/server/scripts/generate-cloud-icon-packs.ts`), suivi de
+  `gen:plugin-registry`.
 
 ### Captures d'écran produit
 

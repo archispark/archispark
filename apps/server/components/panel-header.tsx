@@ -102,7 +102,6 @@ export function PanelHeader({
       properties: "breadcrumb.properties",
       users: "breadcrumb.users",
       plugins: "platform.plugins.title",
-      "image-library": "image_library.manage_title",
       settings: "breadcrumb.settings",
       workspaces: "breadcrumb.workspaces",
       overview: "sidebar.overview",

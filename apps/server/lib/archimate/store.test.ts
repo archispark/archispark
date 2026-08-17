@@ -1,14 +1,31 @@
-import { describe, it, expect, beforeEach } from "vitest"
+import { describe, it, expect, beforeEach, vi } from "vitest"
 import { randomUUID } from "crypto"
-import {
+import type { PluginRegistryEntry } from "../plugins/types"
+
+const FAKE_REGISTRY: Record<string, PluginRegistryEntry> = {
+  "test-plugin": {
+    slug: "test-plugin",
+    name: "Test Plugin",
+    version: "1.0.0",
+    description: null,
+    type: "icon-pack",
+    icons: [{ slug: "test-icon", name: "Test Icon", file: "test-icon.svg" }],
+  },
+}
+
+vi.mock("../plugins/registry.generated", () => ({
+  PLUGIN_REGISTRY: FAKE_REGISTRY,
+}))
+
+const {
   ARCHISPARK_IMAGE_PROPERTY_ID,
   getOrCreatePersonalOrganization,
   seedWorkspace,
   db,
-  imagePacks,
-  imagePackItems,
-} from "@workspace/db"
-import * as store from "./store"
+  plugins,
+} = await import("@workspace/db")
+const { isResolvableImageReference } = await import("../plugins/resolve")
+const store = await import("./store")
 
 // Each test runs against a fresh, isolated workspace seeded in the (PGlite) DB.
 // ownerId is a plain Keycloak `sub` — no local "users" table to insert into
@@ -33,7 +50,8 @@ beforeEach(async () => {
       views: [],
     },
     ownerId,
-    organizationId
+    organizationId,
+    isResolvableImageReference
   )
 })
 
@@ -355,74 +373,39 @@ describe("store – property definitions", () => {
       })
     ).rejects.toThrow(/URL HTTP/)
 
-    // A resolvable slug reference into a pack owned by this workspace's
-    // organization is accepted and resolves to the public svg route.
-    const [pack] = await db
-      .insert(imagePacks)
-      .values({
-        uuid: randomUUID(),
-        organizationId,
-        isSystem: false,
-        slug: `store-test-pack-${randomUUID()}`,
-        name: "Store Test Pack",
+    // A resolvable icon slug from an enabled plugin is accepted and
+    // resolves to the public plugin icon route.
+    await db
+      .insert(plugins)
+      .values({ slug: "test-plugin", enabled: true })
+      .onConflictDoUpdate({
+        target: plugins.slug,
+        set: { enabled: true },
       })
-      .returning({ id: imagePacks.id })
-    const itemUuid = randomUUID()
-    const itemSlug = `icon-${randomUUID()}`
-    await db.insert(imagePackItems).values({
-      uuid: itemUuid,
-      packId: pack!.id,
-      organizationId,
-      slug: itemSlug,
-      name: "Icon",
-      storageKind: "inline_svg",
-      svgContent: "<svg/>",
-    })
 
     const updated = await store.updateElement(wsId, element.identifier, {
       properties: [
         {
           property_definition_ref: ARCHISPARK_IMAGE_PROPERTY_ID,
-          value: itemSlug,
+          value: "test-icon",
         },
       ],
     })
     expect(updated.resolved_image_url).toBe(
-      `/api/image-library/items/${itemUuid}/svg`
+      "/api/plugins/test-plugin/icons/test-icon"
     )
 
-    // A slug reference to a pack owned by a *different* organization does
-    // not resolve and is rejected.
-    const otherOrgId = await getOrCreatePersonalOrganization(
-      `owner-store-test-other-${randomUUID()}`
-    )
-    const [otherPack] = await db
-      .insert(imagePacks)
-      .values({
-        uuid: randomUUID(),
-        organizationId: otherOrgId,
-        isSystem: false,
-        slug: `other-org-pack-${randomUUID()}`,
-        name: "Other Org Pack",
-      })
-      .returning({ id: imagePacks.id })
-    const otherItemUuid = randomUUID()
-    const otherItemSlug = `icon-${randomUUID()}`
-    await db.insert(imagePackItems).values({
-      uuid: otherItemUuid,
-      packId: otherPack!.id,
-      organizationId: otherOrgId,
-      slug: otherItemSlug,
-      name: "Icon",
-      storageKind: "inline_svg",
-      svgContent: "<svg/>",
-    })
+    // A known icon slug whose plugin is disabled does not resolve and is
+    // rejected — write-time validation only checks the slug is *known*
+    // (isKnownIconSlug), but resolved_image_url requires the plugin to
+    // actually be enabled, so this exercises the DB-backed enabled check.
+    // An unknown slug altogether is rejected outright.
     await expect(
       store.updateElement(wsId, element.identifier, {
         properties: [
           {
             property_definition_ref: ARCHISPARK_IMAGE_PROPERTY_ID,
-            value: otherItemSlug,
+            value: `unknown-icon-${randomUUID()}`,
           },
         ],
       })
