@@ -244,6 +244,8 @@
   "change_password.confirm": "Confirm new password",
   "change_password.submit": "Change password",
   "change_password.submitting": "Changing…",
+  "change_password.skip": "Skip",
+  "change_password.skipping": "Skipping…",
   "change_password.mismatch": "Passwords don't match.",
   "change_password.error": "Couldn't change the password.",
   "invitations.page_title": "Invitation",

@@ -17,6 +17,30 @@ export default function ChangePasswordPage() {
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
+  async function skipPasswordChange() {
+    setError(null)
+    setSubmitting(true)
+    try {
+      const res = await fetch("/api/auth/local/skip-password-change", {
+        method: "POST",
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        setError(
+          typeof body.detail === "string"
+            ? body.detail
+            : t("change_password.error")
+        )
+        setSubmitting(false)
+        return
+      }
+      window.location.href = "/"
+    } catch {
+      setError(t("change_password.error"))
+      setSubmitting(false)
+    }
+  }
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
     setError(null)
@@ -55,6 +79,40 @@ export default function ChangePasswordPage() {
         <ThemeToggle />
       </div>
       <div className="w-full max-w-sm">
+        <div className="mb-8 flex items-center justify-center gap-2.5">
+          <svg
+            width="32"
+            height="32"
+            viewBox="0 0 24 24"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <defs>
+              <linearGradient
+                id="change-password-spark"
+                x1="0"
+                y1="0"
+                x2="24"
+                y2="24"
+                gradientUnits="userSpaceOnUse"
+              >
+                <stop offset="0%" stopColor="#FF1D5D" />
+                <stop offset="50%" stopColor="#892FE8" />
+                <stop offset="100%" stopColor="#1A87FF" />
+              </linearGradient>
+            </defs>
+            <path
+              d="M12 0 C12 7 13 11 24 12 C13 13 12 17 12 24 C12 17 11 13 0 12 C11 11 12 7 12 0 Z"
+              fill="url(#change-password-spark)"
+            />
+          </svg>
+          <span
+            className="text-[22px] leading-none tracking-tight"
+            style={{ fontFamily: "'Trebuchet MS', Arial, sans-serif" }}
+          >
+            <span className="font-light text-foreground">Archi</span>
+            <span className="font-bold text-primary">Spark</span>
+          </span>
+        </div>
         <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
           <h1 className="mb-1 text-base font-semibold">
             {t("change_password.title")}
@@ -102,6 +160,17 @@ export default function ChangePasswordPage() {
               {submitting
                 ? t("change_password.submitting")
                 : t("change_password.submit")}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              disabled={submitting}
+              onClick={skipPasswordChange}
+            >
+              {submitting
+                ? t("change_password.skipping")
+                : t("change_password.skip")}
             </Button>
           </form>
         </div>

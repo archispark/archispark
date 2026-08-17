@@ -65,7 +65,7 @@ Run `pnpm run` (no script name) to list every script.
 ```bash
 # First-time setup
 pnpm install         # pnpm install (Node >=22.13 — see .nvmrc)
-pnpm env             # copy .env.example → .env.dev (edit DB_PASSWORD, KEYCLOAK_ADMIN_CLIENT_SECRET)
+pnpm env             # copy .env.example → .env (ready for the local dev stack)
 
 # Selective infra startup — PostgreSQL always starts, the rest is opt-in via
 # Docker Compose profiles (see .docker/docker-compose.yml). `dev`/`start`

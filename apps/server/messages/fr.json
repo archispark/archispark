@@ -244,6 +244,8 @@
   "change_password.confirm": "Confirmer le nouveau mot de passe",
   "change_password.submit": "Changer le mot de passe",
   "change_password.submitting": "Modification…",
+  "change_password.skip": "Ignorer",
+  "change_password.skipping": "Ignoré…",
   "change_password.mismatch": "Les mots de passe ne correspondent pas.",
   "change_password.error": "Impossible de changer le mot de passe.",
   "invitations.page_title": "Invitation",

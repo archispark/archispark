@@ -252,9 +252,8 @@ cd archispark && pnpm install`}</code>
           <article>
             <span>2</span>
             <h3>Start the services</h3>
-            <p>Configure the environment, then start PostgreSQL.</p>
+            <p>Create the local environment, then start PostgreSQL.</p>
             <code>{`pnpm env
-# edit DB_PASSWORD in .env.dev
 pnpm infra:up:db`}</code>
           </article>
           <article>
