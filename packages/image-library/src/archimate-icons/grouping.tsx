@@ -11,10 +11,8 @@ export function GroupingIcon(props: SVGProps<SVGSVGElement>) {
       strokeLinecap="round"
       {...props}
     >
-      <g transform="translate(28 2)">
-        <rect x="-18" y="6" width="6" height="3" fill="none" />
-        <rect x="-18" y="9" width="13" height="7" fill="none" />
-      </g>
+      <rect x="4" y="5" width="11" height="7" fill="none" />
+      <rect x="4" y="12" width="24" height="15" fill="none" />
     </svg>
   )
 }
