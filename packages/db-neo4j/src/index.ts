@@ -1,4 +1,4 @@
-export { getNeo4jConfig } from "./config.js";
+export { getNeo4jConfig, isNeo4jEnabled } from "./config.js";
 export type { Neo4jConfig } from "./config.js";
 export { getDriver, closeDriver } from "./connection.js";
 export { buildNeo4jParams, toNeo4jRelationshipType } from "./mapping.js";

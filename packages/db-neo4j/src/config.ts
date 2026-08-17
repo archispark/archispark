@@ -11,3 +11,12 @@ export function getNeo4jConfig(): Neo4jConfig {
   const password = process.env["NEO4J_PASSWORD"];
   return { uri, user, password };
 }
+
+/**
+ * Whether the Neo4j integration is active. Defaults to enabled — set
+ * NEO4J_ENABLED=false to skip startup migrations and refuse any connection
+ * attempt, e.g. when no Neo4j instance is reachable.
+ */
+export function isNeo4jEnabled(): boolean {
+  return process.env["NEO4J_ENABLED"] !== "false";
+}

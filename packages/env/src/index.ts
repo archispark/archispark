@@ -39,3 +39,6 @@ export function applyEnvFile(path: string): void {
 export function loadEnv(): void {
   applyEnvFile(join(repoRoot(), ".env"))
 }
+
+export { smtpEnvSchema, parseEnv } from "./schema.js"
+export type { SmtpEnv } from "./schema.js"

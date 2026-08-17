@@ -105,7 +105,7 @@ pnpm start:docs  # documentation Fumadocs compilée sur :3000
 ```
 
 Après `pnpm env`, renseigner au minimum `DB_PASSWORD` et
-`KEYCLOAK_ADMIN_CLIENT_SECRET` dans `.env.dev`.
+`KEYCLOAK_ADMIN_CLIENT_SECRET` dans `.env`.
 
 Pour Docker et Vercel, consulter
 [installation.md](apps/docs/content/docs/developer-guide/getting-started/index.md) et

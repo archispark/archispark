@@ -47,6 +47,12 @@ First run:
   variable always takes priority over the file), which sets it to
   `postgresql://archispark:${DB_PASSWORD}@localhost:5432/archispark` to
   match the Postgres container started by `pnpm infra:up`.
+- `apps/server` (`env.ts`) and `apps/docs` (`next.config.mjs`) each validate
+  their own environment variables against a Zod schema — built from
+  `smtpEnvSchema`/`parseEnv` in `@workspace/env` — right after loading
+  `.env`, so a malformed value (e.g. a non-URL `ARCHISPARK_URL`) fails
+  immediately with a clear message instead of surfacing later inside a
+  request handler.
 
 ## Docker & pnpm scripts
 

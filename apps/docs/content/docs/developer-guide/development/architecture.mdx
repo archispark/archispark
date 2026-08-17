@@ -163,7 +163,10 @@ Postgres:
   the same file.
 
 Configured via `NEO4J_URI` (defaults to `bolt://localhost:7687`),
-`NEO4J_USER`, `NEO4J_PASSWORD`.
+`NEO4J_USER`, `NEO4J_PASSWORD`. Set `NEO4J_ENABLED=false` to disable the
+integration entirely — `instrumentation.ts` skips the startup migration and
+`getDriver()` refuses to connect, so a deployment with no reachable Neo4j
+instance never attempts one.
 
 ## Dashboards
 
@@ -178,7 +181,7 @@ data and access model. Business logic lives in `apps/server/lib/dashboards/`:
 | `repository.ts`                       | CRUD over `dashboards`/`dashboard_revisions` (`packages/db/src/schema.ts`), on Drizzle/Postgres like every other table. Every method takes `workspaceId`, which resolves to either a dashboard owned by that workspace (`workspaceId` set, created from the admin UI) or a system dashboard shared by every workspace (`workspaceId IS NULL`, see below) — `listLatestRevisions`/`listForAdministration` merge both scopes. Edits create a new immutable revision, deletes are soft (`deletedAt`). System dashboards can be neither edited nor deleted — `createRevision()`/`deleteDashboard()` throw a `ValidationError`, the same convention as `propertyDefinitions.isSystem`/`imagePacks.isSystem`.                                 |
 | `panel-execution.ts`                  | Resolves a panel instance's parameters and runs its query, normalizing the result to the `graph`/`table`/`metrics` shape the frontend expects.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | `datasource-executors/neo4j.ts`       | Executes a panel's Cypher against the same Neo4j graph as [the Neo4j export](#neo4j-export) (`@workspace/db-neo4j`'s driver singleton). **Multi-tenant scoping**: `organizationId` is injected into the query's bound parameters by the executor — never trusted from the query text — and `assertPanelQuerySafe` statically requires every panel's Cypher to reference `$organizationId`, checked both when a dashboard revision is saved and again before every execution (defense in depth). `Element` nodes also carry a `layer` property (added by the Neo4j export, see `packages/db-neo4j/src/layer.ts`) so panels can filter by ArchiMate layer without recomputing it from `type`. |
-| `datasource-executors/postgres.ts`    | Executes a panel's read-only SQL against ArchiSpark's own application database (`@workspace/db`, `postgres-app-db`). Same `$organizationId` scoping contract as Neo4j, plus defense in depth the Neo4j graph doesn't need — the application database also holds every other organization's business data — the query runs inside a `READ ONLY` transaction with a short `statement_timeout`, and only a single `SELECT` statement is accepted (rejecting `;`, DDL/DML keywords). Named `$parameter` placeholders are bound through Drizzle's `sql` template, never string-interpolated. Panels are capped to 500 rows via an outer `LIMIT`, same as Cypher panels.                                                                                                    |
+| `datasource-executors/postgres.ts`    | Executes a panel's read-only SQL against ArchiSpark's own application database (`@workspace/db`, `postgres-app-db`). Same `$organizationId` scoping contract as Neo4j, plus defense in depth the Neo4j graph doesn't need — the application database also holds every other organization's business data — the query runs inside a `READ ONLY` transaction with a short `statement_timeout`, and only a single `SELECT` statement is accepted (rejecting `;`, DDL/DML keywords). Named `$parameter` placeholders are bound through Drizzle's `sql` template, never string-interpolated. Panels are capped to 500 rows via an outer `LIMIT`, same as Cypher panels. For a `graph` panel, `nodeMetadata`/`inducedEdges` resolve the query's `nodeIds` into `elements`/`relationships` rows scoped to the caller's organization via their workspace — same role as `neo4j.ts`'s namesakes, queried separately from the panel's own transaction.                                                                                                    |
 | `datasource-executors/index.ts`       | Routes a panel's query to the Cypher or SQL executor based on `query.language`, and validates every panel's query (`assertDashboardQueriesSafe`) at dashboard-save time (`app/api/dashboards/**`).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | `explore.ts`                          | The ad hoc Cypher query page (`/explore`) runs arbitrary read-only queries, so its text can't be statically validated the way a saved panel's can. Scoping is instead enforced on the _result_: any row containing a Neo4j node or relationship whose `organizationId` doesn't match the caller's is dropped in its entirety, regardless of the query's own `WHERE` clause.                                                                                                                                                                                                                                                                                                                 |
 
@@ -198,16 +201,36 @@ other table and does not restore them). If `packages/db/seeds/dashboards.sql`
 changes later (new dashboard, new revision), regenerate the JSON with
 `parseSourceRevisions()` (`packages/db/src/seed-dashboards-data.ts`) and
 hand-write a new numbered backfill migration, the same way
-`0032_dashboard_system_seed.sql` was produced — `0034_demonstration_datasources_postgres.sql`
-is the only such backfill so far, pointing both of `demonstration-datasources`'s
-panels at the new Postgres datasource: `elements-postgres` aggregates the
-`elements`/`workspaces` tables directly, `fournisseurs-postgres` queries the
-dedicated `fournisseurs` demo table. Both dashboard lists
+`0032_dashboard_system_seed.sql` was produced. Six such backfills exist so
+far, migrating every system dashboard's panels from `architecture-neo4j`
+(Cypher) to `postgres-app-db` (SQL) — `architecture-neo4j` remains fully
+functional (`/explore`, `POST /api/export/neo4j`, workspace-owned dashboards
+can still target it), it's simply unused by any *system* dashboard today:
+
+| Migration                                                    | Dashboard                       | Notes                                                                                                                                                          |
+| -------------------------------------------------------------- | -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `0034_demonstration_datasources_postgres.sql`                | `demonstration-datasources`     | Plain aggregates over `elements`/`workspaces` and the `fournisseurs` demo table.                                                                                |
+| `0035_motivation_datasource_postgres.sql`                     | `motivation`                    | A recursive CTE over `elements`/`relationships` walking the original's relationship types and depth (1..5).                                                    |
+| `0036_principles_datasource_postgres.sql`                     | `principles`                    | Fixed 2-hop pattern (principle→requirement→constraint) — no recursion needed.                                                                                  |
+| `0037_rapports_application_datasource_postgres.sql`           | `rapports-application`          | Fixed 1..2-hop traversals plus joins through `element_properties`/`property_definitions` for the technology-layer panels.                                      |
+| `0038_rapports_architecture_datasource_postgres.sql`          | `rapports-architecture`         | Plain counts over `elements`/`relationships`/`views`.                                                                                                            |
+| `0039_voisinage_elements_datasource_postgres.sql`             | `voisinage-elements`            | Fixed 1-hop neighborhood plus two table panels over `element_properties` and `relationships`.                                                                    |
+| `0040_vue_architecture_applicative_datasource_postgres.sql`   | `vue-architecture-applicative`  | Fixed 1-hop `Flow`/`Serving` patterns.                                                                                                                            |
+
+`0035`'s graph panel required teaching `datasource-executors/postgres.ts` to
+hydrate a `graph` panel's `nodes`/`edges` from a query's `nodeIds` (its
+`nodeMetadata`/`inducedEdges`, mirroring `neo4j.ts`'s) — Postgres graph
+panels had no such hydration before. Every migrated panel also had to
+replicate, as an inline `CASE` expression, the ArchiMate layer
+classification Neo4j nodes get at export time
+(`packages/db-neo4j/src/layer.ts`'s `getLayer`) — Postgres has no equivalent
+stored column, so this duplicated classification must be kept in sync with
+`getLayer` by hand if its rules ever change. Both dashboard lists
 (`app/dashboards` and `app/dashboards/admin`) show each dashboard's
 datasource type(s) in parentheses next to its title, derived from its
 panels' `query.datasourceId` — `(neo4j)`, `(postgres)`, or `(neo4j, postgres)`
 for a mixed dashboard (see `contracts.ts`'s `DATASOURCE_TYPES` and
-`datasource-badge.ts`).
+`datasource-badge.ts`); every system dashboard now shows `(postgres)`.
 
 Routes live under `app/api/dashboards/**`, `app/api/explore`, and
 `app/api/panel-visualizations`, gated by the same

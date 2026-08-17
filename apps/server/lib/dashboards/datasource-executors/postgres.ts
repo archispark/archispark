@@ -14,10 +14,16 @@
  * `READ ONLY` avec un `statement_timeout` court : même une requête mal
  * validée ne peut ni écrire, ni tourner indéfiniment.
  */
-import { sql, type SQL } from "drizzle-orm"
-import { db } from "@workspace/db"
+import { and, eq, inArray, sql, type SQL } from "drizzle-orm"
+import { db, elements, relationships, workspaces } from "@workspace/db"
 import type { PanelContent } from "../contracts"
-import type { DatasourceExecution, QueryParameters, QueryRow } from "./shared"
+import type {
+  DatasourceExecution,
+  GraphEdgeRow,
+  GraphNodeRow,
+  QueryParameters,
+  QueryRow,
+} from "./shared"
 
 const MAX_ROWS = 500
 const STATEMENT_TIMEOUT_MS = 10_000
@@ -29,7 +35,11 @@ export function assertReadOnly(text: string): void {
   if (normalized.includes(";") || !/^SELECT\b/i.test(normalized)) {
     throw new Error("La requête SQL doit être une requête SELECT unique.")
   }
-  if (/\b(INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|TRUNCATE|GRANT|REVOKE|CALL|EXECUTE|MERGE)\b/i.test(normalized)) {
+  if (
+    /\b(INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|TRUNCATE|GRANT|REVOKE|CALL|EXECUTE|MERGE)\b/i.test(
+      normalized
+    )
+  ) {
     throw new Error("La requête SQL doit être une requête de lecture seule.")
   }
 }
@@ -59,13 +69,18 @@ export function boundedSelect(text: string): string {
  * the hood), never a string interpolation. Throws if the text references a
  * name absent from `parameters`.
  */
-export function bindNamedParameters(text: string, parameters: QueryParameters): SQL {
+export function bindNamedParameters(
+  text: string,
+  parameters: QueryParameters
+): SQL {
   const chunks: SQL[] = []
   let lastIndex = 0
   for (const match of text.matchAll(NAMED_PARAMETER)) {
     const name = match[1]!
     if (!(name in parameters)) {
-      throw new Error(`Le paramètre « ${name} » référencé par la requête n'est pas défini.`)
+      throw new Error(
+        `Le paramètre « ${name} » référencé par la requête n'est pas défini.`
+      )
     }
     chunks.push(sql.raw(text.slice(lastIndex, match.index)))
     chunks.push(sql`${parameters[name]}`)
@@ -75,18 +90,77 @@ export function bindNamedParameters(text: string, parameters: QueryParameters): 
   return sql.join(chunks, sql``)
 }
 
+/** Name/type for a graph panel's selected node ids (`elements.uuid`), scoped to the same organization via their workspace — hydrates `nodeIds` into renderable nodes without loading the whole model. Mirrors neo4j.ts's `nodeMetadata`. */
+export async function nodeMetadata(
+  nodeIds: string[],
+  organizationId: number
+): Promise<GraphNodeRow[]> {
+  if (nodeIds.length === 0) return []
+  return db
+    .select({ id: elements.uuid, name: elements.name, type: elements.type })
+    .from(elements)
+    .innerJoin(workspaces, eq(workspaces.id, elements.workspaceId))
+    .where(
+      and(
+        eq(workspaces.organizationId, organizationId),
+        inArray(elements.uuid, nodeIds)
+      )
+    )
+}
+
+/** Relationships induced between a graph panel's selected node ids, scoped to the same organization via their workspace. Mirrors neo4j.ts's `inducedEdges`. */
+export async function inducedEdges(
+  nodeIds: string[],
+  organizationId: number
+): Promise<GraphEdgeRow[]> {
+  if (nodeIds.length === 0) return []
+  return db
+    .select({
+      id: relationships.uuid,
+      source: relationships.sourceUuid,
+      target: relationships.targetUuid,
+      type: relationships.type,
+    })
+    .from(relationships)
+    .innerJoin(workspaces, eq(workspaces.id, relationships.workspaceId))
+    .where(
+      and(
+        eq(workspaces.organizationId, organizationId),
+        inArray(relationships.sourceUuid, nodeIds),
+        inArray(relationships.targetUuid, nodeIds)
+      )
+    )
+}
+
 export async function executePostgresQuery(
   query: PanelContent["query"],
-  _resultType: PanelContent["resultType"],
+  resultType: PanelContent["resultType"],
   parameters: QueryParameters,
   organizationId: number
 ): Promise<DatasourceExecution> {
   assertPanelQuerySafe(query.text)
-  const statement = bindNamedParameters(boundedSelect(query.text), { ...parameters, organizationId })
-  return db.transaction(async (tx) => {
-    await tx.execute(sql.raw(`SET LOCAL statement_timeout = ${STATEMENT_TIMEOUT_MS}`))
+  const statement = bindNamedParameters(boundedSelect(query.text), {
+    ...parameters,
+    organizationId,
+  })
+  const rows = await db.transaction(async (tx) => {
+    await tx.execute(
+      sql.raw(`SET LOCAL statement_timeout = ${STATEMENT_TIMEOUT_MS}`)
+    )
     await tx.execute(sql.raw("SET TRANSACTION READ ONLY"))
     const result = await tx.execute<QueryRow>(statement)
-    return { rows: result.rows }
+    return result.rows
   })
+  if (resultType !== "graph") return { rows }
+  const nodeIds = rows[0]?.["nodeIds"]
+  if (
+    !Array.isArray(nodeIds) ||
+    !nodeIds.every((value) => typeof value === "string")
+  )
+    return { rows }
+  const [edges, nodes] = await Promise.all([
+    inducedEdges(nodeIds as string[], organizationId),
+    nodeMetadata(nodeIds as string[], organizationId),
+  ])
+  return { rows, nodes, edges }
 }
