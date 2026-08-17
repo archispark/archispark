@@ -10,11 +10,8 @@ vi.mock("@vercel/blob", () => ({
   del: (...args: unknown[]) => del(...args),
 }))
 
-const {
-  uploadImagePackItem,
-  deleteImagePackItem,
-  deleteCustomImagePack,
-} = await import("./image-library-upload")
+const { uploadImagePackItem, deleteImagePackItem, deleteCustomImagePack } =
+  await import("./image-library-upload")
 
 beforeEach(() => {
   put.mockReset()
@@ -39,9 +36,9 @@ describe("uploadImagePackItem", () => {
       name: "Pack",
       slug: `pack-${randomUUID()}`,
     })
-    await expect(
-      uploadImagePackItem(pack.identifier, FILE)
-    ).rejects.toThrow(ValidationError)
+    await expect(uploadImagePackItem(pack.identifier, FILE)).rejects.toThrow(
+      ValidationError
+    )
     expect(put).not.toHaveBeenCalled()
   })
 
@@ -96,6 +93,25 @@ describe("uploadImagePackItem", () => {
     )
     expect(item.name).toBe("icon.png")
   })
+
+  it("rejects an svg upload containing a <script> tag", async () => {
+    process.env["BLOB_READ_WRITE_TOKEN"] = "test-token"
+    const pack = await createCustomImagePack({
+      name: "Pack",
+      slug: `pack-${randomUUID()}`,
+    })
+    const evilSvg = Buffer.from(
+      `<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>`
+    )
+    await expect(
+      uploadImagePackItem(pack.identifier, {
+        name: "evil.svg",
+        type: "image/svg+xml",
+        buffer: evilSvg,
+      })
+    ).rejects.toThrow(ValidationError)
+    expect(put).not.toHaveBeenCalled()
+  })
 })
 
 describe("deleteImagePackItem", () => {
@@ -115,9 +131,9 @@ describe("deleteImagePackItem", () => {
   it("throws NotFoundError for a system pack item", async () => {
     const packs = await listAllImagePacks()
     const systemItem = packs.find((p) => p.is_system)?.items[0]
-    await expect(
-      deleteImagePackItem(systemItem!.identifier)
-    ).rejects.toThrow(NotFoundError)
+    await expect(deleteImagePackItem(systemItem!.identifier)).rejects.toThrow(
+      NotFoundError
+    )
   })
 })
 
@@ -130,10 +146,9 @@ describe("deleteCustomImagePack", () => {
     })
     await uploadImagePackItem(pack.identifier, FILE)
     await deleteCustomImagePack(pack.identifier)
-    expect(del).toHaveBeenCalledWith(
-      ["image-library/icon.png"],
-      { token: "test-token" }
-    )
+    expect(del).toHaveBeenCalledWith(["image-library/icon.png"], {
+      token: "test-token",
+    })
   })
 
   it("does not require a token to delete an empty pack", async () => {

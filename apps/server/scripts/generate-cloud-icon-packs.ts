@@ -1,21 +1,34 @@
 /**
- * One-shot generator for the AWS / Azure / GCP system image packs.
+ * Generator for the AWS / Azure / GCP system image packs.
  *
  * Reads the vendor icon sets from a local --source directory (not part of
  * the repo — point it at a folder containing AWS/, Azure/, GCP/ subfolders
  * with the official AWS Architecture Icons, Microsoft Azure service icons,
  * and Google Cloud product icons), normalizes filenames into stable slugs
- * (see lib/cloud-icon-slug.ts), and writes:
- *   - one SVG file per icon under packages/image-library/assets/<vendor>/
- *   - one seed migration per vendor under packages/db/drizzle-pg/
+ * (see lib/cloud-icon-slug.ts), and always rewrites the committed asset
+ * files under packages/image-library/assets/<vendor>/.
  *
- * Run once via `pnpm --filter server gen:cloud-icon-packs -- --source <dir>`.
+ * The original seed migration per vendor (0027/0028/0029_image_pack_*.sql)
+ * is written once and never rewritten afterwards — it has already run on
+ * every deployed database. On later runs, each vendor's new normalized
+ * content is diffed against its previously committed asset file: a new icon
+ * becomes an INSERT, a changed one an UPDATE, both written to a fresh
+ * incremental migration (same pattern as generate-archimate-icon-pack.ts) —
+ * only if something actually changed for that vendor.
+ *
+ * Run via `pnpm --filter server gen:cloud-icon-packs -- --source <dir>`.
  * Not part of the build — its output is committed to the repo like any
- * other source file, same as generate-archimate-icon-pack.ts.
+ * other source file.
  */
 
 import { randomUUID } from "node:crypto"
-import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs"
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs"
 import path from "node:path"
 import {
   normalizeAwsIcons,
@@ -24,6 +37,7 @@ import {
   type CloudIcon,
   type SourceFile,
 } from "./lib/cloud-icon-slug"
+import { nextMigrationFile, appendJournalEntry } from "./lib/migration-journal"
 
 const ROOT = path.resolve(import.meta.dirname, "../../..")
 const IMAGE_LIBRARY_DIR = path.join(ROOT, "packages/image-library")
@@ -92,19 +106,9 @@ function sqlEscape(value: string): string {
   return value.replace(/'/g, "''")
 }
 
-function buildMigrationSql(vendor: Vendor, icons: CloudIcon[]): string {
+function buildSeedMigrationSql(vendor: Vendor, icons: CloudIcon[]): string {
   const packUuid = randomUUID()
-  const itemInserts = icons.map((icon) => {
-    const itemUuid = randomUUID()
-    return (
-      `INSERT INTO "image_pack_items" ` +
-      `("uuid", "pack_id", "slug", "name", "storage_kind", "svg_content") ` +
-      `SELECT '${itemUuid}', "id", '${sqlEscape(icon.slug)}', '${sqlEscape(icon.name)}', ` +
-      `'inline_svg', '${sqlEscape(icon.content)}' ` +
-      `FROM "image_packs" WHERE "slug" = '${vendor.slug}' AND "organization_id" IS NULL ` +
-      `ON CONFLICT ("pack_id", "slug") DO NOTHING;`
-    )
-  })
+  const itemInserts = icons.map((icon) => itemInsertSql(vendor, icon))
 
   return (
     `INSERT INTO "image_packs" ("uuid", "organization_id", "is_system", "slug", "name", "description")\n` +
@@ -113,6 +117,37 @@ function buildMigrationSql(vendor: Vendor, icons: CloudIcon[]): string {
     `--> statement-breakpoint\n` +
     `${itemInserts.join("\n--> statement-breakpoint\n")}\n`
   )
+}
+
+function itemInsertSql(vendor: Vendor, icon: CloudIcon): string {
+  const itemUuid = randomUUID()
+  return (
+    `INSERT INTO "image_pack_items" ` +
+    `("uuid", "pack_id", "slug", "name", "storage_kind", "svg_content") ` +
+    `SELECT '${itemUuid}', "id", '${sqlEscape(icon.slug)}', '${sqlEscape(icon.name)}', ` +
+    `'inline_svg', '${sqlEscape(icon.content)}' ` +
+    `FROM "image_packs" WHERE "slug" = '${vendor.slug}' AND "organization_id" IS NULL ` +
+    `ON CONFLICT ("pack_id", "slug") DO NOTHING;`
+  )
+}
+
+function itemUpdateSql(vendor: Vendor, icon: CloudIcon): string {
+  return (
+    `UPDATE "image_pack_items" AS ipi\n` +
+    `SET "svg_content" = '${sqlEscape(icon.content)}'\n` +
+    `FROM "image_packs" AS ip\n` +
+    `WHERE ipi."pack_id" = ip."id"\n` +
+    `  AND ip."slug" = '${vendor.slug}'\n` +
+    `  AND ip."organization_id" IS NULL\n` +
+    `  AND ipi."slug" = '${sqlEscape(icon.slug)}';`
+  )
+}
+
+/** Prior content of an already-committed asset file, or null on first run. */
+function existingAssetSvg(assetsDir: string, slug: string): string | null {
+  const file = path.join(assetsDir, `${slug}.svg`)
+  if (!existsSync(file)) return null
+  return readFileSync(file, "utf8").trim()
 }
 
 function main(): void {
@@ -127,19 +162,57 @@ function main(): void {
 
     const assetsDir = path.join(IMAGE_LIBRARY_DIR, "assets", vendor.slug)
     mkdirSync(assetsDir, { recursive: true })
+
+    const seedMigrationPath = path.join(MIGRATIONS_DIR, vendor.migrationFile)
+    const isFirstRun = !existsSync(seedMigrationPath)
+
+    const changedUpdates: string[] = []
     for (const icon of icons) {
+      const priorSvg = existingAssetSvg(assetsDir, icon.slug)
       writeFileSync(
         path.join(assetsDir, `${icon.slug}.svg`),
         icon.content + "\n"
       )
+      if (isFirstRun) continue // covered by the full seed write below
+      if (priorSvg === null) changedUpdates.push(itemInsertSql(vendor, icon))
+      else if (priorSvg !== icon.content)
+        changedUpdates.push(itemUpdateSql(vendor, icon))
     }
 
-    const migrationPath = path.join(MIGRATIONS_DIR, vendor.migrationFile)
-    writeFileSync(migrationPath, buildMigrationSql(vendor, icons))
+    if (isFirstRun) {
+      writeFileSync(seedMigrationPath, buildSeedMigrationSql(vendor, icons))
+      console.log(
+        `[${vendor.slug}] ${files.length} source files -> ${icons.length} icons ` +
+          `(${assetsDir}, ${seedMigrationPath})`
+      )
+      continue
+    }
+
+    if (changedUpdates.length === 0) {
+      console.log(
+        `[${vendor.slug}] ${files.length} source files -> ${icons.length} icons; ` +
+          `no svg_content changes, no migration written.`
+      )
+      continue
+    }
+
+    const { file, tag, idx } = nextMigrationFile(
+      MIGRATIONS_DIR,
+      `sync_${vendor.slug}_icon_pack_assets`
+    )
+    const migrationSql =
+      `-- Syncs image_pack_items for the system "${vendor.packName}" pack from\n` +
+      `-- packages/image-library/assets/${vendor.slug}/*.svg (see\n` +
+      `-- apps/server/scripts/generate-cloud-icon-packs.ts). Never touches\n` +
+      `-- ${vendor.migrationFile}, which seeds the pack and its original rows once.\n` +
+      changedUpdates.join("\n--> statement-breakpoint\n") +
+      "\n"
+    writeFileSync(file, migrationSql)
+    appendJournalEntry(MIGRATIONS_DIR, idx, tag)
 
     console.log(
-      `[${vendor.slug}] ${files.length} source files -> ${icons.length} icons ` +
-        `(${assetsDir}, ${migrationPath})`
+      `[${vendor.slug}] ${files.length} source files -> ${icons.length} icons; ` +
+        `wrote ${file} (${changedUpdates.length} icon(s) changed).`
     )
   }
 }

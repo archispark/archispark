@@ -42,6 +42,16 @@ export interface ImagePackOut {
   items: ImagePackItemOut[]
 }
 
+/** Derives a stable item slug from an uploaded file's name, disambiguated by uuid. */
+export function slugifyFileName(name: string, uuid: string): string {
+  const base = name
+    .replace(/\.[^.]+$/, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+  return `${base || "image"}-${uuid.slice(0, 8)}`
+}
+
 export function imagePackItemOut(
   row: typeof imagePackItems.$inferSelect
 ): ImagePackItemOut {

@@ -9,7 +9,11 @@ export interface SystemArchimateIcon {
   slug: string
   name: string
   archimateType: string
-  /** Self-contained SVG markup, viewBox 0 0 32 32, stroke="currentColor". */
+  /**
+   * Self-contained SVG markup, read verbatim from
+   * packages/image-library/assets/archimate/{archimateType}.svg — viewBox
+   * and styling vary by icon, whatever the source file declares.
+   */
   svg: string
 }
 
@@ -63,9 +67,13 @@ export function layerForArchimateType(type: string): string {
   )
     return "Strategy"
   if (
-    ["WorkPackage", "Deliverable", "ImplementationEvent", "Plateau", "Gap"].includes(
-      type
-    )
+    [
+      "WorkPackage",
+      "Deliverable",
+      "ImplementationEvent",
+      "Plateau",
+      "Gap",
+    ].includes(type)
   )
     return "Implementation"
   return "Composite"

@@ -75,6 +75,20 @@ every route uses — no per-route special casing, and no special casing for
 Admin either. Because it has no cross-organization access to pin, Admin
 cannot create a personal API token.
 
+## Image library & plugin packs
+
+Admin manages the instance-wide icon packs behind the `archispark_image`
+system property from two `/platform/**` pages:
+
+- `/platform/image-library` — browse every pack, upload images to a custom
+  pack one at a time, or delete a pack/item.
+- `/platform/plugins` — install a whole new pack in one action from a
+  bundle of `.svg` files (plus an optional `manifest.json`), without a
+  deployment.
+
+See [Image Library](developer-guide/reference/image-library.mdx) for the
+packs/items model, storage details, and the plugin bundle format.
+
 ## Provision Keycloak users
 
 There is no local users table or user-management screen. Provision identities

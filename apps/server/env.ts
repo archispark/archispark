@@ -1,5 +1,11 @@
 import { z } from "zod"
-import { loadEnv, parseEnv, smtpEnvSchema } from "@workspace/env"
+import {
+  blankToUndefined,
+  loadEnv,
+  optionalEnvString,
+  parseEnv,
+  smtpEnvSchema,
+} from "@workspace/env"
 
 // Self-contained on purpose: whichever file imports `env` first (next.config.ts,
 // instrumentation.ts, a route handler) must not depend on import order to have
@@ -8,13 +14,16 @@ import { loadEnv, parseEnv, smtpEnvSchema } from "@workspace/env"
 loadEnv()
 
 const serverEnvSchema = smtpEnvSchema.extend({
-  ARCHISPARK_URL: z.string().url().optional(),
-  ALLOWED_DEV_ORIGINS: z.string().optional(),
-  KEYCLOAK_CLIENT_ID_WEB: z.string().min(1).optional(),
-  KEYCLOAK_SSO_PROVIDER_NAME: z.string().min(1).optional(),
-  BLOB_READ_WRITE_TOKEN: z.string().min(1).optional(),
-  DEMO_RESET_ENABLED: z.enum(["true", "false"]).optional(),
-  CRON_SECRET: z.string().min(1).optional(),
+  ARCHISPARK_URL: z.preprocess(blankToUndefined, z.string().url().optional()),
+  ALLOWED_DEV_ORIGINS: optionalEnvString(),
+  KEYCLOAK_CLIENT_ID_WEB: optionalEnvString(),
+  KEYCLOAK_SSO_PROVIDER_NAME: optionalEnvString(),
+  BLOB_READ_WRITE_TOKEN: optionalEnvString(),
+  DEMO_RESET_ENABLED: z.preprocess(
+    blankToUndefined,
+    z.enum(["true", "false"]).optional()
+  ),
+  CRON_SECRET: optionalEnvString(),
 })
 
 /**

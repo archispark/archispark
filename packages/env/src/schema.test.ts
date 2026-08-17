@@ -15,6 +15,20 @@ describe("smtpEnvSchema", () => {
       false
     )
   })
+
+  // Regression: .env.example ships `SMTP_USER=`/`SMTP_PASSWORD=` as blank
+  // placeholder lines — process.env then holds "", not undefined, which used
+  // to fail SMTP_USER's .min(1) check on a perfectly valid "unset" config.
+  it("treats a blank SMTP_USER/SMTP_PORT/SMTP_FROM as unset, not invalid", () => {
+    const result = smtpEnvSchema.parse({
+      SMTP_USER: "",
+      SMTP_PORT: "",
+      SMTP_FROM: "",
+    })
+    expect(result.SMTP_USER).toBeUndefined()
+    expect(result.SMTP_PORT).toBe(587)
+    expect(result.SMTP_FROM).toBe("no-reply@archispark.local")
+  })
 })
 
 describe("parseEnv", () => {

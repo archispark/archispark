@@ -288,6 +288,13 @@
       "when": 1787234300000,
       "tag": "0040_vue_architecture_applicative_datasource_postgres",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1787234400000,
+      "tag": "0041_sync_archimate_icon_pack_assets",
+      "breakpoints": true
     }
   ]
 }

@@ -148,9 +148,9 @@ fichier `*.test.ts` dans `apps/server/pages/api/` : Next.js le traiterait comme
 une route active.
 
 Une suite Playwright distincte (`apps/server/e2e/`) fait tourner un build réel
-dans un navigateur, en comptes locaux uniquement (pas de Keycloak). Elle
-nécessite Docker (son `webServer` démarre un conteneur Postgres jetable) et un
-build préalable :
+dans un navigateur, en comptes locaux uniquement (pas de Keycloak). Ne
+l'exécuter que sur demande explicite. Elle nécessite Docker (son `webServer`
+démarre un conteneur Postgres jetable) et un build préalable :
 
 ```bash
 pnpm --filter server exec playwright install chromium  # une fois
@@ -174,8 +174,11 @@ pnpm --filter server test:e2e
 
 ### Ressources graphiques de référence
 
-- `models/img/archimate/` contient les composants PNG de référence. Ne jamais y
-  écrire d'images générées, ni ajouter d'images générées ailleurs dans le dépôt.
+- `packages/image-library/assets/archimate/` contient les icônes SVG du pack
+  système « ArchiMate Notation » de la bibliothèque d'images (un fichier par
+  type, nommé `{Type}.svg` en PascalCase). Après toute modification de ces
+  fichiers, régénérer le pack via `pnpm --filter server gen:icon-pack`
+  (`apps/server/scripts/generate-archimate-icon-pack.ts`).
 - `models/img/views/` contient les SVG exportés par Archi et constitue la
   référence visuelle. Pour modifier
   `apps/server/lib/archimate/renderer.ts`, comparer le rendu au SVG

@@ -17,7 +17,12 @@ export const GET = withErrorHandling(
     return new NextResponse(svg, {
       headers: {
         "Content-Type": "image/svg+xml; charset=utf-8",
-        "Cache-Control": "public, max-age=31536000, immutable",
+        // Not immutable: system-pack items keep a stable uuid while their
+        // svg_content can be updated in place (see
+        // apps/server/scripts/generate-archimate-icon-pack.ts) — an
+        // immutable/long-lived cache would hide those updates from clients
+        // indefinitely.
+        "Cache-Control": "public, max-age=60, must-revalidate",
       },
     })
   }

@@ -129,20 +129,26 @@ relative path for values written before that library existed.
 
 See [Image Library](/docs/developer-guide/reference/image-library) for the
 packs/items model
-and the `archispark_image` property. Custom packs are organization-scoped;
-creating one or uploading an item requires the `owner`/`editor` role.
+and the `archispark_image` property. Packs are instance-wide, not
+organization-scoped — every organization sees the same list. Reading is
+open to any authenticated user; creating, populating, or deleting a pack
+requires the `platform_admin` realm role.
 
 | Method   | Path                                     | Description                                                                                                     |
 | -------- | ---------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `GET`    | `/api/image-library/packs`               | List packs accessible to the active organization (system + custom)                                              |
-| `POST`   | `/api/image-library/packs`               | Create a custom pack — `{ name, slug }`                                                                         |
-| `DELETE` | `/api/image-library/packs/:packId`       | Delete a custom pack and its items                                                                              |
-| `POST`   | `/api/image-library/packs/:packId/items` | Upload one or more images to a custom pack — `multipart/form-data`, field `files` (SVG/PNG/JPEG/WebP, 2 MB max) |
-| `DELETE` | `/api/image-library/items/:itemUuid`     | Delete a custom pack item                                                                                       |
-| `GET`    | `/api/image-library/items/:itemUuid/svg` | Public — inline SVG of a system-pack item, no auth required                                                     |
+| `GET`    | `/api/image-library/packs`                 | List every pack (system + custom)                                                                                             |
+| `POST`   | `/api/image-library/packs`                 | Create a custom pack — `{ name, slug }`                                                                                       |
+| `DELETE` | `/api/image-library/packs/:packId`         | Delete a custom pack and its items                                                                                            |
+| `POST`   | `/api/image-library/packs/:packId/items`   | Upload one image to a custom pack — `multipart/form-data`, field `files` (SVG/PNG/JPEG/WebP, 2 MB max), stored in Vercel Blob |
+| `POST`   | `/api/image-library/packs/:packId/install` | Bulk-install a plugin pack's SVG files — `multipart/form-data`, field `files` (SVG only) and an optional `manifest` (JSON)    |
+| `DELETE` | `/api/image-library/items/:itemUuid`       | Delete a custom pack item                                                                                                     |
+| `GET`    | `/api/image-library/items/:itemUuid/svg`   | Public — inline SVG of a system-pack item, no auth required                                                                   |
 
-Uploading to a custom pack requires `BLOB_READ_WRITE_TOKEN` to be configured
-(Vercel Blob) — see [Deployment](../development/deployment.md).
+Uploading a single item to a custom pack (`POST .../items`) requires
+`BLOB_READ_WRITE_TOKEN` to be configured (Vercel Blob) — see
+[Deployment](../development/deployment.md). Bulk-installing a plugin pack
+(`POST .../install`) does not — its items are stored inline in Postgres,
+like system packs.
 
 ## Dashboards
 

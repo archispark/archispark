@@ -27,8 +27,7 @@ export interface ImagePackCreateIn {
   slug: string
 }
 
-export const fetchImagePacks = () =>
-  get<ImagePackOut[]>("/image-library/packs")
+export const fetchImagePacks = () => get<ImagePackOut[]>("/image-library/packs")
 
 export const createImagePack = (body: ImagePackCreateIn) =>
   post<ImagePackOut>("/image-library/packs", body)
@@ -47,6 +46,38 @@ export async function uploadImagePackItems(
   for (const file of files) form.append("files", file)
   const res = await fetch(
     `${BASE}/image-library/packs/${encodeURIComponent(packId)}/items`,
+    { method: "POST", credentials: "include", body: form }
+  )
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: `HTTP ${res.status}` }))
+    throw new Error(err.detail || `API error: ${res.status}`)
+  }
+  return res.json()
+}
+
+export interface ImagePackManifestItemIn {
+  file: string
+  slug?: string
+  name?: string
+}
+
+export interface ImagePackManifestIn {
+  name?: string
+  description?: string
+  items?: ImagePackManifestItemIn[]
+}
+
+/** Bulk-installs a plugin pack's svg files into an existing custom pack. */
+export async function installImagePackItems(
+  packId: string,
+  files: File[],
+  manifest?: ImagePackManifestIn
+): Promise<ImagePackItemOut[]> {
+  const form = new FormData()
+  for (const file of files) form.append("files", file)
+  if (manifest) form.append("manifest", JSON.stringify(manifest))
+  const res = await fetch(
+    `${BASE}/image-library/packs/${encodeURIComponent(packId)}/install`,
     { method: "POST", credentials: "include", body: form }
   )
   if (!res.ok) {

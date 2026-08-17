@@ -9,9 +9,11 @@ import { eq } from "drizzle-orm"
 import { put, del } from "@vercel/blob"
 import { db, imagePackItems, imagePacks } from "@workspace/db"
 import { NotFoundError, ValidationError } from "./errors"
+import { sanitizeSvg } from "./svg-sanitize"
 import {
   getManageableCustomPack,
   imagePackItemOut,
+  slugifyFileName,
   type ImagePackItemOut,
 } from "./image-library-store"
 
@@ -32,15 +34,6 @@ function blobToken(): string {
   return token
 }
 
-function slugifyFileName(name: string, uuid: string): string {
-  const base = name
-    .replace(/\.[^.]+$/, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-  return `${base || "image"}-${uuid.slice(0, 8)}`
-}
-
 export async function uploadImagePackItem(
   packUuid: string,
   file: { name: string; type: string; buffer: Buffer }
@@ -53,14 +46,21 @@ export async function uploadImagePackItem(
   if (file.buffer.byteLength > MAX_FILE_BYTES)
     throw new ValidationError("Le fichier dépasse la taille maximale de 2 Mo.")
 
+  // Only SVG can carry executable markup (script, event handler attributes,
+  // external references) — PNG/JPEG/WebP are opaque raster data.
+  const buffer =
+    file.type === "image/svg+xml"
+      ? Buffer.from(sanitizeSvg(file.buffer.toString("utf8"), file.name))
+      : file.buffer
+
   const pack = await getManageableCustomPack(packUuid)
   const itemUuid = randomUUID()
   const slug = slugifyFileName(file.name, itemUuid)
-  const blob = await put(
-    `image-library/${packUuid}/${slug}`,
-    file.buffer,
-    { access: "public", contentType: file.type, token }
-  )
+  const blob = await put(`image-library/${packUuid}/${slug}`, buffer, {
+    access: "public",
+    contentType: file.type,
+    token,
+  })
 
   const [row] = await db
     .insert(imagePackItems)

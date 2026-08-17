@@ -58,6 +58,7 @@ import { technologyInteraction } from "./technology-interaction.js"
 import { technologyInterface } from "./technology-interface.js"
 import { technologyProcess } from "./technology-process.js"
 import { technologyService } from "./technology-service.js"
+import { value } from "./value.js"
 import { valueStream } from "./value-stream.js"
 import { workPackage } from "./work-package.js"
 import type { SystemArchimateIcon } from "../types.js"
@@ -123,6 +124,7 @@ export const SYSTEM_ARCHIMATE_ICONS: SystemArchimateIcon[] = [
   technologyInterface,
   technologyProcess,
   technologyService,
+  value,
   valueStream,
   workPackage,
 ]

@@ -4,8 +4,10 @@ import {
   createImagePack,
   deleteImagePack,
   uploadImagePackItems,
+  installImagePackItems,
   deleteImagePackItem,
   type ImagePackCreateIn,
+  type ImagePackManifestIn,
 } from "@/lib/api"
 import { queryKeys } from "./keys"
 
@@ -37,6 +39,22 @@ export function useUploadImagePackItems() {
   return useMutation({
     mutationFn: ({ packId, files }: { packId: string; files: File[] }) =>
       uploadImagePackItems(packId, files),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.imagePacks() }),
+  })
+}
+
+export function useInstallImagePackItems() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({
+      packId,
+      files,
+      manifest,
+    }: {
+      packId: string
+      files: File[]
+      manifest?: ImagePackManifestIn
+    }) => installImagePackItems(packId, files, manifest),
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.imagePacks() }),
   })
 }
