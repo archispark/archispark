@@ -107,35 +107,19 @@ for the same reason: nothing in `apps/server` applies Neo4j migrations either.
 
 5. **Redeploy** `archispark`.
 
-6. **(Demo project only) Configure the demo reset cron** — `apps/server/vercel.json`
-   declares a Vercel Cron Job at `GET /api/cron/reset-demo`, scheduled
-   `0 3 * * *` (once daily — the Hobby plan's cron frequency ceiling). It's
-   inert on every deployment by default; only set these two environment
-   variables on the actual public demo project (never on a customer
-   deployment, since `vercel.json`'s `crons` entry is committed and
-   therefore inherited by any fork of this codebase):
-   - `CRON_SECRET` — a random secret; Vercel automatically attaches
-     `Authorization: Bearer $CRON_SECRET` to its own cron invocations once
-     this is set.
-   - `DEMO_RESET_ENABLED=true` — a second, independent gate; the route
-     returns 404 even with a valid `CRON_SECRET` when this isn't set.
-
-   The reset route requests a **300-second** function duration. Keep Fluid
-   Compute enabled (or use a Vercel plan/configuration that permits this
-   duration); the default 60-second cap is not enough for the Neo4j rebuild.
-   Vercel logs one duration per reset step, so a timeout identifies the last
-   completed step.
-
-   The cron does a full fresh-reinstall-style wipe of every application
-   table and the whole Neo4j graph (schema/migration history preserved),
-   then reseeds the demo accounts (**local accounts, not Keycloak** — no
-   `KEYCLOAK_*` variables are needed for this path), organizations,
-   workspaces, and dashboards — see
-   [Restore demo data on Vercel (Cron Job)](../getting-started/demo-data.md#restore-demo-data-on-vercel-cron-job)
+6. **(Demo project only) Restore demo data** —
+   `.github/workflows/seed-demo.yml` ("Restore demo data") resets and
+   reseeds `demo.archispark.cloud`'s Neon database, on a daily schedule
+   (`0 3 * * *`) and via manual dispatch. It reuses the same
+   `DATABASE_URL_UNPOOLED` repository secret as `migrate-prod.yml` above —
+   no Vercel environment variable or project configuration is needed for
+   this step. It resets and reseeds **local accounts, not Keycloak** (no
+   `KEYCLOAK_*` variables needed for this path), organizations, and
+   workspaces, and deliberately does not touch Neo4j (the export feature
+   isn't enabled on the demo project) — see
+   [Restore demo data](../getting-started/demo-data.md#restore-demo-data-github-actions)
    for the full behavior, including why it's a full wipe rather than a
-   scoped delete. It replaces the previous manual **Actions → Restore demo
-   data** GitHub workflow (`seed-demo.yml`, removed once the cron has been
-   observed to run successfully in production).
+   scoped delete.
 
 ## Self-hosted Docker Compose
 

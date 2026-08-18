@@ -149,8 +149,9 @@ fichier `*.test.ts` dans `apps/server/pages/api/` : Next.js le traiterait comme
 une route active.
 
 Une suite Playwright distincte (`apps/server/e2e/`) fait tourner un build réel
-dans un navigateur, en comptes locaux uniquement (pas de Keycloak). Ne
-l'exécuter que sur demande explicite. Elle nécessite Docker (son `webServer`
+dans un navigateur, en comptes locaux uniquement (pas de Keycloak). Ne jamais
+l'ajouter aux workflows GitHub et ne l'exécuter que sur demande explicite :
+elle est coûteuse en temps et en tokens. Elle nécessite Docker (son `webServer`
 démarre un conteneur Postgres jetable) et un build préalable :
 
 ```bash

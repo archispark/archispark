@@ -197,9 +197,10 @@ through any workspace; `createRevision()` also rejects creating a
 workspace-owned dashboard whose id collides with a system dashboard's,
 rather than silently shadowing it. Migration
 `0032_dashboard_system_seed.sql` is the only place these rows are written —
-there is deliberately no runtime seed/reseed function or script (the demo
-reset cron's `truncateApplicationTables()` wipes them along with every
-other table and does not restore them). If `packages/db/seeds/dashboards.sql`
+there is deliberately no runtime seed/reseed function or script (the
+`seed-demo.yml` GitHub Actions workflow's `truncateApplicationTables()`
+step wipes them along with every other table and does not restore them). If
+`packages/db/seeds/dashboards.sql`
 changes later (new dashboard, new revision), regenerate the JSON with
 `parseSourceRevisions()` (`packages/db/src/seed-dashboards-data.ts`) and
 hand-write a new numbered backfill migration, the same way

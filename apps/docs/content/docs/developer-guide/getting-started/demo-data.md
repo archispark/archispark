@@ -79,8 +79,8 @@ placeholders are only substituted by `seed-demo.ts`, so run it via `pnpm
 seed:demo` rather than `psql -f` directly.
 
 To fully reset and reload the demo data locally (the same behavior as the
-Vercel cron job below), run each step manually — there is no single
-composite command, on purpose:
+`seed-demo.yml` GitHub Actions workflow below), run each step manually —
+there is no single composite command, on purpose:
 
 ```bash
 pnpm --filter @workspace/db reset       # wipe PostgreSQL app data (schema/migration history preserved)
@@ -99,34 +99,28 @@ no seed script or reseed path. `pnpm --filter @workspace/db reset` preserves
 Drizzle's migration history, so this wipe removes them and they are **not**
 restored by the `pnpm run db:migrate` step above.
 
-## Restore demo data on Vercel (Cron Job)
+## Restore demo data (GitHub Actions)
 
-A Vercel Cron Job (`GET /api/cron/reset-demo`, configured in
-`apps/server/vercel.json`) resets the demo Vercel/Neon project once a day
-(`0 3 * * *`) — the same full fresh-reinstall-style wipe, reseed, and Neo4j
-export as the manual sequence above (same caveat on system dashboards not
-being restored), using **local accounts, not Keycloak**
-(demo.archispark.cloud runs with `KEYCLOAK_SSO_ENABLED` unset). Every
-application table and the whole Neo4j graph are wiped (schema/migration
-history preserved) before reseeding — **not** a scoped delete of just the 2
-demo workspaces: any account, organization, or workspace a visitor created
-since the last reset is removed too. That's expected on a public demo where
-visitors can perform uncontrolled operations. It replaces the previous
-manual **Actions → Restore demo data** GitHub workflow.
+`.github/workflows/seed-demo.yml` ("Restore demo data") resets
+`demo.archispark.cloud`'s Neon database once a day (`0 3 * * *`) and can
+also be triggered manually from **Actions → Restore demo data → Run
+workflow**, or with `gh workflow run seed-demo.yml`. It runs the same full
+fresh-reinstall-style wipe and reseed as the manual sequence above (same
+caveat on system dashboards not being restored), using **local accounts,
+not Keycloak** (demo.archispark.cloud runs with `KEYCLOAK_SSO_ENABLED`
+unset — the workflow's runner has it unset too, so `pnpm run seed` resolves
+to the same local-accounts path automatically). Every application table is
+wiped (schema/migration history preserved) before reseeding — **not** a
+scoped delete of just the 2 demo workspaces: any account, organization, or
+workspace a visitor created since the last reset is removed too. That's
+expected on a public demo where visitors can perform uncontrolled
+operations.
 
-**Required Vercel environment variables** (demo project only — never set on
-any other deployment of this codebase, since `apps/server/vercel.json`'s
-`crons` entry is committed and therefore inherited by any fork):
-
-- `CRON_SECRET` — Vercel automatically attaches `Authorization: Bearer
-  $CRON_SECRET` to its own cron invocations once this is set on the
-  project.
-- `DEMO_RESET_ENABLED=true` — a second, independent gate; the route returns
-  404 even with a valid `CRON_SECRET` when this isn't set.
-
-Trigger a run manually with `vercel crons run /api/cron/reset-demo`
-(Vercel CLI) or by sending the route a request with the correct
-`Authorization` header.
+It does not touch Neo4j — the Neo4j export feature isn't enabled on the
+demo Vercel project, so the workflow only resets and reseeds PostgreSQL. It
+reuses the same `DATABASE_URL_UNPOOLED` repository secret as
+`migrate-prod.yml`; no additional secret or Vercel environment variable is
+needed.
 
 ### Retiring/renaming a demo organization slug
 

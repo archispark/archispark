@@ -28,8 +28,8 @@
  * `KEYCLOAK_SSO_ENABLED` (see `@workspace/auth`'s `isKeycloakSsoEnabled()`)
  * — run `seed:demo-users` (Keycloak) or `seed:local-demo-users` (local,
  * the default) first. See `../src/seed-demo-data.ts` and
- * `../src/seed-demo-organizations.ts` for the reusable core, also used by
- * the demo reset cron (`apps/server/app/api/cron/reset-demo/route.ts`).
+ * `../src/seed-demo-organizations.ts` for the reusable core, also invoked
+ * (via `pnpm run seed`) by the `seed-demo.yml` GitHub Actions workflow.
  *
  * Usage:
  *   pnpm --filter @workspace/db seed:demo
