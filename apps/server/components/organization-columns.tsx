@@ -1,6 +1,6 @@
 import { useMemo } from "react"
 import Link from "next/link"
-import type { ColumnDef } from "@tanstack/react-table"
+import { type DataTableColumnDef } from "@/components/data-table"
 import { Check } from "lucide-react"
 import type { OrganizationOut } from "@/lib/api"
 import { useT } from "@/lib/i18n"
@@ -12,7 +12,7 @@ export function useOrganizationColumns({
 }: {
   onActivate: (id: string) => void
   activatePending: boolean
-}): ColumnDef<OrganizationOut>[] {
+}): DataTableColumnDef<OrganizationOut>[] {
   const { t } = useT()
 
   return useMemo(

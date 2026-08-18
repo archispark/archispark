@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo } from "react"
-import type { ColumnDef } from "@tanstack/react-table"
+import { type DataTableColumnDef } from "@/components/data-table"
 import {
   type Property,
   type PropertyDefinitionOut,
@@ -61,7 +61,7 @@ export function EntityPropertiesTab({
 }) {
   const { t } = useT()
 
-  const propColumns: ColumnDef<PropRow>[] = useMemo(
+  const propColumns: DataTableColumnDef<PropRow>[] = useMemo(
     () => [
       {
         accessorKey: "property_definition_ref",
