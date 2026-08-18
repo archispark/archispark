@@ -1,8 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server"
-import { exchangeCodeForTokens, verifyAccessToken } from "@workspace/auth"
+import { exchangeCodeForTokens } from "@workspace/auth"
 import { clearOidcFlowCookies, setAuthCookies } from "@/lib/auth-cookies"
 import { getRequestOrigin } from "@/lib/request-origin"
-import { ensureDefaultPlatformOrganization } from "@/lib/archimate/platform-context-store"
 
 export const dynamic = "force-dynamic"
 
@@ -37,11 +36,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     const res = NextResponse.redirect(new URL("/login", origin))
     clearOidcFlowCookies(res, req)
     return res
-  }
-
-  const claims = await verifyAccessToken(tokens.access_token)
-  if (claims?.realm_access?.roles?.includes("platform_admin")) {
-    await ensureDefaultPlatformOrganization(claims.sub)
   }
 
   const res = NextResponse.redirect(new URL(redirectTo, origin))

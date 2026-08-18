@@ -4,8 +4,7 @@ import { useContext } from "react"
 import type React from "react"
 import { NodeResizer, Handle, Position, type NodeProps } from "@xyflow/react"
 import { updateViewNode } from "@/lib/api"
-import { getLayer } from "@/lib/archimate-helpers"
-import { ArchimateLayerBadge } from "@/components/archimate-layer-badge"
+import { ArchimateTypeBadge } from "@/components/archimate-type-badge"
 import { ArchimateNotationBadge } from "@/components/archimate-notation-badge"
 import { colorFor } from "@/components/view-canvas-colors"
 import { ViewIdContext } from "@/components/view-canvas-context"
@@ -160,7 +159,7 @@ export function ArchiNode({ id, data, selected }: NodeProps) {
               }}
             />
           ) : (
-            <ArchimateLayerBadge layer={getLayer(elementType ?? "")} />
+            <ArchimateTypeBadge elementType={elementType} />
           )}
         </div>
       ) : null}

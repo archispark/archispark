@@ -14,7 +14,7 @@ import { activeWorkspaceId } from "@/lib/archimate/access"
 import { loadModel } from "@/lib/archimate/store"
 import { serializeToOpenExchange } from "@/lib/archimate/oxf-serializer"
 import { renderViewToSvg } from "@/lib/archimate/renderer"
-import { resolveElementImages } from "@/lib/archimate/image-library-resolve"
+import { resolveElementImages } from "@/lib/plugins/element-images"
 
 const ZipArchive = (
   archiverNs as unknown as { ZipArchive: new (opts?: ZipOptions) => Archiver }
@@ -29,7 +29,7 @@ export const GET = withErrorHandling(
     const wsId = await activeWorkspaceId(auth, "read")
     const model = await loadModel(wsId)
     const modelName = model.name || "model"
-    const elementImages = await resolveElementImages(model, wsId)
+    const elementImages = await resolveElementImages(model)
 
     const archive = new ZipArchive({ zlib: { level: 9 } })
     // The stream is already handed off to NextResponse by the time archiving

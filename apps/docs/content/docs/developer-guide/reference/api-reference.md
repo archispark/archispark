@@ -5,7 +5,7 @@ description: REST API endpoints for organizations, ArchiMate models and dashboar
 
 ## Organizations
 
-Workspaces belong to an organization — see [Authentication](authentication.md#organizations-and-roles) for the full role matrix (`owner`/`editor`/`viewer`) and Admin's admin-mode access.
+Workspaces belong to an organization — see [Authentication](authentication.md#organizations-and-roles) for the full role matrix (`owner`/`editor`/`viewer`), which applies to Admin exactly as it does to any other user.
 
 | Method   | Path                                     | Auth    | Description                                                                                            |
 | -------- | ---------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------ |
@@ -29,13 +29,11 @@ without credentials and received the finish-registration actions.
 
 ## Platform administration
 
-Admin-only (Keycloak identifier `platform_admin`). The metadata routes never
-touch organization content. On login, admin mode is entered into the
-smallest existing organization by default — no explicit `enter` call
-needed — after which every organization/workspace route (elements,
-workspaces, members, …) resolves the Admin as `owner` for that
-organization; the last two routes below switch admin mode to a different
-organization or exit it (until the next login) — see
+Admin-only (Keycloak identifier `platform_admin`). These metadata routes
+never grant access to organization content — an Admin needs a real
+`organization_members` row on an organization (addable to itself through
+the member-management routes below) to see or act on its workspaces,
+exactly like any other user — see
 [Authentication](authentication.md#organizations-and-roles).
 
 | Method   | Path                                    | Description                                                                      |
@@ -43,9 +41,10 @@ organization or exit it (until the next login) — see
 | `GET`    | `/api/platform/organizations`           | List every organization (id, slug, name, `is_personal`, `enabled`, `created_at`) |
 | `PUT`    | `/api/platform/organizations/:id`       | Suspend/reactivate — body: `{ enabled }`                                         |
 | `DELETE` | `/api/platform/organizations/:id`       | Delete an organization (cascades to workspaces, members, and tokens)             |
-| `POST`   | `/api/platform/organizations/:id/enter` | Enter admin mode for this organization                                           |
-| `GET`    | `/api/platform/organizations/active`    | The organization currently entered, or `{ organization: null }`                  |
-| `DELETE` | `/api/platform/organizations/active`    | Exit admin mode                                                                  |
+| `GET`    | `/api/platform/plugins`                 | List every plugin discovered in `plugins/` (name, version, `icon_count`, `enabled`) |
+| `GET`    | `/api/platform/plugins/:slug`           | One plugin's detail — `type` plus its full icon list, for the `/platform/plugins/:slug` content view |
+| `PUT`    | `/api/platform/plugins/:slug`           | Enable/disable a plugin — body: `{ enabled }`                                    |
+| `GET`    | `/api/platform/plugins/:slug/icons/:iconSlug` | Admin preview of one icon's SVG — unlike the public route below, works even when the plugin is disabled |
 
 ## Workspace management
 
@@ -54,7 +53,7 @@ Every workspace belongs to exactly one organization (`organization_id`) — a ca
 | Method   | Path                           | Description                                                                                                                                                                                                                             |
 | -------- | ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `GET`    | `/api/workspaces`              | List the caller's active organization's workspaces                                                                                                                                                                                      |
-| `POST`   | `/api/workspaces`              | Create workspace — body: `{ name, path?, description?, organization_id? }` (`path` = XML file to import; `organization_id` defaults to the caller's active organization, auto-creating a personal one on a user's very first workspace) |
+| `POST`   | `/api/workspaces`              | Create workspace — body: `{ name, path?, description?, organization_id? }` (`path` = XML file to import; `organization_id` defaults to the caller's active organization — `403` if the caller has no organization membership at all) |
 | `PUT`    | `/api/workspaces/:id`          | Rename workspace and/or update `description` (owner/editor)                                                                                                                                                                             |
 | `DELETE` | `/api/workspaces/:id`          | Delete workspace (owner/editor; deleting the active one switches to another in the same organization; deleting the last one is allowed and leaves zero — the web UI then redirects to its `/workspaces` page to create a new one)       |
 | `POST`   | `/api/workspaces/:id/activate` | Switch the caller's active workspace (and active organization, if different)                                                                                                                                                            |
@@ -124,34 +123,30 @@ Every workspace belongs to exactly one organization (`organization_id`) — a ca
 | `DELETE` | `/api/property-definitions/:id` | Delete                                                                                   |
 
 Each returned definition includes `is_system`. System definitions, including
-`archispark_image`, are read-only at the definition level: update and delete
-requests are rejected. Its value on an element or relationship must be an
-`img-<uuid>` reference to an image library item (system or organization
-pack — see [Image library](#image-library)), or a legacy HTTP(S) URL /
-relative path for values written before that library existed.
+`Archispark Plugin IconPack`, are read-only at the definition level:
+update and delete requests are rejected. Its value on an element or
+relationship must be a plugin icon's slug (see [Plugins](#plugins)),
+resolved against the enabled
+plugin that declares it, or a legacy HTTP(S) URL / relative path for values
+written before the plugin system existed.
 
-## Image library
+## Plugins
 
-See [Image Library](/docs/developer-guide/reference/image-library) for the
-packs/items model
-and the `archispark_image` property. Custom packs are organization-scoped;
-creating one or uploading an item requires the `owner`/`editor` role.
+See [Plugins](/docs/developer-guide/reference/plugins) for the
+`plugins/<slug>/` folder format, the discovery/activation split, and the
+`Archispark Plugin IconPack` property. Plugins are instance-wide, not
+organization-scoped — every organization sees the same list. Reading is
+open to any authenticated user; enabling or disabling a plugin requires the
+`platform_admin` realm role (see the `/api/platform/plugins` routes above).
 
-| Method   | Path                                     | Description                                                                                                     |
-| -------- | ---------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `GET`    | `/api/image-library/packs`               | List packs accessible to the active organization (system + custom)                                              |
-| `POST`   | `/api/image-library/packs`               | Create a custom pack — `{ name, slug }`                                                                         |
-| `DELETE` | `/api/image-library/packs/:packId`       | Delete a custom pack and its items                                                                              |
-| `POST`   | `/api/image-library/packs/:packId/items` | Upload one or more images to a custom pack — `multipart/form-data`, field `files` (SVG/PNG/JPEG/WebP, 2 MB max) |
-| `DELETE` | `/api/image-library/items/:itemUuid`     | Delete a custom pack item                                                                                       |
-| `GET`    | `/api/image-library/items/:itemUuid/svg` | Public — inline SVG of a system-pack item, no auth required                                                     |
-
-Uploading to a custom pack requires `BLOB_READ_WRITE_TOKEN` to be configured
-(Vercel Blob) — see [Deployment](../development/deployment.md).
+| Method | Path                                       | Description                                                                          |
+| ------ | ------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `GET`  | `/api/plugins`                              | List enabled plugins with their icons (slug, name, url)                                |
+| `GET`  | `/api/plugins/:pluginSlug/icons/:iconSlug`  | Public — inline SVG of one icon, no auth required, 404 if the plugin is disabled       |
 
 ## Dashboards
 
-Org-scoped — see [docs/../development/architecture.md#dashboards](../development/architecture.md#dashboards). Editing requires the `owner`/`editor` role in the active organization; `viewer` is read-only.
+Workspace-scoped — see [docs/../development/architecture.md#dashboards](../development/architecture.md#dashboards). Editing requires the `owner`/`editor` role in the active organization; `viewer` is read-only.
 
 | Method   | Path                                                   | Description                                                                          |
 | -------- | ------------------------------------------------------ | ------------------------------------------------------------------------------------ |

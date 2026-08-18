@@ -66,7 +66,7 @@ export function CreateRelationshipDialog({
           <Button
             size="sm"
             onClick={onOpenCreate}
-            className="bg-indigo-600 text-primary-foreground hover:bg-indigo-700"
+            className="bg-emerald-600 text-primary-foreground hover:bg-emerald-700"
           />
         }
       >

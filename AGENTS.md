@@ -29,6 +29,7 @@ Node 24).
 │   ├── typescript-config/ Configurations TypeScript partagées
 │   └── ui/           Composants React partagés
 ├── models/           Modèles ArchiMate, XSD et ressources de référence
+├── plugins/          Plugins d'icônes (aws/, azure/, gcp/, …) — voir la section dédiée
 ├── .docker/          Environnement Docker de développement
 ├── .github/          Workflows et modèles GitHub
 ├── docs/             Documentation technique historique du dépôt
@@ -53,12 +54,18 @@ forment pas des packages indépendants.
 
 Les espaces de travail appartiennent à une organisation. Les rôles
 d'organisation sont `owner`, `editor` et `viewer`. Le rôle de royaume
-`platform_admin` n'a par défaut aucun rôle dans `organization_members`, mais
-obtient un accès complet (équivalent `owner`) au contenu de n'importe quelle
-organisation, y compris suspendue, une fois qu'il l'a explicitement
-« entrée » en mode administration (`POST /api/platform/organizations/:id/enter`).
-`apps/server/lib/archimate/access.ts` est l'unique point d'entrée pour les
-contrôles d'autorisation : ne pas dupliquer cette logique ailleurs.
+`platform_admin` donne un accès total et indépendant aux pages
+`/platform/**` (organisations, utilisateurs, plugins, bibliothèque
+d'images), protégées par `withSuperAdmin` seul. Pour le contenu applicatif
+d'une organisation (espaces de travail, vues, éléments, tableaux de bord),
+`platform_admin` est un utilisateur comme un autre : il doit être membre
+réel (`owner`, `editor` ou `viewer` dans `organization_members`) — ce qu'il
+peut obtenir en s'ajoutant lui-même depuis la gestion des membres sur
+`/platform/organizations/[id]` — et suit alors les mêmes règles que
+n'importe quel membre, y compris le refus d'accès sur une organisation
+suspendue. `apps/server/lib/archimate/access.ts` est l'unique point
+d'entrée pour les contrôles d'autorisation : ne pas dupliquer cette logique
+ailleurs.
 
 ### Données et services partagés
 
@@ -99,7 +106,7 @@ pnpm start:docs  # documentation Fumadocs compilée sur :3000
 ```
 
 Après `pnpm env`, renseigner au minimum `DB_PASSWORD` et
-`KEYCLOAK_ADMIN_CLIENT_SECRET` dans `.env.dev`.
+`KEYCLOAK_ADMIN_CLIENT_SECRET` dans `.env`.
 
 Pour Docker et Vercel, consulter
 [installation.md](apps/docs/content/docs/developer-guide/getting-started/index.md) et
@@ -142,9 +149,10 @@ fichier `*.test.ts` dans `apps/server/pages/api/` : Next.js le traiterait comme
 une route active.
 
 Une suite Playwright distincte (`apps/server/e2e/`) fait tourner un build réel
-dans un navigateur, en comptes locaux uniquement (pas de Keycloak). Elle
-nécessite Docker (son `webServer` démarre un conteneur Postgres jetable) et un
-build préalable :
+dans un navigateur, en comptes locaux uniquement (pas de Keycloak). Ne jamais
+l'ajouter aux workflows GitHub et ne l'exécuter que sur demande explicite :
+elle est coûteuse en temps et en tokens. Elle nécessite Docker (son `webServer`
+démarre un conteneur Postgres jetable) et un build préalable :
 
 ```bash
 pnpm --filter server exec playwright install chromium  # une fois
@@ -168,13 +176,34 @@ pnpm --filter server test:e2e
 
 ### Ressources graphiques de référence
 
-- `models/img/archimate/` contient les composants PNG de référence. Ne jamais y
-  écrire d'images générées, ni ajouter d'images générées ailleurs dans le dépôt.
+- `packages/image-library/assets/archimate/` contient les icônes SVG du pack
+  système « ArchiMate Notation » de la bibliothèque d'images (un fichier par
+  type, nommé `{Type}.svg` en PascalCase). Après toute modification de ces
+  fichiers, régénérer le pack via `pnpm --filter server gen:icon-pack`
+  (`apps/server/scripts/generate-archimate-icon-pack.ts`).
 - `models/img/views/` contient les SVG exportés par Archi et constitue la
   référence visuelle. Pour modifier
   `apps/server/lib/archimate/renderer.ts`, comparer le rendu au SVG
   correspondant et minimiser les écarts de formes, couleurs, disposition,
   connecteurs, libellés et polices.
+
+### Plugins d'icônes
+
+- `plugins/<slug>/` contient les icônes personnalisées assignables à un
+  élément ArchiMate (propriété système `Archispark Plugin IconPack`) :
+  `plugin.json` (métadonnées), `manifest.ts` (liste des icônes) et
+  `icons/*.svg`. Ces plugins sont instance-wide, découverts au build (pas
+  en base de données) et activables/désactivables sans redéploiement sur
+  `/platform/plugins`. Voir
+  `apps/docs/content/docs/developer-guide/reference/plugins.mdx`.
+- Après toute modification de `plugins/**`, régénérer le registre via
+  `pnpm --filter server gen:plugin-registry`
+  (`apps/server/scripts/generate-plugin-registry.ts`), qui écrit
+  `apps/server/lib/plugins/registry.generated.ts`.
+- Les plugins vendor (`aws`, `azure`, `gcp`) sont regénérés depuis une source
+  externe via `pnpm --filter server gen:cloud-icon-packs -- --source <dir>`
+  (`apps/server/scripts/generate-cloud-icon-packs.ts`), suivi de
+  `gen:plugin-registry`.
 
 ### Captures d'écran produit
 

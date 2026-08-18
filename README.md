@@ -8,7 +8,7 @@ ArchiMate 3.1 modeling tool — a single Next.js app serving the web UI, REST AP
 
 ```bash
 pnpm install
-pnpm env # edit DB_PASSWORD and KEYCLOAK_ADMIN_CLIENT_SECRET in .env.dev
+pnpm env
 pnpm infra:up
 pnpm dev
 ```

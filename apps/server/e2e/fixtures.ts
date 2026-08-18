@@ -9,20 +9,15 @@ export const ADMIN_INITIAL_PASSWORD = "admin"
 // "auth-setup" project) is the one spec that performs it.
 export const ADMIN_PASSWORD = "E2E-admin-2026!"
 
-// admin/admin is a platform_admin. Login (local sign-in, see
-// ensureDefaultPlatformOrganization in
-// lib/archimate/platform-context-store.ts) now enters it into the smallest
-// existing organization automatically (owner-equivalent access, no manual
-// "enter" step needed) — but auth.spec.ts (the "auth-setup" project)
-// always runs before any organization exists in the throwaway DB
-// (organizations are auto-created on a user's first workspace, and no spec
-// has created one yet), so login is a no-op there and
-// components/client-layout.tsx's PlatformAdminBlock still gates admin/admin
-// out of every page except /login, /change-password, /invitations/*, and
-// /platform/* for that spec. Every spec except auth.spec.ts therefore logs
-// in as e2e-user (e2e/seed.ts), an ordinary "user"-role local account, to
-// actually reach workspaces/elements/relationships/views/dashboards/
-// settings.
+// admin/admin is a platform_admin — a regular user for organization content
+// (see access.ts): it has zero workspaces unless it's a real member of an
+// organization, same as anyone else, but always reaches /platform/*
+// (organization/user/plugin administration) regardless of membership.
+// auth.spec.ts (the "auth-setup" project) is the only spec that logs in as
+// admin/admin, to exercise the login flow and forced password change.
+// Every other spec logs in as e2e-user (e2e/seed.ts), an ordinary
+// "user"-role local account, to actually reach workspaces/elements/
+// relationships/views/dashboards/settings.
 export { E2E_USER_USERNAME, E2E_USER_PASSWORD }
 
 /** Logs in as the seeded ordinary local user (e2e/seed.ts) — see the note above. */
@@ -56,7 +51,7 @@ export async function ensureWorkspace(page: Page): Promise<string> {
   if (await existing.isVisible()) {
     const name = (await existing.textContent())!.trim()
     await existing.click()
-    await expect(page).toHaveURL("/")
+    await expect(page).toHaveURL("/overview")
     return name
   }
 
@@ -64,7 +59,7 @@ export async function ensureWorkspace(page: Page): Promise<string> {
   await page.getByRole("button", { name: "Add" }).click()
   await page.getByPlaceholder("Workspace name").fill(name)
   await page.getByRole("button", { name: "Create" }).click()
-  await expect(page).toHaveURL("/")
+  await expect(page).toHaveURL("/overview")
   return name
 }
 

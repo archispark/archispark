@@ -1,17 +1,17 @@
 /**
- * Organization + member CRUD, gated exclusively through access.ts
- * (assertOrgAccess) — for the NotFoundError vs ForbiddenError convention. 
- * Split out of registry.ts to keep it under the ESLint max-lines limit.
+ * Organization CRUD, gated exclusively through access.ts (assertOrgAccess)
+ * — for the NotFoundError vs ForbiddenError convention. Split out of
+ * registry.ts, then further split into organization-members-store.ts, to
+ * keep every file under the ESLint max-lines limit.
  */
 
-import { and, asc, eq } from "drizzle-orm"
+import { asc, eq } from "drizzle-orm"
 import {
   db,
   organizations,
   organizationMembers,
   userActiveOrganization,
 } from "@workspace/db"
-import { findUserByUsername, getKeycloakUser } from "@workspace/auth"
 import { NotFoundError, ValidationError } from "./errors"
 import {
   assertOrgAccess,
@@ -24,20 +24,12 @@ export interface OrganizationOut {
   id: string
   slug: string
   name: string
+  description: string | null
   is_personal: boolean
   enabled: boolean
   role: OrgRoleName
   active: boolean
 }
-
-export interface MemberOut {
-  user_id: string
-  username: string
-  role: OrgRoleName
-  created_at: number
-}
-
-const VALID_ROLES: OrgRoleName[] = ["owner", "editor", "viewer"]
 
 function toOrgOut(
   org: typeof organizations.$inferSelect,
@@ -48,6 +40,7 @@ function toOrgOut(
     id: String(org.id),
     slug: org.slug,
     name: org.name,
+    description: org.description,
     is_personal: org.isPersonal,
     enabled: org.enabled,
     role,
@@ -63,29 +56,9 @@ async function getActiveOrganizationId(userId: string): Promise<number | null> {
   return active?.organizationId ?? null
 }
 
-async function countOwners(organizationId: number): Promise<number> {
-  const owners = await db
-    .select({ id: organizationMembers.id })
-    .from(organizationMembers)
-    .where(
-      and(
-        eq(organizationMembers.organizationId, organizationId),
-        eq(organizationMembers.role, "owner")
-      )
-    )
-  return owners.length
-}
-
-// ---------------------------------------------------------------------------
-// Organizations
-// ---------------------------------------------------------------------------
-
-/** platform_admin has no organization membership by design — returns []. */
 export async function listOrganizationsForUser(
   user: AccessUser
 ): Promise<OrganizationOut[]> {
-  if (user.role === "platform_admin") return []
-
   const rows = await db
     .select({ org: organizations, role: organizationMembers.role })
     .from(organizationMembers)
@@ -107,19 +80,30 @@ export async function listOrganizationsForUser(
   )
 }
 
-/** owner-only. Renaming is an organization-level action, not a workspace one — editor's write rights don't extend to it. */
+export interface OrganizationUpdateIn {
+  name: string
+  description?: string | null
+}
+
+/** owner-only. Renaming (and editing the description) is an organization-level action, not a workspace one — editor's write rights don't extend to it. */
 export async function renameOrganization(
   user: AccessUser,
   organizationId: number,
-  name: string
+  changes: OrganizationUpdateIn
 ): Promise<OrganizationOut> {
-  if (!name?.trim())
+  if (!changes.name?.trim())
     throw new ValidationError("Le nom de l'organisation est requis.")
   const role = await assertOrgAccess(user, organizationId, "manage_members")
 
   const [org] = await db
     .update(organizations)
-    .set({ name: name.trim(), updatedAt: Math.floor(Date.now() / 1000) })
+    .set({
+      name: changes.name.trim(),
+      ...(changes.description !== undefined && {
+        description: changes.description?.trim() || null,
+      }),
+      updatedAt: Math.floor(Date.now() / 1000),
+    })
     .where(eq(organizations.id, organizationId))
     .returning()
   if (!org) throw new NotFoundError("Organisation introuvable.")
@@ -155,159 +139,4 @@ export async function activateOrganization(
     .where(eq(organizations.id, organizationId))
   if (!org) throw new NotFoundError("Organisation introuvable.")
   return toOrgOut(org, role, organizationId)
-}
-
-// ---------------------------------------------------------------------------
-// Members
-// ---------------------------------------------------------------------------
-
-export async function listMembers(
-  user: AccessUser,
-  organizationId: number
-): Promise<MemberOut[]> {
-  await assertOrgAccess(user, organizationId, "read")
-  const rows = await db
-    .select()
-    .from(organizationMembers)
-    .where(eq(organizationMembers.organizationId, organizationId))
-    .orderBy(asc(organizationMembers.id))
-
-  return Promise.all(
-    rows.map(async (m) => {
-      const kcUser = await getKeycloakUser(m.userId)
-      return {
-        user_id: m.userId,
-        username: kcUser?.username ?? m.userId,
-        role: m.role as OrgRoleName,
-        created_at: m.createdAt,
-      }
-    })
-  )
-}
-
-/** owner-only. Requires an existing Keycloak user — to invite someone without one yet, see invitations-store.ts. */
-export async function addMember(
-  user: AccessUser,
-  organizationId: number,
-  username: string,
-  role: string
-): Promise<MemberOut> {
-  await assertOrgAccess(user, organizationId, "manage_members")
-  if (!VALID_ROLES.includes(role as OrgRoleName))
-    throw new ValidationError("Rôle invalide.")
-
-  const kcUser = await findUserByUsername(username)
-  if (!kcUser?.id)
-    throw new ValidationError(`Utilisateur '${username}' introuvable.`)
-
-  const [existing] = await db
-    .select({ id: organizationMembers.id })
-    .from(organizationMembers)
-    .where(
-      and(
-        eq(organizationMembers.organizationId, organizationId),
-        eq(organizationMembers.userId, kcUser.id)
-      )
-    )
-  if (existing)
-    throw new ValidationError(
-      `'${username}' est déjà membre de cette organisation.`
-    )
-
-  const [inserted] = await db
-    .insert(organizationMembers)
-    .values({ organizationId, userId: kcUser.id, role })
-    .returning()
-  return {
-    user_id: kcUser.id,
-    username: kcUser.username,
-    role: inserted!.role as OrgRoleName,
-    created_at: inserted!.createdAt,
-  }
-}
-
-/** owner-only. Refuses to demote the last remaining owner (Phase 4 invariant). */
-export async function updateMemberRole(
-  user: AccessUser,
-  organizationId: number,
-  targetUserId: string,
-  role: string
-): Promise<MemberOut> {
-  await assertOrgAccess(user, organizationId, "manage_members")
-  if (!VALID_ROLES.includes(role as OrgRoleName))
-    throw new ValidationError("Rôle invalide.")
-
-  const [target] = await db
-    .select()
-    .from(organizationMembers)
-    .where(
-      and(
-        eq(organizationMembers.organizationId, organizationId),
-        eq(organizationMembers.userId, targetUserId)
-      )
-    )
-  if (!target) throw new NotFoundError("Membre introuvable.")
-
-  if (
-    target.role === "owner" &&
-    role !== "owner" &&
-    (await countOwners(organizationId)) <= 1
-  ) {
-    throw new ValidationError(
-      "Impossible de rétrograder le dernier propriétaire de l'organisation."
-    )
-  }
-
-  const [updated] = await db
-    .update(organizationMembers)
-    .set({ role })
-    .where(
-      and(
-        eq(organizationMembers.organizationId, organizationId),
-        eq(organizationMembers.userId, targetUserId)
-      )
-    )
-    .returning()
-  const kcUser = await getKeycloakUser(targetUserId)
-  return {
-    user_id: targetUserId,
-    username: kcUser?.username ?? targetUserId,
-    role: updated!.role as OrgRoleName,
-    created_at: updated!.createdAt,
-  }
-}
-
-/** owner-only, including self-removal. Refuses to remove the last remaining owner. */
-export async function removeMember(
-  user: AccessUser,
-  organizationId: number,
-  targetUserId: string
-): Promise<void> {
-  await assertOrgAccess(user, organizationId, "manage_members")
-
-  const [target] = await db
-    .select()
-    .from(organizationMembers)
-    .where(
-      and(
-        eq(organizationMembers.organizationId, organizationId),
-        eq(organizationMembers.userId, targetUserId)
-      )
-    )
-  if (!target) throw new NotFoundError("Membre introuvable.")
-
-  if (target.role === "owner" && (await countOwners(organizationId)) <= 1) {
-    throw new ValidationError(
-      "Impossible de retirer le dernier propriétaire de l'organisation."
-    )
-  }
-
-  await db
-    .delete(organizationMembers)
-    .where(
-      and(
-        eq(organizationMembers.organizationId, organizationId),
-        eq(organizationMembers.userId, targetUserId)
-      )
-    )
 }

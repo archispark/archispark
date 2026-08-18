@@ -7,21 +7,20 @@
  */
 
 import nodemailer, { type Transporter } from "nodemailer"
+import { env } from "@/env"
 import { escXml } from "./xml-escape"
 
 let transporter: Transporter | null = null
 
 function getTransporter(): Transporter {
-  const host = process.env["SMTP_HOST"]
+  const host = env.SMTP_HOST
   if (!host) throw new Error("SMTP_HOST n'est pas configuré.")
   if (!transporter) {
-    const user = process.env["SMTP_USER"]
+    const user = env.SMTP_USER
     transporter = nodemailer.createTransport({
       host,
-      port: Number(process.env["SMTP_PORT"] || "587"),
-      auth: user
-        ? { user, pass: process.env["SMTP_PASSWORD"] || "" }
-        : undefined,
+      port: env.SMTP_PORT,
+      auth: user ? { user, pass: env.SMTP_PASSWORD ?? "" } : undefined,
     })
   }
   return transporter
@@ -34,7 +33,7 @@ function getTransporter(): Transporter {
  * arbitrary domain.
  */
 export function invitationAcceptUrl(token: string): string {
-  const base = process.env["ARCHISPARK_URL"]
+  const base = env.ARCHISPARK_URL
   if (!base) throw new Error("ARCHISPARK_URL n'est pas configuré.")
   return `${base.replace(/\/+$/, "")}/invitations/${token}`
 }
@@ -44,7 +43,7 @@ export async function sendInvitationEmail(
   organizationName: string,
   acceptUrl: string
 ): Promise<void> {
-  const from = process.env["SMTP_FROM"] || "no-reply@archispark.local"
+  const from = env.SMTP_FROM
   const org = escXml(organizationName)
   await getTransporter().sendMail({
     from,

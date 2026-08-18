@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { useImagePacks } from "@/lib/queries"
+import { usePlugins } from "@/lib/queries"
 import {
   Dialog,
   DialogContent,
@@ -22,28 +22,28 @@ export function ImagePicker({
   disabled?: boolean
 }) {
   const { t } = useT()
-  const { data: packs, isLoading } = useImagePacks()
+  const { data: pluginsList, isLoading } = usePlugins()
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState("")
 
-  const selectedItem = useMemo(() => {
-    for (const pack of packs ?? []) {
-      const item = pack.items.find((i) => `img-${i.identifier}` === value)
-      if (item) return item
+  const selectedIcon = useMemo(() => {
+    for (const plugin of pluginsList ?? []) {
+      const icon = plugin.icons.find((i) => i.slug === value)
+      if (icon) return icon
     }
     return null
-  }, [packs, value])
+  }, [pluginsList, value])
 
-  const filteredPacks = useMemo(() => {
+  const filteredPlugins = useMemo(() => {
     const q = search.trim().toLowerCase()
-    if (!q) return packs ?? []
-    return (packs ?? [])
-      .map((pack) => ({
-        ...pack,
-        items: pack.items.filter((i) => i.name.toLowerCase().includes(q)),
+    if (!q) return pluginsList ?? []
+    return (pluginsList ?? [])
+      .map((plugin) => ({
+        ...plugin,
+        icons: plugin.icons.filter((i) => i.name.toLowerCase().includes(q)),
       }))
-      .filter((pack) => pack.items.length > 0)
-  }, [packs, search])
+      .filter((plugin) => plugin.icons.length > 0)
+  }, [pluginsList, search])
 
   return (
     <>
@@ -55,12 +55,12 @@ export function ImagePicker({
         disabled={disabled}
         onClick={() => setOpen(true)}
       >
-        {selectedItem ? (
+        {selectedIcon ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={selectedItem.resolved_url} alt="" className="size-4 shrink-0" />
+          <img src={selectedIcon.url} alt="" className="size-4 shrink-0" />
         ) : null}
         <span className="truncate">
-          {selectedItem ? selectedItem.name : t("image_library.choose")}
+          {selectedIcon ? selectedIcon.name : t("image_library.choose")}
         </span>
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
@@ -80,32 +80,32 @@ export function ImagePicker({
                 {t("common.loading")}
               </p>
             )}
-            {!isLoading && filteredPacks.length === 0 && (
+            {!isLoading && filteredPlugins.length === 0 && (
               <p className="text-sm text-muted-foreground">
                 {t("image_library.empty")}
               </p>
             )}
-            {filteredPacks.map((pack) => (
-              <div key={pack.identifier}>
+            {filteredPlugins.map((plugin) => (
+              <div key={plugin.slug}>
                 <p className="mb-1.5 text-xs font-medium text-muted-foreground">
-                  {pack.name}
+                  {plugin.name}
                 </p>
                 <div className="grid grid-cols-6 gap-2">
-                  {pack.items.map((item) => (
+                  {plugin.icons.map((icon) => (
                     <button
-                      key={item.identifier}
+                      key={icon.slug}
                       type="button"
-                      title={item.name}
+                      title={icon.name}
                       onClick={() => {
-                        onChange(`img-${item.identifier}`)
+                        onChange(icon.slug)
                         setOpen(false)
                       }}
                       className="flex aspect-square items-center justify-center rounded-md border border-border p-1.5 hover:bg-muted"
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
-                        src={item.resolved_url}
-                        alt={item.name}
+                        src={icon.url}
+                        alt={icon.name}
                         className="size-full"
                       />
                     </button>

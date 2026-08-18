@@ -126,3 +126,20 @@ export interface UserOut {
   role: string
   created_at: string
 }
+
+// ---------------------------------------------------------------------------
+// Icon plugins — shape of plugins/<slug>/manifest.ts (see
+// apps/server/scripts/generate-plugin-registry.ts). Imported type-only from
+// each plugin's manifest.ts via a relative path, since plugins/ is not a
+// pnpm workspace member and cannot resolve the @workspace/types specifier.
+// ---------------------------------------------------------------------------
+
+export interface IconPluginManifestIcon {
+  slug: string
+  name: string
+  file: string
+}
+
+export interface IconPluginManifest {
+  icons: IconPluginManifestIcon[]
+}

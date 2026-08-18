@@ -29,7 +29,7 @@ test.describe("workspaces", () => {
     await expect(emptyState).toBeVisible()
   })
 
-  test("creates a workspace, which auto-creates a personal organization and activates it", async ({
+  test("creates a workspace in the account's organization and activates it", async ({
     authedPage: page,
   }) => {
     const name = `E2E Workspace ${Date.now()}`
@@ -38,11 +38,11 @@ test.describe("workspaces", () => {
     await page.getByPlaceholder("Workspace name").fill(name)
     await page.getByRole("button", { name: "Create" }).click()
 
-    // Creating a workspace with no organization selected auto-creates a
-    // personal organization and activates the new workspace (see
-    // authentication.mdx#organizations-and-roles); the app then lands on
-    // the workspace overview.
-    await expect(page).toHaveURL("/")
+    // e2e-user already has an organization (seeded — see e2e/seed.ts, users
+    // can no longer self-provision one on first workspace, see
+    // authentication.mdx#organizations-and-roles); creating a workspace
+    // there activates it and the app lands on the workspace overview.
+    await expect(page).toHaveURL("/overview")
 
     await page.goto("/workspaces")
     // Scoped to the list row (not getByText(name) alone): the sidebar's

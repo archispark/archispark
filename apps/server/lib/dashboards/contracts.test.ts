@@ -4,8 +4,23 @@ import {
   dashboardDefinitionSchema,
   panelVisualizationMetadataSchema,
   normalizePanelVisualizationId,
+  datasourceDefinitionSchema,
+  POSTGRES_DATASOURCE,
   type PanelContent,
 } from "./contracts"
+
+const validPostgresPanelContent: PanelContent = {
+  title: "Fournisseurs actifs",
+  description: "Nombre de fournisseurs actifs de l'organisation.",
+  resultType: "metrics",
+  query: {
+    datasourceId: "postgres-app-db",
+    language: "sql",
+    text: "SELECT count(*)::integer AS count FROM fournisseurs WHERE organization_id = $organizationId AND actif = $actif",
+  },
+  parameters: [{ name: "actif", label: "Fournisseurs actifs", type: "boolean", required: false, defaultValue: true }],
+  visualization: { type: "metric" },
+}
 
 const validPanelContent: PanelContent = {
   title: "Acteurs métier servis par les composants applicatifs",
@@ -51,6 +66,10 @@ describe("panelContentSchema", () => {
     expect(panelContentSchema.safeParse(validAnchoredPanelContent).success).toBe(true)
   })
 
+  it("accepts a valid SQL panel targeting the Postgres datasource", () => {
+    expect(panelContentSchema.safeParse(validPostgresPanelContent).success).toBe(true)
+  })
+
   it("rejects an enum parameter without allowedValues", () => {
     const result = panelContentSchema.safeParse({
       ...validPanelContent,
@@ -86,6 +105,12 @@ describe("panelContentSchema", () => {
       visualization: { type: "graph", columnOrder: ["id"] },
     })
     expect(result.success).toBe(false)
+  })
+})
+
+describe("datasourceDefinitionSchema", () => {
+  it("accepts the native Postgres datasource definition", () => {
+    expect(datasourceDefinitionSchema.safeParse(POSTGRES_DATASOURCE).success).toBe(true)
   })
 })
 

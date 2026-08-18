@@ -34,9 +34,12 @@ import {
   OrganizationMemberUpdateSchema,
   OrganizationInvitationCreateSchema,
   OrganizationInvitationResendSchema,
-  PlatformOrganizationUpdateSchema,
   ApiTokenCreateSchema as ApiTokenCreateInputSchema,
 } from "./validation"
+import {
+  PlatformOrganizationCreateSchema,
+  PlatformOrganizationUpdateSchema,
+} from "./platform-validation"
 
 const { version } = packageJson
 const registry = new OpenAPIRegistry()
@@ -286,6 +289,7 @@ const OrganizationOutSchema = registry.register(
       id: z.string(),
       slug: z.string(),
       name: z.string(),
+      description: z.string().nullable(),
       is_personal: z.boolean(),
       enabled: z.boolean(),
       role: z.enum(["owner", "editor", "viewer"]),
@@ -371,6 +375,7 @@ const PlatformOrganizationOutSchema = registry.register(
       id: z.string(),
       slug: z.string(),
       name: z.string(),
+      description: z.string().nullable(),
       is_personal: z.boolean(),
       enabled: z.boolean(),
       created_at: z
@@ -379,6 +384,26 @@ const PlatformOrganizationOutSchema = registry.register(
         .openapi({ description: "Timestamp Unix (secondes)" }),
     })
     .openapi("PlatformOrganizationOut")
+)
+
+const PlatformOrganizationMemberOutSchema = registry.register(
+  "PlatformOrganizationMemberOut",
+  z
+    .object({
+      id: z.string(),
+      username: z.string(),
+      email: z.string(),
+      display_name: z.string().nullable(),
+      role: z.enum(["owner", "editor", "viewer"]),
+    })
+    .openapi("PlatformOrganizationMemberOut")
+)
+
+const PlatformOrganizationDetailOutSchema = registry.register(
+  "PlatformOrganizationDetailOut",
+  PlatformOrganizationOutSchema.extend({
+    members: z.array(PlatformOrganizationMemberOutSchema),
+  }).openapi("PlatformOrganizationDetailOut")
 )
 
 const UserOutSchema = registry.register(
@@ -533,6 +558,10 @@ const OrganizationInvitationResendInput = registry.register(
   OrganizationInvitationResendSchema.openapi(
     "OrganizationInvitationResendInput"
   )
+)
+const PlatformOrganizationCreateInput = registry.register(
+  "PlatformOrganizationCreateInput",
+  PlatformOrganizationCreateSchema.openapi("PlatformOrganizationCreateInput")
 )
 const PlatformOrganizationUpdateInput = registry.register(
   "PlatformOrganizationUpdateInput",
@@ -1230,8 +1259,7 @@ registry.registerPath({
   summary: "Lister mes organisations",
   operationId: "listOrganizations",
   security: BothAuth,
-  description:
-    "Retourne les organisations dont l'utilisateur est membre. Vide pour un platform_admin (isolation structurelle).",
+  description: "Retourne les organisations dont l'utilisateur est membre.",
   responses: {
     200: {
       description: "Liste des organisations",
@@ -1247,7 +1275,7 @@ registry.registerPath({
   method: "put",
   path: "/organizations/{id}",
   tags: ["Organizations"],
-  summary: "Renommer une organisation",
+  summary: "Mettre à jour le nom et la description d'une organisation",
   operationId: "renameOrganization",
   security: BothAuth,
   request: {
@@ -1259,7 +1287,7 @@ registry.registerPath({
   },
   responses: {
     200: {
-      description: "Organisation renommée",
+      description: "Organisation mise à jour",
       content: { "application/json": { schema: OrganizationOutSchema } },
     },
     401: Unauthorized,
@@ -1549,11 +1577,61 @@ registry.registerPath({
 })
 
 registry.registerPath({
+  method: "post",
+  path: "/platform/organizations",
+  tags: ["Platform"],
+  summary: "Créer une organisation (platform_admin)",
+  operationId: "createOrganization",
+  security: BothAuth,
+  request: {
+    body: {
+      required: true,
+      content: {
+        "application/json": { schema: PlatformOrganizationCreateInput },
+      },
+    },
+  },
+  responses: {
+    201: {
+      description: "Organisation créée",
+      content: {
+        "application/json": { schema: PlatformOrganizationOutSchema },
+      },
+    },
+    401: Unauthorized,
+    403: Forbidden,
+    422: UnprocessableType,
+  },
+})
+
+registry.registerPath({
+  method: "get",
+  path: "/platform/organizations/{id}",
+  tags: ["Platform"],
+  summary: "Obtenir une organisation avec ses membres (platform_admin)",
+  operationId: "getPlatformOrganization",
+  security: BothAuth,
+  request: { params: z.object({ id: z.string() }) },
+  responses: {
+    200: {
+      description: "Organisation avec ses membres",
+      content: {
+        "application/json": { schema: PlatformOrganizationDetailOutSchema },
+      },
+    },
+    401: Unauthorized,
+    403: Forbidden,
+    404: NotFound,
+  },
+})
+
+registry.registerPath({
   method: "put",
   path: "/platform/organizations/{id}",
   tags: ["Platform"],
-  summary: "Suspendre/réactiver une organisation (platform_admin)",
-  operationId: "setOrganizationEnabled",
+  summary:
+    "Mettre à jour le nom, la description ou l'état d'une organisation (platform_admin)",
+  operationId: "updatePlatformOrganization",
   security: BothAuth,
   request: {
     params: z.object({ id: z.string() }),

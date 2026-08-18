@@ -23,11 +23,11 @@ export const panelIdSchema = z
 export const dashboardIdSchema = panelIdSchema
 
 // ---------------------------------------------------------------------------
-// Datasource — une seule datasource native (Neo4j d'ArchiSpark), voir
-// lib/dashboards/datasource-executors.ts.
+// Datasource — deux datasources natives (Neo4j et Postgres d'ArchiSpark),
+// voir lib/dashboards/datasource-executors/.
 // ---------------------------------------------------------------------------
 
-export const DATASOURCE_TYPES = ["neo4j"] as const
+export const DATASOURCE_TYPES = ["neo4j", "postgres"] as const
 export type DatasourceType = (typeof DATASOURCE_TYPES)[number]
 
 export const datasourceDefinitionSchema = z
@@ -40,13 +40,26 @@ export const datasourceDefinitionSchema = z
   .strict()
 export type DatasourceDefinition = z.infer<typeof datasourceDefinitionSchema>
 
-/** Unique datasource native — le graphe Neo4j exporté depuis le modèle ArchiMate de l'organisation active. */
+/** Le graphe Neo4j exporté depuis le modèle ArchiMate de l'organisation active. */
 export const ARCHITECTURE_DATASOURCE: DatasourceDefinition = {
   id: "architecture-neo4j",
   name: "Modèle ArchiMate",
   type: "neo4j",
   enabled: true,
 }
+
+/** La base Postgres applicative d'ArchiSpark elle-même (packages/db), en lecture seule et scopée par organisation. */
+export const POSTGRES_DATASOURCE: DatasourceDefinition = {
+  id: "postgres-app-db",
+  name: "Base applicative PostgreSQL",
+  type: "postgres",
+  enabled: true,
+}
+
+export const NATIVE_DATASOURCES: readonly DatasourceDefinition[] = [
+  ARCHITECTURE_DATASOURCE,
+  POSTGRES_DATASOURCE,
+]
 
 // ---------------------------------------------------------------------------
 // Contenu d'un panneau
@@ -73,7 +86,7 @@ const panelVisualizationTypeSchema = z
   )
 const panelParameterTypeSchema = z.enum(PANEL_PARAMETER_TYPES)
 
-export const QUERY_LANGUAGES = ["cypher"] as const
+export const QUERY_LANGUAGES = ["cypher", "sql"] as const
 export type QueryLanguage = (typeof QUERY_LANGUAGES)[number]
 
 const panelQuerySchema = z
@@ -235,7 +248,7 @@ const panelTransformationSchema = z.discriminatedUnion("type", [
  * Toujours embarqué dans une instance (`dashboardPanelSchema`) d'une
  * révision de dashboard, jamais stocké indépendamment.
  *
- * Convention de sortie de la requête Cypher : une seule ligne avec
+ * Convention de sortie de la requête (Cypher ou SQL) : une seule ligne avec
  * `nodeIds` (graph), `rows` (table) ou `count` (metrics) ; un graphe peut
  * aussi retourner `emphasizedId`/`rankGroups`.
  */

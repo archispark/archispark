@@ -3,7 +3,15 @@ title: Workspaces
 description: The overview dashboard and workspace (ArchiMate model) management.
 ---
 
-## Overview (`/`)
+## Home (`/`)
+
+The home page is a simple starting point: quick links to Overview,
+Workspaces, Dashboards, and Settings. If your account doesn't belong to any
+organization yet, it shows that state instead — an owner, an editor, or an
+Admin adding itself from `/platform/organizations/:id` must grant you
+membership before you can create or open a workspace.
+
+## Overview (`/overview`)
 
 ![Overview dashboard with stat cards and donut charts](/screenshots/overview.png)
 

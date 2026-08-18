@@ -15,7 +15,7 @@ import {
   loadModel,
 } from "@/lib/archimate/store"
 import { renderViewToSvg } from "@/lib/archimate/renderer"
-import { resolveElementImages } from "@/lib/archimate/image-library-resolve"
+import { resolveElementImages } from "@/lib/plugins/element-images"
 import type {
   ViewUpdateIn,
   NodeUpdateIn,
@@ -393,7 +393,7 @@ export function registerViewTools(
       const model = await loadModel(wsId)
       const view = model.views.find((v) => v.uuid === view_id)
       if (!view) throw new Error(`Vue '${view_id}' introuvable.`)
-      const elementImages = await resolveElementImages(model, wsId)
+      const elementImages = await resolveElementImages(model)
       const svg = renderViewToSvg(view, model, elementImages)
       return {
         content: [

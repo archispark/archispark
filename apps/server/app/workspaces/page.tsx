@@ -36,7 +36,7 @@ export default function WorkspacesPage() {
       setDescription("")
       setShowForm(false)
       setError(null)
-      router.push("/")
+      router.push("/overview")
     } catch (err) {
       setError((err as Error).message)
     }
@@ -48,7 +48,7 @@ export default function WorkspacesPage() {
     try {
       if (!active) await activateWs.mutateAsync(id)
       setError(null)
-      router.push("/")
+      router.push("/overview")
     } catch (err) {
       setError((err as Error).message)
     }
@@ -72,7 +72,7 @@ export default function WorkspacesPage() {
               setShowForm(true)
               setError(null)
             }}
-            className="flex h-8 shrink-0 items-center gap-1.5 rounded-md bg-indigo-600 px-3 text-[13px] text-primary-foreground hover:bg-indigo-700"
+            className="flex h-8 shrink-0 items-center gap-1.5 rounded-md bg-emerald-600 px-3 text-[13px] text-primary-foreground hover:bg-emerald-700"
           >
             <Plus className="size-4" />
             {t("common.add")}

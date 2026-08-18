@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { get } from "@/lib/api/client";
 
 export interface CurrentUser {
   id: string;
@@ -10,10 +11,16 @@ export interface CurrentUser {
   role: string;
 }
 
+// Goes through the shared `get()` helper so an expired access_token cookie
+// (15min TTL) gets silently refreshed and retried, same as every other API
+// call — a bare fetch() here would 401 on the first background refetch after
+// 15min on one page and misreport platform_admin as logged out.
 async function fetchCurrentUser(): Promise<CurrentUser | null> {
-  const res = await fetch("/api/auth/me", { credentials: "include" });
-  if (!res.ok) return null;
-  return (await res.json()) as CurrentUser;
+  try {
+    return await get<CurrentUser>("/auth/me");
+  } catch {
+    return null;
+  }
 }
 
 export function useCurrentUser(): CurrentUser | null {

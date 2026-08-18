@@ -37,13 +37,22 @@ First run:
   first sign-in, see [Demo seed](demo-data.md#minimal-seed)), so there's
   nothing to seed for a bare login. Run `pnpm setup-demo` for the full demo
   dataset (organizations, workspaces, ArchiMate models) on top of it.
-- No organization exists yet — creating the first workspace after sign-in
-  automatically creates a personal organization.
+- No organization exists yet, and none is created automatically: an owner,
+  editor, or an Admin adding itself from `/platform/organizations/:id` must
+  grant membership before the account can create a workspace. Until then,
+  the account lands on the simple starter home page (`/`) instead of the
+  workspace picker.
 - `DATABASE_URL` is **required**, no hardcoded default. `apps/server` loads
   the repo root `.env` itself at startup, if present (a real environment
   variable always takes priority over the file), which sets it to
   `postgresql://archispark:${DB_PASSWORD}@localhost:5432/archispark` to
   match the Postgres container started by `pnpm infra:up`.
+- `apps/server` (`env.ts`) and `apps/docs` (`next.config.mjs`) each validate
+  their own environment variables against a Zod schema — built from
+  `smtpEnvSchema`/`parseEnv` in `@workspace/env` — right after loading
+  `.env`, so a malformed value (e.g. a non-URL `ARCHISPARK_URL`) fails
+  immediately with a clear message instead of surfacing later inside a
+  request handler.
 
 ## Docker & pnpm scripts
 
@@ -62,7 +71,7 @@ Run `pnpm run` (no script name) to list every script.
 ```bash
 # First-time setup
 pnpm install         # pnpm install (Node >=22.13 — see .nvmrc)
-pnpm env             # copy .env.example → .env.dev (edit DB_PASSWORD, KEYCLOAK_ADMIN_CLIENT_SECRET)
+pnpm env             # copy .env.example → .env (ready for the local dev stack)
 
 # Selective infra startup — PostgreSQL always starts, the rest is opt-in via
 # Docker Compose profiles (see .docker/docker-compose.yml). `dev`/`start`
@@ -85,13 +94,15 @@ docker compose -f .docker/docker-compose.dev.yml --env-file .env.dev logs -f
 #   docker exec <postgres-container> psql -U archispark -d postgres -c "GRANT ALL PRIVILEGES ON DATABASE archispark_keycloak TO archispark;"
 
 pnpm keycloak-setup  # create/update the Keycloak realm (roles, clients, service account) via the Admin API — works on any Keycloak instance
-pnpm seed:demo-users # create/update the 5 Keycloak demo accounts (admin/user/contrib/archi/open)
-pnpm seed:demo       # seed demo ArchiMate data (ArchiMetal/ArchiSurance/Open Day, see Demo seed)
+pnpm seed:demo-users # create/update the 4 Keycloak demo accounts (admin/user/contrib/archi)
+pnpm seed:demo       # seed demo ArchiMate data (ArchiMetal/ArchiSurance, see Demo seed)
 pnpm setup-demo      # all three above, in order
 pnpm seed:local-admin # re-creates the local admin login on demand (already created automatically by migrations on first boot)
+pnpm seed:local-demo-users # local-accounts equivalent of seed:demo-users, no Keycloak required (default auth mode)
 pnpm seed:minimal    # realm + a single admin login, no organization/workspace/ArchiMate data
-pnpm reset           # delete all ArchiSpark PostgreSQL and Neo4j data (no seed)
-pnpm reset-demo      # migrate, replace demo data, and export all workspaces to Neo4j
+pnpm --filter @workspace/db reset       # delete all ArchiSpark PostgreSQL application data (no seed)
+pnpm --filter @workspace/db-neo4j reset # delete the Neo4j graph
+# No composite reset+reseed command — see "Demo seed" for the manual sequence.
 
 # Run the built application (infrastructure must already be available)
 pnpm build

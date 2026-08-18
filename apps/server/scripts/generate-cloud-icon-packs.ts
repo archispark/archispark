@@ -1,21 +1,34 @@
 /**
- * One-shot generator for the AWS / Azure / GCP system image packs.
+ * Generator for the AWS / Azure / GCP icon plugins (plugins/{aws,azure,gcp}/).
  *
  * Reads the vendor icon sets from a local --source directory (not part of
  * the repo — point it at a folder containing AWS/, Azure/, GCP/ subfolders
  * with the official AWS Architecture Icons, Microsoft Azure service icons,
  * and Google Cloud product icons), normalizes filenames into stable slugs
- * (see lib/cloud-icon-slug.ts), and writes:
- *   - one SVG file per icon under packages/image-library/assets/<vendor>/
- *   - one seed migration per vendor under packages/db/drizzle-pg/
+ * (see lib/cloud-icon-slug.ts), and rewrites each vendor's
+ * plugins/<vendor>/{icons/*.svg,manifest.ts} wholesale (a full rewrite, not
+ * an incremental diff — manifest.ts is a generated artifact, not a history).
  *
- * Run once via `pnpm --filter server gen:cloud-icon-packs -- --source <dir>`.
- * Not part of the build — its output is committed to the repo like any
- * other source file, same as generate-archimate-icon-pack.ts.
+ * Icon slugs must stay globally unique across all plugins (see
+ * generate-plugin-registry.ts) — this script only dedupes *within* one
+ * vendor (see cloud-icon-slug.ts's dedupeBySlug). A cross-vendor collision
+ * from a source refresh surfaces as a hard failure from
+ * `pnpm gen:plugin-registry`, requiring the same kind of manual
+ * disambiguation scripts/migrate-image-packs-to-plugins.ts's
+ * SLUG_OVERRIDES applied once during the original DB -> plugins cutover.
+ *
+ * Run via `pnpm --filter server gen:cloud-icon-packs -- --source <dir>`,
+ * then `pnpm --filter server gen:plugin-registry`. Not part of the build —
+ * its output is committed to the repo like any other source file.
  */
 
-import { randomUUID } from "node:crypto"
-import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs"
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs"
 import path from "node:path"
 import {
   normalizeAwsIcons,
@@ -26,15 +39,13 @@ import {
 } from "./lib/cloud-icon-slug"
 
 const ROOT = path.resolve(import.meta.dirname, "../../..")
-const IMAGE_LIBRARY_DIR = path.join(ROOT, "packages/image-library")
-const MIGRATIONS_DIR = path.join(ROOT, "packages/db/drizzle-pg")
+const PLUGINS_DIR = path.join(ROOT, "plugins")
 
 interface Vendor {
   slug: string
   sourceDir: string
-  packName: string
+  name: string
   description: string
-  migrationFile: string
   normalize: (files: SourceFile[]) => CloudIcon[]
 }
 
@@ -42,28 +53,25 @@ const VENDORS: Vendor[] = [
   {
     slug: "aws",
     sourceDir: "AWS",
-    packName: "AWS Icons",
+    name: "AWS Icons",
     description:
       "Official AWS Architecture Service Icons, for use in ReactFlow diagrams.",
-    migrationFile: "0027_image_pack_aws.sql",
     normalize: normalizeAwsIcons,
   },
   {
     slug: "azure",
     sourceDir: "Azure",
-    packName: "Azure Icons",
+    name: "Azure Icons",
     description:
       "Official Microsoft Azure service icons, for use in ReactFlow diagrams.",
-    migrationFile: "0028_image_pack_azure.sql",
     normalize: normalizeAzureIcons,
   },
   {
     slug: "gcp",
     sourceDir: "GCP",
-    packName: "GCP Icons",
+    name: "GCP Icons",
     description:
       "Official Google Cloud product icons, for use in ReactFlow diagrams.",
-    migrationFile: "0029_image_pack_gcp.sql",
     normalize: normalizeGcpIcons,
   },
 ]
@@ -88,31 +96,14 @@ function readSvgFiles(dir: string): SourceFile[] {
     }))
 }
 
-function sqlEscape(value: string): string {
-  return value.replace(/'/g, "''")
-}
-
-function buildMigrationSql(vendor: Vendor, icons: CloudIcon[]): string {
-  const packUuid = randomUUID()
-  const itemInserts = icons.map((icon) => {
-    const itemUuid = randomUUID()
-    return (
-      `INSERT INTO "image_pack_items" ` +
-      `("uuid", "pack_id", "slug", "name", "storage_kind", "svg_content") ` +
-      `SELECT '${itemUuid}', "id", '${sqlEscape(icon.slug)}', '${sqlEscape(icon.name)}', ` +
-      `'inline_svg', '${sqlEscape(icon.content)}' ` +
-      `FROM "image_packs" WHERE "slug" = '${vendor.slug}' AND "organization_id" IS NULL ` +
-      `ON CONFLICT ("pack_id", "slug") DO NOTHING;`
-    )
-  })
-
-  return (
-    `INSERT INTO "image_packs" ("uuid", "organization_id", "is_system", "slug", "name", "description")\n` +
-    `VALUES ('${packUuid}', NULL, true, '${vendor.slug}', '${sqlEscape(vendor.packName)}', '${sqlEscape(vendor.description)}')\n` +
-    `ON CONFLICT DO NOTHING;\n` +
-    `--> statement-breakpoint\n` +
-    `${itemInserts.join("\n--> statement-breakpoint\n")}\n`
-  )
+/** Keeps a plugin's existing version across regenerations — bump it by hand
+ *  in plugin.json when a vendor's icon set changes meaningfully. */
+function existingVersion(pluginJsonPath: string): string {
+  if (!existsSync(pluginJsonPath)) return "1.0.0"
+  const parsed = JSON.parse(readFileSync(pluginJsonPath, "utf8")) as {
+    version?: string
+  }
+  return parsed.version ?? "1.0.0"
 }
 
 function main(): void {
@@ -125,23 +116,63 @@ function main(): void {
       .normalize(files)
       .sort((a, b) => a.slug.localeCompare(b.slug))
 
-    const assetsDir = path.join(IMAGE_LIBRARY_DIR, "assets", vendor.slug)
-    mkdirSync(assetsDir, { recursive: true })
+    const pluginDir = path.join(PLUGINS_DIR, vendor.slug)
+    const iconsDir = path.join(pluginDir, "icons")
+    mkdirSync(iconsDir, { recursive: true })
+
     for (const icon of icons) {
       writeFileSync(
-        path.join(assetsDir, `${icon.slug}.svg`),
+        path.join(iconsDir, `${icon.slug}.svg`),
         icon.content + "\n"
       )
     }
 
-    const migrationPath = path.join(MIGRATIONS_DIR, vendor.migrationFile)
-    writeFileSync(migrationPath, buildMigrationSql(vendor, icons))
+    const pluginJsonPath = path.join(pluginDir, "plugin.json")
+    writeFileSync(
+      pluginJsonPath,
+      JSON.stringify(
+        {
+          id: vendor.slug,
+          name: vendor.name,
+          version: existingVersion(pluginJsonPath),
+          description: vendor.description,
+          type: "icon-pack",
+        },
+        null,
+        2
+      ) + "\n"
+    )
+
+    const manifestIcons = icons
+      .map(
+        (icon) =>
+          `  { slug: ${JSON.stringify(icon.slug)}, name: ${JSON.stringify(icon.name)}, file: ${JSON.stringify(`${icon.slug}.svg`)} },`
+      )
+      .join("\n")
+    writeFileSync(
+      path.join(pluginDir, "manifest.ts"),
+      `// AUTO-GENERATED by scripts/generate-cloud-icon-packs.ts — do not edit.
+// Import of TYPE only, erased at compile time — never needs to be resolved
+// at runtime. Relative path because plugins/ is not a pnpm workspace member
+// (no @workspace/types specifier resolvable here).
+import type { IconPluginManifest } from "../../packages/types/src/index"
+
+const manifest: IconPluginManifest = {
+  icons: [
+${manifestIcons}
+  ],
+}
+
+export default manifest
+`
+    )
 
     console.log(
-      `[${vendor.slug}] ${files.length} source files -> ${icons.length} icons ` +
-        `(${assetsDir}, ${migrationPath})`
+      `[${vendor.slug}] ${files.length} source files -> ${icons.length} icons (${pluginDir})`
     )
   }
+
+  console.log("Run `pnpm --filter server gen:plugin-registry` next.")
 }
 
 main()

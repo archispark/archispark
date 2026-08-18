@@ -1,8 +1,0 @@
-import type { SystemArchimateIcon } from "../types.js"
-
-export const resource: SystemArchimateIcon = {
-  slug: "resource",
-  name: "Resource",
-  archimateType: "Resource",
-  svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 32 32\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linejoin=\"round\" stroke-linecap=\"round\"><g transform=\"translate(28 2)\"><rect x=\"-20\" y=\"7\" width=\"15\" height=\"10\" rx=\"1.5\" fill=\"none\"/><rect x=\"-5\" y=\"10\" width=\"2\" height=\"4\" rx=\"0.5\" fill=\"none\"/><path d=\"M-17 9 L-17 15 M-14 9 L-14 15 M-11 9 L-11 15\" fill=\"none\"/></g></svg>",
-}

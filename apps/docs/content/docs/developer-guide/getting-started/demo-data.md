@@ -15,98 +15,112 @@ workspaces, or ArchiMate data:
 
 `pnpm seed:local-admin` re-runs the same local account creation on demand
 (`.docker/local-auth/admin-user.json`) — use it to recover a locked-out
-`admin` account, or after `pnpm db:reset` (which wipes the `users` table, so
-the migration-driven seed above won't fire again — it only runs once, the
-first time migration `0025` itself applies).
+`admin` account, or after `pnpm --filter @workspace/db reset` (which wipes
+the `users` table, so the migration-driven seed above won't fire again — it
+only runs once, the first time migration `0025` itself applies).
 
-Either way, no organization or workspace is created: signing in and creating
-the first workspace automatically creates a personal organization for that
-user (see
+Either way, no organization or workspace is created: signing in lands on the
+starter home page with no organization until an owner, editor, or an Admin
+adding itself from `/platform/organizations/:id` grants that account
+membership (see
 [Organizations and roles](../reference/authentication.mdx#organizations-and-roles)).
 
 ## Demo seed
 
-Three sample ArchiMate models are available for demo or local testing:
+Two sample ArchiMate models are available for demo or local testing:
 
 | Model        | Elements | Relationships | Views |
 | ------------ | -------- | ------------- | ----- |
 | ArchiMetal   | 294      | 476           | 33    |
 | ArchiSurance | 257      | 402           | 40    |
-| Open Day     | 27       | 37            | 4     |
 
-The workspaces are grouped into two demo organizations
-(`packages/db/seeds/demo-orgs.json`), deliberately isolated from each other
-(no shared members):
+The workspaces are grouped into a single demo organization
+(`packages/db/seeds/demo-orgs.json`):
 
-| Organization | Workspaces               | Account   | Role                                                                                                                                                                                  |
-| ------------ | ------------------------ | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Archi        | ArchiSurance, ArchiMetal | `archi`   | `owner`                                                                                                                                                                               |
-| Archi        | ArchiSurance, ArchiMetal | `contrib` | `editor`                                                                                                                                                                              |
-| Archi        | ArchiSurance, ArchiMetal | `user`    | `viewer`                                                                                                                                                                              |
-| Open         | Open Day                 | `open`    | `owner`                                                                                                                                                                               |
-| _(none)_     | —                        | `admin`   | Admin (Keycloak `platform_admin`) — deliberately a member of neither; admin mode defaults to the smallest existing organization, and can switch to any organization's content instead |
+| Organization | Workspaces               | Account   | Role                                                                                                                                                                     |
+| ------------ | ------------------------ | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Archi        | ArchiSurance, ArchiMetal | `archi`   | `owner`                                                                                                                                                                  |
+| Archi        | ArchiSurance, ArchiMetal | `contrib` | `editor`                                                                                                                                                                 |
+| Archi        | ArchiSurance, ArchiMetal | `user`    | `viewer`                                                                                                                                                                 |
+| _(none)_     | —                        | `admin`   | Admin (Keycloak `platform_admin`) — deliberately not a member; can add itself from `/platform/organizations/:id`'s member management, like any other user               |
 
 - **Membership is authoritative on every reseed**: narrowing an
   organization's `members` in `demo-orgs.json` removes any now-unlisted
   `organization_members` row on the next `pnpm seed:demo` run rather than
-  leaving it behind (see `removeStaleMembers` in `seed-demo.ts`) — this is
-  how `archi`/`user`/`contrib` lost access to Open when it was split off
-  into its own, single-owner organization.
+  leaving it behind (see `removeStaleMembers` in `seed-demo.ts`).
 - The seed is **idempotent** — re-running it replaces the matching
   workspace's content.
 
 ```bash
-# First-time setup: create the demo Keycloak accounts, then load the demo data.
-pnpm seed:demo-users   # sources .env.dev automatically
-pnpm seed:demo         # sources .env.dev automatically
+# First-time setup: create the demo accounts, then load the demo data.
+pnpm seed:local-demo-users   # sources .env.dev automatically — local accounts (default)
+pnpm seed:demo               # sources .env.dev automatically
 ```
 
-**`pnpm seed:demo-users`** creates/updates the 5 Keycloak demo accounts
-(`admin`/`user`/`contrib`/`archi`/`open`, passwords match usernames, see
-`.docker/keycloak/demo-users.json`) via the Keycloak Admin API — requires
-`KEYCLOAK_URL`, `KEYCLOAK_REALM`, `KEYCLOAK_ADMIN_CLIENT_ID`,
-`KEYCLOAK_ADMIN_CLIENT_SECRET`.
+**`pnpm seed:local-demo-users`** creates/updates the 4 local demo accounts
+(`admin`/`user`/`contrib`/`archi`, passwords match usernames, see
+`packages/db/seeds/local-demo-users.json`) directly in the `users` table —
+requires `DATABASE_URL`. This is the default path
+(`KEYCLOAK_SSO_ENABLED` unset/`false`, see
+[Local accounts](../reference/authentication.mdx#local-accounts)). With
+Keycloak SSO enabled instead, use **`pnpm seed:demo-users`**, which
+creates/updates the same 4 accounts (`.docker/keycloak/demo-users.json`)
+via the Keycloak Admin API — requires `KEYCLOAK_URL`, `KEYCLOAK_REALM`,
+`KEYCLOAK_ADMIN_CLIENT_ID`, `KEYCLOAK_ADMIN_CLIENT_SECRET`.
 
-**`pnpm seed:demo`** seeds the two demo organizations, their memberships,
-and the ArchiMate demo data (ArchiMetal/ArchiSurance/Open Day) — requires
-`DATABASE_URL` and looks up `archi`/`user`/`contrib`/`open`'s Keycloak
-`sub`s (same Keycloak env vars as above; run `seed:demo-users` first).
+**`pnpm seed:demo`** seeds the demo organization, its memberships, and the
+ArchiMate demo data (ArchiMetal/ArchiSurance) — requires `DATABASE_URL` and
+resolves `archi`/`user`/`contrib`'s user id from either the local `users`
+table or Keycloak, depending on `KEYCLOAK_SSO_ENABLED` (run the matching
+`seed:local-demo-users` or `seed:demo-users` first).
 `packages/db/seeds/demo.sql` itself is a template — its
-`__ARCHISURANCE_ORGANIZATION_ID__`/`__ARCHIMETAL_ORGANIZATION_ID__`/`__OPENDAY_ORGANIZATION_ID__`/`__CREATED_BY_ID__`
+`__ARCHISURANCE_ORGANIZATION_ID__`/`__ARCHIMETAL_ORGANIZATION_ID__`/`__CREATED_BY_ID__`
 placeholders are only substituted by `seed-demo.ts`, so run it via `pnpm
 seed:demo` rather than `psql -f` directly.
 
-To reproduce **Actions → Restore demo data** locally, run:
+To fully reset and reload the demo data locally (the same behavior as the
+`seed-demo.yml` GitHub Actions workflow below), run each step manually —
+there is no single composite command, on purpose:
 
 ```bash
-pnpm reset-demo
+pnpm --filter @workspace/db reset       # wipe PostgreSQL app data (schema/migration history preserved)
+pnpm --filter @workspace/db-neo4j reset # wipe the Neo4j graph
+pnpm run db:migrate                     # reapply/backfill migrations
+pnpm run seed                           # recreate the demo accounts, organizations and workspaces
+pnpm run import:workspaces              # export every workspace to Neo4j
 ```
 
-`pnpm reset-demo`:
+This is a full wipe, not scoped to the 2 demo workspaces: any other
+organization or workspace in the same database is removed too.
 
-1. Applies pending PostgreSQL and Neo4j migrations.
-2. Runs the organization backfill.
-3. Creates or updates the demo Keycloak accounts.
-4. Replaces the three demo workspaces.
-5. Exports every workspace to Neo4j.
+System dashboards are global rows (`dashboards.workspaceId IS NULL`),
+seeded only once by migration `0032_dashboard_system_seed.sql` — there is
+no seed script or reseed path. `pnpm --filter @workspace/db reset` preserves
+Drizzle's migration history, so this wipe removes them and they are **not**
+restored by the `pnpm run db:migrate` step above.
 
-It deletes only ArchiMetal, ArchiSurance, and Open Day (with their child
-rows through PostgreSQL cascades); it does not erase other organizations or
-workspaces.
+## Restore demo data (GitHub Actions)
 
-To remove all ArchiSpark PostgreSQL and Neo4j data without loading demo data,
-run `pnpm reset`. It preserves database schemas and migration histories, as
-well as the separate Keycloak database and its users.
+`.github/workflows/seed-demo.yml` ("Restore demo data") resets
+`demo.archispark.cloud`'s Neon database once a day (`0 3 * * *`) and can
+also be triggered manually from **Actions → Restore demo data → Run
+workflow**, or with `gh workflow run seed-demo.yml`. It runs the same full
+fresh-reinstall-style wipe and reseed as the manual sequence above (same
+caveat on system dashboards not being restored), using **local accounts,
+not Keycloak** (demo.archispark.cloud runs with `KEYCLOAK_SSO_ENABLED`
+unset — the workflow's runner has it unset too, so `pnpm run seed` resolves
+to the same local-accounts path automatically). Every application table is
+wiped (schema/migration history preserved) before reseeding — **not** a
+scoped delete of just the 2 demo workspaces: any account, organization, or
+workspace a visitor created since the last reset is removed too. That's
+expected on a public demo where visitors can perform uncontrolled
+operations.
 
-## Restore demo data on Vercel (GitHub Actions)
-
-The workflow **Actions → Restore demo data** can be triggered manually from GitHub to reset the Vercel Postgres database to the demo state.
-
-**Required GitHub secrets** — add `DATABASE_URL_UNPOOLED` (Neon direct URL), and `KEYCLOAK_URL`, `KEYCLOAK_REALM`, `KEYCLOAK_ADMIN_CLIENT_ID`, `KEYCLOAK_ADMIN_CLIENT_SECRET` (Keycloak Admin API access) to the repository secrets (Settings → Secrets and variables → Actions). Copy the values from the Vercel project environment variables.
-
-The workflow offers a **reset** checkbox (on by default): when checked it deletes the existing ArchiMetal, ArchiSurance and Open Day workspaces (all child data is removed via CASCADE) before re-seeding. Uncheck it to seed only if those workspaces do not yet exist.
-
-The workflow runs `seed:demo-users` (creates/updates the 5 Keycloak demo accounts on the target realm) before `seed:demo` — so adding a new demo account (like `open`) to `.docker/keycloak/demo-users.json` needs no manual Keycloak step on the Vercel/remote side; the next workflow run provisions it automatically.
+It does not touch Neo4j — the Neo4j export feature isn't enabled on the
+demo Vercel project, so the workflow only resets and reseeds PostgreSQL. It
+reuses the same `DATABASE_URL_UNPOOLED` repository secret as
+`migrate-prod.yml`; no additional secret or Vercel environment variable is
+needed.
 
 ### Retiring/renaming a demo organization slug
 

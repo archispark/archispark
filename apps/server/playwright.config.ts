@@ -14,22 +14,19 @@ import { defineConfig, devices } from "@playwright/test"
 // every other route hits "relation ... does not exist".
 //
 // Two accounts, two purposes: admin/admin (platform_admin) only exercises
-// auth.spec.ts's login/forced-password-change/logout flow. Login now
-// defaults platform_admin into the smallest existing organization
-// automatically (ensureDefaultPlatformOrganization,
-// lib/archimate/platform-context-store.ts), but auth-setup always runs
-// before any organization exists in this run's throwaway DB, so that
-// default entry is a no-op and components/client-layout.tsx's
-// PlatformAdminBlock still gates admin/admin out of every other page for
-// that spec. Every other spec logs in as e2e-user (an ordinary "user"-role
+// auth.spec.ts's login/forced-password-change/logout flow — it's a regular
+// user for organization content (lib/archimate/access.ts) and this suite
+// never makes it a real member of an organization, so it always reaches
+// /platform/*, /login, /change-password and /invitations/* but nothing
+// else. Every other spec logs in as e2e-user (an ordinary "user"-role
 // account, fixtures.ts) to actually reach
 // workspaces/elements/relationships/views/dashboards/settings.
 //
-// Multi-role (owner/editor/viewer), invitations, and platform-admin-mode
-// (entering another organization) scenarios need Keycloak-backed accounts
-// sharing an organization, which local accounts can't do
-// (packages/auth/src/admin-users.ts resolves members via the Keycloak
-// Admin API, not the local `users` table) — out of scope for this suite.
+// Multi-role (owner/editor/viewer) and invitations scenarios need
+// Keycloak-backed accounts sharing an organization, which local accounts
+// can't do (packages/auth/src/admin-users.ts resolves members via the
+// Keycloak Admin API, not the local `users` table) — out of scope for this
+// suite.
 export default defineConfig({
   testDir: "./e2e",
   testMatch: "**/*.spec.ts",

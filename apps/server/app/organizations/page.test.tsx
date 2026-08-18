@@ -21,22 +21,21 @@ vi.mock("@/lib/queries", () => ({
     ],
     isLoading: false,
   }),
-  useRenameOrganization: () => ({ mutateAsync: vi.fn() }),
   useActivateOrganization: () => ({ mutate: vi.fn(), isPending: false }),
 }))
 
 describe("OrganizationsPage", () => {
-  it("does not expose organization creation or deletion to an owner", () => {
+  it("links the organization name to its detail page instead of exposing row action buttons", () => {
     render(<OrganizationsPage />)
 
+    const link = screen.getByRole("link", { name: /Archi/ })
+    expect(link).toHaveAttribute("href", "/organizations/1")
+
     expect(
-      screen.queryByRole("button", { name: "settings.org.org_new_btn" })
+      screen.queryByRole("button", { name: "settings.org.members_title" })
     ).not.toBeInTheDocument()
     expect(
-      screen.queryByRole("button", { name: "common.delete" })
+      screen.queryByRole("button", { name: "common.edit" })
     ).not.toBeInTheDocument()
-    expect(
-      screen.getByRole("button", { name: "common.edit" })
-    ).toBeInTheDocument()
   })
 })

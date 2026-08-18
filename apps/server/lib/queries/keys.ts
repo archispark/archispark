@@ -24,12 +24,20 @@ export const queryKeys = {
     ["organizationInvitations", orgId] as const,
   invitationPreview: (token: string) => ["invitationPreview", token] as const,
   platformOrganizations: () => ["platformOrganizations"] as const,
-  platformActiveOrganization: () => ["platformActiveOrganization"] as const,
+  platformOrganization: (id: string) => ["platformOrganization", id] as const,
+  platformUsers: () => ["platformUsers"] as const,
+  platformUser: (id: string) => ["platformUser", id] as const,
   dashboards: () => ["dashboards"] as const,
   dashboard: (id: string) => ["dashboard", id] as const,
   dashboardsAdmin: () => ["dashboardsAdmin"] as const,
   panelVisualizations: () => ["panelVisualizations"] as const,
-  panelResult: (dashboardId: string, panelInstanceId: string, parameters: Record<string, string>) =>
-    ["panelResult", dashboardId, panelInstanceId, parameters] as const,
-  imagePacks: () => ["imagePacks"] as const,
+  panelResult: (
+    dashboardId: string,
+    panelInstanceId: string,
+    parameters: Record<string, string>
+  ) => ["panelResult", dashboardId, panelInstanceId, parameters] as const,
+  platformPlugins: () => ["platformPlugins"] as const,
+  platformPlugin: (slug: string) => ["platformPlugin", slug] as const,
+  plugins: () => ["plugins"] as const,
+  siteMessages: () => ["siteMessages"] as const,
 }

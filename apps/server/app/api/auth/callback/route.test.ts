@@ -4,17 +4,9 @@ import { GET } from "./route"
 
 vi.mock("@workspace/auth", () => ({
   exchangeCodeForTokens: vi.fn(),
-  verifyAccessToken: vi.fn(),
 }))
 
-// Keeps this test DB-free — see platform-context-store.test.ts for
-// ensureDefaultPlatformOrganization's own behavior.
-vi.mock("@/lib/archimate/platform-context-store", () => ({
-  ensureDefaultPlatformOrganization: vi.fn(),
-}))
-
-import { exchangeCodeForTokens, verifyAccessToken } from "@workspace/auth"
-import { ensureDefaultPlatformOrganization } from "@/lib/archimate/platform-context-store"
+import { exchangeCodeForTokens } from "@workspace/auth"
 
 function makeReq(path: string, cookie?: string): NextRequest {
   return new NextRequest(`http://localhost:8000${path}`, {
@@ -29,8 +21,6 @@ describe("GET /api/auth/callback", () => {
   afterEach(() => {
     vi.unstubAllEnvs()
     vi.mocked(exchangeCodeForTokens).mockReset()
-    vi.mocked(verifyAccessToken).mockReset()
-    vi.mocked(ensureDefaultPlatformOrganization).mockReset()
   })
 
   it("redirects to /login when KEYCLOAK_CLIENT_ID_WEB is not set", async () => {
@@ -99,43 +89,6 @@ describe("GET /api/auth/callback", () => {
     expect(res.cookies.get("oidc_state")?.value).toBe("")
     expect(res.cookies.get("pkce_verifier")?.value).toBe("")
     expect(res.cookies.get("auth_redirect")?.value).toBe("")
-  })
-
-  it("enters a platform_admin into its default organization on login", async () => {
-    vi.stubEnv("KEYCLOAK_CLIENT_ID_WEB", "archispark-web")
-    vi.mocked(exchangeCodeForTokens).mockResolvedValue({
-      access_token: "at",
-      expires_in: 300,
-    })
-    vi.mocked(verifyAccessToken).mockResolvedValue({
-      sub: "kc-admin-1",
-      realm_access: { roles: ["platform_admin"] },
-    })
-
-    await GET(
-      makeReq("/api/auth/callback?code=abc&state=expected-state", FLOW_COOKIES)
-    )
-
-    expect(verifyAccessToken).toHaveBeenCalledWith("at")
-    expect(ensureDefaultPlatformOrganization).toHaveBeenCalledWith("kc-admin-1")
-  })
-
-  it("does not enter admin mode for an ordinary user", async () => {
-    vi.stubEnv("KEYCLOAK_CLIENT_ID_WEB", "archispark-web")
-    vi.mocked(exchangeCodeForTokens).mockResolvedValue({
-      access_token: "at",
-      expires_in: 300,
-    })
-    vi.mocked(verifyAccessToken).mockResolvedValue({
-      sub: "kc-user-1",
-      realm_access: { roles: [] },
-    })
-
-    await GET(
-      makeReq("/api/auth/callback?code=abc&state=expected-state", FLOW_COOKIES)
-    )
-
-    expect(ensureDefaultPlatformOrganization).not.toHaveBeenCalled()
   })
 
   it("defaults to / when there is no auth_redirect cookie", async () => {

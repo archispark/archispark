@@ -6,6 +6,7 @@ import { useDashboards } from "@/lib/queries/dashboards"
 import { useCanEditDashboards } from "@/hooks/use-can-edit-dashboards"
 import { useT } from "@/lib/i18n"
 import { Button } from "@workspace/ui/components/button"
+import { datasourceTypesUsed } from "@/lib/dashboards/datasource-badge"
 
 export default function DashboardsPage() {
   const { t } = useT()
@@ -28,7 +29,7 @@ export default function DashboardsPage() {
             render={<Link href="/dashboards/admin/new" />}
             nativeButton={false}
             size="sm"
-            className="bg-indigo-600 text-primary-foreground hover:bg-indigo-700"
+            className="bg-emerald-600 text-primary-foreground hover:bg-emerald-700"
           >
             <Plus /> {t("common.add")}
           </Button>
@@ -54,7 +55,7 @@ export default function DashboardsPage() {
             className="rounded-lg border border-border bg-card p-4 transition-colors hover:bg-accent"
           >
             <h2 className="font-semibold text-card-foreground">
-              {definition.title}
+              {definition.title} ({datasourceTypesUsed(definition).join(", ")})
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">
               {definition.description}

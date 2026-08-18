@@ -1,10 +1,10 @@
 /**
- * Tests for platform_admin's full owner-equivalent access to organization
- * content (src/access.ts) — split out of access.test.ts to stay under the
- * max-lines limit. Covers assertOrgAccess/assertWorkspaceAccess bypass
- * behaviour and the admin-mode active-organization pointer
- * (resolveActivePlatformOrganizationId/setActivePlatformOrganization/
- * clearActivePlatformOrganization).
+ * Tests for platform_admin's access to organization content (access.ts) —
+ * split out of access.test.ts to stay under the max-lines limit. Since the
+ * removal of the "admin mode" bypass, platform_admin follows the exact same
+ * organization_members-based rules as any other user for workspace/element/
+ * dashboard content; its only unconditional access is to /platform/**,
+ * gated separately by withSuperAdmin.
  */
 
 import { describe, it, expect, beforeAll } from "vitest"
@@ -20,13 +20,9 @@ import {
   assertWorkspaceAccess,
   resolveActiveContext,
   resolveActiveOrganization,
-  resolveActiveOrganizationId,
-  resolveActivePlatformOrganizationId,
-  setActivePlatformOrganization,
-  clearActivePlatformOrganization,
   type AccessUser,
 } from "./access"
-import { NotFoundError } from "./errors"
+import { NotFoundError, ForbiddenError } from "./errors"
 
 const PLATFORM_ADMIN: AccessUser = {
   id: `platform-${randomUUID()}`,
@@ -70,32 +66,41 @@ beforeAll(async () => {
 })
 
 describe("assertOrgAccess — platform_admin", () => {
-  it("gets full owner-equivalent access regardless of any membership row", async () => {
-    // Give platform_admin a viewer membership row on purpose — it must be
-    // ignored entirely; the effective role is always the synthetic "owner".
-    await db.insert(organizationMembers).values({
-      organizationId: orgId,
-      userId: PLATFORM_ADMIN.id,
-      role: "viewer",
-    })
-    await expect(assertOrgAccess(PLATFORM_ADMIN, orgId, "read")).resolves.toBe(
-      "owner"
-    )
-    await expect(assertOrgAccess(PLATFORM_ADMIN, orgId, "write")).resolves.toBe(
-      "owner"
-    )
+  it("gets NotFoundError like any other user without a membership row", async () => {
     await expect(
-      assertOrgAccess(PLATFORM_ADMIN, orgId, "manage_members")
-    ).resolves.toBe("owner")
+      assertOrgAccess(PLATFORM_ADMIN, orgId, "read")
+    ).rejects.toBeInstanceOf(NotFoundError)
   })
 
-  it("bypasses organization suspension, unlike owner/editor/viewer", async () => {
+  it("follows its real membership role once it has one", async () => {
+    const admin: AccessUser = {
+      id: `platform-member-${randomUUID()}`,
+      role: "platform_admin",
+    }
+    await db.insert(organizationMembers).values({
+      organizationId: orgId,
+      userId: admin.id,
+      role: "viewer",
+    })
+    await expect(assertOrgAccess(admin, orgId, "read")).resolves.toBe("viewer")
+    await expect(assertOrgAccess(admin, orgId, "write")).rejects.toBeInstanceOf(
+      ForbiddenError
+    )
+  })
+
+  it("is refused on a suspended organization even as a real owner", async () => {
+    const admin: AccessUser = {
+      id: `platform-suspended-owner-${randomUUID()}`,
+      role: "platform_admin",
+    }
+    await db.insert(organizationMembers).values({
+      organizationId: suspendedOrgId,
+      userId: admin.id,
+      role: "owner",
+    })
     await expect(
-      assertOrgAccess(PLATFORM_ADMIN, suspendedOrgId, "read")
-    ).resolves.toBe("owner")
-    await expect(
-      assertOrgAccess(PLATFORM_ADMIN, suspendedOrgId, "write")
-    ).resolves.toBe("owner")
+      assertOrgAccess(admin, suspendedOrgId, "read")
+    ).rejects.toBeInstanceOf(ForbiddenError)
   })
 
   it("still gets NotFoundError for an organization that doesn't exist", async () => {
@@ -106,98 +111,55 @@ describe("assertOrgAccess — platform_admin", () => {
 })
 
 describe("assertWorkspaceAccess — platform_admin", () => {
-  it("can act on a workspace by explicit id without having entered its organization", async () => {
-    const ctx = await assertWorkspaceAccess(
-      PLATFORM_ADMIN,
-      workspaceId,
-      "write"
-    )
+  it("is refused without a membership row on the workspace's organization", async () => {
+    await expect(
+      assertWorkspaceAccess(PLATFORM_ADMIN, workspaceId, "write")
+    ).rejects.toBeInstanceOf(NotFoundError)
+  })
+
+  it("succeeds once it's a real member of the workspace's organization", async () => {
+    const admin: AccessUser = {
+      id: `platform-workspace-member-${randomUUID()}`,
+      role: "platform_admin",
+    }
+    await db.insert(organizationMembers).values({
+      organizationId: orgId,
+      userId: admin.id,
+      role: "editor",
+    })
+    const ctx = await assertWorkspaceAccess(admin, workspaceId, "write")
     expect(ctx).toEqual({
       organizationId: orgId,
       workspaceId,
-      orgRole: "owner",
+      orgRole: "editor",
     })
   })
 })
 
-describe("resolveActiveContext — platform_admin", () => {
-  it("has no active organization until it explicitly enters one", async () => {
+describe("resolveActiveContext / resolveActiveOrganization — platform_admin", () => {
+  it("has no active organization without any real membership", async () => {
     await expect(
       resolveActiveContext(PLATFORM_ADMIN, "read")
     ).rejects.toBeInstanceOf(NotFoundError)
-  })
-})
-
-describe("platform_admin admin mode", () => {
-  it("resolveActivePlatformOrganizationId throws NotFoundError before any organization is entered", async () => {
-    const freshAdmin: AccessUser = {
-      id: `platform-fresh-${randomUUID()}`,
-      role: "platform_admin",
-    }
     await expect(
-      resolveActivePlatformOrganizationId(freshAdmin.id)
+      resolveActiveOrganization(PLATFORM_ADMIN, "read")
     ).rejects.toBeInstanceOf(NotFoundError)
   })
 
-  it("setActivePlatformOrganization persists the pointer, resolveActivePlatformOrganizationId reads it back", async () => {
+  it("resolves its active organization the same way a regular member would once it has a real membership", async () => {
     const admin: AccessUser = {
-      id: `platform-enter-${randomUUID()}`,
+      id: `platform-active-${randomUUID()}`,
       role: "platform_admin",
     }
-    await setActivePlatformOrganization(admin.id, orgId)
-    await expect(resolveActivePlatformOrganizationId(admin.id)).resolves.toBe(
-      orgId
-    )
-  })
-
-  it("clearActivePlatformOrganization removes the pointer ('exit')", async () => {
-    const admin: AccessUser = {
-      id: `platform-exit-${randomUUID()}`,
-      role: "platform_admin",
-    }
-    await setActivePlatformOrganization(admin.id, orgId)
-    await clearActivePlatformOrganization(admin.id)
-    await expect(
-      resolveActivePlatformOrganizationId(admin.id)
-    ).rejects.toBeInstanceOf(NotFoundError)
-  })
-
-  it("a platform_admin's active-organization pointer never leaks into resolveActiveOrganizationId (regular members)", async () => {
-    const admin: AccessUser = {
-      id: `platform-isolated-${randomUUID()}`,
-      role: "platform_admin",
-    }
-    await setActivePlatformOrganization(admin.id, orgId)
-    // A regular user with this same id is never a member of anything, so
-    // the membership-based resolver must still reject it — the pointer
-    // table is shared, but its meaning depends entirely on the caller's role.
-    await expect(resolveActiveOrganizationId(admin.id)).rejects.toBeInstanceOf(
-      NotFoundError
-    )
-  })
-
-  it("resolveActiveOrganization fails before enter, succeeds after", async () => {
-    const admin: AccessUser = {
-      id: `platform-resolve-${randomUUID()}`,
-      role: "platform_admin",
-    }
-    await expect(
-      resolveActiveOrganization(admin, "read")
-    ).rejects.toBeInstanceOf(NotFoundError)
-
-    await setActivePlatformOrganization(admin.id, orgId)
+    await db.insert(organizationMembers).values({
+      organizationId: orgId,
+      userId: admin.id,
+      role: "owner",
+    })
     await expect(resolveActiveOrganization(admin, "read")).resolves.toEqual({
       organizationId: orgId,
       orgRole: "owner",
     })
-  })
-
-  it("resolveActiveContext resolves a full context once entered, workspace included", async () => {
-    const admin: AccessUser = {
-      id: `platform-context-${randomUUID()}`,
-      role: "platform_admin",
-    }
-    await setActivePlatformOrganization(admin.id, orgId)
     const ctx = await resolveActiveContext(admin, "write")
     expect(ctx).toEqual({
       organizationId: orgId,

@@ -1,17 +1,13 @@
 /**
  * Shared types for the ArchiSpark image library. Consumed by apps/server
- * (metadata for the image picker) and apps/docs (the ArchiMate icon
+ * (default ArchiMate node icons) and apps/docs (the ArchiMate icon
  * gallery), so this package must stay free of any server-only dependency
  * (no DB, no Node-only API).
  */
 
-export interface SystemArchimateIcon {
-  slug: string
-  name: string
-  archimateType: string
-  /** Self-contained SVG markup, viewBox 0 0 32 32, stroke="currentColor". */
-  svg: string
-}
+import type { ComponentType, SVGProps } from "react"
+
+export type ArchimateIconComponent = ComponentType<SVGProps<SVGSVGElement>>
 
 /**
  * ArchiMate layer for a given element type — duplicated from
@@ -63,9 +59,13 @@ export function layerForArchimateType(type: string): string {
   )
     return "Strategy"
   if (
-    ["WorkPackage", "Deliverable", "ImplementationEvent", "Plateau", "Gap"].includes(
-      type
-    )
+    [
+      "WorkPackage",
+      "Deliverable",
+      "ImplementationEvent",
+      "Plateau",
+      "Gap",
+    ].includes(type)
   )
     return "Implementation"
   return "Composite"

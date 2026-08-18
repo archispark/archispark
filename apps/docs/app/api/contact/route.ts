@@ -31,7 +31,8 @@ export async function POST(request: Request): Promise<NextResponse> {
       email: body.email.trim(),
       message: body.message.trim(),
     })
-  } catch {
+  } catch (err) {
+    console.error("Échec de l'envoi du formulaire de contact :", err)
     return NextResponse.json(
       { error: "L'envoi du message a échoué. Réessayez plus tard." },
       { status: 502 }

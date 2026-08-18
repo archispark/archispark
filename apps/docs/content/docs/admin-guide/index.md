@@ -6,14 +6,15 @@ description: Organizations, invitations, roles, platform administration, and use
 ArchiSpark separates organization administration from platform administration.
 An organization contains its members, API tokens, workspaces, models, and
 dashboards. The Admin role (Keycloak identifier `platform_admin`) manages
-organization metadata, and gets full Owner-equivalent access to any
-organization's content, including a suspended one, through admin mode.
-Admin mode is entered automatically on login — the smallest existing
-organization by default — with no manual step required; an Admin can switch
-to a different organization, or exit admin mode for the rest of the
-session, from `/platform/organizations` at any time.
+organization, user, and plugin metadata from `/platform/**`,
+independently of any organization membership. For an organization's actual
+content (workspaces, models, dashboards), Admin has no special access: like
+any other user, it needs to be a real Owner, Editor, or Viewer of that
+organization — which it can grant itself from an organization's member
+management in `/platform/organizations` — and is then bound by the same
+rules as any member, including being refused on a suspended organization.
 
-![Platform administration page listing organizations with Administer and Suspend actions](/screenshots/admin-mode.png)
+![Platform administration page listing organizations](/screenshots/admin-mode.png)
 
 ## Organization roles
 
@@ -51,31 +52,41 @@ behavior are described in
 ## Admin administration
 
 Assign the Admin Keycloak realm role (`platform_admin`) directly, or use the helpers in
-`packages/auth/src/admin-users.ts`. On login, as soon as at least one
-organization exists, these users are automatically entered into the
-smallest existing one and land in the regular workspace UI, resolved as
-Owner: read/write elements, relationships, views, dashboards, members, and
-API tokens, even if the organization is suspended — no manual "enter" step
-required. A banner stays visible while in admin mode. Only when no
-organization exists yet, or after explicitly exiting admin mode, are these
-users redirected to `/platform/organizations`, where they can:
+`packages/auth/src/admin-users.ts`. These users always reach
+`/platform/organizations`, where they can:
 
 - list all organizations;
 - suspend or reactivate one;
 - delete one, cascading to its workspaces, memberships, invitations,
   dashboards, and organization-scoped tokens;
-- update the site login message and banner through
-  `PUT /api/settings/messages`;
-- select **Administer** on an organization to switch admin mode to it
-  (`POST /api/platform/organizations/:id/enter`), or **Exit** admin mode
-  entirely (`DELETE /api/platform/organizations/active`), which returns to
-  `/platform/organizations` with no organization administered.
+- edit the site login message and in-app banner from
+  `/platform/settings` (e.g. to list demo account credentials on the login
+  page), backed by `PUT /api/settings/messages`;
+- from an organization's detail page, add itself (or any other user) as
+  Owner, Editor, or Viewer through the member-management panel — the same
+  route regular Owners use to manage members.
 
-This bypass is centralized in `apps/server/lib/archimate/access.ts`, the
-single authorization gateway every route uses — no per-route special
-casing. Because access this broad shouldn't be pinned indefinitely, Admin
-cannot create a personal API token; its access always goes through a live
-admin-mode session instead.
+An Admin has no workspace access until it does that: like any other user, it
+needs a real `organization_members` row to read/write an organization's
+elements, relationships, views, dashboards, members, or API tokens, and is
+refused on a suspended organization even as a real Owner. This is enforced
+in `apps/server/lib/archimate/access.ts`, the single authorization gateway
+every route uses — no per-route special casing, and no special casing for
+Admin either. Because it has no cross-organization access to pin, Admin
+cannot create a personal API token.
+
+## Plugins
+
+Admin enables or disables the instance-wide icon plugins behind the
+`Archispark Plugin IconPack` system property from `/platform/plugins` — a
+table of every plugin discovered in the `plugins/` folder at build time,
+each with a toggle, no deployment needed to flip it. Installing a *new*
+plugin means adding a `plugins/<slug>/` folder to the repository and
+deploying, not something done from this page.
+
+See [Plugins](developer-guide/reference/plugins.mdx) for the plugin folder
+format, the discovery/activation split, and the built-in AWS/Azure/GCP
+plugins.
 
 ## Provision Keycloak users
 

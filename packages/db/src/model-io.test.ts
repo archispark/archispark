@@ -1,11 +1,19 @@
 import { describe, it, expect, beforeAll } from "vitest"
 import { randomUUID } from "node:crypto"
 import { seedWorkspace, modelFromDb, modelToDb } from "./model-io.js"
-import { ARCHISPARK_IMAGE_PROPERTY_ID } from "./system-properties.js"
+import {
+  ARCHISPARK_IMAGE_PROPERTY_ID,
+  type ImageReferenceValidator,
+} from "./system-properties.js"
 import { runMigrations } from "./migrate.js"
 import { db } from "./connection.js"
 import { organizations } from "./schema.js"
 import type { ArchiModel } from "./model.js"
+
+// packages/db has no knowledge of the real plugin registry (owned by
+// apps/server/lib/plugins/) — these tests only need to verify that
+// modelToDb/seedWorkspace correctly thread whatever validator they're given.
+const alwaysValidImageReference: ImageReferenceValidator = () => true
 
 let userId: string
 let organizationId: number
@@ -46,7 +54,8 @@ describe("seedWorkspace", () => {
       `SW-${Date.now()}`,
       emptyModel("sw-uuid-1"),
       userId,
-      organizationId
+      organizationId,
+      alwaysValidImageReference
     )
     expect(typeof id).toBe("number")
     expect(id).toBeGreaterThan(0)
@@ -58,13 +67,15 @@ describe("seedWorkspace", () => {
       name,
       emptyModel("sw-dup-1"),
       userId,
-      organizationId
+      organizationId,
+      alwaysValidImageReference
     )
     const id2 = await seedWorkspace(
       name,
       emptyModel("sw-dup-2"),
       userId,
-      organizationId
+      organizationId,
+      alwaysValidImageReference
     )
     expect(id2).toBe(id1)
   })
@@ -74,12 +85,13 @@ describe("seedWorkspace", () => {
       `SW-system-${Date.now()}`,
       emptyModel(`sw-system-${Date.now()}`),
       userId,
-      organizationId
+      organizationId,
+      alwaysValidImageReference
     )
     const model = await modelFromDb(id)
     expect(model.propertyDefinitions).toContainEqual({
       uuid: ARCHISPARK_IMAGE_PROPERTY_ID,
-      name: "archispark_image",
+      name: "Archispark Plugin IconPack",
       type: "string",
     })
   })
@@ -105,7 +117,8 @@ describe("modelToDb + modelFromDb roundtrip", () => {
       `RT-system-${Date.now()}`,
       emptyModel(`rt-system-${Date.now()}`),
       userId,
-      organizationId
+      organizationId,
+      alwaysValidImageReference
     )
     const model = emptyModel(`rt-import-${Date.now()}`)
     model.propertyDefinitions = [
@@ -115,10 +128,10 @@ describe("modelToDb + modelFromDb roundtrip", () => {
         type: "number",
       },
     ]
-    await modelToDb(id, model)
+    await modelToDb(id, model, alwaysValidImageReference)
     expect((await modelFromDb(id)).propertyDefinitions).toContainEqual({
       uuid: ARCHISPARK_IMAGE_PROPERTY_ID,
-      name: "archispark_image",
+      name: "Archispark Plugin IconPack",
       type: "string",
     })
   })
@@ -274,7 +287,8 @@ describe("modelToDb + modelFromDb roundtrip", () => {
       `RT-WS-${Date.now()}`,
       model,
       userId,
-      organizationId
+      organizationId,
+      alwaysValidImageReference
     )
     const loaded = await modelFromDb(wsId)
 
@@ -306,7 +320,7 @@ describe("modelToDb + modelFromDb roundtrip", () => {
       loaded.propertyDefinitions.find(
         (p) => p.uuid === ARCHISPARK_IMAGE_PROPERTY_ID
       )?.name
-    ).toBe("archispark_image")
+    ).toBe("Archispark Plugin IconPack")
 
     expect(loaded.views).toHaveLength(2)
     const v1 = loaded.views.find((v) => v.uuid === "v1")!
@@ -343,7 +357,8 @@ describe("modelToDb + modelFromDb roundtrip", () => {
       `Upd-WS-${Date.now()}`,
       initial,
       userId,
-      organizationId
+      organizationId,
+      alwaysValidImageReference
     )
 
     const updated: ArchiModel = {
@@ -364,7 +379,7 @@ describe("modelToDb + modelFromDb roundtrip", () => {
       views: [],
     }
 
-    await modelToDb(wsId, updated)
+    await modelToDb(wsId, updated, alwaysValidImageReference)
     const loaded = await modelFromDb(wsId)
     expect(loaded.desc).toBe("updated")
     expect(loaded.elements).toHaveLength(1)
@@ -397,10 +412,70 @@ describe("modelToDb + modelFromDb roundtrip", () => {
       `Props-WS-${Date.now()}`,
       model,
       userId,
-      organizationId
+      organizationId,
+      alwaysValidImageReference
     )
     const loaded = await modelFromDb(wsId)
     expect(loaded.elements[0]!.props["p1"]).toBe("team-a")
     expect(loaded.elements[0]!.props["p2"]).toBe("1000")
+  })
+})
+
+// ---------------------------------------------------------------------------
+// isValidImageReference injection contract — packages/db must defer entirely
+// to the caller-supplied validator, without knowing what it checks.
+// ---------------------------------------------------------------------------
+
+describe("modelToDb — isValidImageReference injection", () => {
+  it("rejects an Archispark Plugin IconPack value the injected validator refuses", async () => {
+    const id = await seedWorkspace(
+      `Img-WS-${Date.now()}`,
+      emptyModel(`img-uuid-${Date.now()}`),
+      userId,
+      organizationId,
+      alwaysValidImageReference
+    )
+    const model: ArchiModel = {
+      ...emptyModel(`img-uuid2-${Date.now()}`),
+      elements: [
+        {
+          uuid: "img-e1",
+          name: "El",
+          type: "ApplicationComponent",
+          desc: null,
+          props: { [ARCHISPARK_IMAGE_PROPERTY_ID]: "some-icon" },
+        },
+      ],
+    }
+    await expect(modelToDb(id, model, () => false)).rejects.toThrow(
+      /Archispark Plugin IconPack/
+    )
+  })
+
+  it("accepts an Archispark Plugin IconPack value the injected validator approves", async () => {
+    const id = await seedWorkspace(
+      `Img2-WS-${Date.now()}`,
+      emptyModel(`img2-uuid-${Date.now()}`),
+      userId,
+      organizationId,
+      alwaysValidImageReference
+    )
+    const model: ArchiModel = {
+      ...emptyModel(`img2-uuid2-${Date.now()}`),
+      elements: [
+        {
+          uuid: "img2-e1",
+          name: "El",
+          type: "ApplicationComponent",
+          desc: null,
+          props: { [ARCHISPARK_IMAGE_PROPERTY_ID]: "some-icon" },
+        },
+      ],
+    }
+    await modelToDb(id, model, () => true)
+    const loaded = await modelFromDb(id)
+    expect(loaded.elements[0]!.props[ARCHISPARK_IMAGE_PROPERTY_ID]).toBe(
+      "some-icon"
+    )
   })
 })

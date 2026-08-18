@@ -45,8 +45,10 @@ claude mcp add archimate \
 | Persistence          | `save_model` (no-op, kept for compatibility)                                                                                                                      |
 
 Property-definition results include `is_system`. System definitions such as
-`archispark_image` cannot be updated or deleted; their values remain editable
-on elements and relationships and must be HTTP(S) URLs or relative paths.
+`Archispark Plugin IconPack` cannot be updated or deleted; their values
+remain editable on elements and relationships and must be a plugin icon's
+slug (see [Plugins](/docs/developer-guide/reference/plugins)) or a legacy
+HTTP(S) URL / relative path.
 
 **Prompts:** `archimate-modeling-guide` (load ArchiMate 3.1 rules — call first), `create-viewpoint-view` (step-by-step view creation for a given viewpoint).  
 **Resources:** `archimate://layers`, `archimate://relationships`.

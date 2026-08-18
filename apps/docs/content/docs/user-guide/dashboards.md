@@ -3,8 +3,15 @@ title: Dashboards and Neo4j exploration
 description: Export a model to Neo4j, run Cypher and build organization dashboards.
 ---
 
-Dashboards query the Neo4j read model. PostgreSQL remains authoritative: export
-the workspace again whenever its ArchiMate content changes.
+Dashboard panels query one of two native datasources: the Neo4j read model
+(ArchiMate content, exported from PostgreSQL) or ArchiSpark's own PostgreSQL
+application database directly — both ArchiMate content (`elements`,
+`relationships`, `views`, `element_properties`) and organization-scoped
+business tables such as `fournisseurs`. Every built-in system dashboard
+queries PostgreSQL directly; Neo4j remains available for `/explore` and for
+any workspace-owned dashboard you create. PostgreSQL remains authoritative
+for ArchiMate content: export the workspace again whenever it changes if you
+build a Neo4j-backed panel.
 
 ## Prepare the graph
 
@@ -36,15 +43,23 @@ ORDER BY count DESC
   returns `graph`, `table`, or `metrics`.
 - Owners and admins can create and edit dashboards — saving an edit creates
   an immutable revision, deletion is soft.
+- Every workspace sees the same fixed set of system dashboards (marked
+  "System" in the admin list), shared globally rather than copied per
+  workspace. They can be neither edited nor deleted.
 - Graph panels provide controls for filtering element and relationship
   types, choosing the edge style and layout direction, and entering
   fullscreen (Escape or the minimize control to exit).
 - The form uses structured metadata fields and validated JSON for
   parameters, panels, layouts, and tab groups; identifiers use lowercase
   kebab-case.
-- Every panel query must use `architecture-neo4j`, reference
-  `$organizationId`, and select a compatible visualization: `core/graph`,
-  `core/table`, or `core/metric`.
+- Every panel query must target a native datasource (`architecture-neo4j`
+  Cypher, or `postgres-app-db` read-only SQL), reference `$organizationId`,
+  and select a compatible visualization: `core/graph`, `core/table`, or
+  `core/metric`. Both datasources support `graph` panels — a SQL `graph`
+  panel must return a `nodeIds` column (`elements.uuid` values); the server
+  resolves matching node/edge metadata from `elements`/`relationships`.
+- The dashboard and admin lists show each dashboard's datasource type(s) in
+  parentheses next to its title — e.g. `(postgres)`, `(neo4j, postgres)`.
 
 ## Current limits
 

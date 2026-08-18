@@ -22,8 +22,15 @@ export function useOrganizations() {
 export function useRenameOrganization() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, name }: { id: string; name: string }) =>
-      renameOrganizationApi(id, name),
+    mutationFn: ({
+      id,
+      name,
+      description,
+    }: {
+      id: string
+      name: string
+      description?: string | null
+    }) => renameOrganizationApi(id, name, description),
     onSuccess: () =>
       qc.invalidateQueries({ queryKey: queryKeys.organizations() }),
     onError: (e) => toast.error((e as Error).message),

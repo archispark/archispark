@@ -47,7 +47,7 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - postgres_dev_data:/var/lib/postgresql/data
+      # - postgres_dev_data:/var/lib/postgresql/data
       # Script d'initialisation : crée la base archispark_keycloak au premier démarrage
       - ./initdb:/docker-entrypoint-initdb.d:ro
     healthcheck:
@@ -117,5 +117,5 @@ services:
       retries:  30
       start_period: 30s
 
-volumes:
-  postgres_dev_data:
+# volumes:
+#   postgres_dev_data:

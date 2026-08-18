@@ -75,7 +75,7 @@ describe("WorkspaceSwitcher", () => {
 
     await waitFor(() => {
       expect(mockMutateAsync).toHaveBeenCalledWith("workspace-2")
-      expect(mockPush).toHaveBeenCalledWith("/")
+      expect(mockPush).toHaveBeenCalledWith("/overview")
     })
   })
 })

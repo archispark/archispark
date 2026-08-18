@@ -50,6 +50,7 @@ export const organizations = pgTable(
     id: serial("id").primaryKey(),
     slug: text("slug").notNull(),
     name: text("name").notNull(),
+    description: text("description"),
     // Auto-created on a user's first workspace (see Phase 4 invariant); false
     // for an explicitly created "team" organization.
     isPersonal: boolean("is_personal").notNull().default(false),
@@ -87,6 +88,12 @@ export const users = pgTable(
     username: text("username").notNull(), // lowercase, login identifier
     email: text("email").notNull(), // lowercase
     passwordHash: text("password_hash").notNull(), // argon2id encoded string
+    // firstName/lastName are the source of truth once set by a platform_admin
+    // (see platform-users-store.ts) — displayName is kept in sync from them
+    // so every other reader (login, user menu, invitations...) can keep
+    // using the single field unchanged.
+    firstName: text("first_name"),
+    lastName: text("last_name"),
     displayName: text("display_name"),
     role: text("role").notNull().default("user"), // "platform_admin" | "user" — mirrors Keycloak realm_access.roles
     enabled: boolean("enabled").notNull().default(true),
@@ -152,9 +159,7 @@ export const localPasswordResetTokens = pgTable(
     usedAt: integer("used_at"),
   },
   (t) => [
-    uniqueIndex("local_password_reset_tokens_token_hash_uniq").on(
-      t.tokenHash
-    ),
+    uniqueIndex("local_password_reset_tokens_token_hash_uniq").on(t.tokenHash),
   ]
 )
 
@@ -172,10 +177,7 @@ export const localLoginAttempts = pgTable(
       .default(sql`extract(epoch from now())::int`),
   },
   (t) => [
-    index("local_login_attempts_identifier_idx").on(
-      t.identifier,
-      t.createdAt
-    ),
+    index("local_login_attempts_identifier_idx").on(t.identifier, t.createdAt),
   ]
 )
 
@@ -449,26 +451,25 @@ export const propertyDefinitions = pgTable(
 )
 
 // ---------------------------------------------------------------------------
-// Image library — draw.io-style shape packs referenced by the
-// `archispark_image` system property (see system-properties.ts). A pack is
-// either global ("system", organization_id NULL, shipped in
-// @workspace/image-library and seeded once by 0023_image_packs.sql) or
-// scoped to one organization ("custom", uploaded to Vercel Blob).
+// Plugins — instance-wide, file-backed icon packs discovered at build time
+// from plugins/<slug>/{plugin.json,manifest.ts,icons/*.svg} (see
+// apps/server/scripts/generate-plugin-registry.ts and
+// apps/server/lib/plugins/*). This table only tracks the runtime-toggleable
+// enabled flag per plugin slug — the plugin's identity, name, version, and
+// icon list live in the generated registry, not here. A row with no
+// matching registry entry (plugin folder removed after being enabled) is
+// inert, see apps/server/lib/plugins/service.ts. The default ArchiMate type
+// icons are not a plugin — they're TSX components shipped in
+// @workspace/image-library and compiled into the app; see
+// apps/server/scripts/generate-archimate-icon-pack.ts.
 // ---------------------------------------------------------------------------
 
-export const imagePacks = pgTable(
-  "image_packs",
+export const plugins = pgTable(
+  "plugins",
   {
     id: serial("id").primaryKey(),
-    uuid: text("uuid").notNull(),
-    organizationId: integer("organization_id").references(
-      () => organizations.id,
-      { onDelete: "cascade" }
-    ), // NULL = system pack, shared by every organization
-    isSystem: boolean("is_system").notNull().default(false),
     slug: text("slug").notNull(),
-    name: text("name").notNull(),
-    description: text("description"),
+    enabled: boolean("enabled").notNull().default(false),
     createdAt: integer("created_at")
       .notNull()
       .default(sql`extract(epoch from now())::int`),
@@ -476,43 +477,7 @@ export const imagePacks = pgTable(
       .notNull()
       .default(sql`extract(epoch from now())::int`),
   },
-  (t) => [
-    uniqueIndex("image_packs_uuid_uniq").on(t.uuid),
-    uniqueIndex("image_packs_system_slug_uniq")
-      .on(t.slug)
-      .where(sql`organization_id is null`),
-    uniqueIndex("image_packs_org_slug_uniq")
-      .on(t.organizationId, t.slug)
-      .where(sql`organization_id is not null`),
-    index("image_packs_org_idx").on(t.organizationId),
-  ]
-)
-
-export const imagePackItems = pgTable(
-  "image_pack_items",
-  {
-    id: serial("id").primaryKey(),
-    uuid: text("uuid").notNull(), // referenced as "img-<uuid>" by archispark_image
-    packId: integer("pack_id")
-      .notNull()
-      .references(() => imagePacks.id, { onDelete: "cascade" }),
-    slug: text("slug").notNull(),
-    name: text("name").notNull(),
-    archimateType: text("archimate_type"), // set only for system-pack items
-    storageKind: text("storage_kind").notNull(), // "inline_svg" | "blob"
-    svgContent: text("svg_content"), // set when storageKind = "inline_svg"
-    blobUrl: text("blob_url"), // set when storageKind = "blob"
-    blobPathname: text("blob_pathname"), // Vercel Blob pathname, for del()
-    mimeType: text("mime_type"),
-    createdAt: integer("created_at")
-      .notNull()
-      .default(sql`extract(epoch from now())::int`),
-  },
-  (t) => [
-    uniqueIndex("image_pack_items_uuid_uniq").on(t.uuid),
-    uniqueIndex("image_pack_items_pack_slug_uniq").on(t.packId, t.slug),
-    index("image_pack_items_pack_idx").on(t.packId),
-  ]
+  (t) => [uniqueIndex("plugins_slug_uniq").on(t.slug)]
 )
 
 // ---------------------------------------------------------------------------
@@ -676,24 +641,29 @@ export const bendpoints = pgTable(
 )
 
 // ---------------------------------------------------------------------------
-// Dashboards  (configurable reporting dashboards, workspace-scoped — see
+// Dashboards  (configurable reporting dashboards — see
 // apps/server/lib/dashboards/). Each edit creates a new immutable revision
 // in dashboardRevisions rather than mutating one in place; dashboards.
 // latestRevision points at the current one. Deletion is a soft delete
-// (deletedAt) that preserves revision history.
+// (deletedAt) that preserves revision history. A dashboard is either owned
+// by one workspace (workspaceId set, created from the admin UI) or a system
+// dashboard shared by every workspace (workspaceId NULL, isSystem: true,
+// seeded once by 0032_dashboard_system_seed.sql) — same instance-wide
+// spirit as the `plugins` table. System dashboards cannot be
+// edited or deleted (apps/server/lib/dashboards/repository.ts).
 // ---------------------------------------------------------------------------
 
 export const dashboards = pgTable(
   "dashboards",
   {
     id: serial("id").primaryKey(),
-    workspaceId: integer("workspace_id")
-      .notNull()
-      .references(() => workspaces.id, { onDelete: "cascade" }),
-    dashboardId: text("dashboard_id").notNull(), // kebab-case slug, unique per workspace
-    isProvisioned: boolean("is_provisioned").notNull().default(false),
+    workspaceId: integer("workspace_id").references(() => workspaces.id, {
+      onDelete: "cascade",
+    }), // NULL = system dashboard, shared by every workspace
+    dashboardId: text("dashboard_id").notNull(), // kebab-case slug, unique per workspace (or globally among system dashboards)
+    isSystem: boolean("is_system").notNull().default(false),
     latestRevision: integer("latest_revision").notNull(),
-    createdById: text("created_by_id").notNull(), // Keycloak sub — traceability only
+    createdById: text("created_by_id").notNull(), // Keycloak sub — traceability only ("system" for system dashboards)
     createdAt: integer("created_at")
       .notNull()
       .default(sql`extract(epoch from now())::int`),
@@ -704,6 +674,9 @@ export const dashboards = pgTable(
       t.workspaceId,
       t.dashboardId
     ),
+    uniqueIndex("dashboards_system_dashboard_id_uniq")
+      .on(t.dashboardId)
+      .where(sql`workspace_id is null`),
     index("dashboards_workspace_idx").on(t.workspaceId),
   ]
 )
@@ -729,4 +702,27 @@ export const dashboardRevisions = pgTable(
     ),
     index("dashboard_revisions_dashboard_idx").on(t.dashboardId),
   ]
+)
+
+// ---------------------------------------------------------------------------
+// Fournisseurs — demo table backing the native Postgres dashboard datasource
+// (apps/server/lib/dashboards/datasource-executors/postgres.ts). Organization-
+// scoped like every business table: a dashboard panel querying it must filter
+// on organization_id, enforced by that module's assertPanelQuerySafe.
+// ---------------------------------------------------------------------------
+
+export const fournisseurs = pgTable(
+  "fournisseurs",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    nom: text("nom").notNull(),
+    actif: boolean("actif").notNull().default(true),
+    createdAt: integer("created_at")
+      .notNull()
+      .default(sql`extract(epoch from now())::int`),
+  },
+  (t) => [index("fournisseurs_organization_idx").on(t.organizationId)]
 )

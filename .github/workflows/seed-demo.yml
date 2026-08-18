@@ -2,12 +2,8 @@ name: Restore demo data
 
 on:
   workflow_dispatch:
-    inputs:
-      reset:
-        description: "Delete existing ArchiMetal / ArchiSurance / Open Day workspaces before seeding (required to overwrite)"
-        required: false
-        type: boolean
-        default: true
+  schedule:
+    - cron: "0 3 * * *"
 
 permissions:
   contents: read
@@ -30,59 +26,26 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Build @workspace/env
+        run: pnpm --filter @workspace/env build
+
       - name: Build @workspace/auth
         run: pnpm --filter @workspace/auth build
 
-      - name: Run pending PostgreSQL migrations
-        run: pnpm --filter @workspace/db migrate:prod
+      - name: Build @workspace/db
+        run: pnpm --filter @workspace/db build
+
+      - name: Reset PostgreSQL application data
+        run: pnpm --filter @workspace/db reset
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL_UNPOOLED }}
 
-      - name: Run organization backfill
-        run: pnpm --filter @workspace/db backfill:prod
+      - name: Reapply PostgreSQL migrations and backfill
+        run: pnpm run db:migrate:postgres && pnpm run db:migrate:backfill
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL_UNPOOLED }}
 
-      - name: Run pending Neo4j migrations
-        run: pnpm --filter @workspace/db-neo4j migrate:prod
-        env:
-          NEO4J_URI: ${{ secrets.NEO4J_URI }}
-          NEO4J_USER: ${{ secrets.NEO4J_USER }}
-          NEO4J_PASSWORD: ${{ secrets.NEO4J_PASSWORD }}
-
-      - name: Delete existing demo workspaces
-        if: inputs.reset == true
-        # CASCADE on workspaces.id removes all child rows (elements, relationships,
-        # views, nodes, connections, bendpoints, property_definitions, …).
-        run: psql "$DATABASE_URL_UNPOOLED" -c "DELETE FROM workspaces WHERE name IN ('ArchiMetal', 'ArchiSurance', 'Open Day');"
-        env:
-          DATABASE_URL_UNPOOLED: ${{ secrets.DATABASE_URL_UNPOOLED }}
-          PGSSLMODE: require
-
-      - name: Seed demo Keycloak accounts
-        run: pnpm --filter @workspace/db seed:demo-users
-        env:
-          KEYCLOAK_URL: ${{ secrets.KEYCLOAK_URL }}
-          KEYCLOAK_REALM: ${{ secrets.KEYCLOAK_REALM }}
-          KEYCLOAK_ADMIN_CLIENT_ID: ${{ secrets.KEYCLOAK_ADMIN_CLIENT_ID }}
-          KEYCLOAK_ADMIN_CLIENT_SECRET: ${{ secrets.KEYCLOAK_ADMIN_CLIENT_SECRET }}
-
-      - name: Seed demo data
-        run: pnpm --filter @workspace/db seed:demo
+      - name: Seed demo accounts and workspaces
+        run: pnpm run seed
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL_UNPOOLED }}
-          KEYCLOAK_URL: ${{ secrets.KEYCLOAK_URL }}
-          KEYCLOAK_REALM: ${{ secrets.KEYCLOAK_REALM }}
-          KEYCLOAK_ADMIN_CLIENT_ID: ${{ secrets.KEYCLOAK_ADMIN_CLIENT_ID }}
-          KEYCLOAK_ADMIN_CLIENT_SECRET: ${{ secrets.KEYCLOAK_ADMIN_CLIENT_SECRET }}
-
-      - name: Build database packages for Neo4j export
-        run: pnpm --filter @workspace/db build && pnpm --filter @workspace/db-neo4j build
-
-      - name: Export demo workspaces to Neo4j
-        run: pnpm --filter @workspace/db-neo4j import:workspaces
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL_UNPOOLED }}
-          NEO4J_URI: ${{ secrets.NEO4J_URI }}
-          NEO4J_USER: ${{ secrets.NEO4J_USER }}
-          NEO4J_PASSWORD: ${{ secrets.NEO4J_PASSWORD }}

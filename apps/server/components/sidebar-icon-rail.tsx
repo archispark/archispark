@@ -14,7 +14,8 @@ import {
   CircleHelp,
 } from "lucide-react"
 import { useT } from "@/lib/i18n"
-import { useWorkspaces } from "@/lib/queries"
+import { useMounted } from "@/hooks/use-mounted"
+import { useWorkspaces, useOrganizations } from "@/lib/queries"
 import { RailLink } from "@/components/sidebar-section"
 import { UserMenu } from "@/components/user-menu"
 import { WorkspaceSwitcher } from "@/components/workspace-switcher"
@@ -35,9 +36,21 @@ export function SidebarIconRail({
   relConflictCount: number
   t: ReturnType<typeof useT>["t"]
 }) {
+  const mounted = useMounted()
   const { data: workspaces = [] } = useWorkspaces()
+  const { data: organizations = [] } = useOrganizations()
   const activeWorkspace = workspaces.find((workspace) => workspace.active)
   const isWorkspacesOverview = pathname === "/workspaces"
+  // React Query can restore workspaces/organizations from the browser cache
+  // before hydration, while the server always renders with an empty cache.
+  // Defer this structural branch until after the first client render so it
+  // matches the server markup — see hooks/use-mounted.ts (same fix as
+  // sidebar-nav-content.tsx, this component is its collapsed-rail sibling).
+  //
+  // No organization means no accessible section besides the home page — see
+  // registry.ts, users can no longer self-provision one.
+  const hasOrganization = mounted && organizations.length > 0
+  const hideNav = isWorkspacesOverview || !hasOrganization
 
   return (
     <>
@@ -45,7 +58,7 @@ export function SidebarIconRail({
         className={`hidden flex-1 flex-col items-center gap-1 overflow-y-auto py-3 ${collapsed ? "md:flex md:overflow-visible" : ""}`}
       >
         <Link
-          href="/workspaces"
+          href="/"
           onClick={onClose}
           title="ArchiSpark"
           aria-label="ArchiSpark"
@@ -78,19 +91,21 @@ export function SidebarIconRail({
             />
           </svg>
         </Link>
-        <WorkspaceSwitcher
-          workspaces={workspaces}
-          activeWorkspace={activeWorkspace}
-          display="compact"
-        />
-        {!isWorkspacesOverview && (
+        {hasOrganization && (
+          <WorkspaceSwitcher
+            workspaces={workspaces}
+            activeWorkspace={activeWorkspace}
+            display="compact"
+          />
+        )}
+        {!hideNav && (
           <>
             <div className="mb-1 w-6 border-t border-border" />
             <RailLink
-              href="/"
+              href="/overview"
               icon={LayoutDashboard}
               label={t("sidebar.overview")}
-              active={pathname === "/"}
+              active={pathname === "/overview"}
               onClick={onClose}
             />
             <div className="my-1 w-6 border-t border-border" />
