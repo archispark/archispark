@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { ShieldAlert } from "lucide-react"
+import { Building2 } from "lucide-react"
 import { useT } from "@/lib/i18n"
 import {
   usePlatformOrganizations,
@@ -47,11 +47,11 @@ export default function PlatformOrganizationsPage() {
   }
 
   return (
-    <div className="max-w-4xl p-7">
+    <div className="p-7">
       <div className="mb-6 flex items-start justify-between gap-4">
         <div>
           <h1 className="flex items-center gap-2 text-lg font-semibold">
-            <ShieldAlert className="size-5 text-primary" />
+            <Building2 className="size-5 text-primary" />
             {t("platform.title")}
           </h1>
           <p className="mt-0.5 text-[13px] text-muted-foreground">

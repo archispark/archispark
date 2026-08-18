@@ -198,7 +198,7 @@ export function EntityPropertiesTab({
                 size="sm"
                 onClick={onStartAdd}
                 disabled={addingProp || availableDefs.length === 0}
-                className="h-8 bg-indigo-600 text-primary-foreground hover:bg-indigo-700"
+                className="h-8 bg-emerald-600 text-primary-foreground hover:bg-emerald-700"
               >
                 <Plus className="mr-1 size-3.5" />
                 {t("common.add")}

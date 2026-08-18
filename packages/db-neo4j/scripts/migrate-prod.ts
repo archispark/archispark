@@ -33,7 +33,6 @@ if (envFile) {
 // ── 2. Skip cleanly if Neo4j is disabled ────────────────────────────────────
 
 if (!isNeo4jEnabled()) {
-  console.log("Neo4j désactivé (NEO4J_ENABLED=false) : migration ignorée.");
   process.exit(0);
 }
 

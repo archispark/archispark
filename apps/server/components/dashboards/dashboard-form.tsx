@@ -52,10 +52,12 @@ export function DashboardForm({
   mode,
   dashboardId,
   initialDefinition,
+  isSystem = false,
 }: {
   mode: FormMode
   dashboardId?: string
   initialDefinition?: DashboardDefinition
+  isSystem?: boolean
 }) {
   const { t } = useT()
   const router = useRouter()
@@ -125,19 +127,19 @@ export function DashboardForm({
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="flex flex-col gap-1 text-sm">
           <span className="font-medium text-foreground">{t("dashboards.form_id")}</span>
-          <Input value={id} onChange={(event) => setId(event.target.value)} disabled={mode === "edit"} placeholder="vue-mon-dashboard" required />
+          <Input value={id} onChange={(event) => setId(event.target.value)} disabled={mode === "edit" || isSystem} placeholder="vue-mon-dashboard" required />
         </label>
         <label className="flex flex-col gap-1 text-sm">
           <span className="font-medium text-foreground">{t("dashboards.form_category")}</span>
-          <Input value={category} onChange={(event) => setCategory(event.target.value)} required />
+          <Input value={category} onChange={(event) => setCategory(event.target.value)} disabled={isSystem} required />
         </label>
         <label className="flex flex-col gap-1 text-sm sm:col-span-2">
           <span className="font-medium text-foreground">{t("common.name")}</span>
-          <Input value={title} onChange={(event) => setTitle(event.target.value)} required />
+          <Input value={title} onChange={(event) => setTitle(event.target.value)} disabled={isSystem} required />
         </label>
         <label className="flex flex-col gap-1 text-sm sm:col-span-2">
           <span className="font-medium text-foreground">{t("dashboards.form_description")}</span>
-          <Textarea rows={2} value={description} onChange={(event) => setDescription(event.target.value)} />
+          <Textarea rows={2} value={description} onChange={(event) => setDescription(event.target.value)} disabled={isSystem} />
         </label>
       </div>
 
@@ -145,7 +147,7 @@ export function DashboardForm({
         <label className="flex flex-col gap-1 text-sm">
           <span className="font-medium text-foreground">{t("dashboards.form_content")}</span>
           <span className="text-xs text-muted-foreground">{t("dashboards.form_content_hint")}</span>
-          <Textarea rows={20} className="font-mono text-xs" value={contentJson} onChange={(event) => setContentJson(event.target.value)} spellCheck={false} />
+          <Textarea rows={20} className="font-mono text-xs" value={contentJson} onChange={(event) => setContentJson(event.target.value)} spellCheck={false} disabled={isSystem} />
         </label>
       </div>
 
@@ -159,9 +161,11 @@ export function DashboardForm({
       {submitError && <p className="text-sm text-destructive">{submitError.message}</p>}
 
       <div className="flex items-center gap-2">
-        <Button type="button" onClick={handleSubmit} disabled={submitting}>
-          {submitting ? t("common.saving") : mode === "create" ? t("dashboards.form_create") : t("dashboards.form_save_revision")}
-        </Button>
+        {!isSystem && (
+          <Button type="button" onClick={handleSubmit} disabled={submitting}>
+            {submitting ? t("common.saving") : mode === "create" ? t("dashboards.form_create") : t("dashboards.form_save_revision")}
+          </Button>
+        )}
         <Button type="button" variant="outline" onClick={() => router.push(dashboardId ? `/dashboards/${dashboardId}` : "/dashboards")}>
           {t("common.cancel")}
         </Button>
