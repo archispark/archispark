@@ -31,16 +31,14 @@ import {
   DialogClose,
 } from "@workspace/ui/components/dialog"
 
-/** Member management for one organization — add/change-role/remove are owner-only (server-enforced; hidden here for a clean UI). */
-export function OrganizationMembers({
-  org,
-  open,
-  onOpenChange,
-}: {
-  org: OrganizationOut
-  open: boolean
-  onOpenChange: (open: boolean) => void
-}) {
+/**
+ * Member list + invitations — add/change-role/remove are owner-only
+ * (server-enforced; hidden here for a clean UI). Presentational content
+ * shared by the members dialog (organization-members.tsx, triggered from
+ * the /organizations table) and the organization detail page
+ * (app/organizations/[id]/page.tsx), which renders it inline.
+ */
+export function OrganizationMembersPanel({ org }: { org: OrganizationOut }) {
   const { t } = useT()
   const { data: members = [], isLoading } = useOrganizationMembers(org.id)
   const updateRole = useUpdateOrganizationMemberRole(org.id)
@@ -103,54 +101,41 @@ export function OrganizationMembers({
 
   return (
     <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>
-              {t("settings.org.members_title")} — {org.name}
-            </DialogTitle>
-            <DialogDescription>
-              {t("settings.org.members_count", {
-                n: members.length,
-                s: members.length !== 1 ? "s" : "",
-              })}
-            </DialogDescription>
-          </DialogHeader>
+      <div className="space-y-3">
+        <p className="text-[12px] font-medium text-muted-foreground">
+          {t("settings.org.members_count", {
+            n: members.length,
+            s: members.length !== 1 ? "s" : "",
+          })}
+        </p>
 
-          <MemberList
-            members={members}
-            isLoading={isLoading}
-            canManage={canManage}
-            onUpdateRole={(userId, r) => updateRole.mutate({ userId, role: r })}
-            updateRolePending={updateRole.isPending}
-            onRemove={removeActions.openWith}
+        <MemberList
+          members={members}
+          isLoading={isLoading}
+          canManage={canManage}
+          onUpdateRole={(userId, r) => updateRole.mutate({ userId, role: r })}
+          updateRolePending={updateRole.isPending}
+          onRemove={removeActions.openWith}
+        />
+
+        {canManage && (
+          <OrganizationInvitationsPanel
+            invitations={invitations}
+            inviteModal={inviteModal}
+            email={email}
+            onEmailChange={setEmail}
+            role={role}
+            onRoleChange={setRole}
+            deliveryMode={deliveryMode}
+            onDeliveryModeChange={setDeliveryMode}
+            onInvite={handleInvite}
+            onResend={handleResend}
+            resendPending={resendInvitation.isPending}
+            onRevoke={(id) => revokeInvitation.mutate(id)}
+            revokePending={revokeInvitation.isPending}
           />
-
-          {canManage && (
-            <OrganizationInvitationsPanel
-              invitations={invitations}
-              inviteModal={inviteModal}
-              email={email}
-              onEmailChange={setEmail}
-              role={role}
-              onRoleChange={setRole}
-              deliveryMode={deliveryMode}
-              onDeliveryModeChange={setDeliveryMode}
-              onInvite={handleInvite}
-              onResend={handleResend}
-              resendPending={resendInvitation.isPending}
-              onRevoke={(id) => revokeInvitation.mutate(id)}
-              revokePending={revokeInvitation.isPending}
-            />
-          )}
-
-          <DialogFooter>
-            <DialogClose render={<Button variant="outline" />}>
-              {t("common.cancel")}
-            </DialogClose>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        )}
+      </div>
 
       <Dialog
         open={manualLink !== null}

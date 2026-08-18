@@ -5,11 +5,11 @@ import { Input } from "@workspace/ui/components/input"
 import { Label } from "@workspace/ui/components/label"
 
 /**
- * platform_admin-only. Presentational name/description fields — state, the
- * mutation and the Save button live in the page itself so the button can
- * sit next to the title, at the same height as suspend/reactivate/delete.
+ * owner-only. Presentational name/description fields for the organization
+ * detail page — state, the mutation and the Save button live in the page
+ * itself so the button can sit next to the title, at the same height.
  */
-export function PlatformOrganizationForm({
+export function OrganizationEditForm({
   name,
   onNameChange,
   description,
@@ -27,7 +27,7 @@ export function PlatformOrganizationForm({
   return (
     <div className="space-y-4">
       <div>
-        <Label htmlFor="org-name">{t("platform.orgs.name")}</Label>
+        <Label htmlFor="org-name">{t("settings.org.org_name")}</Label>
         <Input
           id="org-name"
           value={name}
@@ -35,9 +35,10 @@ export function PlatformOrganizationForm({
           className="mt-1"
         />
       </div>
+
       <div>
         <Label htmlFor="org-description">
-          {t("platform.orgs.description")}
+          {t("settings.org.org_description")}
         </Label>
         <textarea
           id="org-description"

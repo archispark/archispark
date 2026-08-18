@@ -71,11 +71,26 @@ describe("listOrganizationsForUser", () => {
 
 describe("renameOrganization / activateOrganization", () => {
   it("owner can rename; editor cannot (manage_members is owner-only)", async () => {
-    const renamed = await renameOrganization(OWNER, orgId, "Renamed by owner")
+    const renamed = await renameOrganization(OWNER, orgId, {
+      name: "Renamed by owner",
+    })
     expect(renamed.name).toBe("Renamed by owner")
     await expect(
-      renameOrganization(EDITOR, orgId, "Renamed by editor")
+      renameOrganization(EDITOR, orgId, { name: "Renamed by editor" })
     ).rejects.toBeInstanceOf(ForbiddenError)
+  })
+
+  it("owner can set the description, leaving it untouched when omitted", async () => {
+    const withDesc = await renameOrganization(OWNER, orgId, {
+      name: "Org With Description",
+      description: "A description",
+    })
+    expect(withDesc.description).toBe("A description")
+
+    const again = await renameOrganization(OWNER, orgId, {
+      name: "Org With Description Still",
+    })
+    expect(again.description).toBe("A description")
   })
 
   it("activateOrganization marks the organization active for that user", async () => {
@@ -139,12 +154,7 @@ describe("listMembers / updateMemberRole — local accounts", () => {
       username
     )
 
-    const updated = await updateMemberRole(
-      OWNER,
-      orgId,
-      localUserId,
-      "editor"
-    )
+    const updated = await updateMemberRole(OWNER, orgId, localUserId, "editor")
     expect(updated.username).toBe(username)
   })
 })

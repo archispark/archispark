@@ -24,6 +24,7 @@ export interface OrganizationOut {
   id: string
   slug: string
   name: string
+  description: string | null
   is_personal: boolean
   enabled: boolean
   role: OrgRoleName
@@ -39,6 +40,7 @@ function toOrgOut(
     id: String(org.id),
     slug: org.slug,
     name: org.name,
+    description: org.description,
     is_personal: org.isPersonal,
     enabled: org.enabled,
     role,
@@ -78,19 +80,30 @@ export async function listOrganizationsForUser(
   )
 }
 
-/** owner-only. Renaming is an organization-level action, not a workspace one — editor's write rights don't extend to it. */
+export interface OrganizationUpdateIn {
+  name: string
+  description?: string | null
+}
+
+/** owner-only. Renaming (and editing the description) is an organization-level action, not a workspace one — editor's write rights don't extend to it. */
 export async function renameOrganization(
   user: AccessUser,
   organizationId: number,
-  name: string
+  changes: OrganizationUpdateIn
 ): Promise<OrganizationOut> {
-  if (!name?.trim())
+  if (!changes.name?.trim())
     throw new ValidationError("Le nom de l'organisation est requis.")
   const role = await assertOrgAccess(user, organizationId, "manage_members")
 
   const [org] = await db
     .update(organizations)
-    .set({ name: name.trim(), updatedAt: Math.floor(Date.now() / 1000) })
+    .set({
+      name: changes.name.trim(),
+      ...(changes.description !== undefined && {
+        description: changes.description?.trim() || null,
+      }),
+      updatedAt: Math.floor(Date.now() / 1000),
+    })
     .where(eq(organizations.id, organizationId))
     .returning()
   if (!org) throw new NotFoundError("Organisation introuvable.")
