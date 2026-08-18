@@ -6,5 +6,5 @@ import { useOrganizations } from "@/lib/queries/organizations"
 export function useCanEditDashboards(): boolean {
   const { data: organizations } = useOrganizations()
   const active = organizations?.find((org) => org.active)
-  return active?.role === "owner" || active?.role === "admin"
+  return active?.role === "owner" || active?.role === "editor"
 }

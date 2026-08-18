@@ -1,5 +1,11 @@
 import type { NextConfig } from "next"
 import os from "node:os"
+import { env } from "./env"
+
+// Importing ./env runs loadEnv() and validates process.env as a side effect,
+// before anything below reads it (e.g. ALLOWED_DEV_ORIGINS just below):
+// next.config.ts is the first user code Next.js executes for `next dev` /
+// `next build` / `next start`, earlier than instrumentation.ts.
 
 // In dev mode, Next.js only initializes its client runtime (HMR + hydration)
 // for requests whose origin is "allowed". Accessing the dev server from another
@@ -14,7 +20,7 @@ function lanDevOrigins(): string[] {
     }
   }
   const extra =
-    process.env.ALLOWED_DEV_ORIGINS?.split(",")
+    env.ALLOWED_DEV_ORIGINS?.split(",")
       .map((s) => s.trim())
       .filter(Boolean) ?? []
   return [...ips, ...extra]

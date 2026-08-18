@@ -7,6 +7,23 @@ import { Button } from "@workspace/ui/components/button"
 import { ChevronDown, ChevronRight, Trash2 } from "lucide-react"
 import { useT } from "@/lib/i18n"
 import { allowedRelationships } from "@/lib/archimate-rules"
+import { getLayer, LAYER_BADGE_COLORS } from "@/lib/archimate-helpers"
+
+function ElementReference({ label, type }: { label: string; type?: string }) {
+  return (
+    <div className="flex max-w-[150px] items-center gap-1.5 text-xs whitespace-nowrap">
+      <span className="min-w-0 truncate">{label}</span>
+      {type && (
+        <Badge
+          variant="outline"
+          className={`shrink-0 text-xs ${LAYER_BADGE_COLORS[getLayer(type)] ?? ""}`}
+        >
+          {type}
+        </Badge>
+      )}
+    </div>
+  )
+}
 
 export function useRelationshipColumns({
   isAdmin,
@@ -112,12 +129,7 @@ export function useRelationshipColumns({
             rel.source
           const sub =
             el?.type ?? (refRel ? t("relationships.title") : undefined)
-          return (
-            <div className="max-w-[150px] text-xs">
-              <div className="truncate">{label}</div>
-              {sub && <div className="text-muted-foreground">{sub}</div>}
-            </div>
-          )
+          return <ElementReference label={label} type={sub} />
         },
       },
       {
@@ -135,12 +147,7 @@ export function useRelationshipColumns({
             rel.target
           const sub =
             el?.type ?? (refRel ? t("relationships.title") : undefined)
-          return (
-            <div className="max-w-[150px] text-xs">
-              <div className="truncate">{label}</div>
-              {sub && <div className="text-muted-foreground">{sub}</div>}
-            </div>
-          )
+          return <ElementReference label={label} type={sub} />
         },
       },
       ...(isAdmin
@@ -152,12 +159,13 @@ export function useRelationshipColumns({
               cell: ({ row }: { row: { original: RelationshipOut } }) => (
                 <div className="flex items-center justify-end gap-1">
                   <Button
-                    variant="ghost"
+                    variant="destructive"
                     size="icon-xs"
+                    className="size-5"
                     onClick={() => onDeleteClick(row.original)}
                     aria-label={t("common.delete")}
                   >
-                    <Trash2 className="size-3.5 text-destructive" />
+                    <Trash2 className="size-3.5" />
                   </Button>
                 </div>
               ),

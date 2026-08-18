@@ -1,8 +1,15 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
-import { LogOut, User, Building2, ChevronsUpDown } from "lucide-react"
-import { useCurrentUser } from "@/hooks/use-current-user"
+import {
+  LogOut,
+  User,
+  Building2,
+  ShieldAlert,
+  ChevronsUpDown,
+} from "lucide-react"
+import { useCurrentUser, useIsAdmin } from "@/hooks/use-current-user"
+import { useMounted } from "@/hooks/use-mounted"
 import { useOrganizations } from "@/lib/queries"
 import { useT } from "@/lib/i18n"
 import Link from "next/link"
@@ -10,16 +17,20 @@ import Link from "next/link"
 export function UserMenu({
   placement = "down",
   display = "compact",
+  align = "right",
 }: {
   placement?: "up" | "down"
   display?: "compact" | "full"
+  align?: "left" | "right"
 }) {
   const user = useCurrentUser()
+  const isAdmin = useIsAdmin()
   const { data: organizations = [] } = useOrganizations()
   const activeOrg = organizations.find((o) => o.active)
   const { t } = useT()
   const [open, setOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
+  const mounted = useMounted()
 
   useEffect(() => {
     if (!open) return
@@ -36,7 +47,11 @@ export function UserMenu({
     window.location.href = "/api/auth/logout"
   }
 
-  const initial = user?.username?.[0]?.toUpperCase() ?? "?"
+  // React Query can restore the signed-in user from the browser cache before
+  // hydration, while the server has no such cache. Defer user-specific text
+  // until after the first client render so it matches the server markup.
+  const currentUser = mounted ? user : null
+  const initial = currentUser?.username?.[0]?.toUpperCase() ?? "?"
 
   return (
     <div className="relative" ref={menuRef}>
@@ -64,10 +79,10 @@ export function UserMenu({
           <>
             <span className="grid min-w-0 flex-1 text-left text-sm leading-tight">
               <span className="truncate font-medium">
-                {user?.name || user?.username || "Mon compte"}
+                {currentUser?.name || currentUser?.username || "Mon compte"}
               </span>
               <span className="truncate text-xs text-muted-foreground">
-                {user?.email || user?.username || ""}
+                {currentUser?.email || currentUser?.username || ""}
               </span>
             </span>
             <ChevronsUpDown className="ml-auto size-4 shrink-0 text-muted-foreground" />
@@ -77,13 +92,13 @@ export function UserMenu({
 
       {open && (
         <div
-          className={`absolute right-0 z-50 w-56 rounded-lg border border-border bg-popover py-1 shadow-lg ${
-            placement === "up" ? "right-0 bottom-full mb-2" : "top-full mt-2"
-          }`}
+          className={`absolute z-50 w-56 rounded-lg border border-border bg-popover py-1 shadow-lg ${
+            align === "left" ? "left-0" : "right-0"
+          } ${placement === "up" ? "bottom-full mb-2" : "top-full mt-2"}`}
         >
           <div className="mb-1 border-b border-border px-3 py-2.5">
             <p className="truncate text-[13px] font-medium">
-              {user?.name || user?.username}
+              {currentUser?.name || currentUser?.username}
             </p>
             {activeOrg && (
               <p className="truncate text-[11px] text-muted-foreground">
@@ -91,7 +106,7 @@ export function UserMenu({
               </p>
             )}
             <p className="text-[11px] text-muted-foreground capitalize">
-              {user?.role}
+              {currentUser?.role}
             </p>
           </div>
 
@@ -112,6 +127,17 @@ export function UserMenu({
             <Building2 className="size-3.5 shrink-0 text-muted-foreground" />
             {t("sidebar.organizations")}
           </Link>
+
+          {isAdmin && (
+            <Link
+              href="/platform"
+              onClick={() => setOpen(false)}
+              className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[13px] text-foreground no-underline transition-colors hover:bg-muted"
+            >
+              <ShieldAlert className="size-3.5 shrink-0 text-muted-foreground" />
+              {t("platform.sidebar_badge")}
+            </Link>
+          )}
 
           <div className="mt-1 border-t border-border pt-1">
             <button

@@ -16,11 +16,13 @@
     "test:coverage": "vitest run --coverage",
     "typecheck": "tsc --noEmit",
     "migrate:prod": "tsx scripts/migrate-prod.ts",
+    "reset": "tsx scripts/reset.ts",
     "import:workspace": "tsx scripts/import-workspace.ts",
     "import:workspaces": "tsx scripts/import-all-workspaces.ts"
   },
   "dependencies": {
     "@workspace/db": "workspace:*",
+    "@workspace/env": "workspace:*",
     "drizzle-orm": "^0.45.2",
     "neo4j-driver": "^6.2.0"
   },

@@ -27,7 +27,13 @@ export const POST = withErrorHandling(
     const body = parseBody(OrganizationInvitationCreateSchema, await req.json())
     const id = parseIntParam((await params).id)
     return NextResponse.json(
-      await createOrReplaceInvitation(auth.user, id, body.email, body.role),
+      await createOrReplaceInvitation(
+        auth.user,
+        id,
+        body.email,
+        body.role,
+        body.delivery_mode
+      ),
       {
         status: 201,
       }

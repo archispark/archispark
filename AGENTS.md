@@ -29,8 +29,8 @@ Node 24).
 │   ├── typescript-config/ Configurations TypeScript partagées
 │   └── ui/           Composants React partagés
 ├── models/           Modèles ArchiMate, XSD et ressources de référence
+├── plugins/          Plugins d'icônes (aws/, azure/, gcp/, …) — voir la section dédiée
 ├── .docker/          Environnement Docker de développement
-├── .k8s/             Déploiement Kubernetes et Helm
 ├── .github/          Workflows et modèles GitHub
 ├── docs/             Documentation technique historique du dépôt
 ├── package.json      Scripts et dépendances racine
@@ -53,10 +53,19 @@ Ces modules sont importés directement par l'API REST et le serveur MCP : ils ne
 forment pas des packages indépendants.
 
 Les espaces de travail appartiennent à une organisation. Les rôles
-d'organisation sont `owner`, `admin` et `member`. Le rôle de royaume
-`platform_admin` n'accorde aucun accès au contenu des organisations.
-`apps/server/lib/archimate/access.ts` est l'unique point d'entrée pour les
-contrôles d'autorisation : ne pas dupliquer cette logique ailleurs.
+d'organisation sont `owner`, `editor` et `viewer`. Le rôle de royaume
+`platform_admin` donne un accès total et indépendant aux pages
+`/platform/**` (organisations, utilisateurs, plugins, bibliothèque
+d'images), protégées par `withSuperAdmin` seul. Pour le contenu applicatif
+d'une organisation (espaces de travail, vues, éléments, tableaux de bord),
+`platform_admin` est un utilisateur comme un autre : il doit être membre
+réel (`owner`, `editor` ou `viewer` dans `organization_members`) — ce qu'il
+peut obtenir en s'ajoutant lui-même depuis la gestion des membres sur
+`/platform/organizations/[id]` — et suit alors les mêmes règles que
+n'importe quel membre, y compris le refus d'accès sur une organisation
+suspendue. `apps/server/lib/archimate/access.ts` est l'unique point
+d'entrée pour les contrôles d'autorisation : ne pas dupliquer cette logique
+ailleurs.
 
 ### Données et services partagés
 
@@ -70,10 +79,14 @@ contrôles d'autorisation : ne pas dupliquer cette logique ailleurs.
   React et les types partagés.
 
 Avant toute modification transverse de l'authentification ou de la base de
-données, lire [docs/architecture.md](docs/architecture.md) et
-[docs/authentication.md](docs/authentication.md). Consulter aussi les sections
-sur les [tableaux de bord](docs/architecture.md#dashboards) et
-[l'export Neo4j](docs/architecture.md#neo4j-export) selon le domaine modifié.
+données, lire
+[architecture.md](apps/docs/content/docs/developer-guide/development/architecture.md) et
+[authentication.md](apps/docs/content/docs/developer-guide/reference/authentication.md).
+Consulter aussi les sections sur les
+[tableaux de bord](apps/docs/content/docs/developer-guide/development/architecture.md#dashboards)
+et
+[l'export Neo4j](apps/docs/content/docs/developer-guide/development/architecture.md#neo4j-export)
+selon le domaine modifié.
 
 ## Commandes
 
@@ -82,20 +95,22 @@ sur les [tableaux de bord](docs/architecture.md#dashboards) et
 ```bash
 pnpm install
 pnpm env
-docker compose -f .docker/docker-compose.dev.yml up -d --wait
-pnpm keycloak-setup
+pnpm infra:up   # infrastructure Docker (étape séparée, jamais lancée par dev/start)
+pnpm dev        # Turbo en hot reload, serveur uniquement : :8000
+pnpm dev:docs   # documentation Fumadocs en hot reload : :3000
+pnpm stop       # arrête l'infrastructure de développement
 
-pnpm start                # infrastructure Docker + turbo dev, port 8000
-pnpm dev                  # turbo dev, infrastructure déjà démarrée
-pnpm --filter server dev  # application principale uniquement
+pnpm build       # compile tous les workspaces avant le démarrage de production local
+pnpm start       # application principale compilée sur :8000 ; ne démarre pas Docker
+pnpm start:docs  # documentation Fumadocs compilée sur :3000
 ```
 
 Après `pnpm env`, renseigner au minimum `DB_PASSWORD` et
-`KEYCLOAK_ADMIN_CLIENT_SECRET` dans `.env.dev`.
+`KEYCLOAK_ADMIN_CLIENT_SECRET` dans `.env`.
 
-Pour Docker, Helm et Vercel, consulter
-[docs/installation.md](docs/installation.md) et
-[docs/deployment.md](docs/deployment.md).
+Pour Docker et Vercel, consulter
+[installation.md](apps/docs/content/docs/developer-guide/getting-started/index.md) et
+[deployment.md](apps/docs/content/docs/developer-guide/development/deployment.md).
 
 ### Vérifications
 
@@ -133,6 +148,18 @@ Les tests utilisent PGlite, donc Docker n'est pas requis. Ne jamais placer de
 fichier `*.test.ts` dans `apps/server/pages/api/` : Next.js le traiterait comme
 une route active.
 
+Une suite Playwright distincte (`apps/server/e2e/`) fait tourner un build réel
+dans un navigateur, en comptes locaux uniquement (pas de Keycloak). Ne jamais
+l'ajouter aux workflows GitHub et ne l'exécuter que sur demande explicite :
+elle est coûteuse en temps et en tokens. Elle nécessite Docker (son `webServer`
+démarre un conteneur Postgres jetable) et un build préalable :
+
+```bash
+pnpm --filter server exec playwright install chromium  # une fois
+pnpm --filter server build
+pnpm --filter server test:e2e
+```
+
 ## Règles de modification
 
 ### Code
@@ -149,18 +176,66 @@ une route active.
 
 ### Ressources graphiques de référence
 
-- `models/img/archimate/` contient les composants PNG de référence. Ne jamais y
-  écrire d'images générées, ni ajouter d'images générées ailleurs dans le dépôt.
+- `packages/image-library/assets/archimate/` contient les icônes SVG du pack
+  système « ArchiMate Notation » de la bibliothèque d'images (un fichier par
+  type, nommé `{Type}.svg` en PascalCase). Après toute modification de ces
+  fichiers, régénérer le pack via `pnpm --filter server gen:icon-pack`
+  (`apps/server/scripts/generate-archimate-icon-pack.ts`).
 - `models/img/views/` contient les SVG exportés par Archi et constitue la
   référence visuelle. Pour modifier
   `apps/server/lib/archimate/renderer.ts`, comparer le rendu au SVG
   correspondant et minimiser les écarts de formes, couleurs, disposition,
   connecteurs, libellés et polices.
 
+### Plugins d'icônes
+
+- `plugins/<slug>/` contient les icônes personnalisées assignables à un
+  élément ArchiMate (propriété système `Archispark Plugin IconPack`) :
+  `plugin.json` (métadonnées), `manifest.ts` (liste des icônes) et
+  `icons/*.svg`. Ces plugins sont instance-wide, découverts au build (pas
+  en base de données) et activables/désactivables sans redéploiement sur
+  `/platform/plugins`. Voir
+  `apps/docs/content/docs/developer-guide/reference/plugins.mdx`.
+- Après toute modification de `plugins/**`, régénérer le registre via
+  `pnpm --filter server gen:plugin-registry`
+  (`apps/server/scripts/generate-plugin-registry.ts`), qui écrit
+  `apps/server/lib/plugins/registry.generated.ts`.
+- Les plugins vendor (`aws`, `azure`, `gcp`) sont regénérés depuis une source
+  externe via `pnpm --filter server gen:cloud-icon-packs -- --source <dir>`
+  (`apps/server/scripts/generate-cloud-icon-packs.ts`), suivi de
+  `gen:plugin-registry`.
+
+### Captures d'écran produit
+
+- `apps/docs/public/screenshots/` contient les captures utilisées par
+  `README.md`, la landing page (`apps/docs/app/(home)/page.tsx`) et les pages
+  Fumadocs sous `apps/docs/content/docs/`.
+- Toute capture ajoutée ou remplacée doit avoir une ligne à jour dans
+  `apps/docs/public/screenshots/SOURCES.md` (route, compte/rôle, source,
+  viewport, date) — c'est ce qui permet de la reproduire à l'identique.
+- Capturer depuis `https://demo.archispark.cloud/` par défaut ; si la
+  fonctionnalité n'y est pas accessible (compte manquant, données absentes),
+  utiliser un environnement local seedé (`pnpm seed:demo-users` puis
+  `pnpm seed:demo`, `KEYCLOAK_SSO_ENABLED=true`) et le noter dans la colonne
+  « Source » de `SOURCES.md`.
+- Viewport 1400×900, thème clair, badge Next.js dev tools masqué avant la
+  capture (`[data-nextjs-dev-tools-button], nextjs-portal` en
+  `display:none`) — il n'existe qu'en `pnpm dev`, jamais dans le build livré.
+- Ne jamais laisser de token, e-mail ou autre donnée personnelle réelle
+  visible dans une capture.
+- Mettre à jour la capture existante (même nom de fichier) plutôt que d'en
+  ajouter une nouvelle quand seule l'UI change.
+
 ## Documentation versionnée avec le code
 
 La documentation fait partie du produit. Dans le même changement que le code :
 
+- rester concis et éviter la prose : privilégier des tableaux, des listes et,
+  pour illustrer une architecture ou un flux, un schéma ReactFlow plutôt que
+  des paragraphes descriptifs ;
+- rédiger en anglais tout le contenu de `apps/docs/content/docs/` ainsi que la
+  landing page `apps/docs/app/(home)/page.tsx`, y compris les titres,
+  descriptions, libellés, exemples et textes alternatifs ;
 - mettre à jour les guides, références API/MCP, exemples et schémas affectés ;
 - modifier `README.md` si le démarrage rapide, les prérequis ou la navigation
   changent ;
@@ -171,12 +246,12 @@ La documentation fait partie du produit. Dans le même changement que le code :
 
 Utiliser cette table pour trouver la documentation concernée :
 
-| Changement | Emplacement à vérifier |
-| --- | --- |
-| Positionnement produit, fonctionnalités, captures, liens ou connexion MCP | `apps/docs/app/(home)/page.tsx` |
-| Structure et parcours de la documentation | `apps/docs/content/docs/index.mdx` |
-| Prérequis, installation, configuration ou usage | `apps/docs/content/docs/getting-started/`, `apps/docs/content/docs/usage/` |
-| API, MCP, authentification ou ArchiMate | `apps/docs/content/docs/reference/` |
-| Architecture, déploiement ou contribution | `apps/docs/content/docs/development/` |
-| Administration, configuration ou permissions | `apps/docs/content/docs/administration/` |
-| Ajout, déplacement ou suppression d'une page | `meta.json` du dossier concerné |
+| Changement                                                                | Emplacement à vérifier                                                                          |
+| ------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| Positionnement produit, fonctionnalités, captures, liens ou connexion MCP | `apps/docs/app/(home)/page.tsx`                                                                 |
+| Structure et parcours de la documentation                                 | `apps/docs/content/docs/meta.json`, `apps/docs/next.config.mjs` (redirection `/docs`)           |
+| Prérequis, installation, configuration ou usage                           | `apps/docs/content/docs/developer-guide/getting-started/`, `apps/docs/content/docs/user-guide/` |
+| API, MCP, authentification ou ArchiMate                                   | `apps/docs/content/docs/developer-guide/reference/`                                             |
+| Architecture, déploiement ou contribution                                 | `apps/docs/content/docs/developer-guide/development/`                                           |
+| Administration, configuration ou permissions                              | `apps/docs/content/docs/admin-guide/`                                                           |
+| Ajout, déplacement ou suppression d'une page                              | `meta.json` du dossier concerné                                                                 |

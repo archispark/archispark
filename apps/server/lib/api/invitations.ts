@@ -1,6 +1,8 @@
 import { get, post, del } from "./client"
 import type { OrgRole } from "./organizations"
 
+export type InvitationDeliveryMode = "email" | "manual" | "both"
+
 export interface OrganizationInvitationOut {
   id: string
   email: string
@@ -9,6 +11,8 @@ export interface OrganizationInvitationOut {
   expires_at: number
   sent_at: number | null
   expired: boolean
+  accept_url?: string
+  delivery_kind?: "manual" | "invitation" | "onboarding"
 }
 
 export interface InvitationPreviewOut {
@@ -29,20 +33,25 @@ export const fetchOrganizationInvitations = (orgId: string) =>
 export const createInvitationApi = (
   orgId: string,
   email: string,
-  role: OrgRole
+  role: OrgRole,
+  deliveryMode: InvitationDeliveryMode
 ) =>
   post<OrganizationInvitationOut>(
     `/organizations/${encodeURIComponent(orgId)}/invitations`,
-    { email, role }
+    { email, role, delivery_mode: deliveryMode }
   )
 export const revokeInvitationApi = (orgId: string, invitationId: string) =>
   del(
     `/organizations/${encodeURIComponent(orgId)}/invitations/${encodeURIComponent(invitationId)}`
   )
-export const resendInvitationApi = (orgId: string, invitationId: string) =>
+export const resendInvitationApi = (
+  orgId: string,
+  invitationId: string,
+  deliveryMode: InvitationDeliveryMode
+) =>
   post<OrganizationInvitationOut>(
     `/organizations/${encodeURIComponent(orgId)}/invitations/${encodeURIComponent(invitationId)}/resend`,
-    {}
+    { delivery_mode: deliveryMode }
   )
 export const getInvitationPreviewApi = (token: string) =>
   get<InvitationPreviewOut>(`/invitations/${encodeURIComponent(token)}`)

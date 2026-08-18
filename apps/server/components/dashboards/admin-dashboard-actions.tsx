@@ -34,7 +34,7 @@ export function DeleteDashboardButton({ dashboardId }: { dashboardId: string }) 
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <Button type="button" variant="outline" size="sm" onClick={() => setOpen(true)}>
+      <Button type="button" variant="destructive" size="sm" onClick={() => setOpen(true)}>
         <Trash2 /> {t("common.delete")}
       </Button>
       <DialogContent className="sm:max-w-sm">

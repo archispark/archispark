@@ -204,9 +204,11 @@ export default function RelationshipDetailPage() {
                 srcId={rel.source}
                 srcName={srcEl.name}
                 srcType={srcEl.type}
+                srcImageUrl={srcEl.resolved_image_url}
                 tgtId={rel.target}
                 tgtName={tgtEl.name}
                 tgtType={tgtEl.type}
+                tgtImageUrl={tgtEl.resolved_image_url}
               />
             ) : (
               <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">

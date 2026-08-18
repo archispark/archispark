@@ -1,0 +1,10 @@
+{
+  "title": "Reference",
+  "pages": [
+    "api-reference",
+    "authentication",
+    "mcp-tools",
+    "archimate",
+    "plugins"
+  ]
+}

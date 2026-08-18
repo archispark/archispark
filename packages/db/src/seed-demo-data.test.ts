@@ -1,0 +1,95 @@
+import { describe, it, expect, beforeAll } from "vitest"
+import { eq, and } from "drizzle-orm"
+import { runMigrations } from "./migrate.js"
+import { db } from "./connection.js"
+import {
+  workspaces,
+  elements,
+  relationships,
+  views,
+  propertyDefinitions,
+} from "./schema.js"
+import { seedDemoWorkspaces } from "./seed-demo-data.js"
+import { ARCHISPARK_IMAGE_PROPERTY_ID } from "./system-properties.js"
+
+beforeAll(async () => {
+  await runMigrations()
+})
+
+const resolveUserId = async (username: string): Promise<string> =>
+  `local:${username}`
+
+async function countsFor(workspaceName: string) {
+  const [workspace] = await db
+    .select({ id: workspaces.id })
+    .from(workspaces)
+    .where(eq(workspaces.name, workspaceName))
+  const workspaceId = workspace!.id
+  const [elementRows, relationshipRows, viewRows] = await Promise.all([
+    db.select().from(elements).where(eq(elements.workspaceId, workspaceId)),
+    db
+      .select()
+      .from(relationships)
+      .where(eq(relationships.workspaceId, workspaceId)),
+    db.select().from(views).where(eq(views.workspaceId, workspaceId)),
+  ])
+  return {
+    elements: elementRows.length,
+    relationships: relationshipRows.length,
+    views: viewRows.length,
+  }
+}
+
+describe("seedDemoWorkspaces", () => {
+  // The single regression test that empirically proves `demo.sql` (an
+  // 11.3k-line, single `DO $$ ... END $$;` block) executes correctly via
+  // `database.execute(sql.raw(...))` under PGlite — see
+  // packages/db/seeds/demo.sql and demo-data.md's element/relationship/view
+  // counts table.
+  it("seeds the 2 demo workspaces with the documented element/relationship/view counts", async () => {
+    const { orgIdByWorkspace } = await seedDemoWorkspaces(resolveUserId)
+
+    expect([...orgIdByWorkspace.keys()].sort()).toEqual(
+      ["ArchiMetal", "ArchiSurance"].sort()
+    )
+
+    await expect(countsFor("ArchiMetal")).resolves.toEqual({
+      elements: 294,
+      relationships: 476,
+      views: 33,
+    })
+    await expect(countsFor("ArchiSurance")).resolves.toEqual({
+      elements: 257,
+      relationships: 402,
+      views: 40,
+    })
+  })
+
+  // demo.sql creates workspaces via raw SQL rather than modelToDb (see
+  // seed-demo-data.ts), so it must seed the archispark_image system
+  // property definition itself — otherwise it's assignable on every
+  // workspace created through the normal app flow, but silently missing
+  // from the demo ones.
+  it.each(["ArchiSurance", "ArchiMetal"])(
+    "seeds the archispark_image system property definition for %s",
+    async (workspaceName) => {
+      const [workspace] = await db
+        .select({ id: workspaces.id })
+        .from(workspaces)
+        .where(eq(workspaces.name, workspaceName))
+      const [definition] = await db
+        .select()
+        .from(propertyDefinitions)
+        .where(
+          and(
+            eq(propertyDefinitions.workspaceId, workspace!.id),
+            eq(propertyDefinitions.uuid, ARCHISPARK_IMAGE_PROPERTY_ID)
+          )
+        )
+      expect(definition).toMatchObject({
+        name: "Archispark Plugin IconPack",
+        isSystem: true,
+      })
+    }
+  )
+})

@@ -23,7 +23,7 @@ export function LocaleSwitcher() {
       <button
         type="button"
         aria-expanded={open}
-        className="flex h-9 w-full items-center gap-2 rounded-md border border-input bg-background px-3 text-sm text-foreground shadow-xs outline-none transition-colors hover:bg-muted focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+        className="flex h-8 w-full items-center gap-2 rounded-md border border-input bg-background px-3 text-sm text-foreground shadow-xs outline-none transition-colors hover:bg-muted focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
         onClick={() => setOpen((isOpen) => !isOpen)}
       >
         <Flag code={current.cc} />

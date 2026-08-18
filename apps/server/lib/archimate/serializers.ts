@@ -148,6 +148,9 @@ export function viewOut(v: ArchiView, detail = false): ViewOut | ViewDetailOut {
   return base;
 }
 
-export function pdOut(pd: ArchiPropertyDefinition): PropertyDefinitionOut {
-  return { identifier: pd.uuid, name: pd.name, type: pd.type };
+export function pdOut(
+  pd: ArchiPropertyDefinition,
+  isSystem = false
+): PropertyDefinitionOut {
+  return { identifier: pd.uuid, name: pd.name, type: pd.type, is_system: isSystem };
 }

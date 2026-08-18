@@ -1,0 +1,72 @@
+---
+title: Dashboards and Neo4j exploration
+description: Export a model to Neo4j, run Cypher and build organization dashboards.
+---
+
+Dashboard panels query one of two native datasources: the Neo4j read model
+(ArchiMate content, exported from PostgreSQL) or ArchiSpark's own PostgreSQL
+application database directly — both ArchiMate content (`elements`,
+`relationships`, `views`, `element_properties`) and organization-scoped
+business tables such as `fournisseurs`. Every built-in system dashboard
+queries PostgreSQL directly; Neo4j remains available for `/explore` and for
+any workspace-owned dashboard you create. PostgreSQL remains authoritative
+for ArchiMate content: export the workspace again whenever it changes if you
+build a Neo4j-backed panel.
+
+## Prepare the graph
+
+Configure `NEO4J_URI`, `NEO4J_USER`, and `NEO4J_PASSWORD`, then call
+`POST /api/export/neo4j` for the active workspace. For batch imports, use
+`pnpm import:workspace -- <workspace-uuid>` or `pnpm import:workspaces`.
+
+Every exported node and relationship carries `organizationId`. Re-exporting a
+workspace replaces only that workspace's graph.
+
+## Explore (`/explore`)
+
+The explorer accepts read-only Cypher and JSON parameters. It provides presets,
+keeps the latest 20 executions in browser storage, renders compatible results
+as a graph or table, and exports rows to JSON or CSV.
+
+`$organizationId` is injected by the server. Rows containing a node or
+relationship from another organization are removed from the result.
+
+```cypher
+MATCH (element:Element {organizationId: $organizationId})
+RETURN element.type AS type, count(element) AS count
+ORDER BY count DESC
+```
+
+## Dashboards (`/dashboards`)
+
+- All organization members can list dashboards and execute panels; a panel
+  returns `graph`, `table`, or `metrics`.
+- Owners and admins can create and edit dashboards — saving an edit creates
+  an immutable revision, deletion is soft.
+- Every workspace sees the same fixed set of system dashboards (marked
+  "System" in the admin list), shared globally rather than copied per
+  workspace. They can be neither edited nor deleted.
+- Graph panels provide controls for filtering element and relationship
+  types, choosing the edge style and layout direction, and entering
+  fullscreen (Escape or the minimize control to exit).
+- The form uses structured metadata fields and validated JSON for
+  parameters, panels, layouts, and tab groups; identifiers use lowercase
+  kebab-case.
+- Every panel query must target a native datasource (`architecture-neo4j`
+  Cypher, or `postgres-app-db` read-only SQL), reference `$organizationId`,
+  and select a compatible visualization: `core/graph`, `core/table`, or
+  `core/metric`. Both datasources support `graph` panels — a SQL `graph`
+  panel must return a `nodeIds` column (`elements.uuid` values); the server
+  resolves matching node/edge metadata from `elements`/`relationships`.
+- The dashboard and admin lists show each dashboard's datasource type(s) in
+  parentheses next to its title — e.g. `(postgres)`, `(neo4j, postgres)`.
+
+## Current limits
+
+- Neo4j is not updated automatically after model edits.
+- Dashboard content uses a JSON editor, not a visual panel builder.
+- Declared client-side `transformations` are accepted but not yet applied.
+- Explorer queries are read-only and results may be truncated.
+
+See [Architecture](../developer-guide/development/architecture.md#dashboards)
+for persistence and tenant-isolation details.

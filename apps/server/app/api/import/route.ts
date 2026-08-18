@@ -5,6 +5,7 @@ import { activeWorkspaceId } from "@/lib/archimate/access"
 import { getModelInfo } from "@/lib/archimate/store"
 import { parseOpenExchange } from "@/lib/archimate/oxf-parser"
 import { modelToDb } from "@workspace/db"
+import { isResolvableImageReference } from "@/lib/plugins/resolve"
 import { ValidationError } from "@/lib/archimate/errors"
 
 export const dynamic = "force-dynamic"
@@ -41,7 +42,13 @@ export const POST = withErrorHandling(
     }
 
     const wsId = await activeWorkspaceId(auth, "write")
-    await modelToDb(wsId, newModel)
+    try {
+      await modelToDb(wsId, newModel, isResolvableImageReference)
+    } catch (error) {
+      throw new ValidationError(
+        error instanceof Error ? error.message : "Le modèle est invalide."
+      )
+    }
     return NextResponse.json(await getModelInfo(wsId))
   })
 )

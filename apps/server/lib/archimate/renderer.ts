@@ -10,7 +10,7 @@
 import type { ArchiView, ArchiNode, ArchiModel } from "@workspace/db";
 import { escXml } from "./xml-escape";
 import { colord } from "colord";
-import { iconForType, type IconPrim } from "./archimate-icons";
+import { iconForType, iconPrimSvg } from "./archimate-icons";
 
 // ---------------------------------------------------------------------------
 // ArchiMate type icons — drawn as inline vectors in the element's top-right
@@ -19,24 +19,6 @@ import { iconForType, type IconPrim } from "./archimate-icons";
 // from Archi's reference SVGs; see archimate-icons.ts.
 // ---------------------------------------------------------------------------
 
-function iconPrimSvg(p: IconPrim, color: string): string {
-  const fill = "fill" in p && p.fill ? color : "none";
-  switch (p.tag) {
-    case "path":
-      return `<path d="${p.d}" fill="${fill}"/>`;
-    case "polygon":
-      return `<polygon points="${p.points.join(" ")}" fill="${fill}"/>`;
-    case "polyline":
-      return `<polyline points="${p.points.join(" ")}" fill="none"/>`;
-    case "circle":
-      return `<circle cx="${p.cx}" cy="${p.cy}" r="${p.r}" fill="${fill}"/>`;
-    case "ellipse":
-      return `<ellipse cx="${p.cx}" cy="${p.cy}" rx="${p.rx}" ry="${p.ry}" fill="${fill}"/>`;
-    case "rect":
-      return `<rect x="${p.x}" y="${p.y}" width="${p.width}" height="${p.height}"${p.rx ? ` rx="${p.rx}"` : ""} fill="${fill}"/>`;
-  }
-}
-
 function renderTypeIcon(type: string, rightX: number, topY: number, color: string): string {
   const prims = iconForType(type);
   if (!prims) return "";
@@ -44,6 +26,17 @@ function renderTypeIcon(type: string, rightX: number, topY: number, color: strin
   return (
     `<g transform="translate(${rightX.toFixed(1)} ${topY.toFixed(1)})" fill="none" ` +
     `stroke="${color}" stroke-width="1" stroke-linejoin="round" stroke-linecap="round">${body}</g>`
+  );
+}
+
+// Renders an element's `Archispark Plugin IconPack` in the same top-right
+// corner slot as renderTypeIcon, in place of the vector glyph.
+function renderElementImage(url: string, rightX: number, topY: number): string {
+  const x = rightX - ICON_SIZE - ICON_PAD;
+  const y = topY + ICON_PAD;
+  return (
+    `<image href="${escXml(url)}" x="${x.toFixed(1)}" y="${y.toFixed(1)}" ` +
+    `width="${ICON_SIZE}" height="${ICON_SIZE}" preserveAspectRatio="xMidYMid meet"/>`
   );
 }
 
@@ -171,6 +164,10 @@ function nodeName(n: ArchiNode): string {
   if (n.name) return n.name;
   if (!n.ref || typeof n.ref === "string") return "";
   return n.ref.name || "";
+}
+
+function elementUuidOf(n: ArchiNode): string | null {
+  return n.ref && typeof n.ref !== "string" ? n.ref.uuid : null;
 }
 
 function wrapText(text: string, maxChars: number): string[] {
@@ -634,7 +631,11 @@ const SVG_DEFS = `  <defs>
 // Main export: SVG renderer
 // ---------------------------------------------------------------------------
 
-export function renderViewToSvg(view: ArchiView, model: ArchiModel): string {
+export function renderViewToSvg(
+  view: ArchiView,
+  model: ArchiModel,
+  elementImages: Map<string, string> = new Map()
+): string {
   const PADDING = 10;
   const FONT = "Arial,Helvetica,sans-serif";
 
@@ -721,7 +722,12 @@ export function renderViewToSvg(view: ArchiView, model: ArchiModel): string {
     if (kind === "grouping") {
       const { svg, nameY } = shapeGrouping(x, y, absW, absH, fill, stroke, lw, FONT);
       out.push(...svg);
-      out.push(renderTypeIcon(type, x + absW, y, stroke));
+      const groupingImageUrl = elementImages.get(elementUuidOf(node) ?? "");
+      out.push(
+        groupingImageUrl
+          ? renderElementImage(groupingImageUrl, x + absW, y)
+          : renderTypeIcon(type, x + absW, y, stroke)
+      );
       if (name) {
         out.push(
           `<text x="${x + 5}" y="${nameY}" font-family="${FONT}" font-size="11" ` +
@@ -752,7 +758,12 @@ export function renderViewToSvg(view: ArchiView, model: ArchiModel): string {
     // shapes (service, event, component, …) and data-object already carry their
     // own notation, so they don't get a corner icon.
     if (kind === "rect") {
-      out.push(renderTypeIcon(type, x + absW, y, stroke));
+      const rectImageUrl = elementImages.get(elementUuidOf(node) ?? "");
+      out.push(
+        rectImageUrl
+          ? renderElementImage(rectImageUrl, x + absW, y)
+          : renderTypeIcon(type, x + absW, y, stroke)
+      );
     }
 
     // Name label — top when container has nested children, centered otherwise

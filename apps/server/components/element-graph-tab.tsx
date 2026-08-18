@@ -1,26 +1,23 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
-  ReactFlow,
   ReactFlowProvider,
-  Background,
-  Controls,
   useNodesState,
   useEdgesState,
   useReactFlow,
   type Node,
   type Edge,
 } from "@xyflow/react"
-import "@xyflow/react/dist/style.css"
 import type { ElementOut, RelationshipOut } from "@/lib/api"
+import { ArchisparkReactFlow } from "@/components/archispark-react-flow"
 import { useRouter } from "next/navigation"
 import {
-  MARKER_DEFS,
   EdgeTypeContext,
   type EdgePathType,
-} from "@/components/element-graph-markers"
-import { NODE_TYPES, EDGE_TYPES } from "@/components/element-graph-node-types"
+} from "@/components/react-flow-edge-path"
+import { NODE_TYPES } from "@/components/element-graph-node-types"
+import { ARCHIMATE_READONLY_EDGE_TYPES } from "@/components/archimate-readonly-edge"
 import {
   applyDagreLayout,
   type Direction,
@@ -29,7 +26,14 @@ import {
   buildGraph,
   getReachableTypes,
 } from "@/components/element-graph-builder"
-import { GraphToolbar } from "@/components/element-graph-toolbar"
+import { AppearancePanel } from "@/components/element-graph-appearance-panel"
+import { FilterPanel } from "@/components/element-graph-filter-panel"
+import {
+  FullscreenContainer,
+  ReactFlowFullscreenButton,
+  useReactFlowFullscreen,
+} from "@/components/react-flow-fullscreen"
+import { CanvasToolbarPanel } from "@/components/canvas-toolbar-panel"
 
 // ── Public props ──────────────────────────────────────────────────────────────
 
@@ -38,6 +42,8 @@ export interface ElementGraphTabProps {
   allRelationships: RelationshipOut[]
   byId: Map<string, ElementOut>
 }
+
+const GRAPH_DEPTH = 1
 
 // ── Canvas ────────────────────────────────────────────────────────────────────
 
@@ -48,9 +54,8 @@ function GraphCanvas({
 }: ElementGraphTabProps) {
   const router = useRouter()
   const { fitView } = useReactFlow()
+  const { fullscreen, toggleFullscreen } = useReactFlowFullscreen()
   const [direction, setDirection] = useState<Direction>("TB")
-  const [depth, setDepth] = useState(1)
-  const [showIndirect, setShowIndirect] = useState(false)
   const [edgePathType, setEdgePathType] = useState<EdgePathType>("smoothstep")
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([])
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([])
@@ -61,28 +66,25 @@ function GraphCanvas({
   const [hiddenRelTypes, setHiddenRelTypes] = useState<Set<string>>(new Set())
   const hiddenElRef = useRef<Set<string>>(new Set())
   const hiddenRelRef = useRef<Set<string>>(new Set())
-
-  const [availableElementTypes, setAvailableElementTypes] = useState<string[]>(
-    []
-  )
-  const [availableRelTypes, setAvailableRelTypes] = useState<string[]>([])
+  const { availableElementTypes, availableRelTypes } = useMemo(() => {
+    const { elementTypes, relTypes } = getReachableTypes(
+      element,
+      allRelationships,
+      byId,
+      GRAPH_DEPTH
+    )
+    return { availableElementTypes: elementTypes, availableRelTypes: relTypes }
+  }, [element, allRelationships, byId])
 
   const layout = useCallback(
-    (
-      dir: Direction,
-      d: number,
-      hiddenEl: Set<string>,
-      hiddenRel: Set<string>,
-      indirect: boolean
-    ) => {
+    (dir: Direction, hiddenEl: Set<string>, hiddenRel: Set<string>) => {
       const { nodes: rawNodes, edges: rawEdges } = buildGraph(
         element,
         allRelationships,
         byId,
-        d,
+        GRAPH_DEPTH,
         hiddenEl,
         hiddenRel,
-        indirect,
         router
       )
       const laid = applyDagreLayout(rawNodes, rawEdges, dir)
@@ -94,104 +96,75 @@ function GraphCanvas({
   )
 
   useEffect(() => {
-    const { elementTypes, relTypes } = getReachableTypes(
-      element,
-      allRelationships,
-      byId,
-      depth
-    )
-    setAvailableElementTypes(elementTypes)
-    setAvailableRelTypes(relTypes)
-    layout(
-      direction,
-      depth,
-      hiddenElRef.current,
-      hiddenRelRef.current,
-      showIndirect
-    )
+    layout(direction, hiddenElRef.current, hiddenRelRef.current)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [element, allRelationships, byId, depth, showIndirect])
+  }, [element, allRelationships, byId])
 
-  function toggleDirection() {
-    const next: Direction = direction === "TB" ? "LR" : "TB"
+  function changeDirection(next: Direction) {
     setDirection(next)
-    layout(next, depth, hiddenElRef.current, hiddenRelRef.current, showIndirect)
+    layout(next, hiddenElRef.current, hiddenRelRef.current)
   }
 
   function changeElementTypes(hidden: Set<string>) {
     hiddenElRef.current = hidden
     setHiddenElementTypes(hidden)
-    layout(direction, depth, hidden, hiddenRelRef.current, showIndirect)
+    layout(direction, hidden, hiddenRelRef.current)
   }
 
   function changeRelTypes(hidden: Set<string>) {
     hiddenRelRef.current = hidden
     setHiddenRelTypes(hidden)
-    layout(direction, depth, hiddenElRef.current, hidden, showIndirect)
-  }
-
-  function changeShowIndirect(indirect: boolean) {
-    setShowIndirect(indirect)
-    layout(
-      direction,
-      depth,
-      hiddenElRef.current,
-      hiddenRelRef.current,
-      indirect
-    )
-  }
-
-  function changeDepth(d: number) {
-    setDepth(d)
-    if (d > 1 && !showIndirect) {
-      setShowIndirect(true)
-    }
+    layout(direction, hiddenElRef.current, hidden)
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-2">
-      <GraphToolbar
-        availableElementTypes={availableElementTypes}
-        availableRelTypes={availableRelTypes}
-        hiddenElementTypes={hiddenElementTypes}
-        hiddenRelTypes={hiddenRelTypes}
-        onChangeElementTypes={changeElementTypes}
-        onChangeRelTypes={changeRelTypes}
-        depth={depth}
-        onChangeDepth={changeDepth}
-        showIndirect={showIndirect}
-        onChangeShowIndirect={changeShowIndirect}
-        edgePathType={edgePathType}
-        onChangeEdgePathType={setEdgePathType}
-        direction={direction}
-        onToggleDirection={toggleDirection}
-      />
-
+    <FullscreenContainer
+      fullscreen={fullscreen}
+      className="flex min-h-0 flex-1 flex-col gap-2"
+    >
       <div
         className="relative min-h-0 flex-1 overflow-hidden rounded-lg border border-border"
         style={{ height: "100%" }}
       >
-        {MARKER_DEFS}
         <EdgeTypeContext.Provider value={edgePathType}>
-          <ReactFlow
+          <ArchisparkReactFlow
             nodes={nodes}
             edges={edges}
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             nodeTypes={NODE_TYPES}
-            edgeTypes={EDGE_TYPES}
+            edgeTypes={ARCHIMATE_READONLY_EDGE_TYPES}
             nodesDraggable
             nodesConnectable={false}
             elementsSelectable={false}
             minZoom={0.2}
             maxZoom={3}
+            controlsProps={{ showInteractive: false }}
           >
-            <Background color="#e2e8f0" gap={24} />
-            <Controls showInteractive={false} />
-          </ReactFlow>
+            <CanvasToolbarPanel>
+              <FilterPanel
+                availableElementTypes={availableElementTypes}
+                availableRelTypes={availableRelTypes}
+                hiddenElementTypes={hiddenElementTypes}
+                hiddenRelTypes={hiddenRelTypes}
+                onChangeElementTypes={changeElementTypes}
+                onChangeRelTypes={changeRelTypes}
+              />
+              <AppearancePanel
+                edgePathType={edgePathType}
+                onChangeEdgePathType={setEdgePathType}
+                direction={direction}
+                onChangeDirection={changeDirection}
+              />
+              <ReactFlowFullscreenButton
+                fullscreen={fullscreen}
+                onToggle={toggleFullscreen}
+              />
+            </CanvasToolbarPanel>
+          </ArchisparkReactFlow>
         </EdgeTypeContext.Provider>
       </div>
-    </div>
+    </FullscreenContainer>
   )
 }
 

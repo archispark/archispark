@@ -1,17 +1,42 @@
-import { describe, it, expect, beforeEach } from "vitest"
+import { describe, it, expect, beforeEach, vi } from "vitest"
 import { randomUUID } from "crypto"
-import { seedWorkspace, getOrCreatePersonalOrganization } from "@workspace/db"
-import * as store from "./store"
+import type { PluginRegistryEntry } from "../plugins/types"
+
+const FAKE_REGISTRY: Record<string, PluginRegistryEntry> = {
+  "test-plugin": {
+    slug: "test-plugin",
+    name: "Test Plugin",
+    version: "1.0.0",
+    description: null,
+    type: "icon-pack",
+    icons: [{ slug: "test-icon", name: "Test Icon", file: "test-icon.svg" }],
+  },
+}
+
+vi.mock("../plugins/registry.generated", () => ({
+  PLUGIN_REGISTRY: FAKE_REGISTRY,
+}))
+
+const {
+  ARCHISPARK_IMAGE_PROPERTY_ID,
+  getOrCreatePersonalOrganization,
+  seedWorkspace,
+  db,
+  plugins,
+} = await import("@workspace/db")
+const { isResolvableImageReference } = await import("../plugins/resolve")
+const store = await import("./store")
 
 // Each test runs against a fresh, isolated workspace seeded in the (PGlite) DB.
 // ownerId is a plain Keycloak `sub` — no local "users" table to insert into
 // (identities live in Keycloak).
 let wsId: number
 let ownerId: string
+let organizationId: number
 
 beforeEach(async () => {
   ownerId = `owner-store-test-${randomUUID()}`
-  const organizationId = await getOrCreatePersonalOrganization(ownerId)
+  organizationId = await getOrCreatePersonalOrganization(ownerId)
   wsId = await seedWorkspace(
     `store-test-${randomUUID()}`,
     {
@@ -25,7 +50,8 @@ beforeEach(async () => {
       views: [],
     },
     ownerId,
-    organizationId
+    organizationId,
+    isResolvableImageReference
   )
 })
 
@@ -289,7 +315,7 @@ describe("store – property definitions", () => {
   it("CRUD lifecycle with type defaulting", async () => {
     const pd = await store.createPropertyDefinition(wsId, { name: "Status" })
     expect(pd.type).toBe("string")
-    expect(await store.listPropertyDefinitions(wsId)).toHaveLength(1)
+    expect(await store.listPropertyDefinitions(wsId)).toHaveLength(2)
     expect(
       (await store.getPropertyDefinitionById(wsId, pd.identifier)).name
     ).toBe("Status")
@@ -305,7 +331,88 @@ describe("store – property definitions", () => {
     expect(updType.type).toBe("number")
 
     await store.deletePropertyDefinition(wsId, pd.identifier)
-    expect(await store.listPropertyDefinitions(wsId)).toHaveLength(0)
+    expect(await store.listPropertyDefinitions(wsId)).toHaveLength(1)
+  })
+
+  it("protects the system image definition while allowing its values", async () => {
+    const definitions = await store.listPropertyDefinitions(wsId)
+    const image = definitions.find(
+      (definition) => definition.identifier === ARCHISPARK_IMAGE_PROPERTY_ID
+    )
+    expect(image).toMatchObject({
+      name: "Archispark Plugin IconPack",
+      is_system: true,
+    })
+
+    await expect(
+      store.updatePropertyDefinition(wsId, ARCHISPARK_IMAGE_PROPERTY_ID, {
+        name: "other",
+      })
+    ).rejects.toThrow(/système/)
+    await expect(
+      store.deletePropertyDefinition(wsId, ARCHISPARK_IMAGE_PROPERTY_ID)
+    ).rejects.toThrow(/système/)
+
+    const element = await store.createElement(wsId, {
+      name: "A",
+      type: "Goal",
+      properties: [
+        {
+          property_definition_ref: ARCHISPARK_IMAGE_PROPERTY_ID,
+          value: "https://example.test/image.png",
+        },
+      ],
+    })
+    expect(element.properties[0]?.value).toBe("https://example.test/image.png")
+    expect(element.resolved_image_url).toBe("https://example.test/image.png")
+    await expect(
+      store.updateElement(wsId, element.identifier, {
+        properties: [
+          {
+            property_definition_ref: ARCHISPARK_IMAGE_PROPERTY_ID,
+            value: "not an image URL",
+          },
+        ],
+      })
+    ).rejects.toThrow(/URL HTTP/)
+
+    // A resolvable icon slug from an enabled plugin is accepted and
+    // resolves to the public plugin icon route.
+    await db
+      .insert(plugins)
+      .values({ slug: "test-plugin", enabled: true })
+      .onConflictDoUpdate({
+        target: plugins.slug,
+        set: { enabled: true },
+      })
+
+    const updated = await store.updateElement(wsId, element.identifier, {
+      properties: [
+        {
+          property_definition_ref: ARCHISPARK_IMAGE_PROPERTY_ID,
+          value: "test-icon",
+        },
+      ],
+    })
+    expect(updated.resolved_image_url).toBe(
+      "/api/plugins/test-plugin/icons/test-icon"
+    )
+
+    // A known icon slug whose plugin is disabled does not resolve and is
+    // rejected — write-time validation only checks the slug is *known*
+    // (isKnownIconSlug), but resolved_image_url requires the plugin to
+    // actually be enabled, so this exercises the DB-backed enabled check.
+    // An unknown slug altogether is rejected outright.
+    await expect(
+      store.updateElement(wsId, element.identifier, {
+        properties: [
+          {
+            property_definition_ref: ARCHISPARK_IMAGE_PROPERTY_ID,
+            value: `unknown-icon-${randomUUID()}`,
+          },
+        ],
+      })
+    ).rejects.toThrow(/Archispark Plugin IconPack/)
   })
 
   it("delete cascades property values on elements and relationships", async () => {

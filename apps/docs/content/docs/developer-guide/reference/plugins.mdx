@@ -1,0 +1,146 @@
+---
+title: Plugins
+description: Icon plugins behind the Archispark Plugin IconPack system property — file-backed, instance-wide, enabled or disabled without a deployment.
+---
+
+import { ArchimateIconGallery } from "@/components/archimate-icon-gallery"
+
+The system property `Archispark Plugin IconPack`
+(`GET /api/property-definitions`, `is_system: true`) sets the icon shown for
+an element: on its node in the ReactFlow canvas, next to its name in the
+element edition page, and in server-rendered SVG view exports. Setting it
+on an element overrides the element's **default ArchiMate type icon** — see
+[Default ArchiMate icons](#default-archimate-icons) — with an icon picked
+from an installed **plugin**. Its value is the picked icon's **slug**, not
+an arbitrary URL.
+
+## Default ArchiMate icons
+
+Every ArchiMate 3.1 element type has a default icon shown on its node
+whether or not `Archispark Plugin IconPack` is set — these are not a
+plugin: they're TSX components compiled into `@workspace/image-library` and
+rendered directly by the ReactFlow canvas, with zero database or filesystem
+lookup at request time. One icon file per type, stored in
+`packages/image-library/assets/archimate/{ArchimateType}.svg` and compiled
+via `pnpm --filter server gen:icon-pack`
+(`apps/server/scripts/generate-archimate-icon-pack.ts`) into
+`packages/image-library/src/archimate-icons/` — grouped below by layer. This
+is unrelated to the corner glyph ArchiSpark's SVG renderer draws on each
+element shape in exported views (`lib/archimate/archimate-icons.ts`); the
+two are generated and maintained independently.
+
+<ArchimateIconGallery />
+
+To change a default icon: edit its source SVG under
+`packages/image-library/assets/archimate/`, then run
+`pnpm --filter server gen:icon-pack` and commit the regenerated `.tsx`
+files — no migration, no deployment step beyond the usual build.
+
+## Plugins
+
+A plugin is a folder committed at the repository root,
+`plugins/<slug>/`, containing:
+
+```text
+plugins/aws/
+├── plugin.json   # id, name, version, description
+├── manifest.ts   # the list of icons: { slug, name, file }
+└── icons/
+    ├── activate.svg
+    ├── amplify.svg
+    └── ...
+```
+
+Plugins are **instance-wide**, not organization-scoped — every organization
+sees the same list, listed and toggled by `platform_admin` on
+`/platform/plugins` (`GET /api/platform/plugins`,
+`PUT /api/platform/plugins/:slug`). Clicking a plugin opens
+`/platform/plugins/:slug` (`GET /api/platform/plugins/:slug`), a content
+view dispatched on `plugin.json`'s `type` field — today the only valid
+value is `"icon-pack"`, rendered as a searchable grid of every icon the
+plugin declares, previewed via `GET /api/platform/plugins/:slug/icons/
+:iconSlug` regardless of whether the plugin is enabled (unlike the public
+icon route below), so an admin can browse a disabled plugin's content before
+deciding to enable it. `type` is a discriminant kept for future plugin
+kinds — an unrecognized value falls back to a placeholder rather than
+rendering nothing.
+
+Two things happen on different timelines:
+
+- **Discovery** (which plugins/icons _exist_) happens at build time.
+  `pnpm --filter server gen:plugin-registry`
+  (`apps/server/scripts/generate-plugin-registry.ts`) scans `plugins/**`,
+  validates it (see below), and writes a static
+  `apps/server/lib/plugins/registry.generated.ts`, compiled into the app like
+  any other source file — never read from disk at request time. Adding a
+  plugin therefore requires a commit and a deployment, the same as adding a
+  default ArchiMate icon.
+- **Activation** (enabled/disabled) is a runtime flag in the `plugins`
+  database table, toggled from `/platform/plugins` with no rebuild. A plugin
+  present in the registry but never toggled on is disabled by default.
+
+`generate-plugin-registry.ts` fails loudly on: a missing
+`plugin.json`/`manifest.ts`, a `plugin.json.id` that doesn't match its
+folder name, a `manifest.ts` icon referencing a file missing from `icons/`,
+an `icons/` file not referenced by any manifest entry, or an icon slug
+declared by more than one plugin — **icon slugs are globally unique across
+every plugin**, since a slug is the `Archispark Plugin IconPack` value
+itself.
+
+Setting `Archispark Plugin IconPack` on an element stores an icon's
+slug — pick it from the image picker on the property's value in the
+element edition page.
+Resolution looks the slug up in the generated registry, then checks the
+owning plugin is enabled; if either check fails the element falls back to
+its default ArchiMate type icon, without an error. Values written before the
+plugin system existed (an HTTP(S) URL or a relative path) keep working as a
+legacy fallback.
+
+Icons are served publicly (no auth) at
+`GET /api/plugins/:pluginSlug/icons/:iconSlug`, 404 if the plugin is
+disabled or the slug is unknown — see
+[API reference](/docs/developer-guide/reference/api-reference#plugins).
+
+## Built-in plugins
+
+| Plugin      | Slug    | Icons | Source                                  |
+| ----------- | ------- | ----- | ---------------------------------------- |
+| AWS Icons   | `aws`   | 282   | Official AWS Architecture Service Icons |
+| Azure Icons | `azure` | 638   | Official Microsoft Azure service icons  |
+| GCP Icons   | `gcp`   | 45    | Official Google Cloud product icons     |
+
+These are the vendors' own icon sets, published for use in
+architecture-diagramming tools (the same practice as draw.io or Lucidchart);
+ArchiSpark redistributes them unmodified.
+
+### Updating a built-in plugin
+
+1. Run `pnpm --filter server gen:cloud-icon-packs -- --source <dir>` against
+   an updated vendor source directory (a local folder with `AWS/`, `Azure/`,
+   `GCP/` subfolders, not part of the repo — see the script's header
+   comment). It rewrites `plugins/<vendor>/icons/*.svg` and
+   `plugins/<vendor>/manifest.ts` wholesale.
+2. Run `pnpm --filter server gen:plugin-registry` to regenerate
+   `registry.generated.ts` — it fails if the refreshed icon set introduces a
+   slug collision with another vendor (see [Plugins](#plugins)), which then
+   needs manual disambiguation.
+3. Commit the changed assets and the regenerated registry — no database
+   migration, no manual activation step (existing `plugins` rows are
+   untouched).
+
+## Migration from the database-backed image library
+
+Icon packs used to be stored in Postgres (`image_packs`/`image_pack_items`
+tables, dropped by `packages/db/drizzle-pg/0043_plugins.sql`) and managed
+from `/platform/image-library`, which no longer exists. Two capabilities
+from that system have no replacement in the plugin system:
+
+- **Per-organization custom packs** (icons uploaded by a `platform_admin`
+  for one organization, stored in Vercel Blob) are gone — plugins are
+  instance-wide only. Any `Archispark Plugin IconPack` value that
+  referenced one of those items was cleared by the migration; the affected
+  elements fall back to their default ArchiMate type icon.
+- **Runtime bulk pack installation** (uploading a `.svg` bundle through
+  `/platform/plugins`) is gone — installing a new plugin now means adding a
+  `plugins/<slug>/` folder to the repository and deploying, the same as any
+  other source change.

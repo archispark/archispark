@@ -8,8 +8,43 @@ import {
   getInvitationPreviewApi,
   acceptInvitationApi,
   type OrgRole,
+  type InvitationDeliveryMode,
 } from "@/lib/api"
 import { queryKeys } from "./keys"
+
+function invitationSuccessMessage(
+  invitation: {
+    email: string
+    sent_at: number | null
+    accept_url?: string
+    delivery_kind?: "manual" | "invitation" | "onboarding"
+  },
+  resent = false
+): string {
+  if (invitation.delivery_kind === "onboarding") {
+    return resent
+      ? `E-mail de finalisation du compte renvoyé à ${invitation.email}`
+      : `Compte préparé et e-mail de finalisation envoyé à ${invitation.email}`
+  }
+  if (invitation.accept_url && invitation.sent_at) {
+    return resent
+      ? `Invitation renvoyée à ${invitation.email} et lien régénéré`
+      : `Invitation envoyée à ${invitation.email} et lien prêt à copier`
+  }
+  if (invitation.accept_url) {
+    return resent
+      ? `Lien d’invitation régénéré pour ${invitation.email}`
+      : `Lien d’invitation créé pour ${invitation.email}`
+  }
+  if (invitation.sent_at) {
+    return resent
+      ? `Invitation renvoyée à ${invitation.email}`
+      : `Invitation envoyée à ${invitation.email}`
+  }
+  return resent
+    ? `L’envoi à ${invitation.email} a de nouveau échoué.`
+    : `Invitation créée pour ${invitation.email}, mais l’envoi a échoué — utilisez « Renvoyer ».`
+}
 
 export function useOrganizationInvitations(orgId: string) {
   return useQuery({
@@ -22,17 +57,20 @@ export function useOrganizationInvitations(orgId: string) {
 export function useCreateInvitation(orgId: string) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ email, role }: { email: string; role: OrgRole }) =>
-      createInvitationApi(orgId, email, role),
+    mutationFn: ({
+      email,
+      role,
+      deliveryMode,
+    }: {
+      email: string
+      role: OrgRole
+      deliveryMode: InvitationDeliveryMode
+    }) => createInvitationApi(orgId, email, role, deliveryMode),
     onSuccess: (invitation) => {
       qc.invalidateQueries({
         queryKey: queryKeys.organizationInvitations(orgId),
       })
-      toast.success(
-        invitation.sent_at
-          ? `Invitation envoyée à ${invitation.email}`
-          : `Invitation créée pour ${invitation.email}, mais l'envoi a échoué — utilisez « Renvoyer ».`
-      )
+      toast.success(invitationSuccessMessage(invitation))
     },
     onError: (e) => toast.error((e as Error).message),
   })
@@ -56,17 +94,18 @@ export function useRevokeInvitation(orgId: string) {
 export function useResendInvitation(orgId: string) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (invitationId: string) =>
-      resendInvitationApi(orgId, invitationId),
+    mutationFn: ({
+      invitationId,
+      deliveryMode,
+    }: {
+      invitationId: string
+      deliveryMode: InvitationDeliveryMode
+    }) => resendInvitationApi(orgId, invitationId, deliveryMode),
     onSuccess: (invitation) => {
       qc.invalidateQueries({
         queryKey: queryKeys.organizationInvitations(orgId),
       })
-      toast.success(
-        invitation.sent_at
-          ? `Invitation renvoyée à ${invitation.email}`
-          : `L'envoi à ${invitation.email} a de nouveau échoué.`
-      )
+      toast.success(invitationSuccessMessage(invitation, true))
     },
     onError: (e) => toast.error((e as Error).message),
   })

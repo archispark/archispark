@@ -139,14 +139,14 @@ export function ValidatorTable({
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder={t("validator.search")}
-          className="flex-1 min-w-0 text-[13px] px-2 py-1 border border-border rounded-md bg-background text-foreground"
+          className="h-8 min-w-0 flex-1 rounded-md border border-border bg-background px-2 text-[13px] text-foreground"
         />
         {(["all", "ok", "conflict"] as Filter[]).map((f) => (
           <button
             key={f}
             type="button"
             onClick={() => setFilter(f)}
-            className={`text-[12px] px-2.5 py-1 rounded-md border ${
+            className={`h-8 rounded-md border px-2.5 text-[12px] ${
               filter === f
                 ? "bg-primary text-primary-foreground border-primary"
                 : "bg-background text-foreground border-border hover:bg-muted"

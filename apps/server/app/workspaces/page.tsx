@@ -36,7 +36,7 @@ export default function WorkspacesPage() {
       setDescription("")
       setShowForm(false)
       setError(null)
-      router.push("/")
+      router.push("/overview")
     } catch (err) {
       setError((err as Error).message)
     }
@@ -48,7 +48,7 @@ export default function WorkspacesPage() {
     try {
       if (!active) await activateWs.mutateAsync(id)
       setError(null)
-      router.push("/")
+      router.push("/overview")
     } catch (err) {
       setError((err as Error).message)
     }
@@ -72,10 +72,10 @@ export default function WorkspacesPage() {
               setShowForm(true)
               setError(null)
             }}
-            className="flex shrink-0 items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-[13px] text-primary-foreground hover:bg-primary/90"
+            className="flex h-8 shrink-0 items-center gap-1.5 rounded-md bg-emerald-600 px-3 text-[13px] text-primary-foreground hover:bg-emerald-700"
           >
             <Plus className="size-4" />
-            {t("nav.workspace_new")}
+            {t("common.add")}
           </button>
         )}
       </div>

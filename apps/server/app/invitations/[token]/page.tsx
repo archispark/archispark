@@ -28,9 +28,9 @@ export default function InvitationAcceptPage() {
   function roleLabel(r: OrgRole): string {
     return r === "owner"
       ? t("settings.org.role_owner")
-      : r === "admin"
-        ? t("settings.org.role_admin")
-        : t("settings.org.role_member")
+      : r === "editor"
+        ? t("settings.org.role_editor")
+        : t("settings.org.role_viewer")
   }
 
   async function handleAccept() {

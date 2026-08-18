@@ -2,17 +2,12 @@ import { describe, it, expect, vi, beforeEach } from "vitest"
 import { render, screen, fireEvent } from "@testing-library/react"
 import { ClientLayout } from "./client-layout"
 
-const { mockUsePathname, mockUseIsAdmin } = vi.hoisted(() => ({
+const { mockUsePathname } = vi.hoisted(() => ({
   mockUsePathname: vi.fn(),
-  mockUseIsAdmin: vi.fn(),
 }))
 
 vi.mock("next/navigation", () => ({
   usePathname: mockUsePathname,
-}))
-
-vi.mock("@/hooks/use-current-user", () => ({
-  useIsAdmin: mockUseIsAdmin,
 }))
 
 vi.mock("@/components/theme-provider", () => ({
@@ -24,12 +19,6 @@ vi.mock("@/components/theme-provider", () => ({
 vi.mock("@/components/query-provider", () => ({
   QueryProvider: ({ children }: { children: React.ReactNode }) => (
     <>{children}</>
-  ),
-}))
-
-vi.mock("@/components/platform-admin-block", () => ({
-  PlatformAdminBlock: () => (
-    <div data-testid="platform-admin-block">blocked</div>
   ),
 }))
 
@@ -79,6 +68,12 @@ vi.mock("@/components/sidebar", () => ({
   ),
 }))
 
+vi.mock("@/components/platform-sidebar", () => ({
+  PlatformSidebar: () => (
+    <div data-testid="platform-sidebar">platform sidebar</div>
+  ),
+}))
+
 vi.mock("sonner", () => ({
   Toaster: () => <div data-testid="toaster">toaster</div>,
 }))
@@ -101,72 +96,10 @@ beforeEach(() => {
 })
 
 describe("ClientLayout", () => {
-  describe("platform_admin gating", () => {
-    it("renders only the PlatformAdminBlock when the session is a platform admin and not on /login", () => {
-      // Arrange
-      mockUsePathname.mockReturnValue("/dashboard")
-      mockUseIsAdmin.mockReturnValue(true)
-
-      // Act
-      render(
-        <ClientLayout>
-          <div data-testid="page-content">content</div>
-        </ClientLayout>
-      )
-
-      // Assert
-      expect(screen.getByTestId("platform-admin-block")).toBeInTheDocument()
-      expect(screen.queryByTestId("nav")).not.toBeInTheDocument()
-      expect(screen.queryByTestId("sidebar")).not.toBeInTheDocument()
-      expect(screen.queryByTestId("page-content")).not.toBeInTheDocument()
-      expect(screen.getByTestId("toaster")).toBeInTheDocument()
-    })
-
-    it("renders the normal layout (not PlatformAdminBlock) when the session is a platform admin on a /platform route", () => {
-      // Arrange
-      mockUsePathname.mockReturnValue("/platform/organizations")
-      mockUseIsAdmin.mockReturnValue(true)
-
-      // Act
-      render(
-        <ClientLayout>
-          <div data-testid="page-content">content</div>
-        </ClientLayout>
-      )
-
-      // Assert
-      expect(
-        screen.queryByTestId("platform-admin-block")
-      ).not.toBeInTheDocument()
-      expect(screen.getByTestId("page-content")).toBeInTheDocument()
-    })
-
-    it("renders the normal layout (not PlatformAdminBlock) when the session is a platform admin but on /login", () => {
-      // Arrange
-      mockUsePathname.mockReturnValue("/login")
-      mockUseIsAdmin.mockReturnValue(true)
-
-      // Act
-      render(
-        <ClientLayout>
-          <div data-testid="page-content">content</div>
-        </ClientLayout>
-      )
-
-      // Assert
-      expect(
-        screen.queryByTestId("platform-admin-block")
-      ).not.toBeInTheDocument()
-      expect(screen.queryByTestId("nav")).not.toBeInTheDocument()
-      expect(screen.getByTestId("page-content")).toBeInTheDocument()
-    })
-  })
-
   describe("normal layout", () => {
-    it("renders the panel header, Sidebar and children when not a platform admin and not on /login", () => {
+    it("renders the panel header, Sidebar and children", () => {
       // Arrange
       mockUsePathname.mockReturnValue("/dashboard")
-      mockUseIsAdmin.mockReturnValue(false)
 
       // Act
       render(
@@ -176,9 +109,6 @@ describe("ClientLayout", () => {
       )
 
       // Assert
-      expect(
-        screen.queryByTestId("platform-admin-block")
-      ).not.toBeInTheDocument()
       expect(screen.getByTestId("panel-header")).toBeInTheDocument()
       expect(screen.getByTestId("sidebar")).toBeInTheDocument()
       expect(screen.getByTestId("page-content")).toBeInTheDocument()
@@ -188,7 +118,6 @@ describe("ClientLayout", () => {
     it("hides the Nav and Sidebar on /login", () => {
       // Arrange
       mockUsePathname.mockReturnValue("/login")
-      mockUseIsAdmin.mockReturnValue(false)
 
       // Act
       render(
@@ -206,7 +135,6 @@ describe("ClientLayout", () => {
     it("keeps the shared Sidebar on /workspaces", () => {
       // Arrange
       mockUsePathname.mockReturnValue("/workspaces")
-      mockUseIsAdmin.mockReturnValue(false)
 
       // Act
       render(
@@ -220,10 +148,26 @@ describe("ClientLayout", () => {
       expect(screen.getByTestId("sidebar")).toBeInTheDocument()
     })
 
+    it("renders the PlatformSidebar (not the shared Sidebar) on a /platform route", () => {
+      // Arrange
+      mockUsePathname.mockReturnValue("/platform/organizations")
+
+      // Act
+      render(
+        <ClientLayout>
+          <div data-testid="page-content">content</div>
+        </ClientLayout>
+      )
+
+      // Assert
+      expect(screen.getByTestId("page-content")).toBeInTheDocument()
+      expect(screen.getByTestId("platform-sidebar")).toBeInTheDocument()
+      expect(screen.queryByTestId("sidebar")).not.toBeInTheDocument()
+    })
+
     it("toggles the mobile sidebar open state via the panel header and closes it via Sidebar", () => {
       // Arrange
       mockUsePathname.mockReturnValue("/dashboard")
-      mockUseIsAdmin.mockReturnValue(false)
 
       // Act
       render(
@@ -251,7 +195,6 @@ describe("ClientLayout", () => {
     it("restores the collapsed sidebar state from localStorage on mount and persists toggles", async () => {
       // Arrange
       mockUsePathname.mockReturnValue("/dashboard")
-      mockUseIsAdmin.mockReturnValue(false)
       localStorage.setItem("sidebar-collapsed", "1")
 
       // Act

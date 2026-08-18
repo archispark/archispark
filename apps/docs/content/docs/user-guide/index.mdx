@@ -1,0 +1,122 @@
+---
+title: User Guide
+description: Navigate the web interface and manage elements, relationships, views, and settings.
+---
+
+URL: `http://localhost:8000`
+
+## Sign in
+
+The application redirects to Keycloak. Select **Se connecter**, authenticate
+there, then return to ArchiSpark. Passwords are never submitted to ArchiSpark.
+
+**Demo accounts:**
+
+| Account   | Password  |
+| --------- | --------- |
+| `admin`   | `admin`   |
+| `user`    | `user`    |
+| `contrib` | `contrib` |
+| `archi`   | `archi`   |
+
+> See [Authentication and authorization](developer-guide/reference/authentication.md) for a
+> complete breakdown of roles (platform role versus organization role) and the
+> `SEED_ADMIN_PASSWORD` / `SEED_USER_PASSWORD` / `SEED_CONTRIB_PASSWORD` /
+> `SEED_ARCHI_PASSWORD` environment variables used to override these passwords
+> in production.
+
+---
+
+## Navigation
+
+### Top bar (Nav)
+
+The top bar contains:
+
+- **Menu button** — opens the sidebar on mobile
+- **Breadcrumb** — Organization (if you are an Owner, Editor, or Admin) /
+  Workspaces / Active workspace name / Current section
+- **Organization switcher** — visible when your account belongs to more than
+  one organization
+- **Language selector** — switches the interface language (see below)
+- **Theme button** — toggles between light and dark mode
+- **User menu** — access your profile and sign out
+
+### Sidebar
+
+The left sidebar provides access to every section. At the top, it displays the
+name of the **active** model and its global counters (elements · relationships ·
+views).
+
+| Section                 | Route                   | Description                                                            |
+| ----------------------- | ----------------------- | ---------------------------------------------------------------------- |
+| Overview                | `/overview`             | Summary dashboard for the active workspace                             |
+| Workspaces              | `/workspaces`           | List, create, and switch between ArchiMate models (workspaces)         |
+| —                       | —                       | —                                                                      |
+| **Elements**            |                         |                                                                        |
+| List                    | `/elements`             | All elements, with a badge for elements that do not appear in any view |
+| _(one entry per layer)_ | `/elements?layer=X`     | Quick filter by ArchiMate layer, with counts per layer                 |
+| —                       | —                       | —                                                                      |
+| **Relationships**       |                         |                                                                        |
+| List                    | `/relationships`        | All relationships, with a conflict count badge                         |
+| —                       | —                       | —                                                                      |
+| **Views**               |                         |                                                                        |
+| List                    | `/views`                | All diagrams                                                           |
+| —                       | —                       | —                                                                      |
+| **Properties**          |                         |                                                                        |
+| List                    | `/properties`           | Property definitions                                                   |
+| —                       | —                       | —                                                                      |
+| Dashboards              | `/dashboards`           | Dashboards for the active organization                                 |
+| Explore                 | `/explore`              | Ad hoc read-only Cypher queries                                        |
+| Panel catalogue         | `/panel-visualizations` | Available graph, table, and metric renderers                           |
+| Settings                | `/settings`             | Rename, export, or delete the active workspace                         |
+
+> On desktop, the sidebar can be **collapsed to an icon-only rail** using the
+> toggle at the bottom (panel icon). All sections remain accessible as icons
+> with the same badges.
+
+---
+
+## Interface language
+
+ArchiSpark provides a fully translated interface in **five languages**:
+
+| Language | Code | Selector |
+| -------- | ---- | -------- |
+| Français | `fr` | FR       |
+| English  | `en` | EN       |
+| Español  | `es` | ES       |
+| Deutsch  | `de` | DE       |
+| Italiano | `it` | IT       |
+
+The language selector is available from the top bar (flag icon and language
+code).
+
+The preference is **saved in the browser** (`localStorage`): it persists across
+sessions and does not require a user account.
+
+All interface elements are translated: navigation labels, section titles,
+action buttons, error messages, create/edit/delete forms, and ArchiMate layer
+names.
+
+---
+
+## Sections
+
+<Cards>
+  <Card title="Workspaces" href="/docs/user-guide/workspaces" />
+  <Card title="Elements" href="/docs/user-guide/elements" />
+  <Card title="Relationships" href="/docs/user-guide/relationships" />
+  <Card title="Views" href="/docs/user-guide/views" />
+  <Card title="Properties" href="/docs/user-guide/properties" />
+  <Card
+    title="Dashboards and Neo4j exploration"
+    href="/docs/user-guide/dashboards"
+  />
+  <Card title="Organizations" href="/docs/user-guide/organizations" />
+  <Card
+    title="Settings & Profile"
+    href="/docs/user-guide/settings-and-profile"
+  />
+  <Card title="Shortcuts & Tips" href="/docs/user-guide/tips" />
+</Cards>

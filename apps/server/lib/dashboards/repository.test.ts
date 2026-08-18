@@ -6,7 +6,7 @@ import {
   deleteDashboard,
   getLatestRevision,
   getRevision,
-  isProvisioned,
+  isSystemDashboard,
   listForAdministration,
   listLatestRevisions,
 } from "./repository"
@@ -99,6 +99,12 @@ describe("createRevision / getLatestRevision", () => {
   it("rejects a mismatch between dashboardId and definition.id", async () => {
     await expect(createRevision(workspaceId, "un-id", definition("un-autre-id"), AUTHOR)).rejects.toThrow()
   })
+
+  it("rejects creating a workspace dashboard whose id collides with a system dashboard", async () => {
+    await expect(
+      createRevision(workspaceId, "motivation", definition("motivation"), AUTHOR)
+    ).rejects.toThrow()
+  })
 })
 
 describe("workspace scoping", () => {
@@ -108,6 +114,12 @@ describe("workspace scoping", () => {
     expect(await getLatestRevision(otherWorkspaceId, "prive")).toBeUndefined()
     expect((await listLatestRevisions(otherWorkspaceId)).some((d) => d.dashboardId === "prive")).toBe(false)
     expect((await listLatestRevisions(workspaceId)).some((d) => d.dashboardId === "prive")).toBe(true)
+  })
+
+  it("includes the global system dashboards even for a workspace that never had one seeded into it", async () => {
+    expect(await getLatestRevision(workspaceId, "motivation")).toBeDefined()
+    expect((await listLatestRevisions(workspaceId)).some((d) => d.dashboardId === "motivation")).toBe(true)
+    expect((await listLatestRevisions(otherWorkspaceId)).some((d) => d.dashboardId === "motivation")).toBe(true)
   })
 })
 
@@ -128,6 +140,11 @@ describe("deleteDashboard", () => {
     await expect(deleteDashboard(workspaceId, "inconnu")).rejects.toThrow()
   })
 
+  it("refuses to delete a system dashboard", async () => {
+    await expect(deleteDashboard(workspaceId, "motivation")).rejects.toThrow()
+    expect(await getLatestRevision(workspaceId, "motivation")).toBeDefined()
+  })
+
   it("resurrects a deleted dashboard on a new revision", async () => {
     await createRevision(workspaceId, "ressuscite", definition("ressuscite"), AUTHOR)
     await deleteDashboard(workspaceId, "ressuscite")
@@ -140,13 +157,17 @@ describe("deleteDashboard", () => {
   })
 })
 
-describe("isProvisioned", () => {
+describe("isSystemDashboard", () => {
   it("defaults to false for a dashboard created from the admin UI", async () => {
     await createRevision(workspaceId, "non-provisionne", definition("non-provisionne"), AUTHOR)
-    expect(await isProvisioned(workspaceId, "non-provisionne")).toBe(false)
+    expect(await isSystemDashboard(workspaceId, "non-provisionne")).toBe(false)
+  })
+
+  it("returns true for a global system dashboard", async () => {
+    expect(await isSystemDashboard(workspaceId, "motivation")).toBe(true)
   })
 
   it("returns false for an unknown dashboard", async () => {
-    expect(await isProvisioned(workspaceId, "jamais-cree")).toBe(false)
+    expect(await isSystemDashboard(workspaceId, "jamais-cree")).toBe(false)
   })
 })

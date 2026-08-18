@@ -517,8 +517,22 @@ html > body[data-scroll-locked] {
   cursor: pointer;
   justify-self: start;
 }
+.landing-contact button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
 .landing-contact small {
   color: var(--landing-muted);
+}
+.landing-contact-success {
+  color: #4ade80;
+}
+.landing-contact-error {
+  color: #f87171;
+}
+.landing-contact-honeypot {
+  left: -9999px;
+  position: absolute;
 }
 .landing-back-to-top {
   align-items: center;

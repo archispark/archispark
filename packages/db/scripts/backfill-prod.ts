@@ -10,11 +10,15 @@
  *   DATABASE_URL=<url> pnpm --filter @workspace/db backfill:prod
  *   # or pass an env file:
  *   pnpm --filter @workspace/db backfill:prod /tmp/vercel-prod.env
+ *
+ * With no argument, loads `.env` from the repo root when present. Vars
+ * already set in the environment always take priority.
  */
 
-import { readFileSync, existsSync } from "fs"
+import { existsSync } from "fs"
+import { applyEnvFile, loadEnv } from "@workspace/env"
 
-// ── 1. Load env file if provided (same convention as migrate-prod.ts) ──────
+// ── 1. Load env file — explicit arg, or the repo root `.env` if present ────
 
 const envFile = process.argv[2]
 if (envFile) {
@@ -22,18 +26,9 @@ if (envFile) {
     console.error(`Env file not found: ${envFile}`)
     process.exit(1)
   }
-  for (const line of readFileSync(envFile, "utf-8").split("\n")) {
-    const trimmed = line.trim()
-    if (!trimmed || trimmed.startsWith("#")) continue
-    const eq = trimmed.indexOf("=")
-    if (eq === -1) continue
-    const key = trimmed.slice(0, eq).trim()
-    const val = trimmed
-      .slice(eq + 1)
-      .trim()
-      .replace(/^["']|["']$/g, "")
-    if (key && !(key in process.env)) process.env[key] = val
-  }
+  applyEnvFile(envFile)
+} else {
+  loadEnv()
 }
 
 if (!process.env["DATABASE_URL"]) {

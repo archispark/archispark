@@ -22,7 +22,7 @@ export function registerPropertyDefinitionTools(
     {
       description:
         "Liste toutes les définitions de propriétés du modèle ArchiMate. " +
-        "Les propriétés permettent d'ajouter des métadonnées personnalisées aux éléments et relations.",
+        "Le champ is_system indique les définitions protégées par ArchiSpark.",
       inputSchema: {},
     },
     async () =>
@@ -82,7 +82,7 @@ export function registerPropertyDefinitionTools(
     "update_property_definition",
     {
       description:
-        "Met à jour une définition de propriété existante. Seuls les champs fournis sont modifiés.",
+        "Met à jour une définition utilisateur existante. Les définitions système sont protégées.",
       inputSchema: {
         id: z.string().describe("Identifiant de la définition à modifier"),
         name: z.string().optional().describe("Nouveau nom"),
@@ -112,7 +112,7 @@ export function registerPropertyDefinitionTools(
     "delete_property_definition",
     {
       description:
-        "Supprime une définition de propriété et retire toutes les propriétés associées " +
+        "Supprime une définition utilisateur et retire toutes les propriétés associées " +
         "des éléments et relations du modèle.",
       inputSchema: {
         id: z.string().describe("Identifiant de la définition à supprimer"),

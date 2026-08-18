@@ -9,6 +9,10 @@ import { CreateViewDialog, DeleteViewDialog } from "@/components/view-dialogs"
 import { useKeyboardShortcut } from "@/hooks/use-keyboard-shortcut"
 import { useT } from "@/lib/i18n"
 import { DataTable } from "@/components/data-table"
+import {
+  ViewStatusFilterSelect,
+  type ViewStatusFilter,
+} from "@/components/view-status-filter-select"
 
 export default function ViewsPage() {
   const { t } = useT()
@@ -90,9 +94,7 @@ export default function ViewsPage() {
     }
   }
 
-  const [statusFilter, setStatusFilter] = useState<"all" | "ok" | "conflict">(
-    "all"
-  )
+  const [statusFilter, setStatusFilter] = useState<ViewStatusFilter>("all")
 
   const viewStats = useMemo(() => {
     let ok = 0,
@@ -142,10 +144,7 @@ export default function ViewsPage() {
         <div>
           <h1 className="text-lg font-semibold">{t("views.title")}</h1>
           <p className="mt-0.5 text-[13px] text-muted-foreground">
-            {t("views.count", {
-              n: views.length,
-              s: views.length !== 1 ? "s" : "",
-            })}
+            {t("views.browse_all")}
           </p>
         </div>
         {isAdmin && (
@@ -171,79 +170,68 @@ export default function ViewsPage() {
           <p className="text-sm">{t("views.empty")}</p>
         </div>
       ) : (
-        <>
-          <div className="flex items-center gap-1">
-            {(["all", "ok", "conflict"] as const).map((f) => (
-              <button
-                key={f}
-                type="button"
-                onClick={() => setStatusFilter(f)}
-                className={`rounded-md border px-2.5 py-1 text-[12px] transition-colors ${statusFilter === f ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background text-foreground hover:bg-muted"}`}
-              >
-                {f === "all"
-                  ? t("common.all")
-                  : f === "ok"
-                    ? t("common.ok")
-                    : t("common.conflicts")}
-              </button>
-            ))}
-          </div>
-          <DataTable
-            columns={viewColumns}
-            data={filteredViews}
-            pageSize={10}
-            searchable
-            searchPlaceholder={t("views.search")}
-            initialSorting={[{ id: "status", desc: true }]}
-            selectable={isAdmin}
-            onBulkDelete={isAdmin ? handleBulkDelete : undefined}
-            getRowId={(row) => row.identifier}
-            footerStats={
-              <>
-                <span className="text-emerald-600">
-                  {viewStats.ok} {t("common.ok")}
+        <DataTable
+          columns={viewColumns}
+          data={filteredViews}
+          pageSize={10}
+          searchable
+          searchPlaceholder={t("views.search")}
+          searchTableGapClassName="space-y-5"
+          searchAction={
+            <ViewStatusFilterSelect
+              value={statusFilter}
+              onValueChange={setStatusFilter}
+            />
+          }
+          initialSorting={[{ id: "status", desc: true }]}
+          selectable={isAdmin}
+          onBulkDelete={isAdmin ? handleBulkDelete : undefined}
+          getRowId={(row) => row.identifier}
+          footerStats={
+            <>
+              <span className="text-emerald-600">
+                {viewStats.ok} {t("common.ok")}
+              </span>
+              {viewStats.conflict > 0 && (
+                <>
+                  {" "}
+                  ·{" "}
+                  <span className="text-destructive">
+                    {viewStats.conflict} {t("common.conflicts").toLowerCase()}
+                  </span>
+                </>
+              )}
+            </>
+          }
+          renderSubRow={(row) => {
+            const { ok_count, conflict_count } = row.original
+            return (
+              <div className="flex items-center gap-2 py-0.5 text-[12px] text-muted-foreground">
+                <span className="font-medium">Relations :</span>
+                <span className="flex items-center gap-1">
+                  <span className="inline-flex size-4 items-center justify-center rounded-full bg-emerald-500/15 text-[10px] text-emerald-700">
+                    ✓
+                  </span>
+                  <span className="font-medium text-emerald-700">
+                    {ok_count} valide{ok_count !== 1 ? "s" : ""}
+                  </span>
                 </span>
-                {viewStats.conflict > 0 && (
-                  <>
-                    {" "}
-                    ·{" "}
-                    <span className="text-destructive">
-                      {viewStats.conflict} {t("common.conflicts").toLowerCase()}
-                    </span>
-                  </>
-                )}
-              </>
-            }
-            renderSubRow={(row) => {
-              const { ok_count, conflict_count } = row.original
-              return (
-                <div className="flex items-center gap-2 py-0.5 text-[12px] text-muted-foreground">
-                  <span className="font-medium">Relations :</span>
-                  <span className="flex items-center gap-1">
-                    <span className="inline-flex size-4 items-center justify-center rounded-full bg-emerald-500/15 text-[10px] text-emerald-700">
-                      ✓
-                    </span>
-                    <span className="font-medium text-emerald-700">
-                      {ok_count} valide{ok_count !== 1 ? "s" : ""}
-                    </span>
+                <span className="flex items-center gap-1">
+                  <span className="inline-flex size-4 items-center justify-center rounded-full bg-destructive/15 text-[10px] text-destructive">
+                    ✕
                   </span>
-                  <span className="flex items-center gap-1">
-                    <span className="inline-flex size-4 items-center justify-center rounded-full bg-destructive/15 text-[10px] text-destructive">
-                      ✕
-                    </span>
-                    <span
-                      className={
-                        conflict_count > 0 ? "font-medium text-destructive" : ""
-                      }
-                    >
-                      {conflict_count} conflit{conflict_count !== 1 ? "s" : ""}
-                    </span>
+                  <span
+                    className={
+                      conflict_count > 0 ? "font-medium text-destructive" : ""
+                    }
+                  >
+                    {conflict_count} conflit{conflict_count !== 1 ? "s" : ""}
                   </span>
-                </div>
-              )
-            }}
-          />
-        </>
+                </span>
+              </div>
+            )
+          }}
+        />
       )}
 
       <DeleteViewDialog

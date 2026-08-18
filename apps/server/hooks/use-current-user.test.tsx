@@ -16,12 +16,33 @@ describe("useCurrentUser", () => {
     vi.unstubAllGlobals();
   });
 
-  it("returns null while loading and when /api/auth/me is unauthenticated", async () => {
+  it("returns null while loading and when /api/auth/me is unauthenticated (after a failed session refresh)", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 401 })));
     const { result } = renderHook(() => useCurrentUser(), { wrapper: createWrapper() });
     expect(result.current).toBeNull();
-    await waitFor(() => expect(fetch).toHaveBeenCalledWith("/api/auth/me", { credentials: "include" }));
+    // A 401 triggers a POST /api/auth/refresh attempt before giving up —
+    // shared session-refresh retry, same as every other API call.
+    await waitFor(() => expect(fetch).toHaveBeenCalledWith("/api/auth/refresh", { method: "POST", credentials: "include" }));
     expect(result.current).toBeNull();
+  });
+
+  it("retries /api/auth/me once after a successful session refresh", async () => {
+    const user = { id: "u1", username: "admin", name: "Admin Archispark", email: "admin@archispark.internal", role: "platform_admin" };
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url === "/api/auth/me") {
+        // First call: expired access token. Second call (after refresh): succeeds.
+        if (fetchMock.mock.calls.filter((c) => String(c[0]) === "/api/auth/me").length === 1) {
+          return new Response(null, { status: 401 });
+        }
+        return new Response(JSON.stringify(user), { status: 200, headers: { "content-type": "application/json" } });
+      }
+      // /api/auth/refresh
+      return new Response(null, { status: 204 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const { result } = renderHook(() => useCurrentUser(), { wrapper: createWrapper() });
+    await waitFor(() => expect(result.current?.username).toBe("admin"));
   });
 
   it("returns the user when /api/auth/me succeeds", async () => {

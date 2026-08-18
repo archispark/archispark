@@ -4,11 +4,10 @@ import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { useEffect } from "react"
 import { Menu, PanelLeftClose, PanelLeftOpen } from "lucide-react"
-import { useQueryClient } from "@tanstack/react-query"
-import { type ElementOut } from "@/lib/api"
-import { useWorkspaces, useElement, useView } from "@/lib/queries"
-import { useDashboard } from "@/lib/queries/dashboards"
+import { useWorkspaces, useOrganizations } from "@/lib/queries"
 import { useT } from "@/lib/i18n"
+import { useMounted } from "@/hooks/use-mounted"
+import { useBreadcrumbSegments } from "@/hooks/use-breadcrumb-segments"
 import { ThemeToggle } from "@/components/theme-toggle"
 
 export function PanelHeader({
@@ -25,89 +24,41 @@ export function PanelHeader({
   const pathname = usePathname()!
   const router = useRouter()
   const { t } = useT()
+  const mounted = useMounted()
   const { data: workspaces = [], isSuccess: wsLoaded } = useWorkspaces()
-  const qc = useQueryClient()
-  const segments = pathname.split("/").filter(Boolean)
+  const { data: organizations = [], isSuccess: orgsLoaded } = useOrganizations()
+  const { segments, segmentLabel } = useBreadcrumbSegments()
 
   useEffect(() => {
-    if (wsLoaded && workspaces.length === 0 && pathname !== "/workspaces") {
+    // A platform_admin with no real organization membership has zero
+    // organizations and zero workspaces (both list endpoints return []
+    // rather than erroring — see registry.ts / organizations-store.ts) —
+    // must not be bounced out of /platform/* while managing organizations,
+    // users, plugins or images.
+    if (!wsLoaded || !orgsLoaded || pathname.startsWith("/platform")) return
+
+    // No organization at all: users can no longer self-provision one by
+    // creating a workspace (see registry.ts), so /workspaces would only
+    // dead-end them — send them to the simple starter home page instead.
+    if (organizations.length === 0) {
+      if (pathname !== "/") router.push("/")
+      return
+    }
+
+    if (workspaces.length === 0 && pathname !== "/workspaces") {
       router.push("/workspaces")
     }
-  }, [wsLoaded, workspaces.length, pathname, router])
-
-  const elementId =
-    segments[0] === "elements" && segments.length === 2
-      ? decodeURIComponent(segments[1]!)
-      : ""
-  const { data: breadcrumbElement } = useElement(elementId)
-  const viewId =
-    segments[0] === "views" && segments.length === 2
-      ? decodeURIComponent(segments[1]!)
-      : ""
-  const { data: breadcrumbView } = useView(viewId)
-  const dashboardId =
-    segments[0] === "dashboards"
-      ? segments[1] === "admin"
-        ? segments[2] && segments[2] !== "new"
-          ? decodeURIComponent(segments[2])
-          : ""
-        : segments[1]
-          ? decodeURIComponent(segments[1])
-          : ""
-      : ""
-  const { data: breadcrumbDashboard } = useDashboard(dashboardId)
-
-  function segmentLabel(segment: string, index: number): string {
-    const keys: Record<string, Parameters<typeof t>[0]> = {
-      elements: "breadcrumb.elements",
-      relationships: "breadcrumb.relationships",
-      views: "breadcrumb.views",
-      validator: "breadcrumb.validator",
-      properties: "breadcrumb.properties",
-      users: "breadcrumb.users",
-      settings: "breadcrumb.settings",
-      workspaces: "breadcrumb.workspaces",
-      dashboards: "sidebar.dashboards",
-      explore: "sidebar.explore",
-      "panel-visualizations": "sidebar.panel_catalog",
-      organizations: "breadcrumb.organizations",
-      platform: "platform.title",
-      admin: "breadcrumb.admin",
-      new: "common.create",
-      edit: "common.edit",
-      invitations: "invitations.page_title",
-      login: "breadcrumb.login",
-      profile: "breadcrumb.profile",
-    }
-    if (keys[segment]) return t(keys[segment])
-
-    const id = decodeURIComponent(segment)
-    if (segments[index - 1] === "elements") {
-      const name =
-        (breadcrumbElement?.identifier === id
-          ? breadcrumbElement.name
-          : undefined) ?? qc.getQueryData<ElementOut>(["element", id])?.name
-      if (name) return name
-      if (id === elementId) return "…"
-    }
-    if (segments[index - 1] === "views") {
-      const name =
-        (breadcrumbView?.identifier === id ? breadcrumbView.name : undefined) ??
-        qc.getQueryData<{ name?: string }>(["view", id])?.name
-      if (name) return name
-      if (id === viewId) return "…"
-    }
-    if (
-      id === dashboardId &&
-      (segments[index - 1] === "dashboards" || segments[index - 2] === "admin")
-    ) {
-      return breadcrumbDashboard?.definition.title ?? "…"
-    }
-    return id
-  }
+  }, [
+    wsLoaded,
+    orgsLoaded,
+    organizations.length,
+    workspaces.length,
+    pathname,
+    router,
+  ])
 
   return (
-    <header className="flex h-[var(--nav-h)] shrink-0 items-center gap-2 border-b border-border px-3 sm:px-4">
+    <header className="sticky top-0 z-40 flex h-[var(--nav-h)] shrink-0 items-center gap-2 border-b border-border bg-background px-3 sm:px-4">
       {showSidebarToggle && (
         <button
           type="button"
@@ -119,7 +70,7 @@ export function PanelHeader({
         </button>
       )}
       <Link
-        href="/workspaces"
+        href="/"
         aria-label="ArchiSpark"
         className="flex shrink-0 items-center gap-1.5 no-underline md:hidden"
       >
@@ -178,7 +129,7 @@ export function PanelHeader({
         <div className="hidden h-4 w-px bg-border md:block" />
       )}
 
-      {workspaces.length > 0 && segments.length > 0 && (
+      {mounted && workspaces.length > 0 && segments.length > 0 && (
         <div className="flex min-w-0 items-center gap-1.5 overflow-hidden text-[13px] text-muted-foreground">
           {segments.map((segment, index) => {
             const last = index === segments.length - 1

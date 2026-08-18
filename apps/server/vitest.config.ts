@@ -16,6 +16,9 @@ const serverTestDirs = [
   "lib/mcp/**",
   "lib/http/**",
   "lib/dashboards/**",
+  "lib/plugins/**",
+  "app/api/plugins/**",
+  "app/api/platform/plugins/**",
 ]
 
 export default defineConfig({
@@ -42,7 +45,15 @@ export default defineConfig({
           // turbo's workspace-wide parallel test run the 5s default can be
           // exceeded on a loaded machine.
           testTimeout: 15000,
-          exclude: [...configDefaults.exclude, ".next/**", ...serverTestDirs],
+          // Playwright owns e2e/*.spec.ts (see playwright.config.ts) — its
+          // default test glob would otherwise also match here, since this
+          // project has no explicit `include`.
+          exclude: [
+            ...configDefaults.exclude,
+            ".next/**",
+            "e2e/**",
+            ...serverTestDirs,
+          ],
         },
       },
       {

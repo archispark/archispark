@@ -97,6 +97,20 @@ describe("DataTable", () => {
     expect(screen.getByText("Alpha")).toBeInTheDocument();
   });
 
+  it("renders a search action alongside the search input", () => {
+    render(
+      <DataTable
+        columns={columns}
+        data={[]}
+        searchable
+        searchAction={<button type="button">Add</button>}
+      />
+    );
+
+    expect(screen.getByPlaceholderText("Rechercher…")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add" })).toBeInTheDocument();
+  });
+
   it("page size selector fires onChange", () => {
     const data: Row[] = Array.from({ length: 15 }, (_, i) => ({ name: `R${i}`, type: "T" }));
     render(<DataTable columns={columns} data={data} pageSizeOptions={[5, 10, 25]} />);

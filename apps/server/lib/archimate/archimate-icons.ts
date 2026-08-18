@@ -371,3 +371,22 @@ export function iconForType(type?: string | null): IconPrim[] | null {
   if (!type) return null
   return ARCHIMATE_ICONS[type] ?? null
 }
+
+/** Serialises one icon primitive to an SVG element string. */
+export function iconPrimSvg(p: IconPrim, color: string): string {
+  const fill = "fill" in p && p.fill ? color : "none"
+  switch (p.tag) {
+    case "path":
+      return `<path d="${p.d}" fill="${fill}"/>`
+    case "polygon":
+      return `<polygon points="${p.points.join(" ")}" fill="${fill}"/>`
+    case "polyline":
+      return `<polyline points="${p.points.join(" ")}" fill="none"/>`
+    case "circle":
+      return `<circle cx="${p.cx}" cy="${p.cy}" r="${p.r}" fill="${fill}"/>`
+    case "ellipse":
+      return `<ellipse cx="${p.cx}" cy="${p.cy}" rx="${p.rx}" ry="${p.ry}" fill="${fill}"/>`
+    case "rect":
+      return `<rect x="${p.x}" y="${p.y}" width="${p.width}" height="${p.height}"${p.rx ? ` rx="${p.rx}"` : ""} fill="${fill}"/>`
+  }
+}

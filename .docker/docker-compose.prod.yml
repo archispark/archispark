@@ -1,0 +1,188 @@
+# ─────────────────────────────────────────────────────────────────────────────
+#  ArchiSpark — Docker Compose (production, self-hosted)
+#
+#  Déploie l'image publiée d'apps/server (voir .docker/server/*/Dockerfile
+#  et .github/workflows/docker-publish.yml) derrière Traefik, avec Postgres,
+#  Neo4j et Keycloak. Alternative self-hosted au déploiement Vercel décrit
+#  dans docs/development/deployment.md.
+#
+#  Démarrage :
+#    cp .env.example .env.prod   # puis renseigner DB_PASSWORD,
+#                                 # NEO4J_PASSWORD, KEYCLOAK_*, ARCHISPARK_DOMAIN,
+#                                 # KEYCLOAK_DOMAIN, ACME_EMAIL
+#    pnpm run prod:up
+#    pnpm run prod:migrate       # applique les migrations — jamais automatique
+#
+#  Voir docs/development/deployment.md#self-hosted-docker-compose pour la
+#  configuration TLS.
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+  # ── Reverse proxy (Traefik) ──────────────────────────────────────────────
+  traefik:
+    image: traefik:v3
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik.yml:/etc/traefik/traefik.yml:ro
+      - traefik_certs:/letsencrypt
+    networks:
+      - archispark
+
+  # ── Base de données (Postgres) — pas de port publié côté hôte ────────────
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: archispark
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env.prod}
+      POSTGRES_DB: archispark
+    volumes:
+      - postgres_prod_data:/var/lib/postgresql/data
+      # Crée la base archispark_keycloak au premier démarrage
+      - ./initdb:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U archispark -d archispark"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - archispark
+
+  # ── Base de données (Neo4j) — authentification activée, pas de port publié
+  neo4j:
+    image: neo4j:5-community
+    restart: unless-stopped
+    environment:
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:?Set NEO4J_PASSWORD in .env.prod}
+    volumes:
+      - neo4j_prod_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://localhost:7474 >/dev/null"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    networks:
+      - archispark
+
+  # ── Identity (Keycloak) — mode production, derrière Traefik ──────────────
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0.2
+    restart: unless-stopped
+    command: start --import-realm
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/archispark_keycloak
+      KC_DB_USERNAME: archispark
+      KC_DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env.prod}
+      KC_HOSTNAME: ${KEYCLOAK_DOMAIN:?Set KEYCLOAK_DOMAIN in .env.prod}
+      KC_HOSTNAME_STRICT: "false"
+      # TLS terminé par Traefik : Keycloak sert du HTTP en clair en interne.
+      KC_HTTP_ENABLED: "true"
+      KC_PROXY_HEADERS: xforwarded
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:?Set KEYCLOAK_ADMIN in .env.prod}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?Set KEYCLOAK_ADMIN_PASSWORD in .env.prod}
+    volumes:
+      # Voir docs/development/deployment.md#self-hosted-docker-compose :
+      # ce realm est le realm de dev (registrationAllowed: false,
+      # redirectUris en localhost) — à adapter avant le premier déploiement.
+      - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/8080"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.keycloak.rule=Host(`${KEYCLOAK_DOMAIN}`)"
+      - "traefik.http.routers.keycloak.entrypoints=websecure"
+      - "traefik.http.routers.keycloak.tls.certresolver=letsencrypt"
+      - "traefik.http.services.keycloak.loadbalancer.server.port=8080"
+    networks:
+      - archispark
+
+  # ── Application (apps/server : web, API REST, MCP) ───────────────────────
+  server:
+    image: archispark/archispark:${ARCHISPARK_OS:-alpine}-${ARCHISPARK_VERSION:-latest}
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://archispark:${DB_PASSWORD:?Set DB_PASSWORD in .env.prod}@postgres:5432/archispark
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_USER: neo4j
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:?Set NEO4J_PASSWORD in .env.prod}
+      KEYCLOAK_URL: https://${KEYCLOAK_DOMAIN:?Set KEYCLOAK_DOMAIN in .env.prod}
+      KEYCLOAK_REALM: ${KEYCLOAK_REALM:-archispark}
+      KEYCLOAK_CLIENT_ID_WEB: ${KEYCLOAK_CLIENT_ID_WEB:-archispark-web}
+      KEYCLOAK_ADMIN_CLIENT_ID: ${KEYCLOAK_ADMIN_CLIENT_ID:?Set KEYCLOAK_ADMIN_CLIENT_ID in .env.prod}
+      KEYCLOAK_ADMIN_CLIENT_SECRET: ${KEYCLOAK_ADMIN_CLIENT_SECRET:?Set KEYCLOAK_ADMIN_CLIENT_SECRET in .env.prod}
+      ARCHISPARK_URL: https://${ARCHISPARK_DOMAIN:?Set ARCHISPARK_DOMAIN in .env.prod}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_STARTTLS: ${SMTP_STARTTLS:-true}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8000/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.middlewares.security-headers.headers.stsSeconds=31536000"
+      - "traefik.http.middlewares.security-headers.headers.stsIncludeSubdomains=true"
+      - "traefik.http.middlewares.security-headers.headers.contentTypeNosniff=true"
+      - "traefik.http.middlewares.security-headers.headers.customFrameOptionsValue=SAMEORIGIN"
+      - "traefik.http.middlewares.security-headers.headers.referrerPolicy=strict-origin-when-cross-origin"
+      - "traefik.http.routers.server.rule=Host(`${ARCHISPARK_DOMAIN}`)"
+      - "traefik.http.routers.server.entrypoints=websecure"
+      - "traefik.http.routers.server.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.server.middlewares=security-headers"
+      - "traefik.http.services.server.loadbalancer.server.port=8000"
+    networks:
+      - archispark
+
+  # ── Migrations (one-off) — jamais lancé par `up` ─────────────────────────
+  # `pnpm run prod:migrate` = `docker compose run --rm migrate`. `profiles`
+  # l'exclut de `docker compose up`/`pnpm run prod:up` ; nommer le service
+  # explicitement via `run` active son profil du seul fait de le cibler.
+  migrate:
+    image: archispark/archispark:${ARCHISPARK_OS:-alpine}-${ARCHISPARK_VERSION:-latest}
+    profiles: ["tools"]
+    environment:
+      DATABASE_URL: postgresql://archispark:${DB_PASSWORD:?Set DB_PASSWORD in .env.prod}@postgres:5432/archispark
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_USER: neo4j
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:?Set NEO4J_PASSWORD in .env.prod}
+    command: ["node", "migrate/docker-migrate.mjs"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
+    networks:
+      - archispark
+
+networks:
+  archispark:
+    name: archispark
+
+volumes:
+  postgres_prod_data:
+  neo4j_prod_data:
+  traefik_certs:

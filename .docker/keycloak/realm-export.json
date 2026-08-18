@@ -3,12 +3,14 @@
   "enabled": true,
   "sslRequired": "none",
   "registrationAllowed": false,
+  "verifyEmail": false,
+  "resetPasswordAllowed": false,
   "loginWithEmailAllowed": true,
   "roles": {
     "realm": [
       {
         "name": "platform_admin",
-        "description": "ArchiSpark platform administrator",
+        "description": "ArchiSpark Admin",
         "composite": false,
         "clientRole": false
       }

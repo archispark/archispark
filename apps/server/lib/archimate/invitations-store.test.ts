@@ -20,6 +20,19 @@ import { ValidationError, NotFoundError, ForbiddenError } from "./errors"
 import type { AccessUser } from "./access"
 
 vi.mock("./mail", async () => import("./test/mail-fake.js"))
+vi.mock("./invitation-onboarding", async () => {
+  const { sendInvitationEmail } = await import("./test/mail-fake.js")
+  return {
+    deliverInvitationEmail: async (
+      email: string,
+      organizationName: string,
+      acceptUrl: string
+    ) => {
+      await sendInvitationEmail(email, organizationName, acceptUrl)
+      return "invitation"
+    },
+  }
+})
 import {
   resetMailFake,
   setMailFakeShouldFail,
@@ -36,7 +49,7 @@ async function lastSentToken(): Promise<string> {
 }
 
 const OWNER: AccessUser = { id: `inv-owner-${randomUUID()}`, role: "user" }
-const MEMBER: AccessUser = { id: `inv-member-${randomUUID()}`, role: "user" }
+const VIEWER: AccessUser = { id: `inv-member-${randomUUID()}`, role: "user" }
 
 let orgId: number
 
@@ -48,12 +61,13 @@ beforeAll(async () => {
   orgId = org!.id
   await db.insert(organizationMembers).values([
     { organizationId: orgId, userId: OWNER.id, role: "owner" },
-    { organizationId: orgId, userId: MEMBER.id, role: "member" },
+    { organizationId: orgId, userId: VIEWER.id, role: "viewer" },
   ])
 })
 
 beforeEach(() => {
   resetMailFake()
+  process.env["ARCHISPARK_URL"] = "http://localhost:8000"
 })
 
 function invitee(
@@ -70,10 +84,10 @@ describe("createOrReplaceInvitation", () => {
       OWNER,
       orgId,
       email,
-      "member"
+      "viewer"
     )
     expect(created.email).toBe(email)
-    expect(created.role).toBe("member")
+    expect(created.role).toBe("viewer")
     expect(created.sent_at).not.toBeNull()
     expect(created.expired).toBe(false)
     expect(getSentInvitationEmails()).toHaveLength(1)
@@ -86,7 +100,7 @@ describe("createOrReplaceInvitation", () => {
       OWNER,
       orgId,
       email,
-      "member"
+      "viewer"
     )
     expect(created.email).toBe(email.toLowerCase())
   })
@@ -94,10 +108,10 @@ describe("createOrReplaceInvitation", () => {
   it("member cannot invite (manage_members is owner-only)", async () => {
     await expect(
       createOrReplaceInvitation(
-        MEMBER,
+        VIEWER,
         orgId,
         `forbidden-${randomUUID()}@example.com`,
-        "member"
+        "viewer"
       )
     ).rejects.toBeInstanceOf(ForbiddenError)
   })
@@ -115,10 +129,10 @@ describe("createOrReplaceInvitation", () => {
 
   it("a second invitation for the same e-mail revokes the first — only one active at a time", async () => {
     const email = `resend-race-${randomUUID()}@example.com`
-    await createOrReplaceInvitation(OWNER, orgId, email, "member")
+    await createOrReplaceInvitation(OWNER, orgId, email, "viewer")
     const firstToken = await lastSentToken()
 
-    await createOrReplaceInvitation(OWNER, orgId, email, "admin")
+    await createOrReplaceInvitation(OWNER, orgId, email, "editor")
     const secondToken = await lastSentToken()
     expect(secondToken).not.toBe(firstToken)
 
@@ -126,7 +140,7 @@ describe("createOrReplaceInvitation", () => {
       (i) => i.email === email
     )
     expect(active).toHaveLength(1)
-    expect(active[0]!.role).toBe("admin")
+    expect(active[0]!.role).toBe("editor")
 
     // The old token is revoked, not just superseded.
     await expect(getInvitationPreview(firstToken)).rejects.toBeInstanceOf(
@@ -141,7 +155,7 @@ describe("createOrReplaceInvitation", () => {
       OWNER,
       orgId,
       email,
-      "member"
+      "viewer"
     )
     expect(created.sent_at).toBeNull()
 
@@ -149,6 +163,72 @@ describe("createOrReplaceInvitation", () => {
       rows.filter((r) => r.email === email)
     )
     expect(row).toBeDefined()
+  })
+
+  it("returns a manual link once without persisting it", async () => {
+    const previousUrl = process.env["ARCHISPARK_URL"]
+    process.env["ARCHISPARK_URL"] = "http://localhost:8000"
+
+    try {
+      const email = `manual-${randomUUID()}@example.com`
+      const created = await createOrReplaceInvitation(
+        OWNER,
+        orgId,
+        email,
+        "viewer",
+        "manual"
+      )
+      expect(created.sent_at).toBeNull()
+      expect(created.accept_url).toMatch(/\/invitations\//)
+      expect(getSentInvitationEmails()).toHaveLength(0)
+
+      const [listed] = (await listInvitations(OWNER, orgId)).filter(
+        (invitation) => invitation.email === email
+      )
+      expect(listed).not.toHaveProperty("accept_url")
+      await expect(
+        getInvitationPreview(tokenFromAcceptUrl(created.accept_url!))
+      ).resolves.toMatchObject({ email })
+    } finally {
+      if (previousUrl === undefined) delete process.env["ARCHISPARK_URL"]
+      else process.env["ARCHISPARK_URL"] = previousUrl
+    }
+  })
+
+  it("sends the e-mail and returns a one-time link in both mode", async () => {
+    const email = `both-${randomUUID()}@example.com`
+    const created = await createOrReplaceInvitation(
+      OWNER,
+      orgId,
+      email,
+      "viewer",
+      "both"
+    )
+
+    expect(created.sent_at).not.toBeNull()
+    expect(created.accept_url).toMatch(/\/invitations\//)
+    expect(getSentInvitationEmails().some((sent) => sent.to === email)).toBe(
+      true
+    )
+
+    const [listed] = (await listInvitations(OWNER, orgId)).filter(
+      (invitation) => invitation.email === email
+    )
+    expect(listed).not.toHaveProperty("accept_url")
+  })
+
+  it("still returns the link when SMTP fails in both mode", async () => {
+    setMailFakeShouldFail(true)
+    const created = await createOrReplaceInvitation(
+      OWNER,
+      orgId,
+      `both-failure-${randomUUID()}@example.com`,
+      "viewer",
+      "both"
+    )
+
+    expect(created.sent_at).toBeNull()
+    expect(created.accept_url).toMatch(/\/invitations\//)
   })
 })
 
@@ -160,7 +240,7 @@ describe("resendInvitation", () => {
       OWNER,
       orgId,
       email,
-      "member"
+      "viewer"
     )
     expect(created.sent_at).toBeNull()
 
@@ -176,6 +256,29 @@ describe("resendInvitation", () => {
       resendInvitation(OWNER, orgId, 999999999)
     ).rejects.toBeInstanceOf(NotFoundError)
   })
+
+  it("replaces a manual link and invalidates the previous one", async () => {
+    const created = await createOrReplaceInvitation(
+      OWNER,
+      orgId,
+      `manual-resend-${randomUUID()}@example.com`,
+      "viewer",
+      "manual"
+    )
+    const firstToken = tokenFromAcceptUrl(created.accept_url!)
+
+    const resent = await resendInvitation(
+      OWNER,
+      orgId,
+      Number(created.id),
+      "manual"
+    )
+    const secondToken = tokenFromAcceptUrl(resent.accept_url!)
+    expect(secondToken).not.toBe(firstToken)
+    await expect(getInvitationPreview(firstToken)).rejects.toBeInstanceOf(
+      ValidationError
+    )
+  })
 })
 
 describe("revokeInvitation", () => {
@@ -185,7 +288,7 @@ describe("revokeInvitation", () => {
       OWNER,
       orgId,
       email,
-      "member"
+      "viewer"
     )
     await revokeInvitation(OWNER, orgId, Number(created.id))
 
@@ -199,7 +302,7 @@ describe("revokeInvitation", () => {
       OWNER,
       orgId,
       email,
-      "member"
+      "viewer"
     )
     await revokeInvitation(OWNER, orgId, Number(created.id))
     await expect(
@@ -213,10 +316,10 @@ describe("revokeInvitation", () => {
       OWNER,
       orgId,
       email,
-      "member"
+      "viewer"
     )
     await expect(
-      revokeInvitation(MEMBER, orgId, Number(created.id))
+      revokeInvitation(VIEWER, orgId, Number(created.id))
     ).rejects.toBeInstanceOf(ForbiddenError)
   })
 })
@@ -224,17 +327,17 @@ describe("revokeInvitation", () => {
 describe("getInvitationPreview / acceptInvitation", () => {
   it("previews and accepts a valid invitation", async () => {
     const email = `accept-${randomUUID()}@example.com`
-    await createOrReplaceInvitation(OWNER, orgId, email, "admin")
+    await createOrReplaceInvitation(OWNER, orgId, email, "editor")
     const token = await lastSentToken()
 
     const preview = await getInvitationPreview(token)
-    expect(preview.role).toBe("admin")
+    expect(preview.role).toBe("editor")
     expect(preview.email).toBe(email)
 
     const user = invitee(email, true)
     const result = await acceptInvitation(user, token)
     expect(result.organization_id).toBe(String(orgId))
-    expect(result.role).toBe("admin")
+    expect(result.role).toBe("editor")
 
     const [membership] = await db
       .select()
@@ -245,12 +348,12 @@ describe("getInvitationPreview / acceptInvitation", () => {
           eq(organizationMembers.userId, user.id)
         )
       )
-    expect(membership?.role).toBe("admin")
+    expect(membership?.role).toBe("editor")
   })
 
   it("refuses acceptance when the caller's e-mail isn't verified", async () => {
     const email = `unverified-${randomUUID()}@example.com`
-    await createOrReplaceInvitation(OWNER, orgId, email, "member")
+    await createOrReplaceInvitation(OWNER, orgId, email, "viewer")
     const token = await lastSentToken()
 
     await expect(
@@ -260,7 +363,7 @@ describe("getInvitationPreview / acceptInvitation", () => {
 
   it("refuses acceptance when the caller's e-mail doesn't match the invitation", async () => {
     const email = `mismatch-${randomUUID()}@example.com`
-    await createOrReplaceInvitation(OWNER, orgId, email, "member")
+    await createOrReplaceInvitation(OWNER, orgId, email, "viewer")
     const token = await lastSentToken()
 
     await expect(
@@ -286,7 +389,7 @@ describe("getInvitationPreview / acceptInvitation", () => {
       OWNER,
       orgId,
       email,
-      "member"
+      "viewer"
     )
     const token = await lastSentToken()
     await revokeInvitation(OWNER, orgId, Number(created.id))
@@ -305,7 +408,7 @@ describe("getInvitationPreview / acceptInvitation", () => {
       OWNER,
       orgId,
       email,
-      "member"
+      "viewer"
     )
     const token = await lastSentToken()
     // Force expiry directly — createOrReplaceInvitation always issues a
@@ -329,7 +432,7 @@ describe("getInvitationPreview / acceptInvitation", () => {
 
   it("does not error when the invitee is already a member through another path", async () => {
     const email = `already-member-${randomUUID()}@example.com`
-    await createOrReplaceInvitation(OWNER, orgId, email, "member")
+    await createOrReplaceInvitation(OWNER, orgId, email, "viewer")
     const token = await lastSentToken()
     const user = invitee(email, true)
 
@@ -339,7 +442,7 @@ describe("getInvitationPreview / acceptInvitation", () => {
     // "two concurrent accepts" below for the actual double-accept guard).
     await db
       .insert(organizationMembers)
-      .values({ organizationId: orgId, userId: user.id, role: "member" })
+      .values({ organizationId: orgId, userId: user.id, role: "viewer" })
 
     await expect(acceptInvitation(user, token)).resolves.toMatchObject({
       organization_id: String(orgId),
@@ -348,7 +451,7 @@ describe("getInvitationPreview / acceptInvitation", () => {
 
   it("two concurrent accepts on the same token: exactly one succeeds, one member row is created", async () => {
     const email = `concurrent-${randomUUID()}@example.com`
-    await createOrReplaceInvitation(OWNER, orgId, email, "member")
+    await createOrReplaceInvitation(OWNER, orgId, email, "viewer")
     const token = await lastSentToken()
     const user = invitee(email, true)
 

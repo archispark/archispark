@@ -1,0 +1,17 @@
+{
+  "title": "User Guide",
+  "icon": "BookUser",
+  "root": true,
+  "pages": [
+    "index",
+    "workspaces",
+    "elements",
+    "relationships",
+    "views",
+    "properties",
+    "dashboards",
+    "organizations",
+    "settings-and-profile",
+    "tips"
+  ]
+}

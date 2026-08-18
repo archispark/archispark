@@ -61,8 +61,16 @@ export function CreateRelationshipDialog({
   } = fields
   return (
     <Dialog open={modal.open} onOpenChange={(o) => !o && actions.close()}>
-      <DialogTrigger render={<Button size="sm" onClick={onOpenCreate} />}>
-        <Plus className="size-4" /> Nouvelle relation
+      <DialogTrigger
+        render={
+          <Button
+            size="sm"
+            onClick={onOpenCreate}
+            className="bg-emerald-600 text-primary-foreground hover:bg-emerald-700"
+          />
+        }
+      >
+        <Plus className="size-4" /> {t("common.add")}
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>

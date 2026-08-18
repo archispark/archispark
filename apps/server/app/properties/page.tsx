@@ -171,10 +171,7 @@ export default function PropertiesPage() {
         <div>
           <h1 className="text-lg font-semibold">{t("properties.title")}</h1>
           <p className="mt-0.5 text-[13px] text-muted-foreground">
-            {t("properties.count", {
-              n: filtered.length,
-              s: filtered.length !== 1 ? "s" : "",
-            })}
+            {t("properties.browse_all")}
           </p>
         </div>
 
@@ -195,7 +192,7 @@ export default function PropertiesPage() {
 
       <Input
         placeholder={t("properties.search")}
-        className="max-w-xs"
+        className="w-full"
         value={search}
         onChange={(e) => setSearch(e.target.value)}
       />

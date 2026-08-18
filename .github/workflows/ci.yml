@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: pnpm/action-setup@v4
 
@@ -27,13 +27,14 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build native addons
-        run: pnpm --filter server build
+      - name: Build server and workspace dependencies
+        run: pnpm turbo run build --filter=server
         env:
           NODE_ENV: production
           DB_CLIENT: pglite
 
       - name: Run CI Tasks (Lint, Typecheck, Test)
+        # E2E tests are intentionally excluded from GitHub CI because they are too slow.
         run: pnpm turbo run lint typecheck test:coverage --filter=server
         env:
           NODE_ENV: test

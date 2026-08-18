@@ -1,4 +1,4 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "cd ../.. && pnpm --filter @workspace/db build && pnpm --filter @workspace/db-neo4j build && pnpm --filter @workspace/auth build && pnpm --filter server build"
+  "buildCommand": "cd ../.. && pnpm --filter @workspace/env build && pnpm --filter @workspace/db build && pnpm --filter @workspace/db-neo4j build && pnpm --filter @workspace/auth build && pnpm --filter @workspace/image-library build && pnpm --filter server build"
 }

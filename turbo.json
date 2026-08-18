@@ -29,17 +29,39 @@
       "persistent": true,
       "passThroughEnv": [
         "DATABASE_URL",
+        "ARCHISPARK_URL",
+        "LOCAL_AUTH_JWT_SECRET",
         "KEYCLOAK_URL",
         "KEYCLOAK_REALM",
         "KEYCLOAK_CLIENT_ID_WEB",
         "KEYCLOAK_ADMIN_CLIENT_ID",
         "KEYCLOAK_ADMIN_CLIENT_SECRET",
+        "KEYCLOAK_SSO_ENABLED",
+        "KEYCLOAK_SSO_PROVIDER_NAME",
+        "SMTP_HOST",
+        "SMTP_PORT",
+        "SMTP_STARTTLS",
+        "SMTP_USER",
+        "SMTP_PASSWORD",
+        "SMTP_FROM",
         "NEO4J_URI",
         "NEO4J_USER",
         "NEO4J_PASSWORD",
+        "BLOB_READ_WRITE_TOKEN",
         "NODE_OPTIONS",
         "PORT",
         "HOST"
+      ]
+    },
+    "//#db:migrate": {
+      "dependsOn": ["@workspace/db#build", "@workspace/db-neo4j#build"],
+      "cache": false,
+      "passThroughEnv": [
+        "DATABASE_URL",
+        "NEO4J_URI",
+        "NEO4J_USER",
+        "NEO4J_PASSWORD",
+        "NEO4J_ENABLED"
       ]
     }
   }

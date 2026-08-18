@@ -16,49 +16,15 @@
  * manage-users/view-users on the target realm).
  */
 
-import { readFileSync } from "fs";
-import { resolve } from "path";
-import {
-  findUserByUsername,
-  createKeycloakUser,
-  updateKeycloakUser,
-  setUserPassword,
-  getUserRealmRoles,
-  assignRealmRole,
-  type KeycloakUserRepresentation,
-} from "@workspace/auth";
+import "@workspace/env/register"
+import { readFileSync } from "fs"
+import { resolve } from "path"
+import { seedKeycloakUsers, type SeedUser } from "./lib/seed-keycloak-users.js"
 
-interface DemoUser extends KeycloakUserRepresentation {
-  password: string;
-  realmRoles?: string[];
-}
+const USERS_PATH = resolve(
+  import.meta.dirname,
+  "../../../.docker/keycloak/demo-users.json"
+)
+const users = JSON.parse(readFileSync(USERS_PATH, "utf-8")) as SeedUser[]
 
-const USERS_PATH = resolve(import.meta.dirname, "../../../.docker/keycloak/demo-users.json");
-const users = JSON.parse(readFileSync(USERS_PATH, "utf-8")) as DemoUser[];
-
-for (const { password, realmRoles, ...rep } of users) {
-  const existing = await findUserByUsername(rep.username);
-  let userId: string;
-  if (existing?.id) {
-    await updateKeycloakUser(existing.id, rep);
-    userId = existing.id;
-    console.log(`Updated user ${rep.username} (${userId})`);
-  } else {
-    userId = await createKeycloakUser({ ...rep, enabled: true, emailVerified: true });
-    console.log(`Created user ${rep.username} (${userId})`);
-  }
-
-  await setUserPassword(userId, password, false);
-
-  if (realmRoles?.length) {
-    const current = new Set((await getUserRealmRoles(userId)).map((r) => r.name));
-    for (const role of realmRoles) {
-      if (!current.has(role)) {
-        await assignRealmRole(userId, role);
-        console.log(`  + realm role "${role}"`);
-      }
-    }
-  }
-}
-
-console.log("Done.");
+await seedKeycloakUsers(users)

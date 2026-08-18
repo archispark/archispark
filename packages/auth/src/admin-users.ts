@@ -9,6 +9,7 @@ export interface KeycloakUserRepresentation {
   lastName?: string
   enabled?: boolean
   emailVerified?: boolean
+  requiredActions?: string[]
   createdTimestamp?: number
   attributes?: Record<string, string[]>
 }
@@ -112,6 +113,19 @@ export async function findUserByUsername(
   return users.find((u) => u.username === username) ?? null
 }
 
+/** Returns the user with this exact normalized e-mail, or null if none exists. */
+export async function findUserByEmail(
+  email: string
+): Promise<KeycloakUserRepresentation | null> {
+  const normalizedEmail = email.trim().toLowerCase()
+  const users = await adminGet<KeycloakUserRepresentation[]>(
+    `/users?email=${encodeURIComponent(normalizedEmail)}&exact=true`
+  )
+  return (
+    users.find((user) => user.email?.toLowerCase() === normalizedEmail) ?? null
+  )
+}
+
 /** Returns the user with this id, or null if it doesn't exist (404). */
 export async function getKeycloakUser(
   userId: string
@@ -138,6 +152,37 @@ export function updateKeycloakUser(
   data: Partial<KeycloakUserRepresentation>
 ): Promise<void> {
   return adminPut(`/users/${userId}`, data)
+}
+
+/** Deletes one Keycloak user. Used to roll back failed onboarding creation. */
+export async function deleteKeycloakUser(userId: string): Promise<void> {
+  const res = await adminRequest(`/users/${userId}`, { method: "DELETE" })
+  if (!res.ok && res.status !== 404) {
+    throw new Error(
+      `Keycloak admin request failed: DELETE /users/${userId} -> ${res.status}`
+    )
+  }
+}
+
+/** Sends a Keycloak execute-actions e-mail and redirects back afterwards. */
+export function sendUserRequiredActionsEmail(
+  userId: string,
+  options: {
+    clientId: string
+    redirectUri: string
+    lifespan: number
+    actions: string[]
+  }
+): Promise<void> {
+  const query = new URLSearchParams({
+    client_id: options.clientId,
+    redirect_uri: options.redirectUri,
+    lifespan: String(options.lifespan),
+  })
+  return adminPut(
+    `/users/${userId}/execute-actions-email?${query.toString()}`,
+    options.actions
+  )
 }
 
 export function setUserPassword(

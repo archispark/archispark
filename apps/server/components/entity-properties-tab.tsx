@@ -2,9 +2,14 @@
 
 import { useMemo } from "react"
 import type { ColumnDef } from "@tanstack/react-table"
-import { type Property, type PropertyDefinitionOut } from "@/lib/api"
+import {
+  type Property,
+  type PropertyDefinitionOut,
+  ARCHISPARK_IMAGE_PROPERTY_ID,
+} from "@/lib/api"
 import { InlineText } from "@/components/detail-page-shared"
 import { DataTable } from "@/components/data-table"
+import { ImagePicker } from "@/components/image-picker"
 import { Button } from "@workspace/ui/components/button"
 import { Input } from "@workspace/ui/components/input"
 import {
@@ -75,8 +80,24 @@ export function EntityPropertiesTab({
       {
         accessorKey: "value",
         header: t("elements.prop_value"),
-        cell: ({ row }) =>
-          isAdmin ? (
+        cell: ({ row }) => {
+          if (!isAdmin) {
+            return <span className="text-sm">{row.original.value || "—"}</span>
+          }
+          const isImage =
+            row.original.property_definition_ref ===
+            ARCHISPARK_IMAGE_PROPERTY_ID
+          if (isImage) {
+            return (
+              <ImagePicker
+                value={row.original.value}
+                onChange={(v) =>
+                  onSaveValue(row.original.property_definition_ref, v)
+                }
+              />
+            )
+          }
+          return (
             <InlineText
               value={row.original.value}
               onSave={(v) =>
@@ -85,9 +106,8 @@ export function EntityPropertiesTab({
               className="text-sm"
               placeholder="—"
             />
-          ) : (
-            <span className="text-sm">{row.original.value || "—"}</span>
-          ),
+          )
+        },
       },
       ...(isAdmin
         ? [
@@ -98,14 +118,14 @@ export function EntityPropertiesTab({
               cell: ({ row }: { row: { original: PropRow } }) => (
                 <div className="flex justify-end">
                   <Button
-                    variant="ghost"
+                    variant="destructive"
                     size="icon-xs"
                     onClick={() =>
                       onDeleteClick(row.original.property_definition_ref)
                     }
                     aria-label={t("common.delete")}
                   >
-                    <Trash2 className="size-3.5 text-destructive" />
+                    <Trash2 className="size-3.5" />
                   </Button>
                 </div>
               ),
@@ -119,19 +139,6 @@ export function EntityPropertiesTab({
   return (
     <div className="min-h-0 flex-1 overflow-y-auto pt-3 pb-4">
       <div className="space-y-3">
-        {isAdmin && (
-          <div className="flex justify-end">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={onStartAdd}
-              disabled={addingProp || availableDefs.length === 0}
-            >
-              <Plus className="mr-1 size-3.5" />
-              {t("common.create")}
-            </Button>
-          </div>
-        )}
         {addingProp && (
           <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted/30 p-3">
             <Select
@@ -154,16 +161,20 @@ export function EntityPropertiesTab({
                 ))}
               </SelectContent>
             </Select>
-            <Input
-              className="h-8 min-w-[140px] flex-1 text-sm"
-              placeholder={t("properties.value_placeholder")}
-              value={newPropVal}
-              onChange={(e) => onNewPropValChange(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") onSaveAdd()
-                if (e.key === "Escape") onCancelAdd()
-              }}
-            />
+            {newPropRef === ARCHISPARK_IMAGE_PROPERTY_ID ? (
+              <ImagePicker value={newPropVal} onChange={onNewPropValChange} />
+            ) : (
+              <Input
+                className="h-8 min-w-[140px] flex-1 text-sm"
+                placeholder={t("properties.value_placeholder")}
+                value={newPropVal}
+                onChange={(e) => onNewPropValChange(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") onSaveAdd()
+                  if (e.key === "Escape") onCancelAdd()
+                }}
+              />
+            )}
             <Button
               size="sm"
               onClick={onSaveAdd}
@@ -180,6 +191,20 @@ export function EntityPropertiesTab({
           columns={propColumns}
           data={properties as PropRow[]}
           pageSize={25}
+          searchable
+          searchAction={
+            isAdmin ? (
+              <Button
+                size="sm"
+                onClick={onStartAdd}
+                disabled={addingProp || availableDefs.length === 0}
+                className="h-8 bg-emerald-600 text-primary-foreground hover:bg-emerald-700"
+              >
+                <Plus className="mr-1 size-3.5" />
+                {t("common.add")}
+              </Button>
+            ) : undefined
+          }
         />
       </div>
     </div>

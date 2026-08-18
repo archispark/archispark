@@ -2,6 +2,11 @@ name: Run production migrations
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "packages/db/drizzle-pg/**"
+      - "packages/db-neo4j/src/schema/migrations/**"
 
 permissions:
   contents: read
@@ -11,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: pnpm/action-setup@v4
 
@@ -22,6 +27,15 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      # migrate-prod.ts / backfill-prod.ts import "@workspace/env" by its
+      # package specifier, which resolves to dist/index.js — unbuilt by a
+      # plain install, and the previous incarnation of this workflow ran
+      # migrate:prod straight after install and failed on every run with
+      # ERR_MODULE_NOT_FOUND before anyone noticed (no failure notification
+      # wired up).
+      - name: Build @workspace/env
+        run: pnpm --filter @workspace/env build
 
       - name: Run pending PostgreSQL migrations
         run: pnpm --filter @workspace/db migrate:prod

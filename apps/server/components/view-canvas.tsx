@@ -2,21 +2,18 @@
 
 import { useEffect, useMemo } from "react"
 import {
-  ReactFlow,
   ReactFlowProvider,
-  Background,
-  Controls,
-  Panel,
   useNodesState,
   useEdgesState,
   useReactFlow,
   type Edge,
 } from "@xyflow/react"
-import "@xyflow/react/dist/style.css"
 import { type NodeOut, type ConnectionOut, type ElementOut } from "@/lib/api"
+import { ArchisparkReactFlow } from "@/components/archispark-react-flow"
 import { ViewIdContext } from "@/components/view-canvas-context"
 import { ArchiNode } from "@/components/view-canvas-node"
-import { ArchiEdge, archimateEdgeStyle } from "@/components/view-canvas-edge"
+import { ArchiEdge } from "@/components/view-canvas-edge"
+import { archimateEdgeStyle } from "@/components/archimate-edge-style"
 import {
   type NodeRect,
   pickHandles,
@@ -25,9 +22,15 @@ import {
 } from "@/components/view-canvas-builder"
 import { ElementPalette } from "@/components/view-canvas-palette"
 import { DownloadMenu } from "@/components/view-canvas-download-menu"
-import { HANDLE_HOVER_CSS, MARKER_DEFS } from "@/components/view-canvas-markers"
+import { HANDLE_HOVER_CSS } from "@/components/view-canvas-markers"
 import { PendingConnectionDialog } from "@/components/view-canvas-pending-connection-dialog"
 import { useViewCanvasHandlers } from "@/components/use-view-canvas-handlers"
+import {
+  FullscreenContainer,
+  ReactFlowFullscreenButton,
+  useReactFlowFullscreen,
+} from "@/components/react-flow-fullscreen"
+import { CanvasToolbarPanel } from "@/components/canvas-toolbar-panel"
 
 const NODE_TYPES = { archi: ArchiNode }
 const EDGE_TYPES = { archi: ArchiEdge }
@@ -62,9 +65,19 @@ function ViewCanvasInner({
   relationshipNames = new Map(),
 }: ViewCanvasProps) {
   const { screenToFlowPosition } = useReactFlow()
+  const { fullscreen, toggleFullscreen } = useReactFlowFullscreen()
+  const elementImages = useMemo(
+    () =>
+      new Map(
+        elements
+          .filter((e) => e.resolved_image_url)
+          .map((e) => [e.identifier, e.resolved_image_url as string])
+      ),
+    [elements]
+  )
   const initialNodes = useMemo(
-    () => flattenNodes(nodes, elementNames, elementTypes),
-    [nodes, elementNames, elementTypes]
+    () => flattenNodes(nodes, elementNames, elementTypes, elementImages),
+    [nodes, elementNames, elementTypes, elementImages]
   )
 
   const nodeRectMap = useMemo(() => {
@@ -190,13 +203,10 @@ function ViewCanvasInner({
 
   return (
     <ViewIdContext.Provider value={viewId}>
-      <div
-        style={{
-          width: "100%",
-          height: 600,
-          position: "relative",
-          display: "flex",
-        }}
+      <FullscreenContainer
+        fullscreen={fullscreen}
+        style={{ height: fullscreen ? "100dvh" : 600 }}
+        className="box-border flex w-full bg-background"
       >
         {viewId ? <ElementPalette elements={elements} /> : null}
         <div
@@ -205,7 +215,6 @@ function ViewCanvasInner({
           onDrop={onDrop}
         >
           {HANDLE_HOVER_CSS}
-          {MARKER_DEFS}
           {pendingConnection ? (
             <PendingConnectionDialog
               pendingConnection={pendingConnection}
@@ -213,7 +222,7 @@ function ViewCanvasInner({
               onConfirmType={confirmRelationshipType}
             />
           ) : null}
-          <ReactFlow
+          <ArchisparkReactFlow
             nodes={rfNodes}
             edges={rfEdges}
             onNodesChange={onNodesChange}
@@ -233,14 +242,16 @@ function ViewCanvasInner({
             deleteKeyCode={["Backspace", "Delete"]}
             colorMode="system"
           >
-            <Background />
-            <Controls />
-            <Panel position="top-right">
+            <CanvasToolbarPanel className="flex items-start gap-2">
+              <ReactFlowFullscreenButton
+                fullscreen={fullscreen}
+                onToggle={toggleFullscreen}
+              />
               <DownloadMenu />
-            </Panel>
-          </ReactFlow>
+            </CanvasToolbarPanel>
+          </ArchisparkReactFlow>
         </div>
-      </div>
+      </FullscreenContainer>
     </ViewIdContext.Provider>
   )
 }

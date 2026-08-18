@@ -14,11 +14,12 @@
  *     suspended — existence and membership are already established, so 404
  *     would be misleading.
  *
- * platform_admin is structurally rejected by every function here — it always
- * gets NotFoundError, regardless of any organization_members row that may
- * exist for that user. Organization data is never visible to the platform
- * role; this isolation is enforced once, here, rather than left to be
- * remembered at every call site.
+ * platform_admin (the realm role) gets no special treatment in this file —
+ * for organization/workspace content it is subject to the exact same
+ * organization_members-based rules as any other user, suspended included.
+ * Its only unconditional access is to the /platform/** admin pages
+ * (organizations, users, plugins, image library), gated separately by
+ * withSuperAdmin and independent of this file.
  */
 
 import { and, asc, eq } from "drizzle-orm"
@@ -32,10 +33,8 @@ import {
 } from "@workspace/db"
 import { NotFoundError, ForbiddenError } from "./errors"
 
-export type OrgRoleName = "owner" | "admin" | "member"
+export type OrgRoleName = "owner" | "editor" | "viewer"
 export type Intent = "read" | "write" | "manage_members"
-
-const PLATFORM_ADMIN_ROLE = "platform_admin"
 
 /** The subset of the authenticated user every access check needs. */
 export interface AccessUser {
@@ -48,6 +47,8 @@ export interface AuthUser extends AccessUser {
   username: string
   email?: string
   emailVerified?: boolean
+  /** Local accounts only (see local-auth-tokens.ts) — true blocks every page but /change-password (proxy.ts). */
+  mustChangePassword?: boolean
 }
 
 /** An API token's pinned scope (set by auth.ts's requireAuth for Bearer-token requests). */
@@ -71,7 +72,7 @@ export interface ActiveContext {
 function roleSatisfies(role: OrgRoleName, intent: Intent): boolean {
   if (intent === "read") return true
   if (intent === "manage_members") return role === "owner"
-  return role === "owner" || role === "admin" // write
+  return role === "owner" || role === "editor" // write
 }
 
 /**
@@ -84,9 +85,6 @@ export async function assertOrgAccess(
   organizationId: number,
   intent: Intent
 ): Promise<OrgRoleName> {
-  if (user.role === PLATFORM_ADMIN_ROLE)
-    throw new NotFoundError("Organisation introuvable.")
-
   const [org] = await db
     .select({ enabled: organizations.enabled })
     .from(organizations)
@@ -271,8 +269,6 @@ export async function resolveActiveOrganization(
   user: AccessUser,
   intent: Intent
 ): Promise<{ organizationId: number; orgRole: OrgRoleName }> {
-  if (user.role === PLATFORM_ADMIN_ROLE)
-    throw new NotFoundError("Aucune organisation disponible.")
   const organizationId = await resolveActiveOrganizationId(user.id)
   const orgRole = await assertOrgAccess(user, organizationId, intent)
   return { organizationId, orgRole }

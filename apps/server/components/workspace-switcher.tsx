@@ -52,7 +52,7 @@ export function WorkspaceSwitcher({
     try {
       if (!workspace.active) await activateWorkspace.mutateAsync(workspace.id)
       setOpen(false)
-      router.push("/")
+      router.push("/overview")
     } catch (cause) {
       setError(
         cause instanceof Error

@@ -13,14 +13,14 @@
  *   DATABASE_URL — source PostgreSQL database (the workspaces to read)
  *   NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD — target Neo4j instance
  *
- * With no argument, loads `.env.$ENV` from the repo root (`.env.dev` by
- * default, same default as the root `pnpm env`/`pnpm up` scripts) if
- * present — vars already set in the environment still take priority.
+ * With no argument, loads `.env` from the repo root when present, otherwise
+ * `.env.$ENV` (`.env.dev` by default). Vars already set in the environment
+ * still take priority.
  */
 
-import { readFileSync, existsSync } from "fs"
-import { fileURLToPath } from "url"
-import { dirname, isAbsolute, join, resolve } from "path"
+import { existsSync } from "fs"
+import { isAbsolute, join, resolve } from "path"
+import { applyEnvFile, repoRoot as envRepoRoot } from "@workspace/env"
 
 // ── 1. Load env file — explicit arg, or .env.$ENV at the repo root if present ──
 
@@ -28,39 +28,21 @@ import { dirname, isAbsolute, join, resolve } from "path"
 // .env.dev/.env.prod live at the repo root — resolve a relative path
 // against the repo root rather than cwd, so `pnpm import:workspaces
 // .env.dev` works whether invoked from the repo root or a package.
-const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "../../..")
+const repoRoot = envRepoRoot()
 const envFileArg = process.argv.slice(2).find((a) => a !== "--")
 const envFile = envFileArg
   ? isAbsolute(envFileArg)
     ? envFileArg
     : resolve(repoRoot, envFileArg)
-  : join(repoRoot, `.env.${process.env["ENV"] ?? "dev"}`)
+  : existsSync(join(repoRoot, ".env"))
+    ? join(repoRoot, ".env")
+    : join(repoRoot, `.env.${process.env["ENV"] ?? "dev"}`)
 
 if (envFileArg && !existsSync(envFile)) {
   console.error(`Env file not found: ${envFile}`)
   process.exit(1)
 }
-if (existsSync(envFile)) {
-  for (const line of readFileSync(envFile, "utf-8").split("\n")) {
-    const trimmed = line.trim()
-    if (!trimmed || trimmed.startsWith("#")) continue
-    const eq = trimmed.indexOf("=")
-    if (eq === -1) continue
-    const key = trimmed.slice(0, eq).trim()
-    const rawVal = trimmed
-      .slice(eq + 1)
-      .trim()
-      .replace(/^["']|["']$/g, "")
-    // .env.dev/.env.prod interpolate other vars from the same file (e.g.
-    // DATABASE_URL referencing DB_PASSWORD), same as docker-compose does —
-    // resolve those against vars already loaded earlier in this file.
-    const val = rawVal.replace(
-      /\$\{(\w+)\}/g,
-      (_, name) => process.env[name] ?? ""
-    )
-    if (key && !(key in process.env)) process.env[key] = val
-  }
-}
+applyEnvFile(envFile)
 
 if (!process.env["DATABASE_URL"]) {
   console.error(
@@ -78,23 +60,9 @@ const { db, workspaces, organizations, modelFromDb } =
   await import("@workspace/db")
 const { importModelToNeo4j } = await import("../src/import-model.js")
 const { closeDriver } = await import("../src/connection.js")
-
-const MAX_IMPORT_ATTEMPTS = 3
-
-function isRetriableNeo4jFailure(error: unknown): boolean {
-  if (error && typeof error === "object") {
-    const candidate = error as { retriable?: unknown; retryable?: unknown }
-    if (candidate.retriable === true || candidate.retryable === true)
-      return true
-  }
-  return /ECONNRESET|SessionExpired|Failed to connect/i.test(
-    error instanceof Error ? error.message : String(error)
-  )
-}
-
-function wait(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
-}
+const { MAX_IMPORT_ATTEMPTS, isRetriableNeo4jFailure, wait } = await import(
+  "../src/retry.js"
+)
 
 const allWorkspaces = await db.select().from(workspaces)
 if (allWorkspaces.length === 0) {

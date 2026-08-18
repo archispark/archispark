@@ -1,0 +1,239 @@
+---
+title: Authentication
+description: Local accounts, Keycloak login, API tokens, organizations and access control.
+---
+
+import { InvitationLifecycleDiagram } from "@/components/diagrams/invitation-lifecycle"
+import { OidcLoginFlowDiagram } from "@/components/diagrams/oidc-login-flow"
+
+All routes except `GET /openapi.json`, `GET /docs`, and `GET /settings/messages` require a local or Keycloak access token — either as an `access_token` cookie (see [Local accounts](#local-accounts) and [Keycloak login](#keycloak-login)) or an `Authorization: Bearer <token>` header — or a personal API token.
+
+## Organizations and roles
+
+Workspaces belong to **Organizations**, not directly to users. An
+organization has members with one of three roles:
+
+| Role     | Read | Write (elements/relationships/views/…) | Manage members | Rename organization |
+| -------- | ---- | -------------------------------------- | -------------- | ------------------- |
+| `owner`  | ✅   | ✅                                     | ✅             | ✅                  |
+| `editor` | ✅   | ✅                                     | ❌             | ❌                  |
+| `viewer` | ✅   | ❌                                     | ❌             | ❌                  |
+
+- Every organization/workspace route resolves the caller's role through the
+  single authorization gateway,
+  [`apps/server/lib/archimate/access.ts`](https://github.com/archispark/archispark/blob/main/apps/server/lib/archimate/access.ts) —
+  never a per-route check.
+- Two-level error convention: `404 Not Found` if the caller has no
+  membership in the target organization (deliberately masks "not a member"
+  as "not found"); `403 Forbidden` if the caller **is** a recognized member
+  but their role is insufficient for the action, or the organization has
+  been suspended by an Admin.
+- A fourth role, **Admin** (Keycloak identifier `platform_admin`), is a
+  Keycloak _realm_ role (set on the Keycloak user, not an
+  `organization_members` row). It administers organizations, users, plugins
+  and the image library from `/platform/**`/`/api/platform/**` (metadata
+  only: list, suspend/reactivate, delete, member management), gated by
+  `withSuperAdmin` and independent of organization membership. For an
+  organization's actual content (workspaces, elements, views, dashboards),
+  Admin has no special access: it goes through the exact same role/
+  suspension checks as any other user, and needs a real
+  `organization_members` row on that organization — which it can create for
+  itself from `/platform/organizations/[id]`'s member management, exactly
+  like adding any other user — to see or act on anything, including being
+  refused on a **suspended** organization even as a real owner. Because it
+  has no unconditional cross-organization access, Admin cannot create a
+  personal API token (`POST /api/settings/api-tokens` returns `403` for
+  it).
+- Organizations are never self-provisioned: creating one is restricted to
+  the admin console (`POST /api/platform/organizations`). A user with no
+  `organization_members` row cannot create a workspace either — it must be
+  granted membership first (by an existing owner/editor, or by an Admin
+  adding itself from `/platform/organizations/:id`) — and sees the simple
+  starter home page (`/`) instead of the workspace picker until then.
+  Organization members cannot create or delete team organizations.
+- Adding a member by username (`POST /api/organizations/:id/members`)
+  requires an existing Keycloak account — to invite someone who doesn't have
+  one yet, see [Organization invitations by e-mail](#organization-invitations-by-e-mail)
+  below.
+
+## Organization invitations by e-mail
+
+An `owner` can invite anyone by e-mail (`POST /api/organizations/:id/invitations`,
+`email` + `role` + optional `delivery_mode`), even if they have no Keycloak
+account yet. This is only enabled on the shared/pooled Keycloak realm — see
+[One Keycloak realm per client](#one-keycloak-realm-per-client) — since it
+requires self-registration to be turned on for that realm.
+
+<InvitationLifecycleDiagram />
+
+- **Uniqueness**: only one active invitation per (organization, e-mail) can
+  exist at a time, enforced by a partial unique index in Postgres
+  (`packages/db/src/schema.ts`), not just an application-level check.
+  Creating an invitation for an e-mail that already has an active one
+  revokes the old one and issues a new token — this is also how "resend"
+  works (`POST /api/organizations/:id/invitations/:invitationId/resend`),
+  there's no separate code path.
+- **Token**: only its SHA-256 hash (`tokenHash`) is stored — the clear-text
+  token exists solely in the e-mail and the accept-page URL, never
+  persisted. Creating the row and sending the e-mail aren't atomic (SMTP
+  isn't part of the DB transaction): the row's `sent_at` stays `null` if the
+  send fails, and the invitation must be resent — it isn't lost.
+- **Missing identity**: when the address has no Keycloak identity,
+  ArchiSpark creates an enabled account without credentials and asks
+  Keycloak to send `UPDATE_PROFILE`, `UPDATE_PASSWORD`, and `VERIFY_EMAIL`
+  actions. If the first action e-mail fails, the newly created identity is
+  removed so a copied link can still use Keycloak self-registration;
+  **Resend** reissues the action e-mail for an account whose setup is still
+  pending. A normal invitation e-mail is sent instead when the identity
+  already exists.
+- **Delivery mode** (`delivery_mode`: `both` default, `email`, or
+  `manual`): the owner chooses **Email and link**, **Email only**, or
+  **Link only** in the member-management interface. The clear link is never
+  stored or included when invitations are listed. If SMTP fails in `both`
+  mode, the owner can still copy the link. An air-gapped setup requires the
+  invitee to have a locally provisioned, verified Keycloak account; use the
+  Keycloak admin console or `pnpm run seed:demo-users` when no mail service
+  is available.
+- **Accept endpoints**: `GET /api/invitations/:token` (preview) and
+  `POST /api/invitations/:token/accept` both still require an authenticated
+  caller (`requireAuth`, mounted globally) — an unauthenticated `GET`
+  returns `401` before the token is ever looked up. They deliberately
+  bypass `access.ts`/`assertOrgAccess`, though: the invitee isn't a member
+  yet, so there's nothing in `organization_members` to check. The guard
+  instead is the triplet **authentication + valid/non-expired token + a
+  Keycloak `email_verified: true` claim whose `email` matches the invited
+  address** — a token alone never proves identity, only which invitation is
+  being redeemed.
+- **Concurrency**: acceptance runs a compare-and-swap
+  (`UPDATE … WHERE accepted_at IS NULL AND revoked_at IS NULL … RETURNING *`)
+  inside a transaction, so two concurrent accepts (double click, two tabs)
+  can't both succeed; the membership insert uses `ON CONFLICT DO NOTHING`
+  rather than a try/catch, since a constraint violation would otherwise
+  abort the whole transaction.
+- **Local development**: finish-registration, verification, invitation, and
+  **Forgot password** messages are captured by Mailpit at
+  `http://localhost:8025`. In `manual` mode no identity is pre-provisioned,
+  so an invitee without an account follows the copied link and chooses
+  **Register** in Keycloak instead.
+- **Open question**: self-registered accounts creating a duplicate e-mail
+  is blocked realm-side (`duplicateEmailsAllowed: false`, applied only when
+  self-registration is on) — but this alone doesn't resolve what happens
+  when a _local_ account later signs in via an SSO identity provider
+  (Google/Microsoft) with the same e-mail.
+
+`/api/settings/messages` (`PUT`) is restricted to users holding the global
+Admin realm role (`platform_admin`; `requireSuperAdmin`).
+
+| Method | Path      | Auth | Description          |
+| ------ | --------- | ---- | -------------------- |
+| `GET`  | `/api/me` | user | Returns current user |
+
+Default credentials: `admin` / `admin` (Admin, no organization membership by design), `user` / `user`, `contrib` / `contrib`, `archi` / `archi`, `open` / `open`. The demo seed creates two organizations, deliberately isolated from each other: `Archi` (`archi` as `owner`, `contrib`/`user` as `editor`/`viewer`) and `Open` (`open` as sole `owner`) — see [Demo seed](../getting-started/demo-data.md#demo-seed).
+
+## Local accounts
+
+The default sign-in method — a username/password account stored in the
+shared `users` table, no external identity provider required. Keycloak SSO
+(below) is an optional, off-by-default alternative (`KEYCLOAK_SSO_ENABLED`),
+offered as a "Continue with `{name}`" button on the login page when enabled.
+
+| Aspect                 | Detail                                                                                                                                                                                                                                                                                                         |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Password hashing       | argon2id, OWASP-minimum params (`packages/auth/src/local-password.ts`)                                                                                                                                                                                                                                         |
+| Access token           | HS256 JWT, 15 min, issuer `archispark-local` (`local-jwt.ts`) — same claim shape as a Keycloak token, so `requireAuth` reads either via [`verifyAnyAccessToken`](https://github.com/archispark/archispark/blob/main/packages/auth/src/verify-any.ts)                                                           |
+| Refresh token          | Opaque, 30 days, stored as a sha256 hash (`local_refresh_tokens`); rotated on every use — presenting an already-rotated token revokes every session for that user (reuse detection)                                                                                                                            |
+| Rate limiting          | 5 failed attempts / 15 min, keyed by both username and IP (`local_login_attempts`)                                                                                                                                                                                                                             |
+| Login                  | `POST /api/auth/local/login` — `{ username, password }`                                                                                                                                                                                                                                                        |
+| Refresh / logout       | `POST /api/auth/refresh`, `GET /api/auth/logout` — same routes as Keycloak, dispatched by an `auth_provider` cookie                                                                                                                                                                                            |
+| First-boot account     | Migration `packages/db/drizzle-pg/0025_seed_local_admin.sql` creates `admin`/`admin` (`platform_admin`) the first time it runs against an empty `users` table — no seed command needed for a bare login                                                                                                        |
+| Forced password change | `users.mustChangePassword` (set on the seeded account above) is carried as a `must_change_password` JWT claim; `proxy.ts` redirects every page but `/change-password` until changing the password or selecting **Skip** clears it. Skip keeps the current password and is intended only for local development. |
+| Re-seed                | `pnpm seed:local-admin` — recreates `admin`/`admin` on demand (`.docker/local-auth/admin-user.json`), e.g. after `pnpm --filter @workspace/db reset` or to recover a locked-out account                                                                                                                        |
+
+Self-registration and "forgot password" (a reset link by e-mail) aren't
+implemented yet — beyond the seeded `admin` account, users are provisioned
+by `pnpm seed:local-admin`, or (in a future admin UI) by a `platform_admin`.
+
+## Keycloak login
+
+| Command                                       | Effect                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm run infra:up`                           | Starts a local Keycloak (classic `quay.io/keycloak/keycloak` distribution, `http://localhost:8080`, admin console login from `KEYCLOAK_ADMIN`/`KEYCLOAK_ADMIN_PASSWORD` in `.env`), pre-loaded via `--import-realm` from `.docker/keycloak/realm-export.json` with realm `archispark`, client `archispark-web`, the Admin realm role (`platform_admin`), and the api service account (`archispark-api`, `manage-users`/`view-users`/`query-users`/`view-realm`). |
+| `pnpm seed:demo-users`                        | Creates/updates the 4 demo accounts (`admin`/`user`/`contrib`/`archi`, passwords match usernames) via the Keycloak Admin API, from `.docker/keycloak/demo-users.json` (not part of `realm-export.json`). Works against any Keycloak instance, including a client's dedicated realm on a remote server.                                                                                                                                                           |
+| `pnpm run seed:keycloak` (`pnpm setup:realm`) | Creates or updates the realm itself (roles, clients, service account) from the same `realm-export.json` via the Admin REST API — an alternative to `--import-realm` for environments where the Keycloak container isn't recreated from scratch (e.g. onboarding a new client's realm on a shared remote Keycloak, see [Deployment](../development/deployment.md#onboard-a-new-customer-with-a-dedicated-keycloak-realm)).                                        |
+
+## One Keycloak realm per client
+
+Each ArchiSpark client gets its own Keycloak realm (`archispark-<tenant>`)
+on a shared, self-hosted **classic Keycloak** instance. A realm is a fully
+separate identity namespace — its own users, roles, Identity Providers,
+sessions, and JWKS/issuer — so this gives complete tenant isolation with
+**no application code involved**:
+[`verifyAccessToken`](https://github.com/archispark/archispark/blob/main/packages/auth/src/verify.ts)
+already validates the token's `issuer`
+(`${KEYCLOAK_URL}/realms/${KEYCLOAK_REALM}`), which includes the realm
+name. A token issued for `archispark-acme` is therefore automatically
+rejected by a deployment configured with `KEYCLOAK_REALM=archispark-other`.
+
+Each client's `apps/server` deployment points at its own realm via env vars:
+
+| Variable                                                                           | Role                                                                                                                                                                                                                                                                                     |
+| ---------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `KEYCLOAK_URL`                                                                     | The shared Keycloak instance                                                                                                                                                                                                                                                             |
+| `KEYCLOAK_REALM`                                                                   | `archispark-<tenant>` for this client                                                                                                                                                                                                                                                    |
+| `KEYCLOAK_CLIENT_ID_WEB`                                                           | `archispark-web`                                                                                                                                                                                                                                                                         |
+| `KEYCLOAK_ADMIN_CLIENT_ID` / `KEYCLOAK_ADMIN_CLIENT_SECRET`                        | The service account created in that realm                                                                                                                                                                                                                                                |
+| `KEYCLOAK_SELF_REGISTRATION` / `KEYCLOAK_VERIFY_EMAIL` / `KEYCLOAK_RESET_PASSWORD` | Off by default for every realm — a dedicated client realm never gets them unless its deployment explicitly sets these env vars for `pnpm setup:realm` (see [Organization invitations by e-mail](#organization-invitations-by-e-mail)); today only the shared/pooled realm turns them on. |
+
+SSO (Google/Microsoft/other OIDC or SAML) is configured per realm via the
+admin console's _Identity providers_ menu — a client's SSO configuration is
+never visible to another client. See
+[Deployment](../development/deployment.md#onboard-a-new-customer-with-a-dedicated-keycloak-realm)
+for the full onboarding runbook.
+
+**Bearer token:**
+
+- `apps/server` (via `@workspace/auth`, `packages/auth`) accepts a
+  Keycloak-issued access token as a Bearer token, verified against the
+  realm's JWKS (`KEYCLOAK_URL`/`KEYCLOAK_REALM`).
+- The resolved `AuthContext.user` is built directly from the verified
+  claims — `id: claims.sub`, `username: claims.preferred_username`, and
+  `role: "platform_admin"` if `realm_access.roles` includes
+  `platform_admin` (`"user"` otherwise).
+- A request may alternatively present a personal API token (`apiTokens`
+  table) as the Bearer value — `lookupApiToken` resolves it to the same
+  `AuthContext.user` shape via the Keycloak Admin API. A token is created
+  scoped to one organization (`organization_id`, required) and optionally
+  pinned to one workspace of that organization (`workspace_id`); this scope
+  is carried as `AuthContext.tokenContext` and takes priority over
+  interactive active-organization/workspace selection in
+  `resolveActiveContext`.
+- The token's `owner`/`editor`/`viewer` role is **never** frozen on the
+  token itself — it's re-resolved live from `organization_members` on
+  every request, so a revoked or demoted membership takes effect
+  immediately even for an existing token.
+
+**Browser login for `apps/server`:** the app signs in via the OIDC
+authorization-code + PKCE flow against Keycloak. `/login` is a single "Se
+connecter" link to `/api/auth/login`, using the `KEYCLOAK_CLIENT_ID_WEB`
+client (`archispark-web`).
+
+<OidcLoginFlowDiagram />
+
+| Route                             | Purpose                                                                                                                                                                                               |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/auth/login?from=<path>` | Generates a PKCE pair + `state`, stores them in short-lived (5 min) httpOnly cookies (`pkce_verifier`, `oidc_state`, `auth_redirect`), redirects to Keycloak's `/protocol/openid-connect/auth`        |
+| `GET /api/auth/callback`          | Validates `state`, exchanges the code for tokens, sets httpOnly `access_token` / `refresh_token` / `id_token` cookies (`SameSite=lax`, max-age from the token response), redirects to `auth_redirect` |
+| `GET /api/auth/logout`            | Clears the three token cookies and redirects through Keycloak's RP-initiated end-session back to `/login`                                                                                             |
+| `POST /api/auth/refresh`          | Exchanges `refresh_token` for a new token set — `204` + new cookies on success, `401` + cleared cookies on failure                                                                                    |
+| `GET /api/auth/me`                | Verifies `access_token` and returns `{id, username, name, email, role}` (`role` is `platform_admin` when `realm_access.roles` contains it, else `user`)                                               |
+
+- `proxy.ts` (Next middleware) decodes the `access_token`'s `exp` locally on
+  every navigation; if it's expired (or missing) it calls
+  `/api/auth/refresh` using the `refresh_token` cookie and forwards the
+  resulting `Set-Cookie`s before continuing, and only redirects to
+  `/api/auth/login?from=<path>` if the refresh also fails.
+- `apps/server`'s `requireAuth` also accepts the `access_token` cookie —
+  verified and bridged the same way as the Bearer path above, resolving to
+  the same `AuthContext.user` as a Bearer token for the same person. Because
+  UI, REST API, and MCP now share `apps/server`, no cross-application
+  rewrite is involved.

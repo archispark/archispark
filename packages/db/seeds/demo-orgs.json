@@ -4,14 +4,8 @@
       "slug": "archi",
       "name": "Archi",
       "workspaces": ["ArchiSurance", "ArchiMetal"],
-      "members": { "archi": "owner", "contrib": "admin", "user": "member" }
-    },
-    {
-      "slug": "open",
-      "name": "Open",
-      "workspaces": ["Open Day"],
-      "members": { "open": "owner" }
+      "members": { "archi": "owner", "contrib": "editor", "user": "viewer" }
     }
   ],
-  "legacySlugs": ["archisurance", "archimetal"]
+  "legacySlugs": ["archisurance", "archimetal", "open"]
 }

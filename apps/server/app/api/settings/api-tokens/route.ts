@@ -6,7 +6,7 @@ import { withErrorHandling } from "@/lib/http/with-error-handling"
 import { withAuth } from "@/lib/http/with-auth"
 import { assertOrgAccess } from "@/lib/archimate/access"
 import { parseBody, ApiTokenCreateSchema } from "@/lib/archimate/validation"
-import { ValidationError } from "@/lib/archimate/errors"
+import { ForbiddenError, ValidationError } from "@/lib/archimate/errors"
 
 export const dynamic = "force-dynamic"
 
@@ -54,6 +54,14 @@ export const GET = withErrorHandling(
 
 export const POST = withErrorHandling(
   withAuth(async (req: NextRequest, auth) => {
+    // platform_admin manages organizations/users/plugins/images from
+    // /platform/** independently of any organization membership — a
+    // personal API token, scoped to one organization, doesn't fit that role.
+    if (auth.user.role === "platform_admin")
+      throw new ForbiddenError(
+        "Les comptes administrateurs plateforme ne peuvent pas créer de jetons personnels."
+      )
+
     const body = parseBody(ApiTokenCreateSchema, await req.json())
 
     const organizationId = parseInt(body.organization_id, 10)

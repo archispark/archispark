@@ -2,17 +2,12 @@ import { describe, it, expect, vi, beforeEach } from "vitest"
 import { render, screen, fireEvent, waitFor } from "@testing-library/react"
 import { ClientLayout } from "./client-layout"
 
-const { mockUsePathname, mockUseIsAdmin } = vi.hoisted(() => ({
+const { mockUsePathname } = vi.hoisted(() => ({
   mockUsePathname: vi.fn(),
-  mockUseIsAdmin: vi.fn(),
 }))
 
 vi.mock("next/navigation", () => ({
   usePathname: mockUsePathname,
-}))
-
-vi.mock("@/hooks/use-current-user", () => ({
-  useIsAdmin: mockUseIsAdmin,
 }))
 
 vi.mock("@/components/theme-provider", () => ({
@@ -24,12 +19,6 @@ vi.mock("@/components/theme-provider", () => ({
 vi.mock("@/components/query-provider", () => ({
   QueryProvider: ({ children }: { children: React.ReactNode }) => (
     <>{children}</>
-  ),
-}))
-
-vi.mock("@/components/platform-admin-block", () => ({
-  PlatformAdminBlock: () => (
-    <div data-testid="platform-admin-block">blocked</div>
   ),
 }))
 
@@ -81,7 +70,6 @@ describe("ClientLayout — SiteBanner", () => {
   it("shows a banner fetched from the settings API and allows dismissing it", async () => {
     // Arrange
     mockUsePathname.mockReturnValue("/dashboard")
-    mockUseIsAdmin.mockReturnValue(false)
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue({
@@ -116,7 +104,6 @@ describe("ClientLayout — SiteBanner", () => {
   it("does not show a banner when banner_message_enabled is false", async () => {
     // Arrange
     mockUsePathname.mockReturnValue("/dashboard")
-    mockUseIsAdmin.mockReturnValue(false)
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue({
@@ -144,7 +131,6 @@ describe("ClientLayout — SiteBanner", () => {
   it("does not show a banner that was previously dismissed", async () => {
     // Arrange
     mockUsePathname.mockReturnValue("/dashboard")
-    mockUseIsAdmin.mockReturnValue(false)
     sessionStorage.setItem("banner-dismissed:Already seen", "1")
     vi.stubGlobal(
       "fetch",
@@ -173,7 +159,6 @@ describe("ClientLayout — SiteBanner", () => {
   it("does not blow up when the settings fetch rejects", async () => {
     // Arrange
     mockUsePathname.mockReturnValue("/dashboard")
-    mockUseIsAdmin.mockReturnValue(false)
     vi.stubGlobal(
       "fetch",
       vi.fn().mockRejectedValue(new Error("network error"))
@@ -198,7 +183,6 @@ describe("ClientLayout — SiteBanner", () => {
   it("does not render the SiteBanner on /login", () => {
     // Arrange
     mockUsePathname.mockReturnValue("/login")
-    mockUseIsAdmin.mockReturnValue(false)
 
     // Act
     render(

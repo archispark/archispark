@@ -16,11 +16,11 @@
  *     are applied via `partialImport` with `ifResourceExists: "SKIP"` —
  *     idempotent, only adds what's missing.
  *   - finally, a handful of realm settings (self-registration, email
- *     verification, SMTP) are patched field-by-field, but *only* when the
- *     corresponding env var is explicitly set — see patchRealmSettings()
- *     below. This keeps realm-export.json's checked-in defaults (safe for
- *     every dedicated client realm) untouched unless a deployment opts in,
- *     which today is only the shared/pooled realm.
+ *     verification, password reset, SMTP) are patched field-by-field, but
+ *     *only* when the corresponding env var is explicitly set — see
+ *     patchRealmSettings() below. This keeps realm-export.json's checked-in
+ *     defaults (safe for every dedicated client realm) untouched unless a
+ *     deployment opts in, which today is only the shared/pooled realm.
  *
  * Usage:
  *   pnpm --filter @workspace/db setup:realm
@@ -34,6 +34,7 @@
  * KEYCLOAK_SETUP_USERNAME/KEYCLOAK_SETUP_PASSWORD to a realm-admin user.
  */
 
+import "@workspace/env/register"
 import { readFileSync } from "fs"
 import { resolve } from "path"
 
@@ -174,7 +175,12 @@ async function patchRealmSettings(): Promise<void> {
     patch["verifyEmail"] = verifyEmail === "true"
   }
 
-  const smtpHost = process.env["SMTP_HOST"]
+  const resetPassword = process.env["KEYCLOAK_RESET_PASSWORD"]
+  if (resetPassword !== undefined) {
+    patch["resetPasswordAllowed"] = resetPassword === "true"
+  }
+
+  const smtpHost = process.env["KEYCLOAK_SMTP_HOST"] || process.env["SMTP_HOST"]
   if (smtpHost) {
     patch["smtpServer"] = {
       host: smtpHost,
@@ -183,7 +189,10 @@ async function patchRealmSettings(): Promise<void> {
       auth: process.env["SMTP_USER"] ? "true" : "false",
       user: process.env["SMTP_USER"] || "",
       password: process.env["SMTP_PASSWORD"] || "",
-      starttls: "true",
+      starttls:
+        process.env["KEYCLOAK_SMTP_STARTTLS"] ||
+        process.env["SMTP_STARTTLS"] ||
+        "true",
     }
   }
 

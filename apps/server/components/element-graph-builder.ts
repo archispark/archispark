@@ -2,6 +2,7 @@ import type { Node, Edge } from "@xyflow/react"
 import type { useRouter } from "next/navigation"
 import type { ElementOut, RelationshipOut } from "@/lib/api"
 import { isRelationshipAllowed } from "@/lib/archimate-rules"
+import { NODE_H, NODE_W } from "@/components/element-graph-markers"
 
 // ── Graph builder (BFS with filters) ─────────────────────────────────────────
 
@@ -10,15 +11,18 @@ function createNode(
   label: string,
   elementType: string,
   isCentral: boolean,
-  router: ReturnType<typeof useRouter>
+  router: ReturnType<typeof useRouter>,
+  imageUrl?: string | null
 ): Node {
   return {
     id,
     position: { x: 0, y: 0 },
+    style: { width: NODE_W, height: NODE_H },
     data: {
       label,
       elementType,
       isCentral,
+      imageUrl: imageUrl ?? undefined,
       onClick: isCentral
         ? undefined
         : () => router.push(`/elements/${encodeURIComponent(id)}`),
@@ -35,7 +39,14 @@ function frontierStep(
   visited: Set<string>,
   hiddenElementTypes: Set<string>,
   byId: Map<string, ElementOut>
-): { otherId: string; label: string; elementType: string } | undefined {
+):
+  | {
+      otherId: string
+      label: string
+      elementType: string
+      imageUrl?: string | null
+    }
+  | undefined {
   const srcIn = currentFrontier.has(rel.source)
   const tgtIn = currentFrontier.has(rel.target)
   if (!srcIn && !tgtIn) return undefined
@@ -48,7 +59,12 @@ function frontierStep(
   if (hiddenElementTypes.has(elementType)) return undefined
 
   const fallbackName = srcIn ? rel.target_name : rel.source_name
-  return { otherId, label: other?.name ?? fallbackName ?? otherId, elementType }
+  return {
+    otherId,
+    label: other?.name ?? fallbackName ?? otherId,
+    elementType,
+    imageUrl: other?.resolved_image_url,
+  }
 }
 
 // BFS from `element` up to `depth` hops, skipping relationship endpoints whose
@@ -61,8 +77,11 @@ function expandFrontier(
   hiddenElementTypes: Set<string>,
   nodeMap: Map<string, Node>,
   router: ReturnType<typeof useRouter>
-): Set<string> {
+): {
+  pathRelationshipIds: Set<string>
+} {
   const visited = new Set<string>([element.identifier])
+  const pathRelationshipIds = new Set<string>()
   let currentFrontier = new Set<string>([element.identifier])
 
   for (let d = 0; d < depth; d++) {
@@ -79,10 +98,18 @@ function expandFrontier(
 
       visited.add(step.otherId)
       nextFrontier.add(step.otherId)
+      pathRelationshipIds.add(rel.identifier)
       if (!nodeMap.has(step.otherId)) {
         nodeMap.set(
           step.otherId,
-          createNode(step.otherId, step.label, step.elementType, false, router)
+          createNode(
+            step.otherId,
+            step.label,
+            step.elementType,
+            false,
+            router,
+            step.imageUrl
+          )
         )
       }
     }
@@ -90,7 +117,7 @@ function expandFrontier(
     currentFrontier = nextFrontier
   }
 
-  return visited
+  return { pathRelationshipIds }
 }
 
 function computeConflictNodeIds(
@@ -116,7 +143,6 @@ export function buildGraph(
   depth: number,
   hiddenElementTypes: Set<string>,
   hiddenRelTypes: Set<string>,
-  showIndirect: boolean,
   router: ReturnType<typeof useRouter>
 ): { nodes: Node[]; edges: Edge[] } {
   const nodeMap = new Map<string, Node>()
@@ -124,13 +150,20 @@ export function buildGraph(
   // Central element is always shown regardless of filters
   nodeMap.set(
     element.identifier,
-    createNode(element.identifier, element.name, element.type, true, router)
+    createNode(
+      element.identifier,
+      element.name,
+      element.type,
+      true,
+      router,
+      element.resolved_image_url
+    )
   )
 
   const eligibleRels = allRelationships.filter(
     (r) => !hiddenRelTypes.has(r.type)
   )
-  const visited = expandFrontier(
+  const { pathRelationshipIds } = expandFrontier(
     element,
     eligibleRels,
     byId,
@@ -140,26 +173,22 @@ export function buildGraph(
     router
   )
 
-  const allVisibleRels = eligibleRels.filter(
-    (r) => visited.has(r.source) && visited.has(r.target)
+  const pathRelationships = eligibleRels.filter((r) =>
+    pathRelationshipIds.has(r.identifier)
   )
-  const visibleRels = showIndirect
-    ? allVisibleRels
-    : allVisibleRels.filter(
-        (r) =>
-          r.source === element.identifier || r.target === element.identifier
-      )
-
-  const conflictNodeIds = computeConflictNodeIds(visibleRels, byId)
+  const conflictNodeIds = computeConflictNodeIds(pathRelationships, byId)
   for (const [id, node] of nodeMap) {
-    node.data = { ...node.data, hasConflict: conflictNodeIds.has(id) }
+    node.data = {
+      ...node.data,
+      hasConflict: conflictNodeIds.has(id),
+    }
   }
 
-  const edges: Edge[] = visibleRels.map((r) => ({
+  const edges: Edge[] = pathRelationships.map((r) => ({
     id: r.identifier,
     source: r.source,
     target: r.target,
-    type: "archiEdge",
+    type: "archimate",
     label: r.name ? `${r.type} · ${r.name}` : r.type,
     data: { relationshipType: r.type },
   }))

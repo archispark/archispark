@@ -1,7 +1,10 @@
 /**
- * Tests for the single authorization gateway (src/access.ts) — the full
- * {owner, admin, member, platform_admin, non-member} × {read, write,
- * manage_members} × {org active/suspended} × {stale active pointer} matrix.
+ * Tests for the single authorization gateway (src/access.ts) — the
+ * {owner, editor, viewer, non-member} × {read, write, manage_members} ×
+ * {org active/suspended} × {stale active pointer} matrix. platform_admin
+ * follows these exact same rules for organization content; its dedicated
+ * cases live in access-platform-admin.test.ts (split out to stay under the
+ * max-lines limit).
  */
 
 import { describe, it, expect, beforeAll } from "vitest"
@@ -25,12 +28,8 @@ import {
 import { NotFoundError, ForbiddenError } from "./errors"
 
 const OWNER: AccessUser = { id: `owner-${randomUUID()}`, role: "user" }
-const ADMIN: AccessUser = { id: `admin-${randomUUID()}`, role: "user" }
-const MEMBER: AccessUser = { id: `member-${randomUUID()}`, role: "user" }
-const PLATFORM_ADMIN: AccessUser = {
-  id: `platform-${randomUUID()}`,
-  role: "platform_admin",
-}
+const EDITOR: AccessUser = { id: `editor-${randomUUID()}`, role: "user" }
+const VIEWER: AccessUser = { id: `viewer-${randomUUID()}`, role: "user" }
 const NON_MEMBER: AccessUser = { id: `stranger-${randomUUID()}`, role: "user" }
 
 let orgId: number
@@ -56,8 +55,8 @@ beforeAll(async () => {
 
   await db.insert(organizationMembers).values([
     { organizationId: orgId, userId: OWNER.id, role: "owner" },
-    { organizationId: orgId, userId: ADMIN.id, role: "admin" },
-    { organizationId: orgId, userId: MEMBER.id, role: "member" },
+    { organizationId: orgId, userId: EDITOR.id, role: "editor" },
+    { organizationId: orgId, userId: VIEWER.id, role: "viewer" },
     { organizationId: suspendedOrgId, userId: OWNER.id, role: "owner" },
   ])
 
@@ -82,34 +81,24 @@ describe("assertOrgAccess", () => {
     )
   })
 
-  it("admin satisfies read and write but not manage_members", async () => {
-    await expect(assertOrgAccess(ADMIN, orgId, "read")).resolves.toBe("admin")
-    await expect(assertOrgAccess(ADMIN, orgId, "write")).resolves.toBe("admin")
+  it("editor satisfies read and write but not manage_members", async () => {
+    await expect(assertOrgAccess(EDITOR, orgId, "read")).resolves.toBe("editor")
+    await expect(assertOrgAccess(EDITOR, orgId, "write")).resolves.toBe(
+      "editor"
+    )
     await expect(
-      assertOrgAccess(ADMIN, orgId, "manage_members")
+      assertOrgAccess(EDITOR, orgId, "manage_members")
     ).rejects.toBeInstanceOf(ForbiddenError)
   })
 
-  it("member satisfies only read", async () => {
-    await expect(assertOrgAccess(MEMBER, orgId, "read")).resolves.toBe("member")
+  it("viewer satisfies only read", async () => {
+    await expect(assertOrgAccess(VIEWER, orgId, "read")).resolves.toBe("viewer")
     await expect(
-      assertOrgAccess(MEMBER, orgId, "write")
+      assertOrgAccess(VIEWER, orgId, "write")
     ).rejects.toBeInstanceOf(ForbiddenError)
     await expect(
-      assertOrgAccess(MEMBER, orgId, "manage_members")
+      assertOrgAccess(VIEWER, orgId, "manage_members")
     ).rejects.toBeInstanceOf(ForbiddenError)
-  })
-
-  it("platform_admin is structurally rejected regardless of a membership row", async () => {
-    // Give platform_admin a membership row on purpose — it must still be denied.
-    await db.insert(organizationMembers).values({
-      organizationId: orgId,
-      userId: PLATFORM_ADMIN.id,
-      role: "owner",
-    })
-    await expect(
-      assertOrgAccess(PLATFORM_ADMIN, orgId, "read")
-    ).rejects.toBeInstanceOf(NotFoundError)
   })
 
   it("non-member gets NotFoundError, not ForbiddenError", async () => {
@@ -141,9 +130,9 @@ describe("assertWorkspaceAccess", () => {
     })
   })
 
-  it("member is denied write access to a workspace in their organization", async () => {
+  it("viewer is denied write access to a workspace in their organization", async () => {
     await expect(
-      assertWorkspaceAccess(MEMBER, workspaceId, "write")
+      assertWorkspaceAccess(VIEWER, workspaceId, "write")
     ).rejects.toBeInstanceOf(ForbiddenError)
   })
 
@@ -236,7 +225,7 @@ describe("resolveActiveContext — auto-heal", () => {
   })
 
   it("honours a token's pinned organization/workspace over the interactive active selection", async () => {
-    const ctx = await resolveActiveContext(MEMBER, "read", {
+    const ctx = await resolveActiveContext(VIEWER, "read", {
       organizationId: orgId,
       workspaceId: null,
     })
@@ -267,12 +256,6 @@ describe("resolveActiveContext — auto-heal", () => {
         organizationId: orgId,
         workspaceId: otherWs!.id,
       })
-    ).rejects.toBeInstanceOf(NotFoundError)
-  })
-
-  it("platform_admin has no active organization at all", async () => {
-    await expect(
-      resolveActiveContext(PLATFORM_ADMIN, "read")
     ).rejects.toBeInstanceOf(NotFoundError)
   })
 })

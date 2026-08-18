@@ -22,44 +22,7 @@ import {
 } from "@workspace/ui/components/dialog"
 import { Button } from "@workspace/ui/components/button"
 import { useT } from "@/lib/i18n"
-
-export interface ArchiEdgeStyle {
-  strokeDasharray?: string
-  markerStart?: string
-  markerEnd?: string
-}
-
-export function archimateEdgeStyle(type?: string): ArchiEdgeStyle {
-  switch (type) {
-    case "Composition":
-      return { markerStart: "url(#archi-diamond-filled)" }
-    case "Aggregation":
-      return { markerStart: "url(#archi-diamond-open)" }
-    case "Assignment":
-      return {
-        markerStart: "url(#archi-dot-filled)",
-        markerEnd: "url(#archi-arrow-open)",
-      }
-    case "Realization":
-      return { markerEnd: "url(#archi-triangle-open)", strokeDasharray: "6 3" }
-    case "Serving":
-    case "UsedBy":
-      return { markerEnd: "url(#archi-arrow-open)" }
-    case "Triggering":
-      return { markerEnd: "url(#archi-arrow-filled)" }
-    case "Flow":
-      return { markerEnd: "url(#archi-arrow-filled)", strokeDasharray: "6 3" }
-    case "Access":
-      return { markerEnd: "url(#archi-arrow-open)", strokeDasharray: "4 3" }
-    case "Influence":
-      return { markerEnd: "url(#archi-arrow-open)", strokeDasharray: "6 3" }
-    case "Specialization":
-      return { markerEnd: "url(#archi-triangle-open)" }
-    case "Association":
-    default:
-      return {}
-  }
-}
+import { archimateEdgeStyle } from "@/components/archimate-edge-style"
 
 export function ArchiEdge({
   id,
