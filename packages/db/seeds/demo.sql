@@ -26,6 +26,8 @@ BEGIN
     VALUES ('id-f0607ad9eb0845a8829f43f5f7c676ff', 'ArchiSurance', NULL, NULL, v_organization_id, v_created_by_id, EXTRACT(EPOCH FROM NOW())::INT, EXTRACT(EPOCH FROM NOW())::INT)
     RETURNING id INTO ws_id;
 
+    INSERT INTO property_definitions (workspace_id, uuid, name, type, is_system)
+      VALUES (ws_id, 'archispark-plugin-iconpack', 'Archispark Plugin IconPack', 'string', true);
     INSERT INTO property_definitions (workspace_id, uuid, name, type)
       VALUES (ws_id, 'propid-2', 'Capability Level', 'string');
     INSERT INTO property_definitions (workspace_id, uuid, name, type)
@@ -5398,6 +5400,8 @@ BEGIN
     VALUES ('id-e42df43bd2104e9aa7ccc8fd25a80ac6', 'ArchiMetal', NULL, NULL, v_organization_id, v_created_by_id, EXTRACT(EPOCH FROM NOW())::INT, EXTRACT(EPOCH FROM NOW())::INT)
     RETURNING id INTO ws_id;
 
+    INSERT INTO property_definitions (workspace_id, uuid, name, type, is_system)
+      VALUES (ws_id, 'archispark-plugin-iconpack', 'Archispark Plugin IconPack', 'string', true);
     INSERT INTO property_definitions (workspace_id, uuid, name, type)
       VALUES (ws_id, 'propid-1', 'Last Update', 'string');
     INSERT INTO property_definitions (workspace_id, uuid, name, type)
@@ -11339,6 +11343,9 @@ BEGIN
   INSERT INTO workspaces (uuid, name, description, version, organization_id, created_by_id, created_at, updated_at)
     VALUES ('id-45a9ac5f', 'Open Day', 'Outline the process of organising an open day and its dependencies on applications and servers', NULL, v_organization_id, v_created_by_id, EXTRACT(EPOCH FROM NOW())::INT, EXTRACT(EPOCH FROM NOW())::INT)
     RETURNING id INTO ws_id;
+
+    INSERT INTO property_definitions (workspace_id, uuid, name, type, is_system)
+      VALUES (ws_id, 'archispark-plugin-iconpack', 'Archispark Plugin IconPack', 'string', true);
 
     INSERT INTO elements (workspace_id, uuid, type, name, description)
       VALUES (ws_id, 'id-44e2d629', 'BusinessEvent', '2 months prior to open day', NULL)

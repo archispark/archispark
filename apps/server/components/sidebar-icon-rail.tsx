@@ -14,6 +14,7 @@ import {
   CircleHelp,
 } from "lucide-react"
 import { useT } from "@/lib/i18n"
+import { useMounted } from "@/hooks/use-mounted"
 import { useWorkspaces, useOrganizations } from "@/lib/queries"
 import { RailLink } from "@/components/sidebar-section"
 import { UserMenu } from "@/components/user-menu"
@@ -35,13 +36,20 @@ export function SidebarIconRail({
   relConflictCount: number
   t: ReturnType<typeof useT>["t"]
 }) {
+  const mounted = useMounted()
   const { data: workspaces = [] } = useWorkspaces()
   const { data: organizations = [] } = useOrganizations()
   const activeWorkspace = workspaces.find((workspace) => workspace.active)
   const isWorkspacesOverview = pathname === "/workspaces"
+  // React Query can restore workspaces/organizations from the browser cache
+  // before hydration, while the server always renders with an empty cache.
+  // Defer this structural branch until after the first client render so it
+  // matches the server markup — see hooks/use-mounted.ts (same fix as
+  // sidebar-nav-content.tsx, this component is its collapsed-rail sibling).
+  //
   // No organization means no accessible section besides the home page — see
   // registry.ts, users can no longer self-provision one.
-  const hasOrganization = organizations.length > 0
+  const hasOrganization = mounted && organizations.length > 0
   const hideNav = isWorkspacesOverview || !hasOrganization
 
   return (

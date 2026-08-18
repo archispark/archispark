@@ -41,9 +41,14 @@ pnpm dev
 `pnpm infra:up` starts PostgreSQL, Keycloak, and Neo4j through Docker
 Compose — a separate step, never run implicitly by `dev` or `start`.
 `pnpm dev` then launches the main application's Turbo development task on
-port 8000 only. `apps/server` loads the repo root `.env` itself at startup,
-if present (a real environment variable always takes priority over the
-file, no manual sourcing needed).
+port 8000, applying pending database migrations first as a visible,
+independent Turbo task (`//#db:migrate`, the root `db:migrate` script:
+PostgreSQL DDL, organization backfill, then Neo4j schema) — `pnpm dev` fails
+fast if a migration is broken, before `next dev` ever starts. This only
+applies to `server`; `pnpm dev:docs` never touches the database. `apps/server`
+also loads the repo root `.env` itself at startup, if present (a real
+environment variable always takes priority over the file, no manual sourcing
+needed).
 
 The Fumadocs site (`apps/docs`) is a separate app, run independently:
 
@@ -56,8 +61,12 @@ application on port 8000. Run `pnpm build` first; it neither builds the
 application nor starts Docker services. `pnpm start:docs` does the same for
 the Fumadocs site, on port 3000.
 
-Database migrations are applied by `apps/server/instrumentation.ts` before the
-server accepts traffic. Keycloak setup and demo content remain explicit:
+On `pnpm dev`, migrations already ran via the Turbo task above before `next
+dev` starts. `apps/server/instrumentation.ts` also applies them again at
+every server-process startup — redundant but idempotent on `pnpm dev`, and
+the only trigger on `next start` (self-hosted/Docker, no CI gate) or a safety
+net on Vercel cold starts (see [deployment](deployment.md)). Keycloak setup
+and demo content remain explicit:
 
 ```bash
 pnpm keycloak-setup

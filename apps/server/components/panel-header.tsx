@@ -15,6 +15,7 @@ import {
 } from "@/lib/queries"
 import { useDashboard } from "@/lib/queries/dashboards"
 import { useT } from "@/lib/i18n"
+import { useMounted } from "@/hooks/use-mounted"
 import { ThemeToggle } from "@/components/theme-toggle"
 
 export function PanelHeader({
@@ -31,6 +32,7 @@ export function PanelHeader({
   const pathname = usePathname()!
   const router = useRouter()
   const { t } = useT()
+  const mounted = useMounted()
   const { data: workspaces = [], isSuccess: wsLoaded } = useWorkspaces()
   const { data: organizations = [], isSuccess: orgsLoaded } = useOrganizations()
   const qc = useQueryClient()
@@ -224,7 +226,7 @@ export function PanelHeader({
         <div className="hidden h-4 w-px bg-border md:block" />
       )}
 
-      {workspaces.length > 0 && segments.length > 0 && (
+      {mounted && workspaces.length > 0 && segments.length > 0 && (
         <div className="flex min-w-0 items-center gap-1.5 overflow-hidden text-[13px] text-muted-foreground">
           {segments.map((segment, index) => {
             const last = index === segments.length - 1

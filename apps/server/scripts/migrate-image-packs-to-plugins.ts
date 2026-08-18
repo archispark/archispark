@@ -9,8 +9,9 @@
  * Icon slugs are derived from each asset file's name (minus .svg) — this
  * MUST match the slugs already stored as image_pack_items.slug in
  * production (see itemInsertSql in generate-cloud-icon-packs.ts, which
- * already uses the slug as the asset filename), so existing archispark_image
- * values keep resolving after 0043_plugins.sql drops image_pack_items.
+ * already uses the slug as the asset filename), so existing
+ * Archispark Plugin IconPack values keep resolving after
+ * 0043_plugins.sql drops image_pack_items.
  * Names come from the original seed migrations (0027/0028/0029), the only
  * place that ever recorded a human-readable name per icon — the source SVGs
  * used to generate those (an external, non-committed folder) are no longer
@@ -43,7 +44,8 @@ interface Vendor {
 // row* — never the committed asset filename it was generated from, which
 // still uses the original (collided) name. Filename-derived slugs must be
 // overridden for exactly these 3 icons to match what's already live in
-// production as archispark_image values (see that migration's step 4).
+// production as Archispark Plugin IconPack values (see that migration's
+// step 4).
 const SLUG_OVERRIDES: Record<string, Record<string, string>> = {
   azure: {
     "resource-explorer": "azure-resource-explorer",

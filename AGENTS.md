@@ -189,10 +189,11 @@ pnpm --filter server test:e2e
 ### Plugins d'icônes
 
 - `plugins/<slug>/` contient les icônes personnalisées assignables à un
-  élément ArchiMate (propriété système `archispark_image`) : `plugin.json`
-  (métadonnées), `manifest.ts` (liste des icônes) et `icons/*.svg`. Ces
-  plugins sont instance-wide, découverts au build (pas en base de données) et
-  activables/désactivables sans redéploiement sur `/platform/plugins`. Voir
+  élément ArchiMate (propriété système `Archispark Plugin IconPack`) :
+  `plugin.json` (métadonnées), `manifest.ts` (liste des icônes) et
+  `icons/*.svg`. Ces plugins sont instance-wide, découverts au build (pas
+  en base de données) et activables/désactivables sans redéploiement sur
+  `/platform/plugins`. Voir
   `apps/docs/content/docs/developer-guide/reference/plugins.mdx`.
 - Après toute modification de `plugins/**`, régénérer le registre via
   `pnpm --filter server gen:plugin-registry`

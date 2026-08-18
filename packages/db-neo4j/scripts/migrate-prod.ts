@@ -6,14 +6,18 @@
  *   # or pass an env file:
  *   pnpm --filter @workspace/db-neo4j migrate:prod /tmp/vercel-prod.env
  *
- * Reads NEO4J_URI/NEO4J_USER/NEO4J_PASSWORD from the environment or from the
- * .env file passed as the first argument. Runs all pending migrations from
- * packages/db-neo4j/src/schema/migrations/ and exits.
+ * Reads NEO4J_URI/NEO4J_USER/NEO4J_PASSWORD from the environment, from the
+ * .env file passed as the first argument, or from the repo root `.env` when
+ * present and no argument is given (vars already set in the environment
+ * always take priority). Skips cleanly when NEO4J_ENABLED=false. Runs all
+ * pending migrations from packages/db-neo4j/src/schema/migrations/ and exits.
  */
 
-import { readFileSync, existsSync } from "fs";
+import { existsSync } from "fs";
+import { applyEnvFile, loadEnv } from "@workspace/env";
+import { isNeo4jEnabled } from "../src/config.js";
 
-// ── 1. Load env file if provided ────────────────────────────────────────────
+// ── 1. Load env file — explicit arg, or the repo root `.env` if present ────
 
 const envFile = process.argv[2];
 if (envFile) {
@@ -21,18 +25,16 @@ if (envFile) {
     console.error(`Env file not found: ${envFile}`);
     process.exit(1);
   }
-  for (const line of readFileSync(envFile, "utf-8").split("\n")) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) continue;
-    const eq = trimmed.indexOf("=");
-    if (eq === -1) continue;
-    const key = trimmed.slice(0, eq).trim();
-    const val = trimmed
-      .slice(eq + 1)
-      .trim()
-      .replace(/^["']|["']$/g, "");
-    if (key && !(key in process.env)) process.env[key] = val;
-  }
+  applyEnvFile(envFile);
+} else {
+  loadEnv();
+}
+
+// ── 2. Skip cleanly if Neo4j is disabled ────────────────────────────────────
+
+if (!isNeo4jEnabled()) {
+  console.log("Neo4j désactivé (NEO4J_ENABLED=false) : migration ignorée.");
+  process.exit(0);
 }
 
 if (!process.env["NEO4J_URI"]) {
@@ -40,7 +42,7 @@ if (!process.env["NEO4J_URI"]) {
   process.exit(1);
 }
 
-// ── 2. Run migrations ─────────────────────────────────────────────────────────
+// ── 3. Run migrations ─────────────────────────────────────────────────────────
 
 const { runNeo4jMigrations } = await import("../src/schema/migrate.js");
 const { closeDriver } = await import("../src/connection.js");

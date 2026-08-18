@@ -339,7 +339,10 @@ describe("store – property definitions", () => {
     const image = definitions.find(
       (definition) => definition.identifier === ARCHISPARK_IMAGE_PROPERTY_ID
     )
-    expect(image).toMatchObject({ name: "archispark_image", is_system: true })
+    expect(image).toMatchObject({
+      name: "Archispark Plugin IconPack",
+      is_system: true,
+    })
 
     await expect(
       store.updatePropertyDefinition(wsId, ARCHISPARK_IMAGE_PROPERTY_ID, {
@@ -409,7 +412,7 @@ describe("store – property definitions", () => {
           },
         ],
       })
-    ).rejects.toThrow(/archispark_image/)
+    ).rejects.toThrow(/Archispark Plugin IconPack/)
   })
 
   it("delete cascades property values on elements and relationships", async () => {
