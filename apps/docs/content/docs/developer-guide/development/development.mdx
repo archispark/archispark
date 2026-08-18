@@ -62,7 +62,7 @@ application nor starts Docker services. `pnpm start:docs` does the same for
 the Fumadocs site, on port 3000.
 
 `apps/server/instrumentation.ts` never applies migrations — see
-[deployment](deployment.md) for how they're triggered in each environment
+[deployment](deployment) for how they're triggered in each environment
 (`pnpm migrate`, CI, or `docker compose run --rm migrate`). Keycloak setup
 and demo content remain explicit:
 
@@ -111,7 +111,7 @@ Update these together:
 
 - the route and focused tests;
 - `apps/server/lib/archimate/openapi.ts`;
-- [API reference](../reference/api-reference.md);
+- [API reference](../reference/api-reference);
 - client functions in `lib/api.ts` and query hooks when the UI consumes it.
 
 ## Add or change an MCP tool
@@ -119,7 +119,7 @@ Update these together:
 Register the tool in the relevant `apps/server/lib/mcp/tools/*-tools.ts`
 module. Reuse the ArchiMate store and access gateway rather than calling the
 REST API. Add a focused registration/behavior test and update
-[MCP server](../reference/mcp-tools.md).
+[MCP server](../reference/mcp-tools).
 
 The external endpoint remains `/mcp/`. Its implementation must remain at
 `apps/server/pages/api/mcp.ts`, because Streamable HTTP needs the raw Node
@@ -159,5 +159,5 @@ repository.
 - Preserve unrelated work in a dirty worktree.
 - Update product and technical documentation in the same change as behavior.
 
-See [Architecture](architecture.md) for system boundaries and
-[Contributing](contributing.md) for the contribution checklist.
+See [Architecture](architecture) for system boundaries and
+[Contributing](contributing) for the contribution checklist.

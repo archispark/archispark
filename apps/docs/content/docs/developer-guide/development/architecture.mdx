@@ -52,7 +52,7 @@ platform_admin has no special access: it goes through the exact same
 role/suspension checks as any other user, and must be a real
 `organization_members` row (which it can create for itself from
 `/platform/organizations/[id]`'s member management) to access anything. See
-[Authentication](../reference/authentication.md) for the full role matrix.
+[Authentication](../reference/authentication) for the full role matrix.
 
 Identities live either in the `users` table (id `local:<uuid>`) or in
 Keycloak (id = the bare Keycloak `sub`) — the `local:` prefix keeps the two
@@ -65,7 +65,7 @@ DB level only during the expand→backfill→contract
 migration window (see
 [`packages/db/src/backfill-organizations.ts`](https://github.com/archispark/archispark/blob/main/packages/db/src/backfill-organizations.ts));
 `pnpm migrate`/the self-hosted `migrate` job applies the backfill together
-with the schema migration (see [Deployment](../deployment.md)) — run before
+with the schema migration (see [Deployment](../deployment)) — run before
 deploying code that assumes the column is always populated, so every row the
 application ever reads has one.
 
