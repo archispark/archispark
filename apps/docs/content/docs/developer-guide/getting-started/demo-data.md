@@ -27,32 +27,27 @@ membership (see
 
 ## Demo seed
 
-Three sample ArchiMate models are available for demo or local testing:
+Two sample ArchiMate models are available for demo or local testing:
 
 | Model        | Elements | Relationships | Views |
 | ------------ | -------- | ------------- | ----- |
 | ArchiMetal   | 294      | 476           | 33    |
 | ArchiSurance | 257      | 402           | 40    |
-| Open Day     | 27       | 37            | 4     |
 
-The workspaces are grouped into two demo organizations
-(`packages/db/seeds/demo-orgs.json`), deliberately isolated from each other
-(no shared members):
+The workspaces are grouped into a single demo organization
+(`packages/db/seeds/demo-orgs.json`):
 
-| Organization | Workspaces               | Account   | Role                                                                                                                                                                                  |
-| ------------ | ------------------------ | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Archi        | ArchiSurance, ArchiMetal | `archi`   | `owner`                                                                                                                                                                               |
-| Archi        | ArchiSurance, ArchiMetal | `contrib` | `editor`                                                                                                                                                                              |
-| Archi        | ArchiSurance, ArchiMetal | `user`    | `viewer`                                                                                                                                                                              |
-| Open         | Open Day                 | `open`    | `owner`                                                                                                                                                                               |
-| _(none)_     | —                        | `admin`   | Admin (Keycloak `platform_admin`) — deliberately a member of neither; can add itself to one from `/platform/organizations/:id`'s member management, like any other user               |
+| Organization | Workspaces               | Account   | Role                                                                                                                                                                     |
+| ------------ | ------------------------ | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Archi        | ArchiSurance, ArchiMetal | `archi`   | `owner`                                                                                                                                                                  |
+| Archi        | ArchiSurance, ArchiMetal | `contrib` | `editor`                                                                                                                                                                 |
+| Archi        | ArchiSurance, ArchiMetal | `user`    | `viewer`                                                                                                                                                                 |
+| _(none)_     | —                        | `admin`   | Admin (Keycloak `platform_admin`) — deliberately not a member; can add itself from `/platform/organizations/:id`'s member management, like any other user               |
 
 - **Membership is authoritative on every reseed**: narrowing an
   organization's `members` in `demo-orgs.json` removes any now-unlisted
   `organization_members` row on the next `pnpm seed:demo` run rather than
-  leaving it behind (see `removeStaleMembers` in `seed-demo.ts`) — this is
-  how `archi`/`user`/`contrib` lost access to Open when it was split off
-  into its own, single-owner organization.
+  leaving it behind (see `removeStaleMembers` in `seed-demo.ts`).
 - The seed is **idempotent** — re-running it replaces the matching
   workspace's content.
 
@@ -62,25 +57,24 @@ pnpm seed:local-demo-users   # sources .env.dev automatically — local accounts
 pnpm seed:demo               # sources .env.dev automatically
 ```
 
-**`pnpm seed:local-demo-users`** creates/updates the 5 local demo accounts
-(`admin`/`user`/`contrib`/`archi`/`open`, passwords match usernames, see
+**`pnpm seed:local-demo-users`** creates/updates the 4 local demo accounts
+(`admin`/`user`/`contrib`/`archi`, passwords match usernames, see
 `packages/db/seeds/local-demo-users.json`) directly in the `users` table —
 requires `DATABASE_URL`. This is the default path
 (`KEYCLOAK_SSO_ENABLED` unset/`false`, see
 [Local accounts](../reference/authentication.mdx#local-accounts)). With
 Keycloak SSO enabled instead, use **`pnpm seed:demo-users`**, which
-creates/updates the same 5 accounts (`.docker/keycloak/demo-users.json`)
+creates/updates the same 4 accounts (`.docker/keycloak/demo-users.json`)
 via the Keycloak Admin API — requires `KEYCLOAK_URL`, `KEYCLOAK_REALM`,
 `KEYCLOAK_ADMIN_CLIENT_ID`, `KEYCLOAK_ADMIN_CLIENT_SECRET`.
 
-**`pnpm seed:demo`** seeds the two demo organizations, their memberships,
-and the ArchiMate demo data (ArchiMetal/ArchiSurance/Open Day) — requires
-`DATABASE_URL` and resolves `archi`/`user`/`contrib`/`open`'s user id from
-either the local `users` table or Keycloak, depending on
-`KEYCLOAK_SSO_ENABLED` (run the matching `seed:local-demo-users` or
-`seed:demo-users` first). `packages/db/seeds/demo.sql` itself is a
-template — its
-`__ARCHISURANCE_ORGANIZATION_ID__`/`__ARCHIMETAL_ORGANIZATION_ID__`/`__OPENDAY_ORGANIZATION_ID__`/`__CREATED_BY_ID__`
+**`pnpm seed:demo`** seeds the demo organization, its memberships, and the
+ArchiMate demo data (ArchiMetal/ArchiSurance) — requires `DATABASE_URL` and
+resolves `archi`/`user`/`contrib`'s user id from either the local `users`
+table or Keycloak, depending on `KEYCLOAK_SSO_ENABLED` (run the matching
+`seed:local-demo-users` or `seed:demo-users` first).
+`packages/db/seeds/demo.sql` itself is a template — its
+`__ARCHISURANCE_ORGANIZATION_ID__`/`__ARCHIMETAL_ORGANIZATION_ID__`/`__CREATED_BY_ID__`
 placeholders are only substituted by `seed-demo.ts`, so run it via `pnpm
 seed:demo` rather than `psql -f` directly.
 
@@ -96,7 +90,7 @@ pnpm run seed                           # recreate the demo accounts, organizati
 pnpm run import:workspaces              # export every workspace to Neo4j
 ```
 
-This is a full wipe, not scoped to the 3 demo workspaces: any other
+This is a full wipe, not scoped to the 2 demo workspaces: any other
 organization or workspace in the same database is removed too.
 
 System dashboards are global rows (`dashboards.workspaceId IS NULL`),
@@ -114,7 +108,7 @@ export as the manual sequence above (same caveat on system dashboards not
 being restored), using **local accounts, not Keycloak**
 (demo.archispark.cloud runs with `KEYCLOAK_SSO_ENABLED` unset). Every
 application table and the whole Neo4j graph are wiped (schema/migration
-history preserved) before reseeding — **not** a scoped delete of just the 3
+history preserved) before reseeding — **not** a scoped delete of just the 2
 demo workspaces: any account, organization, or workspace a visitor created
 since the last reset is removed too. That's expected on a public demo where
 visitors can perform uncontrolled operations. It replaces the previous

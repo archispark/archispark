@@ -1,13 +1,10 @@
 /**
- * Demo seed script — loads the ArchiSurance, ArchiMetal and Open Day
- * workspaces into the DB, grouped into demo organizations
- * (packages/db/seeds/demo-orgs.json): "Archi" (ArchiSurance + ArchiMetal),
- * owned by "archi" with "contrib"/"user" as editor/viewer, and "Open" (Open
- * Day), owned solely by "open" — the two organizations are deliberately
- * isolated from each other (no shared members), to demonstrate
- * organization-scoped access. "admin" (the platform_admin demo account) is
- * deliberately never a member of either organization — demonstrates
- * platform/organization isolation from the demo itself.
+ * Demo seed script — loads the ArchiSurance and ArchiMetal workspaces into
+ * the DB, grouped into the demo organization (packages/db/seeds/demo-orgs.json):
+ * "Archi" (ArchiSurance + ArchiMetal), owned by "archi" with "contrib"/
+ * "user" as editor/viewer. "admin" (the platform_admin demo account) is
+ * deliberately never a member of it — demonstrates platform/organization
+ * isolation from the demo itself.
  *
  * Membership is authoritative, not additive: for each organization, any
  * `organization_members` row for a user not listed in `demo-orgs.json` is
@@ -20,12 +17,13 @@
  *
  * Self-healing legacy cleanup: `demo-orgs.json`'s `legacySlugs` lists slugs
  * retired by a past org restructuring (e.g. the `archisurance`/`archimetal`
- * → `archi`/`open` regroup). Each run deletes any organization matching one
- * of those slugs, but only if it now holds zero workspaces. When
- * retiring/renaming a slug in `organizations`, add the old slug to
- * `legacySlugs` so future runs clean it up automatically.
+ * → `archi` regroup, and the later retirement of the standalone `open`
+ * organization). Each run deletes any organization matching one of those
+ * slugs, but only if it now holds zero workspaces. When retiring/renaming a
+ * slug in `organizations`, add the old slug to `legacySlugs` so future runs
+ * clean it up automatically.
  *
- * Demo usernames (admin/user/contrib/archi/open) are resolved to a user id
+ * Demo usernames (admin/user/contrib/archi) are resolved to a user id
  * either via Keycloak or via the local `users` table, depending on
  * `KEYCLOAK_SSO_ENABLED` (see `@workspace/auth`'s `isKeycloakSsoEnabled()`)
  * — run `seed:demo-users` (Keycloak) or `seed:local-demo-users` (local,
@@ -39,8 +37,8 @@
  * Requires DATABASE_URL, plus either the Keycloak Admin API env vars or a
  * populated local `users` table, depending on KEYCLOAK_SSO_ENABLED.
  *
- * Destructive reset: replaces the ArchiSurance/ArchiMetal/Open Day
- * workspaces' content. Safe to run multiple times.
+ * Destructive reset: replaces the ArchiSurance/ArchiMetal workspaces'
+ * content. Safe to run multiple times.
  */
 
 import "@workspace/env/register"

@@ -6,7 +6,7 @@ import { parseBody } from "@/lib/archimate/validation"
 import { NotFoundError, ValidationError } from "@/lib/archimate/errors"
 import { dashboardDefinitionSchema } from "@/lib/dashboards/contracts"
 import { assertDashboardQueriesSafe } from "@/lib/dashboards/datasource-executors"
-import { createRevision, deleteDashboard, getLatestRevision } from "@/lib/dashboards/repository"
+import { createRevision, deleteDashboard, getLatestRevision, isSystemDashboard } from "@/lib/dashboards/repository"
 
 export const dynamic = "force-dynamic"
 
@@ -18,7 +18,8 @@ export const GET = withErrorHandling(
     const { dashboardId } = await params
     const revision = await getLatestRevision(workspaceId, dashboardId)
     if (!revision) throw new NotFoundError(`Dashboard introuvable : ${dashboardId}`)
-    return NextResponse.json(revision)
+    const isSystem = await isSystemDashboard(workspaceId, dashboardId)
+    return NextResponse.json({ ...revision, isSystem })
   })
 )
 

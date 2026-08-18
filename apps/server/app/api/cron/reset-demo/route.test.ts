@@ -70,11 +70,10 @@ describe("GET /api/cron/reset-demo", () => {
     const orgIdByWorkspace = new Map([
       ["ArchiSurance", 1],
       ["ArchiMetal", 1],
-      ["Open Day", 2],
     ])
     vi.mocked(seedDemoWorkspaces).mockResolvedValue({ orgIdByWorkspace })
     vi.mocked(importAllWorkspacesToNeo4j).mockResolvedValue({
-      imported: ["ArchiSurance", "ArchiMetal", "Open Day"],
+      imported: ["ArchiSurance", "ArchiMetal"],
       failed: [],
     })
 
@@ -87,7 +86,7 @@ describe("GET /api/cron/reset-demo", () => {
     expect(body.graph).toEqual({ deleted: 34 })
     expect(body.users).toBe(1)
     expect(body.workspaces.sort()).toEqual(
-      ["ArchiSurance", "ArchiMetal", "Open Day"].sort()
+      ["ArchiSurance", "ArchiMetal"].sort()
     )
 
     const order = [

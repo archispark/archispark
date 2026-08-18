@@ -32,16 +32,12 @@ function lanDevOrigins(): string[] {
 const nextConfig: NextConfig = {
   output: "standalone",
   transpilePackages: ["@workspace/ui"],
-  // The database packages load these files through fs at runtime. Their
-  // computed paths cannot be discovered reliably by Next.js's file tracer,
-  // so explicitly ship them with every Node.js function on Vercel.
+  // /api/cron/reset-demo reads the demo seed files through fs at runtime.
+  // Their computed path cannot be discovered reliably by Next.js's file
+  // tracer, so explicitly ship it with every Node.js function on Vercel.
   outputFileTracingRoot: monorepoRoot,
   outputFileTracingIncludes: {
-    "/*": [
-      "../../packages/db/dist/drizzle-pg/**/*",
-      "../../packages/db/dist/seeds/**/*",
-      "../../packages/db-neo4j/dist/schema/migrations/**/*",
-    ],
+    "/*": ["../../packages/db/dist/seeds/**/*"],
   },
   // Without this, Next's own trailing-slash redirect (/mcp/ → /mcp, 308)
   // fires *before* rewrites are evaluated, so the /mcp/:path* rewrite below

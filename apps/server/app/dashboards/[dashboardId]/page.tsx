@@ -25,6 +25,7 @@ export default function DashboardPage() {
           dashboard={dashboard.definition}
           initialParameters={initialParameters}
           canEdit={canEdit}
+          isSystem={dashboard.isSystem}
         />
       )}
     </div>
