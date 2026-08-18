@@ -5,10 +5,20 @@
  * `seed-demo.yml` GitHub Actions workflow, which needs a full
  * fresh-reinstall-style wipe rather than a scoped delete since the public
  * demo lets visitors create their own accounts/organizations.
+ *
+ * `TRUNCATE ... CASCADE` also empties `dashboards` (system dashboards,
+ * `workspace_id IS NULL`, normally seeded once by
+ * `0032_dashboard_system_seed.sql`) via its FK to `workspaces` — even though
+ * `dashboards` isn't itself in `tableList` below, cascading truncation
+ * doesn't check row values. Since that migration never reapplies (Drizzle
+ * skips already-recorded migrations), every reset would otherwise leave
+ * every workspace without system dashboards — restore them immediately
+ * after.
  */
 
 import { sql } from "drizzle-orm"
 import { db as defaultDb } from "./connection.js"
+import { reseedSystemDashboards } from "./reseed-system-dashboards.js"
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Db = any
@@ -41,5 +51,6 @@ export async function truncateApplicationTables(
   await database.execute(
     sql.raw(`TRUNCATE TABLE ${tableList} RESTART IDENTITY CASCADE`)
   )
+  await reseedSystemDashboards(database)
   return { tables: rows.length }
 }
