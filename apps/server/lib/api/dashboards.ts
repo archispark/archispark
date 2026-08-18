@@ -34,7 +34,8 @@ export interface ExploreQueryResult {
 }
 
 export const fetchDashboards = () => get<DashboardRevision[]>("/dashboards")
-export const fetchDashboard = (id: string) => get<DashboardRevision>(`/dashboards/${encodeURIComponent(id)}`)
+export const fetchDashboard = (id: string) =>
+  get<DashboardRevision & { isSystem: boolean }>(`/dashboards/${encodeURIComponent(id)}`)
 export const fetchDashboardsForAdministration = () =>
   get<DashboardAdministrationEntry[]>("/dashboards/admin")
 

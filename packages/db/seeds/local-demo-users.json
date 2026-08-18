@@ -23,11 +23,5 @@
     "email": "archi@archispark.internal",
     "password": "archi",
     "displayName": "Archi"
-  },
-  {
-    "username": "open",
-    "email": "open@archispark.internal",
-    "password": "open",
-    "displayName": "Open"
   }
 ]

@@ -92,13 +92,13 @@ describe("resolveImageReferences (batch)", () => {
 })
 
 describe("attachResolvedElementImage", () => {
-  it("leaves the element unchanged when archispark_image is absent", async () => {
+  it("leaves the element unchanged when Archispark Plugin IconPack is absent", async () => {
     const element = elementOutFixture([])
     const result = await attachResolvedElementImage(element)
     expect(result.resolved_image_url).toBeUndefined()
   })
 
-  it("attaches the resolved url when archispark_image is present", async () => {
+  it("attaches the resolved url when Archispark Plugin IconPack is present", async () => {
     await setPluginEnabled("test-plugin", true)
     const element = elementOutFixture([
       {

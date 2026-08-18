@@ -1,7 +1,6 @@
 /**
  * Remove all ArchiSpark graph data while preserving Neo4j schema migrations,
- * constraints, and indexes. Reusable core in `../src/reset-graph-data.ts`
- * (also used by the demo reset cron).
+ * constraints, and indexes. Reusable core in `../src/reset-graph-data.ts`.
  *
  * Usage:
  *   NEO4J_URI=<uri> NEO4J_USER=<user> NEO4J_PASSWORD=<password> \

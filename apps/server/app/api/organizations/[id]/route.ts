@@ -3,10 +3,7 @@ import { withErrorHandling } from "@/lib/http/with-error-handling"
 import { withAuth } from "@/lib/http/with-auth"
 import { parseIntParam } from "@/lib/http/params"
 import { renameOrganization } from "@/lib/archimate/organizations-store"
-import {
-  parseBody,
-  OrganizationUpdateSchema,
-} from "@/lib/archimate/validation"
+import { parseBody, OrganizationUpdateSchema } from "@/lib/archimate/validation"
 
 export const dynamic = "force-dynamic"
 
@@ -16,6 +13,6 @@ export const PUT = withErrorHandling(
   withAuth(async (req: NextRequest, auth, { params }: Ctx) => {
     const body = parseBody(OrganizationUpdateSchema, await req.json())
     const id = parseIntParam((await params).id)
-    return NextResponse.json(await renameOrganization(auth.user, id, body.name))
+    return NextResponse.json(await renameOrganization(auth.user, id, body))
   })
 )

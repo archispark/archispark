@@ -1,6 +1,6 @@
 /**
- * Attaches/collects `resolved_image_url` for `archispark_image` values —
- * used by store.ts's DTO serializers (single/batch) and by the SVG
+ * Attaches/collects `resolved_image_url` for `Archispark Plugin IconPack`
+ * values — used by store.ts's DTO serializers (single/batch) and by the SVG
  * renderer's whole-model batch resolution (export/MCP consumers). Replaces
  * the old image-library-resolve.ts; no longer workspace-scoped (plugins are
  * instance-wide, not per-organization).
@@ -19,7 +19,7 @@ function imageValue(element: ElementOut): string | undefined {
 }
 
 /** Attaches `resolved_image_url` to an ElementOut DTO, when it has an
- *  `archispark_image` value. */
+ *  `Archispark Plugin IconPack` value. */
 export async function attachResolvedElementImage(
   element: ElementOut
 ): Promise<ElementOut> {
@@ -45,8 +45,9 @@ export async function attachResolvedElementImages(
 }
 
 /** uuid (element or relationship) -> resolved image URL, for every entity
- *  that has a resolvable `archispark_image` value. Used by the SVG renderer
- *  and export/MCP consumers, which need the whole model at once. */
+ *  that has a resolvable `Archispark Plugin IconPack` value. Used by the
+ *  SVG renderer and export/MCP consumers, which need the whole model at
+ *  once. */
 export async function resolveElementImages(
   model: ArchiModel
 ): Promise<Map<string, string>> {

@@ -149,8 +149,9 @@ fichier `*.test.ts` dans `apps/server/pages/api/` : Next.js le traiterait comme
 une route active.
 
 Une suite Playwright distincte (`apps/server/e2e/`) fait tourner un build réel
-dans un navigateur, en comptes locaux uniquement (pas de Keycloak). Ne
-l'exécuter que sur demande explicite. Elle nécessite Docker (son `webServer`
+dans un navigateur, en comptes locaux uniquement (pas de Keycloak). Ne jamais
+l'ajouter aux workflows GitHub et ne l'exécuter que sur demande explicite :
+elle est coûteuse en temps et en tokens. Elle nécessite Docker (son `webServer`
 démarre un conteneur Postgres jetable) et un build préalable :
 
 ```bash
@@ -189,10 +190,11 @@ pnpm --filter server test:e2e
 ### Plugins d'icônes
 
 - `plugins/<slug>/` contient les icônes personnalisées assignables à un
-  élément ArchiMate (propriété système `archispark_image`) : `plugin.json`
-  (métadonnées), `manifest.ts` (liste des icônes) et `icons/*.svg`. Ces
-  plugins sont instance-wide, découverts au build (pas en base de données) et
-  activables/désactivables sans redéploiement sur `/platform/plugins`. Voir
+  élément ArchiMate (propriété système `Archispark Plugin IconPack`) :
+  `plugin.json` (métadonnées), `manifest.ts` (liste des icônes) et
+  `icons/*.svg`. Ces plugins sont instance-wide, découverts au build (pas
+  en base de données) et activables/désactivables sans redéploiement sur
+  `/platform/plugins`. Voir
   `apps/docs/content/docs/developer-guide/reference/plugins.mdx`.
 - Après toute modification de `plugins/**`, régénérer le registre via
   `pnpm --filter server gen:plugin-registry`

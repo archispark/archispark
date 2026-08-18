@@ -14,6 +14,7 @@ import { useFormModal } from "@/hooks/use-form-modal"
 import { Input } from "@workspace/ui/components/input"
 import { Button } from "@workspace/ui/components/button"
 import { Label } from "@workspace/ui/components/label"
+import { Trash2 } from "lucide-react"
 import {
   Dialog,
   DialogContent,
@@ -25,23 +26,6 @@ import {
 } from "@workspace/ui/components/dialog"
 
 export default function SettingsPage() {
-  const { t } = useT()
-
-  return (
-    <div className="space-y-5 p-7">
-      <div>
-        <h1 className="text-lg font-semibold">{t("settings.title")}</h1>
-        <p className="mt-0.5 text-[13px] text-muted-foreground">
-          {t("settings.desc")}
-        </p>
-      </div>
-
-      <WorkspaceTab />
-    </div>
-  )
-}
-
-function WorkspaceTab() {
   const { t } = useT()
   const router = useRouter()
   const { data: workspaces = [], isLoading } = useWorkspaces()
@@ -88,75 +72,86 @@ function WorkspaceTab() {
     })
   }
 
-  if (isLoading) {
-    return (
-      <div className="text-sm text-muted-foreground">{t("common.loading")}</div>
-    )
-  }
-
-  if (!active) return null
-
   const dirty =
-    name !== active.name || description !== (active.description ?? "")
+    !!active &&
+    (name !== active.name || description !== (active.description ?? ""))
 
   return (
-    <div className="max-w-xl space-y-6">
-      <div className="space-y-4">
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="ws-name">{t("nav.workspace_name")} *</Label>
-          <Input
-            id="ws-name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            autoComplete="off"
-          />
+    <div className="space-y-5 p-7">
+      {/* Header */}
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <h1 className="text-lg font-semibold">{t("settings.title")}</h1>
+          <p className="mt-0.5 text-[13px] text-muted-foreground">
+            {t("settings.desc")}
+          </p>
         </div>
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="ws-desc">{t("common.optional_desc")}</Label>
-          <textarea
-            id="ws-desc"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            rows={3}
-            className="resize-y rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground disabled:opacity-60"
-          />
-        </div>
-        {error && (
-          <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-            {error}
+        {active && (
+          <div className="flex shrink-0 items-center gap-2">
+            <Button
+              size="sm"
+              onClick={handleSave}
+              disabled={saving || !name.trim() || !dirty}
+              className="bg-indigo-600 text-primary-foreground hover:bg-indigo-700"
+            >
+              {saving ? t("common.saving") : t("common.save")}
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => deleteActions.openNew()}
+            >
+              <Trash2 className="mr-1.5 size-3.5" />
+              {t("common.delete")}
+            </Button>
           </div>
         )}
-        <Button
-          onClick={handleSave}
-          disabled={saving || !name.trim() || !dirty}
-        >
-          {saving ? t("common.saving") : t("common.save")}
-        </Button>
       </div>
 
-      <div className="space-y-2 border-t border-border pt-4">
-        <h2 className="text-sm font-semibold">{t("sidebar.export")}</h2>
-        <p className="text-[12px] text-muted-foreground">
-          {t("settings.general.export_desc")}
-        </p>
-        <ModelExportButton />
-      </div>
+      {isLoading && (
+        <div className="text-sm text-muted-foreground">
+          {t("common.loading")}
+        </div>
+      )}
 
-      <div className="space-y-2 border-t border-border pt-4">
-        <h2 className="text-sm font-semibold text-destructive">
-          {t("settings.general.delete_ws")}
-        </h2>
-        <p className="text-[12px] text-muted-foreground">
-          {t("settings.workspaces.delete_desc", { name: active.name })}
-        </p>
-        <Button
-          variant="destructive"
-          size="sm"
-          onClick={() => deleteActions.openNew()}
-        >
-          {t("settings.general.delete_ws")}
-        </Button>
-      </div>
+      {active && (
+        <div className="space-y-6">
+          <div className="space-y-4">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="ws-name">{t("nav.workspace_name")} *</Label>
+              <Input
+                id="ws-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                autoComplete="off"
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="ws-desc">{t("common.optional_desc")}</Label>
+              <textarea
+                id="ws-desc"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                rows={3}
+                className="resize-y rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground disabled:opacity-60"
+              />
+            </div>
+            {error && (
+              <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                {error}
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-2 border-t border-border pt-4">
+            <h2 className="text-sm font-semibold">{t("sidebar.export")}</h2>
+            <p className="text-[12px] text-muted-foreground">
+              {t("settings.general.export_desc")}
+            </p>
+            <ModelExportButton />
+          </div>
+        </div>
+      )}
 
       <Dialog
         open={deleteModal.open}
@@ -166,7 +161,8 @@ function WorkspaceTab() {
           <DialogHeader>
             <DialogTitle>{t("settings.general.delete_ws")}</DialogTitle>
             <DialogDescription>
-              {t("settings.workspaces.delete_desc", { name: active.name })}
+              {active &&
+                t("settings.workspaces.delete_desc", { name: active.name })}
             </DialogDescription>
           </DialogHeader>
           {deleteModal.error && (

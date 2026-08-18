@@ -4,7 +4,7 @@ import { nextJsConfig } from "@workspace/eslint-config/next-js"
 export default [
   ...nextJsConfig,
   {
-    files: ["*.config.mjs", "*.config.js"],
+    files: ["*.config.mjs", "*.config.js", "scripts/docker-migrate.mjs"],
     languageOptions: { globals: { process: "readonly" } },
   },
   {

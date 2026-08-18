@@ -24,7 +24,12 @@ export default function EditDashboardPage() {
             <p className="mt-1 text-muted-foreground">{t("dashboards.edit_subtitle", { n: existing.revision + 1 })}</p>
           </div>
           {canEdit ? (
-            <DashboardForm mode="edit" dashboardId={dashboardId} initialDefinition={existing.definition} />
+            <DashboardForm
+              mode="edit"
+              dashboardId={dashboardId}
+              initialDefinition={existing.definition}
+              isSystem={existing.isSystem}
+            />
           ) : (
             <p className="text-sm text-muted-foreground">{t("dashboards.edit_forbidden")}</p>
           )}

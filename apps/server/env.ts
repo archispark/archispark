@@ -18,18 +18,13 @@ const serverEnvSchema = smtpEnvSchema.extend({
   ALLOWED_DEV_ORIGINS: optionalEnvString(),
   KEYCLOAK_CLIENT_ID_WEB: optionalEnvString(),
   KEYCLOAK_SSO_PROVIDER_NAME: optionalEnvString(),
-  DEMO_RESET_ENABLED: z.preprocess(
-    blankToUndefined,
-    z.enum(["true", "false"]).optional()
-  ),
-  CRON_SECRET: optionalEnvString(),
 })
 
 /**
  * Validated once per process. Every field above stays optional to match
- * today's behaviour (Keycloak SSO, Blob storage, SMTP and the demo-reset
- * cron are all opt-in features that already degrade gracefully at their own
- * call sites) — this only turns a malformed value (e.g. a non-URL
+ * today's behaviour (Keycloak SSO, Blob storage and SMTP are all opt-in
+ * features that already degrade gracefully at their own call sites) — this
+ * only turns a malformed value (e.g. a non-URL
  * ARCHISPARK_URL) into a clear startup failure instead of a confusing one
  * deep inside a request.
  */

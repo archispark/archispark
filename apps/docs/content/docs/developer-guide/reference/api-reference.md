@@ -123,9 +123,10 @@ Every workspace belongs to exactly one organization (`organization_id`) — a ca
 | `DELETE` | `/api/property-definitions/:id` | Delete                                                                                   |
 
 Each returned definition includes `is_system`. System definitions, including
-`archispark_image`, are read-only at the definition level: update and delete
-requests are rejected. Its value on an element or relationship must be a
-plugin icon's slug (see [Plugins](#plugins)), resolved against the enabled
+`Archispark Plugin IconPack`, are read-only at the definition level:
+update and delete requests are rejected. Its value on an element or
+relationship must be a plugin icon's slug (see [Plugins](#plugins)),
+resolved against the enabled
 plugin that declares it, or a legacy HTTP(S) URL / relative path for values
 written before the plugin system existed.
 
@@ -133,7 +134,7 @@ written before the plugin system existed.
 
 See [Plugins](/docs/developer-guide/reference/plugins) for the
 `plugins/<slug>/` folder format, the discovery/activation split, and the
-`archispark_image` property. Plugins are instance-wide, not
+`Archispark Plugin IconPack` property. Plugins are instance-wide, not
 organization-scoped — every organization sees the same list. Reading is
 open to any authenticated user; enabling or disabling a plugin requires the
 `platform_admin` realm role (see the `/api/platform/plugins` routes above).

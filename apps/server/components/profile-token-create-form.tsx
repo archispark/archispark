@@ -57,7 +57,7 @@ export function TokenCreateForm({
       <Button
         size="sm"
         onClick={() => onShowChange(true)}
-        className="bg-indigo-600 text-primary-foreground hover:bg-indigo-700"
+        className="bg-emerald-600 text-primary-foreground hover:bg-emerald-700"
       >
         <Plus className="size-3.5" />
         {t("common.add")}

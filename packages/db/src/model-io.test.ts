@@ -91,7 +91,7 @@ describe("seedWorkspace", () => {
     const model = await modelFromDb(id)
     expect(model.propertyDefinitions).toContainEqual({
       uuid: ARCHISPARK_IMAGE_PROPERTY_ID,
-      name: "archispark_image",
+      name: "Archispark Plugin IconPack",
       type: "string",
     })
   })
@@ -131,7 +131,7 @@ describe("modelToDb + modelFromDb roundtrip", () => {
     await modelToDb(id, model, alwaysValidImageReference)
     expect((await modelFromDb(id)).propertyDefinitions).toContainEqual({
       uuid: ARCHISPARK_IMAGE_PROPERTY_ID,
-      name: "archispark_image",
+      name: "Archispark Plugin IconPack",
       type: "string",
     })
   })
@@ -320,7 +320,7 @@ describe("modelToDb + modelFromDb roundtrip", () => {
       loaded.propertyDefinitions.find(
         (p) => p.uuid === ARCHISPARK_IMAGE_PROPERTY_ID
       )?.name
-    ).toBe("archispark_image")
+    ).toBe("Archispark Plugin IconPack")
 
     expect(loaded.views).toHaveLength(2)
     const v1 = loaded.views.find((v) => v.uuid === "v1")!
@@ -427,7 +427,7 @@ describe("modelToDb + modelFromDb roundtrip", () => {
 // ---------------------------------------------------------------------------
 
 describe("modelToDb — isValidImageReference injection", () => {
-  it("rejects an archispark_image value the injected validator refuses", async () => {
+  it("rejects an Archispark Plugin IconPack value the injected validator refuses", async () => {
     const id = await seedWorkspace(
       `Img-WS-${Date.now()}`,
       emptyModel(`img-uuid-${Date.now()}`),
@@ -448,11 +448,11 @@ describe("modelToDb — isValidImageReference injection", () => {
       ],
     }
     await expect(modelToDb(id, model, () => false)).rejects.toThrow(
-      /archispark_image/
+      /Archispark Plugin IconPack/
     )
   })
 
-  it("accepts an archispark_image value the injected validator approves", async () => {
+  it("accepts an Archispark Plugin IconPack value the injected validator approves", async () => {
     const id = await seedWorkspace(
       `Img2-WS-${Date.now()}`,
       emptyModel(`img2-uuid-${Date.now()}`),

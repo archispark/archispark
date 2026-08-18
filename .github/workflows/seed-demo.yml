@@ -1,0 +1,51 @@
+name: Restore demo data
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 3 * * *"
+
+permissions:
+  contents: read
+
+jobs:
+  seed:
+    name: Seed demo data on Neon
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build @workspace/env
+        run: pnpm --filter @workspace/env build
+
+      - name: Build @workspace/auth
+        run: pnpm --filter @workspace/auth build
+
+      - name: Build @workspace/db
+        run: pnpm --filter @workspace/db build
+
+      - name: Reset PostgreSQL application data
+        run: pnpm --filter @workspace/db reset
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_UNPOOLED }}
+
+      - name: Reapply PostgreSQL migrations and backfill
+        run: pnpm run db:migrate:postgres && pnpm run db:migrate:backfill
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_UNPOOLED }}
+
+      - name: Seed demo accounts and workspaces
+        run: pnpm run seed
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_UNPOOLED }}

@@ -1,9 +1,8 @@
 /**
  * Local-accounts seeding — the reusable core behind
- * `packages/db/scripts/seed-local-admin.ts` (single admin) and the demo
- * reset cron (`apps/server/app/api/cron/reset-demo/route.ts`), which both
- * need to upsert one or more `local:<uuid>` accounts without going through
- * Keycloak.
+ * `packages/db/scripts/seed-local-admin.ts` (single admin) and the
+ * `seed-demo.yml` GitHub Actions workflow, which both need to upsert one or
+ * more `local:<uuid>` accounts without going through Keycloak.
  */
 
 import { randomUUID } from "crypto"
