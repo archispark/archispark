@@ -6,13 +6,22 @@ import {
   type PaginationState,
   type RowSelectionState,
   type Row,
+  type RowData,
   flexRender,
-  getCoreRowModel,
-  getFilteredRowModel,
-  getSortedRowModel,
-  getPaginationRowModel,
-  getExpandedRowModel,
-  useReactTable,
+  useTable,
+  tableFeatures,
+  columnFilteringFeature,
+  globalFilteringFeature,
+  rowSortingFeature,
+  rowPaginationFeature,
+  rowSelectionFeature,
+  rowExpandingFeature,
+  columnVisibilityFeature,
+  createFilteredRowModel,
+  createSortedRowModel,
+  createPaginatedRowModel,
+  createExpandedRowModel,
+  filterFn_includesString,
 } from "@tanstack/react-table"
 import React, { useMemo, useState } from "react"
 import { useT } from "@/lib/i18n"
@@ -37,13 +46,35 @@ import {
 import { Button } from "@workspace/ui/components/button"
 import { DataTableSearch } from "@/components/data-table-search"
 
-interface DataTableProps<TData, TValue> {
-  columns: ColumnDef<TData, TValue>[]
+export const dataTableFeatures = tableFeatures({
+  columnFilteringFeature,
+  globalFilteringFeature,
+  rowSortingFeature,
+  rowPaginationFeature,
+  rowSelectionFeature,
+  rowExpandingFeature,
+  columnVisibilityFeature,
+  filteredRowModel: createFilteredRowModel(),
+  sortedRowModel: createSortedRowModel(),
+  paginatedRowModel: createPaginatedRowModel(),
+  expandedRowModel: createExpandedRowModel(),
+  filterFns: { includesString: filterFn_includesString },
+})
+
+export type DataTableFeatures = typeof dataTableFeatures
+
+export type DataTableColumnDef<
+  TData extends RowData,
+  TValue = unknown,
+> = ColumnDef<DataTableFeatures, TData, TValue>
+
+interface DataTableProps<TData extends RowData, TValue> {
+  columns: DataTableColumnDef<TData, TValue>[]
   data: TData[]
   loading?: boolean
   pageSize?: number
   pageSizeOptions?: number[]
-  renderSubRow?: (row: Row<TData>) => React.ReactNode
+  renderSubRow?: (row: Row<DataTableFeatures, TData>) => React.ReactNode
   searchable?: boolean
   searchPlaceholder?: string
   searchAction?: React.ReactNode
@@ -57,7 +88,7 @@ interface DataTableProps<TData, TValue> {
 
 const DEFAULT_PAGE_SIZE_OPTIONS = [10, 25, 50, 100]
 
-export function DataTable<TData, TValue>({
+export function DataTable<TData extends RowData, TValue>({
   columns,
   data,
   loading,
@@ -83,7 +114,7 @@ export function DataTable<TData, TValue>({
   })
   const [globalFilter, setGlobalFilter] = useState("")
 
-  const selectColumn: ColumnDef<TData, unknown> = useMemo(
+  const selectColumn: DataTableColumnDef<TData, unknown> = useMemo(
     () => ({
       id: "__select__",
       header: ({ table: t }) => (
@@ -115,12 +146,17 @@ export function DataTable<TData, TValue>({
   )
 
   const allColumns = useMemo(
-    () => (selectable ? [selectColumn, ...columns] : columns),
+    () =>
+      (selectable ? [selectColumn, ...columns] : columns) as DataTableColumnDef<
+        TData,
+        unknown
+      >[],
     [selectable, selectColumn, columns]
   )
 
   // eslint-disable-next-line react-hooks/incompatible-library
-  const table = useReactTable({
+  const table = useTable({
+    features: dataTableFeatures,
     data,
     columns: allColumns,
     state: { sorting, pagination, globalFilter, rowSelection },
@@ -133,11 +169,7 @@ export function DataTable<TData, TValue>({
     onRowSelectionChange: setRowSelection,
     enableRowSelection: !!selectable,
     getRowId,
-    getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
-    getExpandedRowModel: getExpandedRowModel(),
+    getRowCanExpand: () => true,
   })
 
   const { t } = useT()
@@ -275,7 +307,7 @@ export function DataTable<TData, TValue>({
           <label className="flex items-center gap-1 text-sm text-muted-foreground">
             Lignes
             <select
-              value={table.getState().pagination.pageSize}
+              value={table.state.pagination.pageSize}
               onChange={(e) => table.setPageSize(Number(e.target.value))}
               className="rounded-md border border-border bg-background px-1.5 py-0.5 text-sm text-foreground"
             >
@@ -287,7 +319,7 @@ export function DataTable<TData, TValue>({
             </select>
           </label>
           <span className="text-sm text-muted-foreground">
-            Page {table.getState().pagination.pageIndex + 1} /{" "}
+            Page {table.state.pagination.pageIndex + 1} /{" "}
             {table.getPageCount() || 1}
           </span>
           <Button

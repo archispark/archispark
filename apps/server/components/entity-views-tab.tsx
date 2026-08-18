@@ -2,7 +2,7 @@
 
 import { useMemo } from "react"
 import Link from "next/link"
-import type { ColumnDef } from "@tanstack/react-table"
+import { type DataTableColumnDef } from "@/components/data-table"
 import { type ViewOut } from "@/lib/api"
 import { DataTable } from "@/components/data-table"
 import { ChevronDown, ChevronRight } from "lucide-react"
@@ -11,7 +11,7 @@ import { useT } from "@/lib/i18n"
 export function EntityViewsTab({ relViews }: { relViews: ViewOut[] }) {
   const { t } = useT()
 
-  const viewColumns: ColumnDef<ViewOut>[] = useMemo(
+  const viewColumns: DataTableColumnDef<ViewOut>[] = useMemo(
     () => [
       {
         id: "expand",

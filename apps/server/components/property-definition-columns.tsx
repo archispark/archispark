@@ -1,5 +1,5 @@
 import { useMemo } from "react"
-import type { ColumnDef } from "@tanstack/react-table"
+import { type DataTableColumnDef } from "@/components/data-table"
 import { type PropertyDefinitionOut } from "@/lib/api"
 import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
@@ -14,7 +14,7 @@ export function usePropertyDefinitionColumns({
   isAdmin: boolean
   onEdit: (pd: PropertyDefinitionOut) => void
   onDelete: (pd: PropertyDefinitionOut) => void
-}): ColumnDef<PropertyDefinitionOut>[] {
+}): DataTableColumnDef<PropertyDefinitionOut>[] {
   const { t } = useT()
 
   return useMemo(
