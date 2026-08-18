@@ -1,6 +1,11 @@
 import { createMDX } from "fumadocs-mdx/next"
 import { z } from "zod"
-import { loadEnv, parseEnv, smtpEnvSchema } from "@workspace/env"
+import {
+  blankToUndefined,
+  loadEnv,
+  parseEnv,
+  smtpEnvSchema,
+} from "@workspace/env"
 
 // Must run before any code reads process.env (e.g. the /api/contact route's
 // SMTP_* vars) — same reasoning as apps/server/next.config.ts.
@@ -16,7 +21,12 @@ import { loadEnv, parseEnv, smtpEnvSchema } from "@workspace/env"
 // which a value frozen at import time couldn't reflect.
 loadEnv()
 parseEnv(
-  smtpEnvSchema.extend({ CONTACT_TO_EMAIL: z.string().email().optional() })
+  smtpEnvSchema.extend({
+    CONTACT_TO_EMAIL: z.preprocess(
+      blankToUndefined,
+      z.string().email().optional()
+    ),
+  })
 )
 
 const withMDX = createMDX()

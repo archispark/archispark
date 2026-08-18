@@ -36,6 +36,8 @@ export const queryKeys = {
     panelInstanceId: string,
     parameters: Record<string, string>
   ) => ["panelResult", dashboardId, panelInstanceId, parameters] as const,
-  imagePacks: () => ["imagePacks"] as const,
+  platformPlugins: () => ["platformPlugins"] as const,
+  platformPlugin: (slug: string) => ["platformPlugin", slug] as const,
+  plugins: () => ["plugins"] as const,
   siteMessages: () => ["siteMessages"] as const,
 }

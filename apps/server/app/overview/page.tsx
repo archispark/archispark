@@ -90,7 +90,7 @@ export default function OverviewPage() {
   }
 
   return (
-    <div className="max-w-5xl p-7">
+    <div className="p-7">
       {model && (
         <div className="mb-6">
           <h1 className="text-lg font-semibold">{model.name}</h1>

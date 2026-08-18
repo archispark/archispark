@@ -1,0 +1,7 @@
+{
+  "id": "azure",
+  "name": "Azure Icons",
+  "version": "1.0.0",
+  "description": "Official Microsoft Azure service icons, for use in ReactFlow diagrams.",
+  "type": "icon-pack"
+}

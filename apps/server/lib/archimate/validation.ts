@@ -152,6 +152,7 @@ export const WorkspaceUpdateSchema = z.object({
 
 export const OrganizationUpdateSchema = z.object({
   name: z.string().min(1, "Le champ 'name' est requis."),
+  description: z.string().trim().max(2000).nullable().optional(),
 })
 
 export const orgRole = z.enum(["owner", "editor", "viewer"], {

@@ -11,12 +11,16 @@ WORKDIR /repo
 RUN --mount=type=cache,id=pnpm-alpine,target=/pnpm/store \
     pnpm install --frozen-lockfile --ignore-scripts
 
-# Build workspace packages whose dist is referenced by Next.js's file tracer
-# (@workspace/db and @workspace/db-neo4j) or transpiled at build time
-# (@workspace/auth).
+# Build workspace packages Next.js's zero-config detection doesn't build on
+# its own — same list as apps/server/vercel.json's buildCommand. @workspace/env
+# first: next.config.ts imports it by its package specifier (resolves to
+# dist/), and the others depend on it too — same class of bug already fixed
+# for migrate-prod.yml (see that workflow's comment).
+RUN pnpm --filter @workspace/env build
 RUN pnpm --filter @workspace/db build
 RUN pnpm --filter @workspace/db-neo4j build
 RUN pnpm --filter @workspace/auth build
+RUN pnpm --filter @workspace/image-library build
 
 # next build evaluates every route module (including lib/archimate/store.ts),
 # which imports @workspace/db — its top-level `await createDb()` needs a
@@ -25,6 +29,16 @@ RUN pnpm --filter @workspace/auth build
 # running container would silently use an in-memory DB instead of Postgres.
 ENV DB_CLIENT=pglite
 RUN pnpm --filter server build
+
+# `next build`'s standalone output only bundles what its own routes/instrumentation
+# import — server.js no longer calls any migration function (see
+# instrumentation.ts), so @workspace/db/-neo4j aren't real resolvable packages
+# there, only inlined code. `pnpm deploy` instead produces a fully self-contained
+# copy of @workspace/db-neo4j (which depends on @workspace/db) — a real
+# node_modules, no monorepo symlinks — for docker-migrate.mjs below to run
+# standalone via plain `node`, independent from the Next.js build entirely.
+# --legacy: this workspace doesn't set inject-workspace-packages=true.
+RUN pnpm --filter @workspace/db-neo4j deploy --prod --legacy /migrate
 
 # ── Stage 2 : runtime (Next.js standalone, auto-suffisant) ────────────────────
 FROM node:22-alpine AS runner
@@ -36,13 +50,13 @@ COPY --from=build /repo/apps/server/.next/standalone ./
 COPY --from=build /repo/apps/server/.next/static     apps/server/.next/static
 COPY --from=build /repo/apps/server/public           apps/server/public
 
-# @workspace/db's runMigrations() reads drizzle-pg/*.sql via a runtime
-# fs.readFile relative to its own compiled module, which Next's output-file-
-# tracing can't follow (it only traces `import`s, not dynamic fs reads) — the
-# standalone copy above never includes it. Without this, the container starts
-# but instrumentation.ts's register() hook crashes on every request with
-# "Can't find meta/_journal.json file".
-COPY --from=build /repo/packages/db/dist/drizzle-pg  packages/db/dist/drizzle-pg
+# Standalone migration entry point — never invoked by the `server` service
+# itself (see instrumentation.ts), only by `docker compose run --rm migrate`
+# (see docker-compose.prod.yml). /migrate already contains its own SQL/Cypher
+# migration files (packaged inside @workspace/db's/@workspace/db-neo4j's dist/
+# by their own build step) — no separate COPY needed for those.
+COPY --from=build /migrate                          migrate
+COPY apps/server/scripts/docker-migrate.mjs          migrate/docker-migrate.mjs
 
 EXPOSE 8000
 ENV PORT=8000

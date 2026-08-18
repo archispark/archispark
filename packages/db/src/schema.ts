@@ -451,26 +451,25 @@ export const propertyDefinitions = pgTable(
 )
 
 // ---------------------------------------------------------------------------
-// Image library — draw.io-style shape packs referenced by the
-// `archispark_image` system property (see system-properties.ts). A pack is
-// either global ("system", organization_id NULL, shipped in
-// @workspace/image-library and seeded once by 0023_image_packs.sql) or
-// scoped to one organization ("custom", uploaded to Vercel Blob).
+// Plugins — instance-wide, file-backed icon packs discovered at build time
+// from plugins/<slug>/{plugin.json,manifest.ts,icons/*.svg} (see
+// apps/server/scripts/generate-plugin-registry.ts and
+// apps/server/lib/plugins/*). This table only tracks the runtime-toggleable
+// enabled flag per plugin slug — the plugin's identity, name, version, and
+// icon list live in the generated registry, not here. A row with no
+// matching registry entry (plugin folder removed after being enabled) is
+// inert, see apps/server/lib/plugins/service.ts. The default ArchiMate type
+// icons are not a plugin — they're TSX components shipped in
+// @workspace/image-library and compiled into the app; see
+// apps/server/scripts/generate-archimate-icon-pack.ts.
 // ---------------------------------------------------------------------------
 
-export const imagePacks = pgTable(
-  "image_packs",
+export const plugins = pgTable(
+  "plugins",
   {
     id: serial("id").primaryKey(),
-    uuid: text("uuid").notNull(),
-    organizationId: integer("organization_id").references(
-      () => organizations.id,
-      { onDelete: "cascade" }
-    ), // NULL = system pack, shared by every organization
-    isSystem: boolean("is_system").notNull().default(false),
     slug: text("slug").notNull(),
-    name: text("name").notNull(),
-    description: text("description"),
+    enabled: boolean("enabled").notNull().default(false),
     createdAt: integer("created_at")
       .notNull()
       .default(sql`extract(epoch from now())::int`),
@@ -478,43 +477,7 @@ export const imagePacks = pgTable(
       .notNull()
       .default(sql`extract(epoch from now())::int`),
   },
-  (t) => [
-    uniqueIndex("image_packs_uuid_uniq").on(t.uuid),
-    uniqueIndex("image_packs_system_slug_uniq")
-      .on(t.slug)
-      .where(sql`organization_id is null`),
-    uniqueIndex("image_packs_org_slug_uniq")
-      .on(t.organizationId, t.slug)
-      .where(sql`organization_id is not null`),
-    index("image_packs_org_idx").on(t.organizationId),
-  ]
-)
-
-export const imagePackItems = pgTable(
-  "image_pack_items",
-  {
-    id: serial("id").primaryKey(),
-    uuid: text("uuid").notNull(), // referenced as "img-<uuid>" by archispark_image
-    packId: integer("pack_id")
-      .notNull()
-      .references(() => imagePacks.id, { onDelete: "cascade" }),
-    slug: text("slug").notNull(),
-    name: text("name").notNull(),
-    archimateType: text("archimate_type"), // set only for system-pack items
-    storageKind: text("storage_kind").notNull(), // "inline_svg" | "blob"
-    svgContent: text("svg_content"), // set when storageKind = "inline_svg"
-    blobUrl: text("blob_url"), // set when storageKind = "blob"
-    blobPathname: text("blob_pathname"), // Vercel Blob pathname, for del()
-    mimeType: text("mime_type"),
-    createdAt: integer("created_at")
-      .notNull()
-      .default(sql`extract(epoch from now())::int`),
-  },
-  (t) => [
-    uniqueIndex("image_pack_items_uuid_uniq").on(t.uuid),
-    uniqueIndex("image_pack_items_pack_slug_uniq").on(t.packId, t.slug),
-    index("image_pack_items_pack_idx").on(t.packId),
-  ]
+  (t) => [uniqueIndex("plugins_slug_uniq").on(t.slug)]
 )
 
 // ---------------------------------------------------------------------------
@@ -685,8 +648,8 @@ export const bendpoints = pgTable(
 // (deletedAt) that preserves revision history. A dashboard is either owned
 // by one workspace (workspaceId set, created from the admin UI) or a system
 // dashboard shared by every workspace (workspaceId NULL, isSystem: true,
-// seeded once by 0032_dashboard_system_seed.sql) — same NULL-scope
-// convention as imagePacks.organizationId. System dashboards cannot be
+// seeded once by 0032_dashboard_system_seed.sql) — same instance-wide
+// spirit as the `plugins` table. System dashboards cannot be
 // edited or deleted (apps/server/lib/dashboards/repository.ts).
 // ---------------------------------------------------------------------------
 

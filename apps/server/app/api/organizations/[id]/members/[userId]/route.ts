@@ -5,7 +5,7 @@ import { parseIntParam } from "@/lib/http/params"
 import {
   updateMemberRole,
   removeMember,
-} from "@/lib/archimate/organizations-store"
+} from "@/lib/archimate/organization-members-store"
 import {
   parseBody,
   OrganizationMemberUpdateSchema,

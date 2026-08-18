@@ -40,5 +40,10 @@ export function loadEnv(): void {
   applyEnvFile(join(repoRoot(), ".env"))
 }
 
-export { smtpEnvSchema, parseEnv } from "./schema.js"
+export {
+  blankToUndefined,
+  optionalEnvString,
+  parseEnv,
+  smtpEnvSchema,
+} from "./schema.js"
 export type { SmtpEnv } from "./schema.js"

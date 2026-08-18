@@ -1,8 +1,0 @@
-import type { SystemArchimateIcon } from "../types.js"
-
-export const meaning: SystemArchimateIcon = {
-  slug: "meaning",
-  name: "Meaning",
-  archimateType: "Meaning",
-  svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 32 32\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linejoin=\"round\" stroke-linecap=\"round\"><g transform=\"translate(28 2)\"><path d=\"M-17 15 C-20 15 -20 11 -16.5 11 C-16.5 7 -10 7 -9.5 11 C-6 10.5 -5 15 -8 15 Z\" fill=\"none\"/></g></svg>",
-}

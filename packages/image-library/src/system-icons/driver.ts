@@ -1,8 +1,0 @@
-import type { SystemArchimateIcon } from "../types.js"
-
-export const driver: SystemArchimateIcon = {
-  slug: "driver",
-  name: "Driver",
-  archimateType: "Driver",
-  svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 32 32\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linejoin=\"round\" stroke-linecap=\"round\"><g transform=\"translate(28 2)\"><path d=\"M-8 12.5 C-8 8.9 -10.9 6 -14.5 6 C-18.1 6 -21 8.9 -21 12.5 C-21 16.1 -18.1 19 -14.5 19 C-10.9 19 -8 16.1 -8 12.5 ZM-13 12.5 C-13 11.7 -13.7 11 -14.5 11 C-15.3 11 -16 11.7 -16 12.5 C-16 13.3 -15.3 14 -14.5 14 C-13.7 14 -13 13.3 -13 12.5 ZM-14 12.5 C-14 12.2 -14.2 12 -14.5 12 C-14.8 12 -15 12.2 -15 12.5 C-15 12.8 -14.8 13 -14.5 13 C-14.2 13 -14 12.8 -14 12.5 Z\" fill=\"none\"/><path d=\"M-23 12.5 L-6 12.5 M-14.5 4 L-14.5 21 M-20.5 6.5 L-8.5 18.5 M-20.5 18.5 L-8.5 6.5\" fill=\"none\"/></g></svg>",
-}

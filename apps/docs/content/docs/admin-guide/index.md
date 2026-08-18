@@ -6,7 +6,7 @@ description: Organizations, invitations, roles, platform administration, and use
 ArchiSpark separates organization administration from platform administration.
 An organization contains its members, API tokens, workspaces, models, and
 dashboards. The Admin role (Keycloak identifier `platform_admin`) manages
-organization, user, plugin, and image-library metadata from `/platform/**`,
+organization, user, and plugin metadata from `/platform/**`,
 independently of any organization membership. For an organization's actual
 content (workspaces, models, dashboards), Admin has no special access: like
 any other user, it needs to be a real Owner, Editor, or Viewer of that
@@ -74,6 +74,19 @@ in `apps/server/lib/archimate/access.ts`, the single authorization gateway
 every route uses — no per-route special casing, and no special casing for
 Admin either. Because it has no cross-organization access to pin, Admin
 cannot create a personal API token.
+
+## Plugins
+
+Admin enables or disables the instance-wide icon plugins behind the
+`Archispark Plugin IconPack` system property from `/platform/plugins` — a
+table of every plugin discovered in the `plugins/` folder at build time,
+each with a toggle, no deployment needed to flip it. Installing a *new*
+plugin means adding a `plugins/<slug>/` folder to the repository and
+deploying, not something done from this page.
+
+See [Plugins](developer-guide/reference/plugins.mdx) for the plugin folder
+format, the discovery/activation split, and the built-in AWS/Azure/GCP
+plugins.
 
 ## Provision Keycloak users
 

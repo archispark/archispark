@@ -2,7 +2,7 @@
  * Remove all ArchiSpark application data while preserving PostgreSQL schema
  * and Drizzle migration history. Keycloak uses a separate database and is
  * not touched. Reusable core in `../src/reset-application-data.ts` (also
- * used by the demo reset cron).
+ * used by the `seed-demo.yml` GitHub Actions workflow).
  *
  * Usage:
  *   DATABASE_URL=<url> pnpm --filter @workspace/db reset

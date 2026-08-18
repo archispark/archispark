@@ -1,10 +1,8 @@
 /**
  * Imports every workspace's ArchiMate model from PostgreSQL into Neo4j —
  * the reusable core of
- * `packages/db-neo4j/scripts/import-all-workspaces.ts`, also used by the
- * demo reset cron (`apps/server/app/api/cron/reset-demo/route.ts`), which
- * needs it as an importable function rather than a process-exiting CLI
- * script.
+ * `packages/db-neo4j/scripts/import-all-workspaces.ts` (`pnpm run
+ * import:workspaces`).
  */
 
 import { db as defaultDb, workspaces, organizations, modelFromDb } from "@workspace/db"

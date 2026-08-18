@@ -11,10 +11,12 @@ Manage **property definitions** that can be attached to model elements and
 relationships.
 
 ArchiSpark supplies protected system definitions. The first is
-`archispark_image`, whose value is an HTTP(S) image URL or a relative path.
-Its definition cannot be renamed, retyped, or deleted, but its value remains
-editable on elements and relationships. Definitions you create remain fully
-editable.
+`Archispark Plugin IconPack`, whose value is picked from the image
+library (an icon from a vendor pack — AWS, Azure, GCP — or from a custom
+pack) directly on the property, or a legacy HTTP(S) image URL / relative
+path for values written before the image library existed. Its definition
+cannot be renamed, retyped, or deleted, but its value remains editable on
+elements and relationships. Definitions you create remain fully editable.
 
 ### Create a definition
 

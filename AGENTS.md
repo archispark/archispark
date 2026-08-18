@@ -29,6 +29,7 @@ Node 24).
 │   ├── typescript-config/ Configurations TypeScript partagées
 │   └── ui/           Composants React partagés
 ├── models/           Modèles ArchiMate, XSD et ressources de référence
+├── plugins/          Plugins d'icônes (aws/, azure/, gcp/, …) — voir la section dédiée
 ├── .docker/          Environnement Docker de développement
 ├── .github/          Workflows et modèles GitHub
 ├── docs/             Documentation technique historique du dépôt
@@ -148,9 +149,10 @@ fichier `*.test.ts` dans `apps/server/pages/api/` : Next.js le traiterait comme
 une route active.
 
 Une suite Playwright distincte (`apps/server/e2e/`) fait tourner un build réel
-dans un navigateur, en comptes locaux uniquement (pas de Keycloak). Elle
-nécessite Docker (son `webServer` démarre un conteneur Postgres jetable) et un
-build préalable :
+dans un navigateur, en comptes locaux uniquement (pas de Keycloak). Ne jamais
+l'ajouter aux workflows GitHub et ne l'exécuter que sur demande explicite :
+elle est coûteuse en temps et en tokens. Elle nécessite Docker (son `webServer`
+démarre un conteneur Postgres jetable) et un build préalable :
 
 ```bash
 pnpm --filter server exec playwright install chromium  # une fois
@@ -174,13 +176,34 @@ pnpm --filter server test:e2e
 
 ### Ressources graphiques de référence
 
-- `models/img/archimate/` contient les composants PNG de référence. Ne jamais y
-  écrire d'images générées, ni ajouter d'images générées ailleurs dans le dépôt.
+- `packages/image-library/assets/archimate/` contient les icônes SVG du pack
+  système « ArchiMate Notation » de la bibliothèque d'images (un fichier par
+  type, nommé `{Type}.svg` en PascalCase). Après toute modification de ces
+  fichiers, régénérer le pack via `pnpm --filter server gen:icon-pack`
+  (`apps/server/scripts/generate-archimate-icon-pack.ts`).
 - `models/img/views/` contient les SVG exportés par Archi et constitue la
   référence visuelle. Pour modifier
   `apps/server/lib/archimate/renderer.ts`, comparer le rendu au SVG
   correspondant et minimiser les écarts de formes, couleurs, disposition,
   connecteurs, libellés et polices.
+
+### Plugins d'icônes
+
+- `plugins/<slug>/` contient les icônes personnalisées assignables à un
+  élément ArchiMate (propriété système `Archispark Plugin IconPack`) :
+  `plugin.json` (métadonnées), `manifest.ts` (liste des icônes) et
+  `icons/*.svg`. Ces plugins sont instance-wide, découverts au build (pas
+  en base de données) et activables/désactivables sans redéploiement sur
+  `/platform/plugins`. Voir
+  `apps/docs/content/docs/developer-guide/reference/plugins.mdx`.
+- Après toute modification de `plugins/**`, régénérer le registre via
+  `pnpm --filter server gen:plugin-registry`
+  (`apps/server/scripts/generate-plugin-registry.ts`), qui écrit
+  `apps/server/lib/plugins/registry.generated.ts`.
+- Les plugins vendor (`aws`, `azure`, `gcp`) sont regénérés depuis une source
+  externe via `pnpm --filter server gen:cloud-icon-packs -- --source <dir>`
+  (`apps/server/scripts/generate-cloud-icon-packs.ts`), suivi de
+  `gen:plugin-registry`.
 
 ### Captures d'écran produit
 

@@ -17,7 +17,8 @@
     "typecheck": "tsc --noEmit",
     "openapi": "tsx scripts/generate-openapi.ts",
     "gen:icon-pack": "tsx scripts/generate-archimate-icon-pack.ts",
-    "gen:cloud-icon-packs": "tsx scripts/generate-cloud-icon-packs.ts"
+    "gen:cloud-icon-packs": "tsx scripts/generate-cloud-icon-packs.ts",
+    "gen:plugin-registry": "tsx scripts/generate-plugin-registry.ts"
   },
   "dependencies": {
     "@asteasolutions/zod-to-openapi": "^8.5.0",
@@ -26,7 +27,6 @@
     "@tanstack/react-query": "^5.101.0",
     "@tanstack/react-table": "^8.21.3",
     "@vercel/analytics": "^2.0.1",
-    "@vercel/blob": "^2.8.0",
     "@vercel/speed-insights": "^2.0.0",
     "@workspace/auth": "workspace:*",
     "@workspace/db": "workspace:*",
@@ -71,6 +71,7 @@
     "@workspace/typescript-config": "workspace:*",
     "eslint": "^9.39.2",
     "jsdom": "^29.1.1",
+    "prettier": "^3.9.6",
     "supertest": "^7.0.0",
     "tsx": "^4.22.4",
     "typescript": "^6.0.3",

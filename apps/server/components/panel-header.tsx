@@ -4,17 +4,10 @@ import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { useEffect } from "react"
 import { Menu, PanelLeftClose, PanelLeftOpen } from "lucide-react"
-import { useQueryClient } from "@tanstack/react-query"
-import { type ElementOut } from "@/lib/api"
-import {
-  useWorkspaces,
-  useOrganizations,
-  useElement,
-  useView,
-  usePlatformUser,
-} from "@/lib/queries"
-import { useDashboard } from "@/lib/queries/dashboards"
+import { useWorkspaces, useOrganizations } from "@/lib/queries"
 import { useT } from "@/lib/i18n"
+import { useMounted } from "@/hooks/use-mounted"
+import { useBreadcrumbSegments } from "@/hooks/use-breadcrumb-segments"
 import { ThemeToggle } from "@/components/theme-toggle"
 
 export function PanelHeader({
@@ -31,10 +24,10 @@ export function PanelHeader({
   const pathname = usePathname()!
   const router = useRouter()
   const { t } = useT()
+  const mounted = useMounted()
   const { data: workspaces = [], isSuccess: wsLoaded } = useWorkspaces()
   const { data: organizations = [], isSuccess: orgsLoaded } = useOrganizations()
-  const qc = useQueryClient()
-  const segments = pathname.split("/").filter(Boolean)
+  const { segments, segmentLabel } = useBreadcrumbSegments()
 
   useEffect(() => {
     // A platform_admin with no real organization membership has zero
@@ -63,95 +56,6 @@ export function PanelHeader({
     pathname,
     router,
   ])
-
-  const elementId =
-    segments[0] === "elements" && segments.length === 2
-      ? decodeURIComponent(segments[1]!)
-      : ""
-  const { data: breadcrumbElement } = useElement(elementId)
-  const viewId =
-    segments[0] === "views" && segments.length === 2
-      ? decodeURIComponent(segments[1]!)
-      : ""
-  const { data: breadcrumbView } = useView(viewId)
-  const dashboardId =
-    segments[0] === "dashboards"
-      ? segments[1] === "admin"
-        ? segments[2] && segments[2] !== "new"
-          ? decodeURIComponent(segments[2])
-          : ""
-        : segments[1]
-          ? decodeURIComponent(segments[1])
-          : ""
-      : ""
-  const { data: breadcrumbDashboard } = useDashboard(dashboardId)
-  const platformUserId =
-    segments[0] === "platform" &&
-    segments[1] === "users" &&
-    segments.length === 3
-      ? decodeURIComponent(segments[2]!)
-      : ""
-  const { data: breadcrumbPlatformUser } = usePlatformUser(platformUserId)
-
-  function segmentLabel(segment: string, index: number): string {
-    const keys: Record<string, Parameters<typeof t>[0]> = {
-      elements: "breadcrumb.elements",
-      relationships: "breadcrumb.relationships",
-      views: "breadcrumb.views",
-      validator: "breadcrumb.validator",
-      properties: "breadcrumb.properties",
-      users: "breadcrumb.users",
-      plugins: "platform.plugins.title",
-      "image-library": "image_library.manage_title",
-      settings: "breadcrumb.settings",
-      workspaces: "breadcrumb.workspaces",
-      overview: "sidebar.overview",
-      dashboards: "sidebar.dashboards",
-      explore: "sidebar.explore",
-      "panel-visualizations": "sidebar.panel_catalog",
-      organizations: "breadcrumb.organizations",
-      platform: "platform.sidebar_badge",
-      admin: "breadcrumb.admin",
-      new: "common.create",
-      edit: "common.edit",
-      invitations: "invitations.page_title",
-      login: "breadcrumb.login",
-      profile: "breadcrumb.profile",
-    }
-    if (keys[segment]) return t(keys[segment])
-
-    const id = decodeURIComponent(segment)
-    if (segments[index - 1] === "elements") {
-      const name =
-        (breadcrumbElement?.identifier === id
-          ? breadcrumbElement.name
-          : undefined) ?? qc.getQueryData<ElementOut>(["element", id])?.name
-      if (name) return name
-      if (id === elementId) return "…"
-    }
-    if (segments[index - 1] === "views") {
-      const name =
-        (breadcrumbView?.identifier === id ? breadcrumbView.name : undefined) ??
-        qc.getQueryData<{ name?: string }>(["view", id])?.name
-      if (name) return name
-      if (id === viewId) return "…"
-    }
-    if (
-      id === dashboardId &&
-      (segments[index - 1] === "dashboards" || segments[index - 2] === "admin")
-    ) {
-      return breadcrumbDashboard?.definition.title ?? "…"
-    }
-    if (id === platformUserId && segments[index - 1] === "users") {
-      const name =
-        (breadcrumbPlatformUser?.id === id
-          ? breadcrumbPlatformUser.username
-          : undefined) ??
-        qc.getQueryData<{ username?: string }>(["platformUser", id])?.username
-      return name ?? "…"
-    }
-    return id
-  }
 
   return (
     <header className="sticky top-0 z-40 flex h-[var(--nav-h)] shrink-0 items-center gap-2 border-b border-border bg-background px-3 sm:px-4">
@@ -225,7 +129,7 @@ export function PanelHeader({
         <div className="hidden h-4 w-px bg-border md:block" />
       )}
 
-      {workspaces.length > 0 && segments.length > 0 && (
+      {mounted && workspaces.length > 0 && segments.length > 0 && (
         <div className="flex min-w-0 items-center gap-1.5 overflow-hidden text-[13px] text-muted-foreground">
           {segments.map((segment, index) => {
             const last = index === segments.length - 1

@@ -22,22 +22,23 @@ description: Deploy ArchiSpark with Docker Compose or Vercel.
 - `packages/db-neo4j` (see [Neo4j export](architecture.md#neo4j-export))
   ships its own versioned Cypher migrations, separate from `packages/db`'s
   Postgres migrations — Neo4j has no `drizzle-kit` equivalent.
-- Like the Postgres migrations above, `apps/server/instrumentation.ts`
-  (Next.js's `register()` hook) applies them automatically on every cold
-  start — self-hosted (`next start`) and Vercel serverless alike, no
-  separate step required.
+- Migrations are never applied automatically by `apps/server` itself, in any
+  environment (dev, self-hosted, or Vercel) — see how each environment
+  triggers them below and under [Vercel](#vercel) and
+  [Self-hosted Docker Compose](#self-hosted-docker-compose).
 - Unlike Postgres, a failure here only logs an error and never blocks
   startup: Neo4j is a secondary integration (`POST /api/export/neo4j`), and
   `getNeo4jConfig()` always falls back to a default URI rather than
   signaling "unconfigured", so a deployment without Neo4j reachable must
   still serve requests normally.
 - **Idempotent**: already-applied migrations (tracked via
-  `:SchemaMigration` nodes) are skipped, so cold starts after a deployment
-  that adds a new `packages/db-neo4j/src/schema/migrations/*.cypher` file
-  pick it up automatically.
+  `:SchemaMigration` nodes) are skipped, so re-running the migration command
+  after a deployment that adds a new
+  `packages/db-neo4j/src/schema/migrations/*.cypher` file is always safe.
 
-For an exceptional manual run (recovery, or applying a migration ahead of
-the next cold start) — same reasoning as `backfill:prod` below:
+For a manual run against any directly reachable database (local dev, a
+dedicated customer database, or Neon's unpooled connection) — same reasoning
+as `backfill:prod` below:
 
 ```bash
 NEO4J_URI=<uri> NEO4J_USER=<user> NEO4J_PASSWORD=<password> \
@@ -46,18 +47,20 @@ NEO4J_URI=<uri> NEO4J_USER=<user> NEO4J_PASSWORD=<password> \
 pnpm --filter @workspace/db-neo4j migrate:prod /tmp/neo4j-prod.env
 ```
 
-On the `archispark` Vercel project this also runs via the
-`migrate-prod.yml` GitHub Actions workflow (see [Vercel](#vercel) below),
-triggered automatically on every push to `main` that adds a migration file.
+`pnpm migrate` (root script) runs this together with the Postgres migration
+and backfill in one command. On the `archispark` Vercel project, the
+canonical trigger is the `migrate-prod.yml` GitHub Actions workflow (see
+[Vercel](#vercel) below), which runs automatically on every push to `main`
+that adds a migration file.
 
 ## Vercel
 
 A single Vercel project (`archispark`, root directory `apps/server`)
 serves the UI, the REST API and the MCP transport — there is no longer a
 separate API or MCP-server project. `apps/server/vercel.json` overrides
-`buildCommand` to build `@workspace/db` and `@workspace/auth` first (Vercel's
-zero-config Next.js detection doesn't build workspace dependencies on its
-own).
+`buildCommand` to build `@workspace/env`, `@workspace/db`, `@workspace/db-neo4j`,
+`@workspace/auth`, and `@workspace/image-library` first (Vercel's zero-config
+Next.js detection doesn't build workspace dependencies on its own).
 
 1. **Create the `archispark` project** — import the repo as a Vercel
    project with root directory `apps/server`.
@@ -86,14 +89,11 @@ DATABASE_URL="<neon-unpooled>" pnpm --filter @workspace/db backfill:prod
 `backfill:prod` populates `workspaces.organization_id`/`api_tokens.organization_id`
 (left `NULL` by the DDL alone) — required once after any `migrate:prod` run
 that includes `0018_organizations_expand.sql` or later; a no-op on a fresh
-database, and safe to re-run. `apps/server/instrumentation.ts` (Next.js's
-`register()` hook) also runs it automatically on every cold start, but
-running it explicitly here avoids the very first request after a migration
-hitting an unbackfilled row. The same hook also applies pending Neo4j
-migrations on every cold start (see
-[Neo4j schema migrations](#neo4j-schema-migrations-production) above) — the
-`migrate-prod.yml` workflow's Neo4j step exists for the same
-run-it-ahead-of-the-first-request reason.
+database, and safe to re-run. `apps/server` never runs it automatically —
+`migrate-prod.yml`'s backfill step is what guarantees it always ran before
+the first request hits an unbackfilled row. The workflow's Neo4j step (see
+[Neo4j schema migrations](#neo4j-schema-migrations-production) above) exists
+for the same reason: nothing in `apps/server` applies Neo4j migrations either.
 
 4. **Set environment variables** on `archispark` — `DATABASE_URL`
    (from Neon, above), `KEYCLOAK_URL`, `KEYCLOAK_REALM`,
@@ -103,41 +103,23 @@ run-it-ahead-of-the-first-request reason.
    Authentication itself (Keycloak realm, client ids/secrets) is configured
    via the project's Vercel dashboard — see
    [Keycloak login](../reference/authentication.md#keycloak-login). SMTP config is also
-   detailed in [E-mail invitations](#e-mail-invitations-smtp). Custom image
-   pack uploads need `BLOB_READ_WRITE_TOKEN` — see
-   [Image library storage](#image-library-storage-vercel-blob).
+   detailed in [E-mail invitations](#e-mail-invitations-smtp).
 
 5. **Redeploy** `archispark`.
 
-6. **(Demo project only) Configure the demo reset cron** — `apps/server/vercel.json`
-   declares a Vercel Cron Job at `GET /api/cron/reset-demo`, scheduled
-   `0 3 * * *` (once daily — the Hobby plan's cron frequency ceiling). It's
-   inert on every deployment by default; only set these two environment
-   variables on the actual public demo project (never on a customer
-   deployment, since `vercel.json`'s `crons` entry is committed and
-   therefore inherited by any fork of this codebase):
-   - `CRON_SECRET` — a random secret; Vercel automatically attaches
-     `Authorization: Bearer $CRON_SECRET` to its own cron invocations once
-     this is set.
-   - `DEMO_RESET_ENABLED=true` — a second, independent gate; the route
-     returns 404 even with a valid `CRON_SECRET` when this isn't set.
-
-   The reset route requests a **300-second** function duration. Keep Fluid
-   Compute enabled (or use a Vercel plan/configuration that permits this
-   duration); the default 60-second cap is not enough for the Neo4j rebuild.
-   Vercel logs one duration per reset step, so a timeout identifies the last
-   completed step.
-
-   The cron does a full fresh-reinstall-style wipe of every application
-   table and the whole Neo4j graph (schema/migration history preserved),
-   then reseeds the demo accounts (**local accounts, not Keycloak** — no
-   `KEYCLOAK_*` variables are needed for this path), organizations,
-   workspaces, and dashboards — see
-   [Restore demo data on Vercel (Cron Job)](../getting-started/demo-data.md#restore-demo-data-on-vercel-cron-job)
+6. **(Demo project only) Restore demo data** —
+   `.github/workflows/seed-demo.yml` ("Restore demo data") resets and
+   reseeds `demo.archispark.cloud`'s Neon database, on a daily schedule
+   (`0 3 * * *`) and via manual dispatch. It reuses the same
+   `DATABASE_URL_UNPOOLED` repository secret as `migrate-prod.yml` above —
+   no Vercel environment variable or project configuration is needed for
+   this step. It resets and reseeds **local accounts, not Keycloak** (no
+   `KEYCLOAK_*` variables needed for this path), organizations, and
+   workspaces, and deliberately does not touch Neo4j (the export feature
+   isn't enabled on the demo project) — see
+   [Restore demo data](../getting-started/demo-data.md#restore-demo-data-github-actions)
    for the full behavior, including why it's a full wipe rather than a
-   scoped delete. It replaces the previous manual **Actions → Restore demo
-   data** GitHub workflow (`seed-demo.yml`, removed once the cron has been
-   observed to run successfully in production).
+   scoped delete.
 
 ## Self-hosted Docker Compose
 
@@ -158,11 +140,21 @@ Vercel/Neon.
    `ARCHISPARK_VERSION` select which published image tag to run.
 
 2. **Start the stack** — `pnpm run prod:up` (stop with `pnpm run
-prod:down`). Postgres and Neo4j publish no host port; only Traefik's `80`
-   and `443` are exposed. `apps/server` applies pending Postgres and Neo4j
-   migrations automatically on its own startup (see
-   [Neo4j schema migrations](#neo4j-schema-migrations-production) above) —
-   no separate migration step is needed after `prod:up`.
+   prod:down`). Postgres and Neo4j publish no host port; only Traefik's `80`
+   and `443` are exposed, so a plain host-side `pnpm migrate` cannot reach
+   them. `apps/server` never applies migrations on its own — after
+   `prod:up`, and again whenever a release adds a migration, run:
+
+   ```bash
+   pnpm run prod:migrate   # docker compose run --rm migrate
+   ```
+
+   This runs a one-off container from the same published image, on the same
+   Docker network as `postgres`/`neo4j`, applying the Postgres migrations,
+   the organization backfill, and the Neo4j migrations
+   (`apps/server/scripts/docker-migrate.mjs`). It's excluded from
+   `docker compose up`/`prod:up` (Compose `profiles: ["tools"]`) — naming
+   the `migrate` service explicitly via `run` is what starts it.
 
 3. **Enable TLS** — uncomment the `certificatesResolvers` block in
    `.docker/traefik.yml`, set `ACME_EMAIL` in `.env.prod`, and add
@@ -177,16 +169,6 @@ prod:down`). Postgres and Neo4j publish no host port; only Traefik's `80`
    dedicated realm instead with
    [`setup:realm`](#onboard-a-new-customer-with-a-dedicated-keycloak-realm)
    below.
-
-## Image library storage (Vercel Blob)
-
-Organization-scoped custom image packs (see
-[Image Library](../reference/image-library.md)) store their uploaded files in
-[Vercel Blob](https://vercel.com/docs/storage/vercel-blob). In Vercel →
-Storage, create a Blob store and attach it to the `archispark` project —
-this auto-injects `BLOB_READ_WRITE_TOKEN`. Without it, uploading to a custom
-pack fails with a clear error; the system pack (bundled ArchiMate icons)
-stays fully usable regardless.
 
 ## Contact form (SMTP)
 

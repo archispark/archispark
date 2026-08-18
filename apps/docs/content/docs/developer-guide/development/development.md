@@ -35,15 +35,20 @@ pnpm install
 pnpm env
 # Set DB_PASSWORD and KEYCLOAK_ADMIN_CLIENT_SECRET in .env
 pnpm infra:up
+pnpm migrate
 pnpm dev
 ```
 
 `pnpm infra:up` starts PostgreSQL, Keycloak, and Neo4j through Docker
 Compose — a separate step, never run implicitly by `dev` or `start`.
-`pnpm dev` then launches the main application's Turbo development task on
-port 8000 only. `apps/server` loads the repo root `.env` itself at startup,
-if present (a real environment variable always takes priority over the
-file, no manual sourcing needed).
+Migrations are never applied automatically, anywhere: `pnpm migrate`
+(`turbo run db:migrate`, building `@workspace/db`/`@workspace/db-neo4j` first)
+is the one command that applies pending PostgreSQL DDL, the organization
+backfill, and Neo4j schema — run it after pulling changes that add a
+migration, and before `pnpm dev`. `pnpm dev` then launches the main
+application's Turbo development task on port 8000 only; `apps/server` loads
+the repo root `.env` itself at startup, if present (a real environment
+variable always takes priority over the file, no manual sourcing needed).
 
 The Fumadocs site (`apps/docs`) is a separate app, run independently:
 
@@ -56,8 +61,10 @@ application on port 8000. Run `pnpm build` first; it neither builds the
 application nor starts Docker services. `pnpm start:docs` does the same for
 the Fumadocs site, on port 3000.
 
-Database migrations are applied by `apps/server/instrumentation.ts` before the
-server accepts traffic. Keycloak setup and demo content remain explicit:
+`apps/server/instrumentation.ts` never applies migrations — see
+[deployment](deployment.md) for how they're triggered in each environment
+(`pnpm migrate`, CI, or `docker compose run --rm migrate`). Keycloak setup
+and demo content remain explicit:
 
 ```bash
 pnpm keycloak-setup

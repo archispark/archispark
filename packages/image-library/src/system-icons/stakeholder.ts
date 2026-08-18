@@ -1,8 +1,0 @@
-import type { SystemArchimateIcon } from "../types.js"
-
-export const stakeholder: SystemArchimateIcon = {
-  slug: "stakeholder",
-  name: "Stakeholder",
-  archimateType: "Stakeholder",
-  svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 32 32\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linejoin=\"round\" stroke-linecap=\"round\"><g transform=\"translate(28 2)\"><path d=\"M-17 9 C-19.2 9 -21 10.6 -21 12.5 C-21 14.4 -19.2 16 -17 16 L-10 16 M-17.5 9 L-10 9\" fill=\"none\"/><circle cx=\"-9.5\" cy=\"12.5\" r=\"3.5\" fill=\"none\"/></g></svg>",
-}

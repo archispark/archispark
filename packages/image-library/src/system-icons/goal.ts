@@ -1,8 +1,0 @@
-import type { SystemArchimateIcon } from "../types.js"
-
-export const goal: SystemArchimateIcon = {
-  slug: "goal",
-  name: "Goal",
-  archimateType: "Goal",
-  svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 32 32\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linejoin=\"round\" stroke-linecap=\"round\"><g transform=\"translate(28 2)\"><path d=\"M-7 12.5 C-7 8.9 -9.9 6 -13.5 6 C-17.1 6 -20 8.9 -20 12.5 C-20 16.1 -17.1 19 -13.5 19 C-9.9 19 -7 16.1 -7 12.5 ZM-9.5 12.5 C-9.5 10.3 -11.3 8.5 -13.5 8.5 C-15.7 8.5 -17.5 10.3 -17.5 12.5 C-17.5 14.7 -15.7 16.5 -13.5 16.5 C-11.3 16.5 -9.5 14.7 -9.5 12.5 ZM-12 12.5 C-12 11.7 -12.7 11 -13.5 11 C-14.3 11 -15 11.7 -15 12.5 C-15 13.3 -14.3 14 -13.5 14 C-12.7 14 -12 13.3 -12 12.5 ZM-13 12.5 C-13 12.2 -13.2 12 -13.5 12 C-13.8 12 -14 12.2 -14 12.5 C-14 12.8 -13.8 13 -13.5 13 C-13.2 13 -13 12.8 -13 12.5 Z\" fill=\"none\"/></g></svg>",
-}

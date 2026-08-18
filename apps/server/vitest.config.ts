@@ -16,6 +16,9 @@ const serverTestDirs = [
   "lib/mcp/**",
   "lib/http/**",
   "lib/dashboards/**",
+  "lib/plugins/**",
+  "app/api/plugins/**",
+  "app/api/platform/plugins/**",
 ]
 
 export default defineConfig({

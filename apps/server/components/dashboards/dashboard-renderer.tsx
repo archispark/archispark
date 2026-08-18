@@ -72,11 +72,13 @@ export function DashboardRenderer({
   dashboard,
   initialParameters,
   canEdit,
+  isSystem,
 }: {
   dashboardId: string
   dashboard: DashboardDefinition
   initialParameters: Record<string, string>
   canEdit: boolean
+  isSystem: boolean
 }) {
   const { t } = useT()
   const { data: elements = [] } = useElements()
@@ -118,7 +120,7 @@ export function DashboardRenderer({
           <h1 className="text-2xl font-bold text-foreground">{dashboard.title}</h1>
           <p className="mt-1 text-muted-foreground">{dashboard.description}</p>
         </div>
-        {canEdit && (
+        {canEdit && !isSystem && (
           <div className="flex items-center gap-2">
             <Button render={<Link href={`/dashboards/admin/${dashboardId}/edit`} />} nativeButton={false} variant="outline" size="sm">
               <Pencil /> {t("common.edit")}
