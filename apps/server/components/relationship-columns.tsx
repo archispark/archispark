@@ -1,6 +1,6 @@
 import { useMemo } from "react"
 import Link from "next/link"
-import type { ColumnDef } from "@tanstack/react-table"
+import { type DataTableColumnDef } from "@/components/data-table"
 import { type RelationshipOut, type ElementOut } from "@/lib/api"
 import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
@@ -35,7 +35,7 @@ export function useRelationshipColumns({
   byId: Map<string, ElementOut>
   byRelId: Map<string, RelationshipOut>
   onDeleteClick: (rel: RelationshipOut) => void
-}): ColumnDef<RelationshipOut>[] {
+}): DataTableColumnDef<RelationshipOut>[] {
   const { t } = useT()
 
   return useMemo(

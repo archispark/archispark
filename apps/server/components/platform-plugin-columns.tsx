@@ -1,13 +1,13 @@
 import { useMemo } from "react"
 import Link from "next/link"
 import { Ban, Play } from "lucide-react"
-import type { ColumnDef } from "@tanstack/react-table"
+import { type DataTableColumnDef } from "@/components/data-table"
 import type { PlatformPluginOut } from "@/lib/api"
 import { useSetPlatformPluginEnabled } from "@/lib/queries"
 import { Button } from "@workspace/ui/components/button"
 import { useT } from "@/lib/i18n"
 
-export function usePlatformPluginColumns(): ColumnDef<PlatformPluginOut>[] {
+export function usePlatformPluginColumns(): DataTableColumnDef<PlatformPluginOut>[] {
   const { t } = useT()
   const setEnabled = useSetPlatformPluginEnabled()
 

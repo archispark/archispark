@@ -1,10 +1,10 @@
 import { useMemo } from "react"
 import Link from "next/link"
-import type { ColumnDef } from "@tanstack/react-table"
+import { type DataTableColumnDef } from "@/components/data-table"
 import type { PlatformUserOut } from "@/lib/api"
 import { useT } from "@/lib/i18n"
 
-export function usePlatformUserColumns(): ColumnDef<PlatformUserOut>[] {
+export function usePlatformUserColumns(): DataTableColumnDef<PlatformUserOut>[] {
   const { t } = useT()
 
   return useMemo(

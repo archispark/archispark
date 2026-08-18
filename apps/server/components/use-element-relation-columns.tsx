@@ -1,6 +1,6 @@
 import { useMemo } from "react"
 import Link from "next/link"
-import type { ColumnDef } from "@tanstack/react-table"
+import { type DataTableColumnDef } from "@/components/data-table"
 import { type RelationshipOut, type ElementOut } from "@/lib/api"
 import { allowedRelationships } from "@/lib/archimate-rules"
 import { Badge } from "@workspace/ui/components/badge"
@@ -21,7 +21,7 @@ export function useElementRelationColumns({
   byId: Map<string, ElementOut>
   onEditClick: (rel: RelationshipOut) => void
   onDeleteClick: (rel: RelationshipOut) => void
-}): ColumnDef<RelationshipOut>[] {
+}): DataTableColumnDef<RelationshipOut>[] {
   const { t } = useT()
 
   return useMemo(

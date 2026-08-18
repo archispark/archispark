@@ -1,6 +1,6 @@
 import { useMemo } from "react"
 import Link from "next/link"
-import type { ColumnDef } from "@tanstack/react-table"
+import { type DataTableColumnDef } from "@/components/data-table"
 import { type ElementOut, type RelationshipOut } from "@/lib/api"
 import { getLayer, LAYER_BADGE_COLORS } from "@/lib/archimate-helpers"
 import { allowedRelationships } from "@/lib/archimate-rules"
@@ -20,7 +20,7 @@ export function useElementColumns({
   inViewsSet: Set<string>
   relStats: Map<string, { ok: number; conflict: number }>
   onDeleteClick: (el: ElementOut) => void
-}): ColumnDef<ElementOut>[] {
+}): DataTableColumnDef<ElementOut>[] {
   const { t } = useT()
 
   return useMemo(
@@ -149,7 +149,7 @@ export function useElementColumns({
                   <Trash2 className="size-3.5" />
                 </button>
               ),
-            } as ColumnDef<ElementOut>,
+            } as DataTableColumnDef<ElementOut>,
           ]
         : []),
     ],

@@ -1,6 +1,6 @@
 import { useMemo } from "react"
 import Link from "next/link"
-import type { ColumnDef } from "@tanstack/react-table"
+import { type DataTableColumnDef } from "@/components/data-table"
 import { type ViewOut } from "@/lib/api"
 import { ChevronDown, ChevronRight, Trash2 } from "lucide-react"
 import { useT } from "@/lib/i18n"
@@ -11,7 +11,7 @@ export function useViewColumns({
 }: {
   isAdmin: boolean
   onDeleteClick: (view: ViewOut) => void
-}): ColumnDef<ViewOut>[] {
+}): DataTableColumnDef<ViewOut>[] {
   const { t } = useT()
 
   return useMemo(
@@ -130,7 +130,7 @@ export function useViewColumns({
                   <Trash2 className="size-3.5" />
                 </button>
               ),
-            } as ColumnDef<ViewOut>,
+            } as DataTableColumnDef<ViewOut>,
           ]
         : []),
     ],
