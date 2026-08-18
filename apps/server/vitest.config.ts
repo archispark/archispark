@@ -88,7 +88,7 @@ export default defineConfig({
     ],
     coverage: {
       provider: "v8",
-      reporter: ["lcovonly"],
+      reporter: ["lcovonly", "json-summary", "json"],
       exclude: [
         "**/node_modules/**",
         "**/.next/**",
