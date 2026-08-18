@@ -289,6 +289,7 @@ const OrganizationOutSchema = registry.register(
       id: z.string(),
       slug: z.string(),
       name: z.string(),
+      description: z.string().nullable(),
       is_personal: z.boolean(),
       enabled: z.boolean(),
       role: z.enum(["owner", "editor", "viewer"]),
@@ -1274,7 +1275,7 @@ registry.registerPath({
   method: "put",
   path: "/organizations/{id}",
   tags: ["Organizations"],
-  summary: "Renommer une organisation",
+  summary: "Mettre à jour le nom et la description d'une organisation",
   operationId: "renameOrganization",
   security: BothAuth,
   request: {
@@ -1286,7 +1287,7 @@ registry.registerPath({
   },
   responses: {
     200: {
-      description: "Organisation renommée",
+      description: "Organisation mise à jour",
       content: { "application/json": { schema: OrganizationOutSchema } },
     },
     401: Unauthorized,

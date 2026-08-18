@@ -52,6 +52,17 @@
         "PORT",
         "HOST"
       ]
+    },
+    "//#db:migrate": {
+      "dependsOn": ["@workspace/db#build", "@workspace/db-neo4j#build"],
+      "cache": false,
+      "passThroughEnv": [
+        "DATABASE_URL",
+        "NEO4J_URI",
+        "NEO4J_USER",
+        "NEO4J_PASSWORD",
+        "NEO4J_ENABLED"
+      ]
     }
   }
 }

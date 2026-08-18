@@ -6,6 +6,7 @@ export interface OrganizationOut {
   id: string
   slug: string
   name: string
+  description: string | null
   is_personal: boolean
   enabled: boolean
   role: OrgRole
@@ -21,8 +22,15 @@ export interface OrganizationMemberOut {
 
 export const fetchOrganizations = () => get<OrganizationOut[]>("/organizations")
 
-export const renameOrganizationApi = (id: string, name: string) =>
-  put<OrganizationOut>(`/organizations/${encodeURIComponent(id)}`, { name })
+export const renameOrganizationApi = (
+  id: string,
+  name: string,
+  description?: string | null
+) =>
+  put<OrganizationOut>(`/organizations/${encodeURIComponent(id)}`, {
+    name,
+    description,
+  })
 export const activateOrganizationApi = (id: string) =>
   post<OrganizationOut>(`/organizations/${encodeURIComponent(id)}/activate`, {})
 

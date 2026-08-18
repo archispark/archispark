@@ -35,9 +35,10 @@ function renderHeader(element: ElementOut) {
 }
 
 describe("ElementHeader", () => {
-  it("does not render an icon when resolved_image_url is absent", () => {
+  it("falls back to the default ArchiMate type icon when resolved_image_url is absent", () => {
     const { container } = renderHeader(baseElement())
     expect(container.querySelector("img")).toBeNull()
+    expect(container.querySelector('[aria-hidden="true"]')).not.toBeNull()
   })
 
   it("renders the resolved image next to the name", () => {

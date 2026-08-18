@@ -44,7 +44,7 @@ export default function DashboardsAdminPage() {
           render={<Link href="/dashboards/admin/new" />}
           nativeButton={false}
           size="sm"
-          className="bg-indigo-600 text-primary-foreground hover:bg-indigo-700"
+          className="bg-emerald-600 text-primary-foreground hover:bg-emerald-700"
         >
           <Plus /> {t("common.add")}
         </Button>

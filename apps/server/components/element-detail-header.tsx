@@ -2,6 +2,7 @@
 
 import { type ElementUpdateIn, type ElementOut } from "@/lib/api"
 import { InlineText } from "@/components/detail-page-shared"
+import { ArchimateTypeBadge } from "@/components/archimate-type-badge"
 import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
 import {
@@ -134,13 +135,15 @@ export function ElementHeader({
 
           {/* Name */}
           <div className="flex items-center gap-2">
-            {element.resolved_image_url && (
+            {element.resolved_image_url ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={element.resolved_image_url}
                 alt=""
                 className="size-8 shrink-0 rounded"
               />
+            ) : (
+              <ArchimateTypeBadge elementType={element.type} size={32} />
             )}
             <InlineText
               value={element.name}

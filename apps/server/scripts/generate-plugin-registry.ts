@@ -20,7 +20,8 @@
  * whose `id` doesn't match its folder name, a manifest.ts icon referencing a
  * file missing from icons/, an icons/ file not referenced by any manifest
  * entry (orphan asset), or an icon slug declared by more than one plugin
- * (icon slugs are globally unique — they're the archispark_image value).
+ * (icon slugs are globally unique — they're the Archispark Plugin IconPack
+ * value).
  */
 
 import { readdirSync, readFileSync, existsSync, writeFileSync } from "node:fs"

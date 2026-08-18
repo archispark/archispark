@@ -78,11 +78,11 @@ cannot create a personal API token.
 ## Plugins
 
 Admin enables or disables the instance-wide icon plugins behind the
-`archispark_image` system property from `/platform/plugins` — a table of
-every plugin discovered in the `plugins/` folder at build time, each with a
-toggle, no deployment needed to flip it. Installing a *new* plugin means
-adding a `plugins/<slug>/` folder to the repository and deploying, not
-something done from this page.
+`Archispark Plugin IconPack` system property from `/platform/plugins` — a
+table of every plugin discovered in the `plugins/` folder at build time,
+each with a toggle, no deployment needed to flip it. Installing a *new*
+plugin means adding a `plugins/<slug>/` folder to the repository and
+deploying, not something done from this page.
 
 See [Plugins](developer-guide/reference/plugins.mdx) for the plugin folder
 format, the discovery/activation split, and the built-in AWS/Azure/GCP

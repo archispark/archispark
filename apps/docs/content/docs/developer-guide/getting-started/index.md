@@ -94,8 +94,8 @@ docker compose -f .docker/docker-compose.dev.yml --env-file .env.dev logs -f
 #   docker exec <postgres-container> psql -U archispark -d postgres -c "GRANT ALL PRIVILEGES ON DATABASE archispark_keycloak TO archispark;"
 
 pnpm keycloak-setup  # create/update the Keycloak realm (roles, clients, service account) via the Admin API — works on any Keycloak instance
-pnpm seed:demo-users # create/update the 5 Keycloak demo accounts (admin/user/contrib/archi/open)
-pnpm seed:demo       # seed demo ArchiMate data (ArchiMetal/ArchiSurance/Open Day, see Demo seed)
+pnpm seed:demo-users # create/update the 4 Keycloak demo accounts (admin/user/contrib/archi)
+pnpm seed:demo       # seed demo ArchiMate data (ArchiMetal/ArchiSurance, see Demo seed)
 pnpm setup-demo      # all three above, in order
 pnpm seed:local-admin # re-creates the local admin login on demand (already created automatically by migrations on first boot)
 pnpm seed:local-demo-users # local-accounts equivalent of seed:demo-users, no Keycloak required (default auth mode)

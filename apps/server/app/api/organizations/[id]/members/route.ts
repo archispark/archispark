@@ -2,7 +2,10 @@ import { NextResponse, type NextRequest } from "next/server"
 import { withErrorHandling } from "@/lib/http/with-error-handling"
 import { withAuth } from "@/lib/http/with-auth"
 import { parseIntParam } from "@/lib/http/params"
-import { listMembers, addMember } from "@/lib/archimate/organizations-store"
+import {
+  listMembers,
+  addMember,
+} from "@/lib/archimate/organization-members-store"
 import {
   parseBody,
   OrganizationMemberCreateSchema,

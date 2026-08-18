@@ -3,7 +3,7 @@ import { get, put } from "./client"
 /** Mirrors @workspace/db's ARCHISPARK_IMAGE_PROPERTY_ID — duplicated here so
  *  client components can identify the property without importing
  *  @workspace/db (which pulls in the Postgres driver). */
-export const ARCHISPARK_IMAGE_PROPERTY_ID = "archispark-image"
+export const ARCHISPARK_IMAGE_PROPERTY_ID = "archispark-plugin-iconpack"
 
 export interface PluginIconOut {
   slug: string
