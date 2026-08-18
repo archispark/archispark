@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useRef, useCallback } from "react"
 import { useParams, useRouter } from "next/navigation"
-import Link from "next/link"
 import {
   fetchView,
   fetchElements,
@@ -31,7 +30,7 @@ import {
   DialogFooter,
   DialogClose,
 } from "@workspace/ui/components/dialog"
-import { ChevronLeft, Trash2 } from "lucide-react"
+import { Trash2 } from "lucide-react"
 import { useT } from "@/lib/i18n"
 
 // ── Inline editable text ──────────────────────────────────────────────────────
@@ -226,15 +225,6 @@ export default function ViewDetailPage() {
 
   return (
     <div className="space-y-5 px-4 pt-4 pb-6 sm:px-7 sm:pt-6">
-      {/* Back */}
-      <Link
-        href="/views"
-        className="inline-flex items-center gap-1 text-[13px] text-muted-foreground transition-colors hover:text-foreground"
-      >
-        <ChevronLeft className="size-3.5" />
-        {t("breadcrumb.views")}
-      </Link>
-
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1 space-y-1.5">

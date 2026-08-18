@@ -2,7 +2,6 @@
 
 import { useMemo, useState, useCallback } from "react"
 import { useParams, useRouter } from "next/navigation"
-import Link from "next/link"
 import {
   useElement,
   useElementRelationships,
@@ -35,7 +34,6 @@ import { useElementProperties } from "@/components/use-element-properties"
 import { useElementRelationForm } from "@/components/use-element-relation-form"
 import { buildElementTabs } from "@/components/element-detail-tabs"
 import { ElementGraphTab } from "@/components/element-graph-tab"
-import { ChevronLeft } from "lucide-react"
 
 export default function ElementDetailPage() {
   const { t } = useT()
@@ -142,15 +140,6 @@ export default function ElementDetailPage() {
 
   return (
     <div className="flex min-h-[calc(100vh-var(--nav-h))] flex-col px-4 pt-4 pb-4 sm:px-7 sm:pt-6">
-      {/* Back */}
-      <Link
-        href="/elements"
-        className="mb-3 inline-flex shrink-0 items-center gap-1 text-[13px] text-muted-foreground transition-colors hover:text-foreground"
-      >
-        <ChevronLeft className="size-3.5" />
-        {t("breadcrumb.elements")}
-      </Link>
-
       {/* Header */}
       <ElementHeader
         element={element}

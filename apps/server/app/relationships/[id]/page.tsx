@@ -2,7 +2,6 @@
 
 import { useMemo, useState, useCallback } from "react"
 import { useParams, useRouter } from "next/navigation"
-import Link from "next/link"
 import {
   useRelationship,
   useRelationshipViews,
@@ -14,7 +13,6 @@ import {
 } from "@/lib/queries"
 import { type Property } from "@/lib/api"
 import { allowedRelationships } from "@/lib/archimate-rules"
-import { ChevronLeft } from "lucide-react"
 import { useFormModal } from "@/hooks/use-form-modal"
 import { useT } from "@/lib/i18n"
 import {
@@ -157,15 +155,6 @@ export default function RelationshipDetailPage() {
 
   return (
     <div className="flex h-[calc(100vh-var(--nav-h))] flex-col overflow-hidden px-4 pt-4 pb-0 sm:px-7 sm:pt-6">
-      {/* Back */}
-      <Link
-        href="/relationships"
-        className="mb-3 inline-flex shrink-0 items-center gap-1 text-[13px] text-muted-foreground transition-colors hover:text-foreground"
-      >
-        <ChevronLeft className="size-3.5" />
-        {t("breadcrumb.relationships")}
-      </Link>
-
       {/* Header + fields — scrollable so the page stays usable on small screens */}
       <RelationshipFields
         rel={rel}
