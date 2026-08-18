@@ -1,8 +1,13 @@
 import { describe, it, expect, beforeAll } from "vitest"
-import { eq, isNull } from "drizzle-orm"
+import { eq, isNull, inArray } from "drizzle-orm"
 import { runMigrations } from "./migrate.js"
 import { db } from "./connection.js"
-import { dashboards, organizations, users } from "./schema.js"
+import {
+  dashboards,
+  dashboardRevisions,
+  organizations,
+  users,
+} from "./schema.js"
 import { seedLocalUsers } from "./local-users.js"
 import { truncateApplicationTables } from "./reset-application-data.js"
 
@@ -41,13 +46,58 @@ describe("truncateApplicationTables", () => {
     expect(result.tables).toBeGreaterThan(0)
   })
 
-  it("restores system dashboards wiped by the truncate", async () => {
-    await truncateApplicationTables()
-    const systemDashboards = await db
+  it("restores system dashboards wiped by the truncate, verbatim", async () => {
+    const before = await db
       .select()
       .from(dashboards)
       .where(isNull(dashboards.workspaceId))
-    expect(systemDashboards.length).toBeGreaterThan(0)
-    expect(systemDashboards.every((d) => d.isSystem)).toBe(true)
+    const beforeRevisions = await db
+      .select()
+      .from(dashboardRevisions)
+      .where(
+        inArray(
+          dashboardRevisions.dashboardId,
+          before.map((d) => d.id)
+        )
+      )
+
+    await truncateApplicationTables()
+
+    const after = await db
+      .select()
+      .from(dashboards)
+      .where(isNull(dashboards.workspaceId))
+    const afterRevisions = await db
+      .select()
+      .from(dashboardRevisions)
+      .where(
+        inArray(
+          dashboardRevisions.dashboardId,
+          after.map((d) => d.id)
+        )
+      )
+
+    expect(after.length).toBe(before.length)
+    expect(after.every((d) => d.isSystem)).toBe(true)
+    expect(afterRevisions.length).toBe(beforeRevisions.length)
+
+    // Restoring from a snapshot (not regenerating from packages/db/seeds/
+    // dashboards.sql, which predates the later per-dashboard Postgres
+    // migrations) must preserve the migration-patched definitions — every
+    // dashboard's *latest* revision now queries postgres-app-db, not the
+    // pre-patch architecture-neo4j that older, superseded revisions still
+    // carry.
+    for (const dashboard of after) {
+      const latest = afterRevisions.find(
+        (r) =>
+          r.dashboardId === dashboard.id &&
+          r.revision === dashboard.latestRevision
+      )
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const definition = latest?.definition as any
+      for (const panel of definition.panels ?? []) {
+        expect(panel.panel.query.datasourceId).toBe("postgres-app-db")
+      }
+    }
   })
 })

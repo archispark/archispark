@@ -2,8 +2,12 @@
  * Seeds the singleton `site_settings` row (login page message) for the
  * public demo — see `scripts/seed-demo.ts`. `site_settings` is an
  * application table like any other, so `truncateApplicationTables`
- * (the demo reset flow) wipes it on every run; this restores it the same
- * way `reseedSystemDashboards` restores system dashboards.
+ * (the demo reset flow) wipes it on every run; this restores it. Unlike
+ * system dashboards (which `truncateApplicationTables` snapshots and
+ * restores verbatim, since they aren't reproducible from a single seed
+ * file — see that module's docstring), a fixed login message has no
+ * migration-patched history to lose, so regenerating it from a constant
+ * here is safe.
  */
 
 import { sql } from "drizzle-orm"
