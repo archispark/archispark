@@ -31,6 +31,10 @@
  * `../src/seed-demo-organizations.ts` for the reusable core, also invoked
  * (via `pnpm run seed`) by the `seed-demo.yml` GitHub Actions workflow.
  *
+ * Also (re)sets the login page message with the demo credentials
+ * (`../src/seed-site-settings.ts`) — `site_settings` is an application
+ * table like any other, so the reset flow's `TRUNCATE` wipes it too.
+ *
  * Usage:
  *   pnpm --filter @workspace/db seed:demo
  *
@@ -45,6 +49,7 @@ import "@workspace/env/register"
 import { isKeycloakSsoEnabled, findUserByUsername } from "@workspace/auth"
 import { findLocalUserIdByUsername } from "../src/local-users.js"
 import { seedDemoWorkspaces } from "../src/seed-demo-data.js"
+import { seedDemoLoginMessage } from "../src/seed-site-settings.js"
 
 async function resolveViaKeycloak(username: string): Promise<string> {
   const user = await findUserByUsername(username)
@@ -79,6 +84,9 @@ const { orgIdByWorkspace } = await seedDemoWorkspaces(resolveUserId)
 for (const [workspace, orgId] of orgIdByWorkspace) {
   console.log(`Workspace "${workspace}" → organization id ${orgId}`)
 }
+
+console.log("Setting login page message…")
+await seedDemoLoginMessage()
 
 console.log("Done.")
 process.exit(0)
