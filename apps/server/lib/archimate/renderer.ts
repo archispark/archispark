@@ -29,8 +29,8 @@ function renderTypeIcon(type: string, rightX: number, topY: number, color: strin
   );
 }
 
-// Renders an element's `archispark_image` in the same top-right corner slot
-// as renderTypeIcon, in place of the vector glyph.
+// Renders an element's `Archispark Plugin IconPack` in the same top-right
+// corner slot as renderTypeIcon, in place of the vector glyph.
 function renderElementImage(url: string, rightX: number, topY: number): string {
   const x = rightX - ICON_SIZE - ICON_PAD;
   const y = topY + ICON_PAD;

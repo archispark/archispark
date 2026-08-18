@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef, useEffect, useSyncExternalStore } from "react"
+import { useState, useRef, useEffect } from "react"
 import {
   LogOut,
   User,
@@ -9,11 +9,10 @@ import {
   ChevronsUpDown,
 } from "lucide-react"
 import { useCurrentUser, useIsAdmin } from "@/hooks/use-current-user"
+import { useMounted } from "@/hooks/use-mounted"
 import { useOrganizations } from "@/lib/queries"
 import { useT } from "@/lib/i18n"
 import Link from "next/link"
-
-const subscribeToMount = () => () => {}
 
 export function UserMenu({
   placement = "down",
@@ -31,11 +30,7 @@ export function UserMenu({
   const { t } = useT()
   const [open, setOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
-  const mounted = useSyncExternalStore(
-    subscribeToMount,
-    () => true,
-    () => false
-  )
+  const mounted = useMounted()
 
   useEffect(() => {
     if (!open) return

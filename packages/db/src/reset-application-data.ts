@@ -2,9 +2,9 @@
  * Wipes every application table (all data), preserving the PostgreSQL
  * schema and Drizzle's own migration history (`__drizzle_migrations`) —
  * the reusable core behind `packages/db/scripts/reset.ts`, also used by the
- * demo reset cron (`apps/server/app/api/cron/reset-demo/route.ts`), which
- * needs a full fresh-reinstall-style wipe rather than a scoped delete since
- * the public demo lets visitors create their own accounts/organizations.
+ * `seed-demo.yml` GitHub Actions workflow, which needs a full
+ * fresh-reinstall-style wipe rather than a scoped delete since the public
+ * demo lets visitors create their own accounts/organizations.
  */
 
 import { sql } from "drizzle-orm"

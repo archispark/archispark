@@ -1,8 +1,8 @@
 /**
- * Resolution of `archispark_image` values. Replaces packages/db's former
- * image-library.ts: packages/db must not know about plugins/ (a filesystem
- * concept owned by apps/server), so this logic lives here instead and is
- * injected into packages/db via system-properties.ts's
+ * Resolution of `Archispark Plugin IconPack` values. Replaces
+ * packages/db's former image-library.ts: packages/db must not know about
+ * plugins/ (a filesystem concept owned by apps/server), so this logic lives
+ * here instead and is injected into packages/db via system-properties.ts's
  * ImageReferenceValidator parameter (see model-io.ts).
  */
 
@@ -17,7 +17,8 @@ export function isImageSlugReference(value: string): boolean {
 /**
  * Pre-plugin-system format: an http(s) URL or a relative path. Kept as a
  * legacy passthrough so elements that already stored a raw URL in
- * `archispark_image` keep working — new values should be icon slugs instead.
+ * `Archispark Plugin IconPack` keep working — new values should be icon
+ * slugs instead.
  */
 export function isLegacyImageUrl(value: string): boolean {
   if (!value || /\s/.test(value)) return false
@@ -48,8 +49,8 @@ function iconUrl(pluginSlug: string, iconSlug: string): string {
   return `/api/plugins/${pluginSlug}/icons/${iconSlug}`
 }
 
-/** Resolves a single `archispark_image` value to a displayable URL, or null
- *  if unresolved (unknown slug, or its plugin is disabled). */
+/** Resolves a single `Archispark Plugin IconPack` value to a displayable
+ *  URL, or null if unresolved (unknown slug, or its plugin is disabled). */
 export async function resolveImageReference(
   value: string
 ): Promise<string | null> {

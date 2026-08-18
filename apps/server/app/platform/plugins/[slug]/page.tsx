@@ -1,8 +1,7 @@
 "use client"
 
-import Link from "next/link"
 import { useParams } from "next/navigation"
-import { ArrowLeft, Ban, Play } from "lucide-react"
+import { Ban, Play } from "lucide-react"
 import { useT } from "@/lib/i18n"
 import { usePlatformPlugin, useSetPlatformPluginEnabled } from "@/lib/queries"
 import { PluginContentView } from "@/components/plugin-content-view"
@@ -30,7 +29,6 @@ export default function PlatformPluginDetailPage() {
   if (!plugin) {
     return (
       <div className="max-w-3xl space-y-4 p-7">
-        <BackLink t={t} />
         <p className="text-sm text-muted-foreground">
           {t("platform.plugins.plugin_not_found")}
         </p>
@@ -40,8 +38,6 @@ export default function PlatformPluginDetailPage() {
 
   return (
     <div className="max-w-3xl space-y-5 p-7">
-      <BackLink t={t} />
-
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="flex items-center gap-2 text-lg font-semibold">
@@ -95,17 +91,5 @@ export default function PlatformPluginDetailPage() {
 
       <PluginContentView plugin={plugin} />
     </div>
-  )
-}
-
-function BackLink({ t }: { t: ReturnType<typeof useT>["t"] }) {
-  return (
-    <Link
-      href="/platform/plugins"
-      className="inline-flex items-center gap-1.5 text-[13px] text-muted-foreground no-underline hover:text-foreground"
-    >
-      <ArrowLeft className="size-3.5" />
-      {t("platform.plugins.title")}
-    </Link>
   )
 }

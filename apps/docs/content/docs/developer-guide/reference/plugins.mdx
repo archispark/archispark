@@ -1,15 +1,15 @@
 ---
 title: Plugins
-description: Icon plugins behind the archispark_image system property — file-backed, instance-wide, enabled or disabled without a deployment.
+description: Icon plugins behind the Archispark Plugin IconPack system property — file-backed, instance-wide, enabled or disabled without a deployment.
 ---
 
 import { ArchimateIconGallery } from "@/components/archimate-icon-gallery"
 
-The system property `archispark_image` (`GET /api/property-definitions`,
-`is_system: true`) sets the icon shown for an element: on its node in the
-ReactFlow canvas, next to its name in the element edition page, and in
-server-rendered SVG view exports. Setting it on an element overrides the
-element's **default ArchiMate type icon** — see
+The system property `Archispark Plugin IconPack`
+(`GET /api/property-definitions`, `is_system: true`) sets the icon shown for
+an element: on its node in the ReactFlow canvas, next to its name in the
+element edition page, and in server-rendered SVG view exports. Setting it
+on an element overrides the element's **default ArchiMate type icon** — see
 [Default ArchiMate icons](#default-archimate-icons) — with an icon picked
 from an installed **plugin**. Its value is the picked icon's **slug**, not
 an arbitrary URL.
@@ -17,10 +17,10 @@ an arbitrary URL.
 ## Default ArchiMate icons
 
 Every ArchiMate 3.1 element type has a default icon shown on its node
-whether or not `archispark_image` is set — these are not a plugin: they're
-TSX components compiled into `@workspace/image-library` and rendered
-directly by the ReactFlow canvas, with zero database or filesystem lookup at
-request time. One icon file per type, stored in
+whether or not `Archispark Plugin IconPack` is set — these are not a
+plugin: they're TSX components compiled into `@workspace/image-library` and
+rendered directly by the ReactFlow canvas, with zero database or filesystem
+lookup at request time. One icon file per type, stored in
 `packages/image-library/assets/archimate/{ArchimateType}.svg` and compiled
 via `pnpm --filter server gen:icon-pack`
 (`apps/server/scripts/generate-archimate-icon-pack.ts`) into
@@ -84,10 +84,12 @@ Two things happen on different timelines:
 folder name, a `manifest.ts` icon referencing a file missing from `icons/`,
 an `icons/` file not referenced by any manifest entry, or an icon slug
 declared by more than one plugin — **icon slugs are globally unique across
-every plugin**, since a slug is the `archispark_image` value itself.
+every plugin**, since a slug is the `Archispark Plugin IconPack` value
+itself.
 
-Setting `archispark_image` on an element stores an icon's slug — pick it
-from the image picker on the property's value in the element edition page.
+Setting `Archispark Plugin IconPack` on an element stores an icon's
+slug — pick it from the image picker on the property's value in the
+element edition page.
 Resolution looks the slug up in the generated registry, then checks the
 owning plugin is enabled; if either check fails the element falls back to
 its default ArchiMate type icon, without an error. Values written before the
@@ -135,9 +137,9 @@ from that system have no replacement in the plugin system:
 
 - **Per-organization custom packs** (icons uploaded by a `platform_admin`
   for one organization, stored in Vercel Blob) are gone — plugins are
-  instance-wide only. Any `archispark_image` value that referenced one of
-  those items was cleared by the migration; the affected elements fall back
-  to their default ArchiMate type icon.
+  instance-wide only. Any `Archispark Plugin IconPack` value that
+  referenced one of those items was cleared by the migration; the affected
+  elements fall back to their default ArchiMate type icon.
 - **Runtime bulk pack installation** (uploading a `.svg` bundle through
   `/platform/plugins`) is gone — installing a new plugin now means adding a
   `plugins/<slug>/` folder to the repository and deploying, the same as any

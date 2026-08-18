@@ -1,6 +1,6 @@
 /**
- * Seeds the ArchiMate demo data (ArchiMetal, ArchiSurance, Open Day) into
- * their demo organizations — the reusable core of
+ * Seeds the ArchiMate demo data (ArchiMetal, ArchiSurance) into their demo
+ * organization — the reusable core of
  * `packages/db/scripts/seed-demo.ts`, shared with the demo reset cron.
  * `resolveUserId` plugs in either Keycloak's `findUserByUsername` or the
  * local-accounts `findLocalUserIdByUsername` (see `seed-demo-organizations.ts`).

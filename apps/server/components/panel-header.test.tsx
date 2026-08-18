@@ -8,11 +8,13 @@ const {
   mockPush,
   mockUseWorkspaces,
   mockUseOrganizations,
+  mockUsePlatformOrganization,
 } = vi.hoisted(() => ({
   mockUsePathname: vi.fn(),
   mockPush: vi.fn(),
   mockUseWorkspaces: vi.fn(),
   mockUseOrganizations: vi.fn(),
+  mockUsePlatformOrganization: vi.fn(),
 }))
 
 vi.mock("next/navigation", () => ({
@@ -26,6 +28,7 @@ vi.mock("@/lib/queries", () => ({
   useElement: () => ({ data: undefined }),
   useView: () => ({ data: undefined }),
   usePlatformUser: () => ({ data: undefined }),
+  usePlatformOrganization: mockUsePlatformOrganization,
 }))
 
 vi.mock("@/lib/queries/dashboards", () => ({
@@ -39,6 +42,8 @@ vi.mock("@/lib/i18n", () => ({
 vi.mock("@/components/theme-toggle", () => ({
   ThemeToggle: () => <div data-testid="theme-toggle" />,
 }))
+
+mockUsePlatformOrganization.mockReturnValue({ data: undefined })
 
 function renderPanelHeader() {
   const queryClient = new QueryClient({
@@ -131,6 +136,37 @@ describe("PanelHeader — zero-organizations redirect", () => {
     mockUsePathname.mockReturnValue("/platform/organizations")
     renderPanelHeader()
     expect(mockPush).not.toHaveBeenCalled()
+  })
+})
+
+describe("PanelHeader — organization breadcrumb", () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockUseWorkspaces.mockReturnValue({
+      data: [{ id: "1", name: "Main" }],
+      isSuccess: true,
+    })
+    mockUseOrganizations.mockReturnValue({
+      data: [{ id: "1", name: "Acme" }],
+      isSuccess: true,
+    })
+  })
+
+  it("shows the organization name instead of its id", () => {
+    mockUsePathname.mockReturnValue("/organizations/1")
+    renderPanelHeader()
+    expect(screen.getByText("Acme")).toBeInTheDocument()
+    expect(screen.queryByText("1")).not.toBeInTheDocument()
+  })
+
+  it("shows the organization name instead of its id on the platform_admin route", () => {
+    mockUsePlatformOrganization.mockReturnValue({
+      data: { id: "1", name: "Acme" },
+    })
+    mockUsePathname.mockReturnValue("/platform/organizations/1")
+    renderPanelHeader()
+    expect(screen.getByText("Acme")).toBeInTheDocument()
+    expect(screen.queryByText("1")).not.toBeInTheDocument()
   })
 })
 

@@ -277,5 +277,5 @@ Background colours by layer follow the Archi reference palette:
 | Strategy              | `#F5DEAA` (beige)        |
 | Implementation        | `#FFE0E0` (light pink)   |
 
-Setting the `archispark_image` system property on an element replaces its
-notation glyph with a picked icon — see [Plugins](/docs/developer-guide/reference/plugins).
+Setting the `Archispark Plugin IconPack` system property on an element
+replaces its notation glyph with a picked icon — see [Plugins](/docs/developer-guide/reference/plugins).

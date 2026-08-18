@@ -72,7 +72,7 @@ export default function WorkspacesPage() {
               setShowForm(true)
               setError(null)
             }}
-            className="flex h-8 shrink-0 items-center gap-1.5 rounded-md bg-indigo-600 px-3 text-[13px] text-primary-foreground hover:bg-indigo-700"
+            className="flex h-8 shrink-0 items-center gap-1.5 rounded-md bg-emerald-600 px-3 text-[13px] text-primary-foreground hover:bg-emerald-700"
           >
             <Plus className="size-4" />
             {t("common.add")}

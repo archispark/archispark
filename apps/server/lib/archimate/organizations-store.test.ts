@@ -6,16 +6,18 @@
 import { describe, it, expect, beforeAll } from "vitest"
 import { randomUUID } from "crypto"
 import { eq, and } from "drizzle-orm"
-import { db, organizations, organizationMembers } from "@workspace/db"
+import { db, organizations, organizationMembers, users } from "@workspace/db"
 import {
   listOrganizationsForUser,
   renameOrganization,
   activateOrganization,
+} from "./organizations-store"
+import {
   listMembers,
   addMember,
   updateMemberRole,
   removeMember,
-} from "./organizations-store"
+} from "./organization-members-store"
 import { ValidationError, ForbiddenError, NotFoundError } from "./errors"
 import type { AccessUser } from "./access"
 import { DEMO_KEYCLOAK_SUBS } from "./test/keycloak-token-fake"
@@ -69,11 +71,26 @@ describe("listOrganizationsForUser", () => {
 
 describe("renameOrganization / activateOrganization", () => {
   it("owner can rename; editor cannot (manage_members is owner-only)", async () => {
-    const renamed = await renameOrganization(OWNER, orgId, "Renamed by owner")
+    const renamed = await renameOrganization(OWNER, orgId, {
+      name: "Renamed by owner",
+    })
     expect(renamed.name).toBe("Renamed by owner")
     await expect(
-      renameOrganization(EDITOR, orgId, "Renamed by editor")
+      renameOrganization(EDITOR, orgId, { name: "Renamed by editor" })
     ).rejects.toBeInstanceOf(ForbiddenError)
+  })
+
+  it("owner can set the description, leaving it untouched when omitted", async () => {
+    const withDesc = await renameOrganization(OWNER, orgId, {
+      name: "Org With Description",
+      description: "A description",
+    })
+    expect(withDesc.description).toBe("A description")
+
+    const again = await renameOrganization(OWNER, orgId, {
+      name: "Org With Description Still",
+    })
+    expect(again.description).toBe("A description")
   })
 
   it("activateOrganization marks the organization active for that user", async () => {
@@ -113,6 +130,32 @@ describe("addMember", () => {
     expect(
       members.find((m) => m.user_id === DEMO_KEYCLOAK_SUBS.contrib)?.username
     ).toBe("contrib")
+  })
+})
+
+describe("listMembers / updateMemberRole — local accounts", () => {
+  it("resolves a local account's username from the local users table, not Keycloak", async () => {
+    const localUserId = `local:${randomUUID()}`
+    const username = `local-member-${randomUUID()}`
+    await db.insert(users).values({
+      id: localUserId,
+      username,
+      email: `${username}@example.com`,
+      passwordHash: "not-a-real-hash",
+    })
+    await db.insert(organizationMembers).values({
+      organizationId: orgId,
+      userId: localUserId,
+      role: "viewer",
+    })
+
+    const members = await listMembers(OWNER, orgId)
+    expect(members.find((m) => m.user_id === localUserId)?.username).toBe(
+      username
+    )
+
+    const updated = await updateMemberRole(OWNER, orgId, localUserId, "editor")
+    expect(updated.username).toBe(username)
   })
 })
 
