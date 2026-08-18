@@ -27,7 +27,13 @@ function lanDevOrigins(): string[] {
 }
 
 const nextConfig: NextConfig = {
-  output: "standalone",
+  // "standalone" is only for the self-hosted Docker image (see
+  // .docker/server/*/Dockerfile, which copies .next/standalone). On Vercel
+  // it breaks the platform's own build step: Vercel's onBuildComplete looks
+  // for .next/next-server.js.nft.json, which a Turbopack production build
+  // doesn't emit at that path when "standalone" is set (ENOENT). Vercel
+  // traces and packages the app itself, so it doesn't need this output mode.
+  output: process.env.VERCEL ? undefined : "standalone",
   transpilePackages: ["@workspace/ui"],
   // Without this, Next's own trailing-slash redirect (/mcp/ → /mcp, 308)
   // fires *before* rewrites are evaluated, so the /mcp/:path* rewrite below

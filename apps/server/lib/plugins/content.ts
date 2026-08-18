@@ -18,8 +18,10 @@ import { lookupIcon } from "./registry"
 // this are first-party app code: Next's bundler relocates them into
 // .next/server/**, so import.meta.url-relative resolution wouldn't reliably
 // point back to the repo's plugins/ folder post-build. process.cwd() does,
-// because `output: "standalone"` launches the server with its cwd at the
-// app root (apps/server) — see outputFileTracingRoot in next.config.ts.
+// because the server always runs with its cwd at the app root
+// (apps/server) — either via Vercel's own project root setting, or, for
+// the self-hosted Docker image, because standalone's generated server.js
+// chdir()s there on startup (see next.config.ts).
 const PLUGINS_DIR = path.join(process.cwd(), "../../plugins")
 
 /**
