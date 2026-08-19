@@ -43,7 +43,6 @@ export default function PropertiesPage() {
     null
   )
   const [editName, setEditName] = useState("")
-  const [editType, setEditType] = useState("string")
   const [saving, setSaving] = useState(false)
   const [editError, setEditError] = useState<string | null>(null)
 
@@ -76,7 +75,6 @@ export default function PropertiesPage() {
   function openEdit(pd: PropertyDefinitionOut) {
     setEditTarget(pd)
     setEditName(pd.name)
-    setEditType(pd.type || "string")
     setEditError(null)
     setEditOpen(true)
   }
@@ -105,7 +103,6 @@ export default function PropertiesPage() {
     try {
       await updatePropertyDefinition(editTarget.identifier, {
         name: editName.trim(),
-        type: editType,
       })
       setEditOpen(false)
       reload()
@@ -204,8 +201,6 @@ export default function PropertiesPage() {
         onOpenChange={setEditOpen}
         name={editName}
         onNameChange={setEditName}
-        type={editType}
-        onTypeChange={setEditType}
         error={editError}
         saving={saving}
         onSave={handleEdit}

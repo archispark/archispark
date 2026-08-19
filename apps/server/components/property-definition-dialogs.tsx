@@ -133,8 +133,6 @@ export function EditPropertyDefinitionDialog({
   onOpenChange,
   name,
   onNameChange,
-  type,
-  onTypeChange,
   error,
   saving,
   onSave,
@@ -143,8 +141,6 @@ export function EditPropertyDefinitionDialog({
   onOpenChange: (o: boolean) => void
   name: string
   onNameChange: (v: string) => void
-  type: string
-  onTypeChange: (v: string) => void
   error: string | null
   saving: boolean
   onSave: () => void
@@ -165,10 +161,6 @@ export function EditPropertyDefinitionDialog({
               onChange={(e) => onNameChange(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && onSave()}
             />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <Label>{t("properties.value_type")}</Label>
-            <TypeSelect value={type} onChange={onTypeChange} />
           </div>
         </div>
         {error && (
