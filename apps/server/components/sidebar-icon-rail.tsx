@@ -25,14 +25,12 @@ export function SidebarIconRail({
   pathname,
   onClose,
   collapsed,
-  absentCount,
   relConflictCount,
   t,
 }: {
   pathname: string
   onClose: () => void
   collapsed: boolean
-  absentCount: number
   relConflictCount: number
   t: ReturnType<typeof useT>["t"]
 }) {
@@ -137,7 +135,6 @@ export function SidebarIconRail({
               label={t("sidebar.elements")}
               active={pathname === "/elements"}
               onClick={onClose}
-              badge={absentCount > 0 ? "amber" : undefined}
             />
             <RailLink
               href="/relationships"

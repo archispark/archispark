@@ -7,7 +7,6 @@ import {
   updateElement,
   deleteElement,
   getElementRelationships,
-  listElementsInViews,
 } from "@/lib/archimate/store"
 import { ELEMENT_TYPES } from "@/lib/archimate/schemas"
 import type { ElementUpdateIn } from "@/lib/archimate/schemas"
@@ -143,20 +142,5 @@ export function registerElementTools(
         )
       )
     }
-  )
-
-  mcpServer.registerTool(
-    "list_elements_in_views",
-    {
-      description:
-        "Retourne les identifiants des éléments placés dans au moins une vue. " +
-        "Utile pour distinguer les éléments modélisés (avec représentation visuelle) " +
-        "des éléments orphelins (présents dans le modèle mais sans vue).",
-      inputSchema: {},
-    },
-    async () =>
-      toContent(
-        await listElementsInViews(await activeWorkspaceId(auth, "read"))
-      )
   )
 }

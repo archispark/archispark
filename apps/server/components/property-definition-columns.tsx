@@ -3,17 +3,15 @@ import { type DataTableColumnDef } from "@/components/data-table"
 import { type PropertyDefinitionOut } from "@/lib/api"
 import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
-import { Pencil, Trash2 } from "lucide-react"
+import { Pencil } from "lucide-react"
 import { useT } from "@/lib/i18n"
 
 export function usePropertyDefinitionColumns({
   isAdmin,
   onEdit,
-  onDelete,
 }: {
   isAdmin: boolean
   onEdit: (pd: PropertyDefinitionOut) => void
-  onDelete: (pd: PropertyDefinitionOut) => void
 }): DataTableColumnDef<PropertyDefinitionOut>[] {
   const { t } = useT()
 
@@ -66,24 +64,14 @@ export function usePropertyDefinitionColumns({
               cell: ({ row }: { row: { original: PropertyDefinitionOut } }) => (
                 <div className="flex items-center justify-end gap-1">
                   {!row.original.is_system && (
-                    <>
-                      <Button
-                        variant="ghost"
-                        size="icon-xs"
-                        onClick={() => onEdit(row.original)}
-                        aria-label={t("common.edit")}
-                      >
-                        <Pencil className="size-3.5" />
-                      </Button>
-                      <Button
-                        variant="destructive"
-                        size="icon-xs"
-                        onClick={() => onDelete(row.original)}
-                        aria-label={t("common.delete")}
-                      >
-                        <Trash2 className="size-3.5" />
-                      </Button>
-                    </>
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
+                      onClick={() => onEdit(row.original)}
+                      aria-label={t("common.edit")}
+                    >
+                      <Pencil className="size-3.5" />
+                    </Button>
                   )}
                 </div>
               ),
@@ -91,6 +79,6 @@ export function usePropertyDefinitionColumns({
           ]
         : []),
     ],
-    [isAdmin]
+    [isAdmin, onEdit, t]
   )
 }

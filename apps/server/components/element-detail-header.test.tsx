@@ -21,13 +21,9 @@ function renderHeader(element: ElementOut) {
       <ElementHeader
         element={element}
         isAdmin={true}
-        editingType={false}
-        setEditingType={() => {}}
-        groupedTypes={{}}
         saveField={vi.fn()}
         layer="Motivation"
         layerColor="bg-purple-100"
-        isInViews={true}
         onDelete={vi.fn()}
       />
     </I18nProvider>

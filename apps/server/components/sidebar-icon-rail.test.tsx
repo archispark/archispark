@@ -32,7 +32,6 @@ describe("SidebarIconRail", () => {
         pathname="/"
         onClose={vi.fn()}
         collapsed
-        absentCount={0}
         relConflictCount={0}
         t={(key) => key}
       />
@@ -61,7 +60,6 @@ describe("SidebarIconRail", () => {
         pathname="/"
         onClose={vi.fn()}
         collapsed
-        absentCount={0}
         relConflictCount={0}
         t={(key) => key}
       />
@@ -77,7 +75,6 @@ describe("SidebarIconRail", () => {
         pathname="/"
         onClose={vi.fn()}
         collapsed
-        absentCount={0}
         relConflictCount={0}
         t={(key) => key}
       />

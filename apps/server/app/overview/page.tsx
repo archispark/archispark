@@ -1,12 +1,7 @@
 "use client"
 
 import { useMemo } from "react"
-import {
-  useModel,
-  useElements,
-  useRelationships,
-  useElementsInViews,
-} from "@/lib/queries"
+import { useModel, useElements, useRelationships } from "@/lib/queries"
 import {
   getLayer,
   LAYER_HEX_COLORS as LAYER_COLORS,
@@ -25,7 +20,6 @@ export default function OverviewPage() {
   const { data: elements = [], isLoading: elementsLoading } = useElements()
   const { data: relationships = [], isLoading: relsLoading } =
     useRelationships()
-  const { data: inViews = [] } = useElementsInViews()
 
   const loading = modelLoading || elementsLoading || relsLoading
   const error = modelError
@@ -40,7 +34,6 @@ export default function OverviewPage() {
     () => new Map(elements.map((e) => [e.identifier, e])),
     [elements]
   )
-  const inViewsSet = useMemo(() => new Set(inViews), [inViews])
 
   const conflictingRels = useMemo(
     () =>
@@ -50,21 +43,6 @@ export default function OverviewPage() {
         return !allowedRelationships(src?.type, tgt?.type).includes(r.type)
       }),
     [relationships, byId]
-  )
-
-  const absentElements = useMemo(
-    () => elements.filter((e) => !inViewsSet.has(e.identifier)),
-    [elements, inViewsSet]
-  )
-
-  const absentByLayer = useMemo(
-    () =>
-      absentElements.reduce<Record<string, number>>((acc, el) => {
-        const layer = getLayer(el.type)
-        acc[layer] = (acc[layer] || 0) + 1
-        return acc
-      }, {}),
-    [absentElements]
   )
 
   if (loading) {
@@ -109,32 +87,17 @@ export default function OverviewPage() {
         <StatCard
           label={t("overview.total_elements")}
           value={model?.element_count ?? 0}
-          sub={{
-            label: "absents des vues",
-            value: absentElements.length,
-            total: model?.element_count ?? 0,
-            color: "#d97706",
-          }}
         />
         {Object.entries(layerCounts)
           .sort(([, a], [, b]) => b - a)
-          .map(([layer, count]) => {
-            const absent = absentByLayer[layer] ?? 0
-            return (
-              <StatCard
-                key={layer}
-                label={t(`layer.${layer}` as Parameters<typeof t>[0]) || layer}
-                value={count}
-                color={LAYER_COLORS[layer]}
-                sub={{
-                  label: "absents",
-                  value: absent,
-                  total: count,
-                  color: "#d97706",
-                }}
-              />
-            )
-          })}
+          .map(([layer, count]) => (
+            <StatCard
+              key={layer}
+              label={t(`layer.${layer}` as Parameters<typeof t>[0]) || layer}
+              value={count}
+              color={LAYER_COLORS[layer]}
+            />
+          ))}
         <StatCard
           label={t("overview.relationships")}
           value={model?.relationship_count ?? 0}

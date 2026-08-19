@@ -2,16 +2,10 @@ import { useMemo } from "react"
 import Link from "next/link"
 import { type DataTableColumnDef } from "@/components/data-table"
 import { type ViewOut } from "@/lib/api"
-import { ChevronDown, ChevronRight, Trash2 } from "lucide-react"
+import { ChevronDown, ChevronRight } from "lucide-react"
 import { useT } from "@/lib/i18n"
 
-export function useViewColumns({
-  isAdmin,
-  onDeleteClick,
-}: {
-  isAdmin: boolean
-  onDeleteClick: (view: ViewOut) => void
-}): DataTableColumnDef<ViewOut>[] {
+export function useViewColumns(): DataTableColumnDef<ViewOut>[] {
   const { t } = useT()
 
   return useMemo(
@@ -110,30 +104,7 @@ export function useViewColumns({
           </span>
         ),
       },
-      ...(isAdmin
-        ? [
-            {
-              id: "actions",
-              header: "",
-              enableSorting: false,
-              cell: ({ row }: { row: { original: ViewOut } }) => (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.preventDefault()
-                    e.stopPropagation()
-                    onDeleteClick(row.original)
-                  }}
-                  className="rounded bg-destructive p-1 text-white transition-colors hover:bg-destructive/90"
-                  aria-label={t("common.delete")}
-                >
-                  <Trash2 className="size-3.5" />
-                </button>
-              ),
-            } as DataTableColumnDef<ViewOut>,
-          ]
-        : []),
     ],
-    [isAdmin, t]
+    [t]
   )
 }

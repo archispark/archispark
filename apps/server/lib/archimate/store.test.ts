@@ -169,13 +169,6 @@ describe("store – elements", () => {
       /introuvable/
     )
   })
-
-  it("listElementsInViews returns element uuids referenced by nodes", async () => {
-    const a = await store.createElement(wsId, { name: "A", type: "Goal" })
-    const view = await store.createView(wsId, { name: "V" })
-    await store.createNode(wsId, view.identifier, { element_id: a.identifier })
-    expect(await store.listElementsInViews(wsId)).toEqual([a.identifier])
-  })
 })
 
 // ---------------------------------------------------------------------------

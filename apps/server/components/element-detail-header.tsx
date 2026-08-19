@@ -52,87 +52,23 @@ export function ElementSelect({
 export function ElementHeader({
   element,
   isAdmin,
-  editingType,
-  setEditingType,
-  groupedTypes,
   saveField,
   layer,
   layerColor,
-  isInViews,
   onDelete,
 }: {
   element: ElementOut
   isAdmin: boolean
-  editingType: boolean
-  setEditingType: (v: boolean) => void
-  groupedTypes: Record<string, string[]>
   saveField: (patch: ElementUpdateIn) => Promise<void>
   layer: string
   layerColor: string
-  isInViews: boolean
   onDelete: () => void
 }) {
   const { t } = useT()
   return (
     <div className="shrink-0 space-y-2">
       <div className="flex flex-wrap items-start justify-between gap-2">
-        <div className="min-w-0 flex-1 space-y-1.5">
-          {/* Badges: type (inline-editable) + layer + status */}
-          <div className="flex flex-wrap items-center gap-2">
-            {isAdmin && editingType ? (
-              <Select
-                value={element.type}
-                onValueChange={async (v) => {
-                  if (v) {
-                    await saveField({ type: v })
-                  }
-                  setEditingType(false)
-                }}
-              >
-                <SelectTrigger className="h-6 w-48 text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.entries(groupedTypes).map(([groupLayer, types]) =>
-                    types.map((typ) => (
-                      <SelectItem key={typ} value={typ}>
-                        {typ}
-                        <span className="ml-1.5 text-[10px] text-muted-foreground">
-                          {groupLayer}
-                        </span>
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
-            ) : (
-              <Badge
-                variant="secondary"
-                className={`font-mono text-xs ${isAdmin ? "cursor-pointer hover:ring-1 hover:ring-ring" : ""}`}
-                onDoubleClick={() => isAdmin && setEditingType(true)}
-                title={
-                  isAdmin ? "Double-cliquer pour modifier le type" : undefined
-                }
-              >
-                {element.type}
-              </Badge>
-            )}
-            <span
-              className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${layerColor}`}
-            >
-              {layer}
-            </span>
-            {isInViews ? (
-              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-xs font-medium text-emerald-700">
-                ✓ {t("elements.in_views")}
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-medium text-amber-600">
-                ⚠ {t("elements.not_in_views")}
-              </span>
-            )}
-          </div>
-
+        <div className="min-w-0 flex-1">
           {/* Name */}
           <div className="flex items-center gap-2">
             {element.resolved_image_url ? (
@@ -179,13 +115,17 @@ export function ElementHeader({
         disabled={!isAdmin}
       />
 
-      {/* Not-in-views warning */}
-      {!isInViews && (
-        <div className="flex items-center gap-2 rounded-md border border-amber-300/50 bg-amber-50/50 px-3 py-2 text-sm text-amber-700 dark:border-amber-700/30 dark:bg-amber-900/10 dark:text-amber-400">
-          <span className="shrink-0">⚠</span>
-          {t("elements.not_in_views_hint")}
-        </div>
-      )}
+      {/* Badges: type + layer */}
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge variant="secondary" className="font-mono text-xs">
+          {element.type}
+        </Badge>
+        <span
+          className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${layerColor}`}
+        >
+          {layer}
+        </span>
+      </div>
     </div>
   )
 }

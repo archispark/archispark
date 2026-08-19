@@ -27,7 +27,6 @@ vi.mock("@/lib/archimate/store", () => ({
   updateElement: vi.fn(async () => ({ identifier: "e1" })),
   deleteElement: vi.fn(async () => undefined),
   getElementRelationships: vi.fn(async () => []),
-  listElementsInViews: vi.fn(async () => []),
   createRelationship: vi.fn(async () => ({ identifier: "r1" })),
   updateRelationship: vi.fn(async () => ({ identifier: "r1" })),
   deleteRelationship: vi.fn(async () => undefined),
@@ -121,7 +120,6 @@ const ELEMENT_TOOLS = [
   "update_element",
   "delete_element",
   "get_element_relationships",
-  "list_elements_in_views",
 ]
 const RELATIONSHIP_TOOLS = [
   "create_relationship",
@@ -154,10 +152,10 @@ const ALL_TOOLS = [
 ]
 
 describe("createMcpServer", () => {
-  it("registers all 38 tools", () => {
+  it("registers all 37 tools", () => {
     registeredTools.clear()
     createMcpServer(AUTH)
-    expect(registeredTools.size).toBe(38)
+    expect(registeredTools.size).toBe(37)
     for (const name of ALL_TOOLS) {
       expect(registeredTools.has(name)).toBe(true)
     }

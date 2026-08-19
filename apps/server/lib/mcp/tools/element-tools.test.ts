@@ -9,7 +9,6 @@ vi.mock("@/lib/archimate/store", () => ({
   updateElement: vi.fn(async () => ({ identifier: "e1" })),
   deleteElement: vi.fn(async () => undefined),
   getElementRelationships: vi.fn(async () => []),
-  listElementsInViews: vi.fn(async () => ["e1", "e2"]),
 }))
 
 const { registerElementTools } = await import("./element-tools")
@@ -93,14 +92,5 @@ describe("element tools", () => {
       "e1"
     )
     expect(result.content[0].text).toBe("[]")
-  })
-
-  it("list_elements_in_views returns element ids", async () => {
-    const tools = setup()
-    const result = (await tools.get("list_elements_in_views")!({})) as {
-      content: [{ text: string }]
-    }
-    expect(vi.mocked(store.listElementsInViews)).toHaveBeenCalledWith(1)
-    expect(result.content[0].text).toContain("e1")
   })
 })

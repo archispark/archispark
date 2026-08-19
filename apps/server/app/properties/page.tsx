@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState, useMemo, useCallback, useRef } from "react"
+import { Trash2 } from "lucide-react"
 import {
   fetchPropertyDefinitions,
   createPropertyDefinition,
@@ -9,11 +10,11 @@ import {
   type PropertyDefinitionOut,
 } from "@/lib/api"
 import { Input } from "@workspace/ui/components/input"
-import { DataTable } from "@/components/data-table"
+import { Button } from "@workspace/ui/components/button"
+import { DataTable, type DataTableHandle } from "@/components/data-table"
 import {
   CreatePropertyDefinitionDialog,
   EditPropertyDefinitionDialog,
-  DeletePropertyDefinitionDialog,
 } from "@/components/property-definition-dialogs"
 import { usePropertyDefinitionColumns } from "@/components/property-definition-columns"
 import { useT } from "@/lib/i18n"
@@ -46,12 +47,8 @@ export default function PropertiesPage() {
   const [saving, setSaving] = useState(false)
   const [editError, setEditError] = useState<string | null>(null)
 
-  // Delete dialog
-  const [deleteOpen, setDeleteOpen] = useState(false)
-  const [deleteTarget, setDeleteTarget] =
-    useState<PropertyDefinitionOut | null>(null)
-  const [deleting, setDeleting] = useState(false)
-  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [selectedDefs, setSelectedDefs] = useState<PropertyDefinitionOut[]>([])
+  const tableRef = useRef<DataTableHandle>(null)
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(search), 300)
@@ -82,12 +79,6 @@ export default function PropertiesPage() {
     setEditType(pd.type || "string")
     setEditError(null)
     setEditOpen(true)
-  }
-
-  function openDelete(pd: PropertyDefinitionOut) {
-    setDeleteTarget(pd)
-    setDeleteError(null)
-    setDeleteOpen(true)
   }
 
   async function handleCreate() {
@@ -125,19 +116,9 @@ export default function PropertiesPage() {
     }
   }
 
-  async function handleDelete() {
-    if (!deleteTarget) return
-    setDeleting(true)
-    setDeleteError(null)
-    try {
-      await deletePropertyDefinition(deleteTarget.identifier)
-      setDeleteOpen(false)
-      reload()
-    } catch (err) {
-      setDeleteError((err as Error).message)
-    } finally {
-      setDeleting(false)
-    }
+  async function handleBulkDelete(rows: PropertyDefinitionOut[]) {
+    await Promise.all(rows.map((pd) => deletePropertyDefinition(pd.identifier)))
+    reload()
   }
 
   const filtered = useMemo(() => {
@@ -152,7 +133,6 @@ export default function PropertiesPage() {
   const columns = usePropertyDefinitionColumns({
     isAdmin,
     onEdit: openEdit,
-    onDelete: openDelete,
   })
 
   if (error) {
@@ -176,17 +156,27 @@ export default function PropertiesPage() {
         </div>
 
         {isAdmin && (
-          <CreatePropertyDefinitionDialog
-            open={createOpen}
-            onOpenChange={setCreateOpen}
-            name={newName}
-            onNameChange={setNewName}
-            type={newType}
-            onTypeChange={setNewType}
-            error={createError}
-            creating={creating}
-            onCreate={handleCreate}
-          />
+          <div className="flex items-center gap-2">
+            <CreatePropertyDefinitionDialog
+              open={createOpen}
+              onOpenChange={setCreateOpen}
+              name={newName}
+              onNameChange={setNewName}
+              type={newType}
+              onTypeChange={setNewType}
+              error={createError}
+              creating={creating}
+              onCreate={handleCreate}
+            />
+            <Button
+              variant="destructive"
+              size="sm"
+              disabled={selectedDefs.length === 0}
+              onClick={() => tableRef.current?.requestBulkDelete()}
+            >
+              <Trash2 className="size-4" /> {t("common.delete")}
+            </Button>
+          </div>
         )}
       </div>
 
@@ -197,7 +187,17 @@ export default function PropertiesPage() {
         onChange={(e) => setSearch(e.target.value)}
       />
 
-      <DataTable columns={columns} data={filtered} loading={loading} />
+      <DataTable
+        ref={tableRef}
+        columns={columns}
+        data={filtered}
+        loading={loading}
+        selectable={isAdmin}
+        isRowSelectable={(pd) => !pd.is_system}
+        onBulkDelete={isAdmin ? handleBulkDelete : undefined}
+        onSelectionChange={setSelectedDefs}
+        getRowId={(row) => row.identifier}
+      />
 
       <EditPropertyDefinitionDialog
         open={editOpen}
@@ -209,15 +209,6 @@ export default function PropertiesPage() {
         error={editError}
         saving={saving}
         onSave={handleEdit}
-      />
-
-      <DeletePropertyDefinitionDialog
-        open={deleteOpen}
-        onOpenChange={setDeleteOpen}
-        targetName={deleteTarget?.name || "?"}
-        error={deleteError}
-        deleting={deleting}
-        onConfirm={handleDelete}
       />
     </div>
   )

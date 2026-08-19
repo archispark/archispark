@@ -3,11 +3,7 @@
 import { usePathname } from "next/navigation"
 import { Suspense, useEffect, useState, useMemo } from "react"
 import { allowedRelationships } from "@/lib/archimate-rules"
-import {
-  useElements,
-  useRelationships,
-  useElementsInViews,
-} from "@/lib/queries"
+import { useElements, useRelationships } from "@/lib/queries"
 import { useT } from "@/lib/i18n"
 import { SidebarNavContent } from "@/components/sidebar-nav-content"
 import { SidebarIconRail } from "@/components/sidebar-icon-rail"
@@ -45,7 +41,6 @@ function SidebarInner({
   // bumps the counts) as soon as their queries are invalidated.
   const { data: elements = [] } = useElements()
   const { data: relationships = [] } = useRelationships()
-  const { data: inViews = [] } = useElementsInViews()
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
@@ -55,12 +50,6 @@ function SidebarInner({
   const byId = useMemo(
     () => new Map(elements.map((e) => [e.identifier, e])),
     [elements]
-  )
-  const inViewsSet = useMemo(() => new Set(inViews), [inViews])
-
-  const absentCount = useMemo(
-    () => elements.filter((e) => !inViewsSet.has(e.identifier)).length,
-    [elements, inViewsSet]
   )
 
   const relConflictCount = useMemo(
@@ -96,7 +85,6 @@ function SidebarInner({
           pathname={pathname}
           onClose={onClose}
           collapsed={collapsed}
-          absentCount={absentCount}
           relConflictCount={relConflictCount}
           t={t}
         />

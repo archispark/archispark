@@ -4,7 +4,6 @@ import {
   fetchElement,
   fetchElementRelationships,
   fetchElementViews,
-  fetchElementsInViews,
   fetchElementTypes,
   createElement,
   updateElement,
@@ -117,16 +116,6 @@ describe("element detail helpers", () => {
     expect(views[0]!.identifier).toBe("v1")
     expect(vi.mocked(fetch)).toHaveBeenCalledWith(
       expect.stringContaining("/elements/e1/views"),
-      expect.any(Object)
-    )
-  })
-
-  it("fetchElementsInViews returns id array", async () => {
-    mockFetchOk(["e1", "e2"])
-    const ids = await fetchElementsInViews()
-    expect(ids).toContain("e1")
-    expect(vi.mocked(fetch)).toHaveBeenCalledWith(
-      expect.stringContaining("/elements/in-views"),
       expect.any(Object)
     )
   })

@@ -3,8 +3,7 @@ import Link from "next/link"
 import { type DataTableColumnDef } from "@/components/data-table"
 import { type RelationshipOut, type ElementOut } from "@/lib/api"
 import { Badge } from "@workspace/ui/components/badge"
-import { Button } from "@workspace/ui/components/button"
-import { ChevronDown, ChevronRight, Trash2 } from "lucide-react"
+import { ChevronDown, ChevronRight } from "lucide-react"
 import { useT } from "@/lib/i18n"
 import { allowedRelationships } from "@/lib/archimate-rules"
 import { getLayer, LAYER_BADGE_COLORS } from "@/lib/archimate-helpers"
@@ -26,15 +25,11 @@ function ElementReference({ label, type }: { label: string; type?: string }) {
 }
 
 export function useRelationshipColumns({
-  isAdmin,
   byId,
   byRelId,
-  onDeleteClick,
 }: {
-  isAdmin: boolean
   byId: Map<string, ElementOut>
   byRelId: Map<string, RelationshipOut>
-  onDeleteClick: (rel: RelationshipOut) => void
 }): DataTableColumnDef<RelationshipOut>[] {
   const { t } = useT()
 
@@ -150,30 +145,8 @@ export function useRelationshipColumns({
           return <ElementReference label={label} type={sub} />
         },
       },
-      ...(isAdmin
-        ? [
-            {
-              id: "actions",
-              header: "",
-              enableSorting: false,
-              cell: ({ row }: { row: { original: RelationshipOut } }) => (
-                <div className="flex items-center justify-end gap-1">
-                  <Button
-                    variant="destructive"
-                    size="icon-xs"
-                    className="size-5"
-                    onClick={() => onDeleteClick(row.original)}
-                    aria-label={t("common.delete")}
-                  >
-                    <Trash2 className="size-3.5" />
-                  </Button>
-                </div>
-              ),
-            },
-          ]
-        : []),
     ],
-    [isAdmin, byId, byRelId, onDeleteClick, t]
+    [byId, byRelId, t]
   )
 }
 

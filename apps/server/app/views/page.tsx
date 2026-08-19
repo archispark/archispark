@@ -1,14 +1,16 @@
 "use client"
 
-import { useEffect, useState, useCallback, useMemo } from "react" // eslint-disable-line
+import { useEffect, useState, useCallback, useMemo, useRef } from "react" // eslint-disable-line
+import { Trash2 } from "lucide-react"
 import { fetchViews, createView, deleteView, type ViewOut } from "@/lib/api"
 import { useViewpoints } from "@/lib/queries"
 import { useFormModal } from "@/hooks/use-form-modal"
 import { useViewColumns } from "@/components/view-columns"
-import { CreateViewDialog, DeleteViewDialog } from "@/components/view-dialogs"
+import { CreateViewDialog } from "@/components/view-dialogs"
 import { useKeyboardShortcut } from "@/hooks/use-keyboard-shortcut"
 import { useT } from "@/lib/i18n"
-import { DataTable } from "@/components/data-table"
+import { DataTable, type DataTableHandle } from "@/components/data-table"
+import { Button } from "@workspace/ui/components/button"
 import {
   ViewStatusFilterSelect,
   type ViewStatusFilter,
@@ -29,11 +31,8 @@ export default function ViewsPage() {
   const [doc, setDoc] = useState("")
 
   const [createModal, createActions] = useFormModal<null>()
-  const [pendingDeleteView, setPendingDeleteView] = useState<ViewOut | null>(
-    null
-  )
-  const [deleteError, setDeleteError] = useState<string | null>(null)
-  const [deleteLoading, setDeleteLoading] = useState(false)
+  const [selectedViews, setSelectedViews] = useState<ViewOut[]>([])
+  const tableRef = useRef<DataTableHandle>(null)
 
   const reload = useCallback(() => {
     setLoading(true)
@@ -79,21 +78,6 @@ export default function ViewsPage() {
     reload()
   }
 
-  async function handleDeleteSingle() {
-    if (!pendingDeleteView) return
-    setDeleteLoading(true)
-    setDeleteError(null)
-    try {
-      await deleteView(pendingDeleteView.identifier)
-      setPendingDeleteView(null)
-      reload()
-    } catch (err) {
-      setDeleteError((err as Error).message)
-    } finally {
-      setDeleteLoading(false)
-    }
-  }
-
   const [statusFilter, setStatusFilter] = useState<ViewStatusFilter>("all")
 
   const viewStats = useMemo(() => {
@@ -113,10 +97,7 @@ export default function ViewsPage() {
     return views.filter((v) => v.conflict_count > 0)
   }, [views, statusFilter])
 
-  const viewColumns = useViewColumns({
-    isAdmin,
-    onDeleteClick: setPendingDeleteView,
-  })
+  const viewColumns = useViewColumns()
 
   if (loading && views.length === 0) {
     return (
@@ -148,19 +129,29 @@ export default function ViewsPage() {
           </p>
         </div>
         {isAdmin && (
-          <CreateViewDialog
-            modal={createModal}
-            actions={createActions}
-            onOpenCreate={openCreate}
-            name={name}
-            onNameChange={setName}
-            viewpoint={viewpoint}
-            onViewpointChange={setViewpoint}
-            viewpoints={viewpoints}
-            doc={doc}
-            onDocChange={setDoc}
-            onCreate={handleCreate}
-          />
+          <div className="flex items-center gap-2">
+            <CreateViewDialog
+              modal={createModal}
+              actions={createActions}
+              onOpenCreate={openCreate}
+              name={name}
+              onNameChange={setName}
+              viewpoint={viewpoint}
+              onViewpointChange={setViewpoint}
+              viewpoints={viewpoints}
+              doc={doc}
+              onDocChange={setDoc}
+              onCreate={handleCreate}
+            />
+            <Button
+              variant="destructive"
+              size="sm"
+              disabled={selectedViews.length === 0}
+              onClick={() => tableRef.current?.requestBulkDelete()}
+            >
+              <Trash2 className="size-4" /> {t("common.delete")}
+            </Button>
+          </div>
         )}
       </div>
 
@@ -171,6 +162,7 @@ export default function ViewsPage() {
         </div>
       ) : (
         <DataTable
+          ref={tableRef}
           columns={viewColumns}
           data={filteredViews}
           pageSize={10}
@@ -186,6 +178,7 @@ export default function ViewsPage() {
           initialSorting={[{ id: "status", desc: true }]}
           selectable={isAdmin}
           onBulkDelete={isAdmin ? handleBulkDelete : undefined}
+          onSelectionChange={setSelectedViews}
           getRowId={(row) => row.identifier}
           footerStats={
             <>
@@ -233,19 +226,6 @@ export default function ViewsPage() {
           }}
         />
       )}
-
-      <DeleteViewDialog
-        view={pendingDeleteView}
-        onOpenChange={(o) => {
-          if (!o) {
-            setPendingDeleteView(null)
-            setDeleteError(null)
-          }
-        }}
-        error={deleteError}
-        deleting={deleteLoading}
-        onConfirm={handleDeleteSingle}
-      />
     </div>
   )
 }

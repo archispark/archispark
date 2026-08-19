@@ -1,7 +1,8 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useRef } from "react"
 import { useDebounce } from "use-debounce"
+import { Trash2 } from "lucide-react"
 import { type RelationshipOut, type ElementOut, type Property } from "@/lib/api"
 import {
   useRelationships,
@@ -12,19 +13,17 @@ import {
   useDeleteRelationship,
 } from "@/lib/queries"
 import { useFormModal } from "@/hooks/use-form-modal"
-import { DataTable } from "@/components/data-table"
+import { DataTable, type DataTableHandle } from "@/components/data-table"
 import {
   useRelationshipColumns,
   RelationshipSubRow,
   RelationshipStats,
 } from "@/components/relationship-columns"
 import { CreateRelationshipDialog } from "@/components/relationship-create-dialog"
-import {
-  EditRelationshipDialog,
-  DeleteRelationshipDialog,
-} from "@/components/relationship-dialogs"
+import { EditRelationshipDialog } from "@/components/relationship-dialogs"
 import { type RelationshipFormFields } from "@/components/relationship-form-fields"
 import { RelationshipsFilterBar } from "@/components/relationship-filter-bar"
+import { Button } from "@workspace/ui/components/button"
 import { useKeyboardShortcut } from "@/hooks/use-keyboard-shortcut"
 import { useT } from "@/lib/i18n"
 import { allowedRelationships } from "@/lib/archimate-rules"
@@ -62,7 +61,10 @@ export default function RelationshipsPage() {
 
   const [createModal, createActions] = useFormModal<null>()
   const [editModal, editActions] = useFormModal<RelationshipOut>()
-  const [deleteModal, deleteActions] = useFormModal<RelationshipOut>()
+  const [selectedRelationships, setSelectedRelationships] = useState<
+    RelationshipOut[]
+  >([])
+  const tableRef = useRef<DataTableHandle>(null)
 
   const byId = useMemo(
     () =>
@@ -126,13 +128,6 @@ export default function RelationshipsPage() {
     })
   }
 
-  async function handleDelete() {
-    if (!deleteModal.target) return
-    await deleteActions.run(async () => {
-      await deleteMutation.mutateAsync(deleteModal.target!.identifier)
-    })
-  }
-
   const formFields: RelationshipFormFields = {
     type,
     onTypeChange: setType,
@@ -172,12 +167,7 @@ export default function RelationshipsPage() {
     })
   }, [relationships, byId, statusFilter])
 
-  const columns = useRelationshipColumns({
-    isAdmin,
-    byId,
-    byRelId,
-    onDeleteClick: deleteActions.openWith,
-  })
+  const columns = useRelationshipColumns({ byId, byRelId })
 
   if (error) {
     return (
@@ -199,13 +189,23 @@ export default function RelationshipsPage() {
           </p>
         </div>
         {isAdmin && (
-          <CreateRelationshipDialog
-            modal={createModal}
-            actions={createActions}
-            onOpenCreate={openCreate}
-            fields={formFields}
-            onCreate={handleCreate}
-          />
+          <div className="flex items-center gap-2">
+            <CreateRelationshipDialog
+              modal={createModal}
+              actions={createActions}
+              onOpenCreate={openCreate}
+              fields={formFields}
+              onCreate={handleCreate}
+            />
+            <Button
+              variant="destructive"
+              size="sm"
+              disabled={selectedRelationships.length === 0}
+              onClick={() => tableRef.current?.requestBulkDelete()}
+            >
+              <Trash2 className="size-4" /> {t("common.delete")}
+            </Button>
+          </div>
         )}
       </div>
 
@@ -220,6 +220,7 @@ export default function RelationshipsPage() {
       />
 
       <DataTable
+        ref={tableRef}
         columns={columns}
         data={filteredRelationships}
         loading={loading}
@@ -233,6 +234,7 @@ export default function RelationshipsPage() {
               }
             : undefined
         }
+        onSelectionChange={setSelectedRelationships}
         getRowId={(row) => row.identifier}
         footerStats={
           <RelationshipStats
@@ -254,12 +256,6 @@ export default function RelationshipsPage() {
         actions={editActions}
         fields={formFields}
         onSave={handleEdit}
-      />
-
-      <DeleteRelationshipDialog
-        modal={deleteModal}
-        actions={deleteActions}
-        onConfirm={handleDelete}
       />
     </div>
   )

@@ -44,7 +44,6 @@ export const fetchElementRelationships = (id: string) =>
   get<RelationshipOut[]>(`/elements/${encodeURIComponent(id)}/relationships`)
 export const fetchElementViews = (id: string) =>
   get<ViewOut[]>(`/elements/${encodeURIComponent(id)}/views`)
-export const fetchElementsInViews = () => get<string[]>("/elements/in-views")
 
 export const createElement = (body: ElementCreateIn) =>
   post<ElementOut>("/elements", body)

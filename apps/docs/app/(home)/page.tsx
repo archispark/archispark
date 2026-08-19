@@ -194,7 +194,7 @@ export default function HomePage() {
         <div className="landing-mcp">
           <div className="landing-mcp-content">
             <p>
-              ArchiSpark ships a Streamable HTTP MCP server exposing 38 tools —
+              ArchiSpark ships a Streamable HTTP MCP server exposing 37 tools —
               full API parity. Point Claude at it and describe your systems — it
               creates elements, relationships, views and renders diagrams, all
               through natural language.

@@ -5,7 +5,6 @@ export const queryKeys = {
   element: (id: string) => ["element", id] as const,
   elementRelationships: (id: string) => ["elementRelationships", id] as const,
   elementViews: (id: string) => ["elementViews", id] as const,
-  elementsInViews: () => ["elementsInViews"] as const,
   elementTypes: () => ["elementTypes"] as const,
   relationship: (id: string) => ["relationship", id] as const,
   relationshipViews: (id: string) => ["relationshipViews", id] as const,

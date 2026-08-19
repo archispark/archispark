@@ -1,6 +1,7 @@
+import { useRef } from "react"
 import { describe, it, expect, vi } from "vitest"
 import { render, screen, fireEvent, within } from "@testing-library/react"
-import { DataTable, type DataTableColumnDef } from "./data-table"
+import { DataTable, type DataTableColumnDef, type DataTableHandle } from "./data-table"
 import { I18nProvider } from "@/lib/i18n"
 
 function renderWithI18n(ui: React.ReactElement) {
@@ -228,89 +229,77 @@ describe("DataTable", () => {
     expect(screen.getByTestId("footer-stats")).toBeInTheDocument()
   })
 
-  it("selectable: shows bulk delete toolbar when rows are selected", () => {
-    const onBulkDelete = vi.fn()
+  it("selectable: notifies onSelectionChange when rows are selected", () => {
+    const onSelectionChange = vi.fn()
     const data: Row[] = [
       { name: "Alpha", type: "TypeA" },
       { name: "Beta", type: "TypeB" },
     ]
-    const selectableColumns: DataTableColumnDef<Row>[] = [
-      { accessorKey: "name", header: "Name" },
-      { accessorKey: "type", header: "Type" },
-    ]
     renderWithI18n(
       <DataTable
-        columns={selectableColumns}
+        columns={columns}
         data={data}
         selectable
-        onBulkDelete={onBulkDelete}
+        onSelectionChange={onSelectionChange}
         getRowId={(row) => row.name}
       />
     )
     // Select all rows via the header checkbox
     const checkboxes = screen.getAllByRole("checkbox")
     fireEvent.click(checkboxes[0]!)
-    // At least one "sélectionné" element should appear in the bulk-delete toolbar
-    const matches = screen.queryAllByText(/sélectionné/i)
-    expect(matches.length).toBeGreaterThan(0)
+    expect(onSelectionChange).toHaveBeenLastCalledWith(data)
   })
 
-  it("selectable: bulk delete button opens confirmation dialog and calls onBulkDelete on confirm", () => {
+  it("selectable: requestBulkDelete (via ref) opens the confirmation dialog and calls onBulkDelete on confirm", () => {
     const onBulkDelete = vi.fn()
     const data: Row[] = [{ name: "Alpha", type: "TypeA" }]
-    const selectableColumns: DataTableColumnDef<Row>[] = [
-      { accessorKey: "name", header: "Name" },
-      { accessorKey: "type", header: "Type" },
-    ]
-    const { container } = renderWithI18n(
-      <DataTable
-        columns={selectableColumns}
-        data={data}
-        selectable
-        onBulkDelete={onBulkDelete}
-        getRowId={(row) => row.name}
-      />
-    )
-    // Select row via header select-all checkbox
+
+    function Wrapper() {
+      const tableRef = useRef<DataTableHandle>(null)
+      return (
+        <>
+          <button onClick={() => tableRef.current?.requestBulkDelete()}>
+            trigger-delete
+          </button>
+          <DataTable
+            ref={tableRef}
+            columns={columns}
+            data={data}
+            selectable
+            onBulkDelete={onBulkDelete}
+            getRowId={(row) => row.name}
+          />
+        </>
+      )
+    }
+
+    renderWithI18n(<Wrapper />)
     const checkboxes = screen.getAllByRole("checkbox")
     fireEvent.click(checkboxes[0]!)
-    // Find the trash/delete button in the toolbar (contains the 🗑 icon)
-    const trashBtns = Array.from(container.querySelectorAll("button")).filter(
-      (b) => b.textContent?.includes("🗑")
-    )
-    if (trashBtns[0]) {
-      fireEvent.click(trashBtns[0])
-      // After clicking the trash button, either the dialog opened or items are still selected
-      const selectedMatches = screen.queryAllByText(/sélectionné/i)
-      expect(selectedMatches.length).toBeGreaterThanOrEqual(0) // dialog may have replaced toolbar
-    }
+    fireEvent.click(screen.getByText("trigger-delete"))
+    const confirmBtn = screen
+      .getAllByRole("button")
+      .find((b) => b.textContent === "Supprimer")
+    expect(confirmBtn).toBeTruthy()
+    fireEvent.click(confirmBtn!)
+    expect(onBulkDelete).toHaveBeenCalledWith(data)
   })
 
-  it("selectable: cancel selection button clears selection", () => {
-    const onBulkDelete = vi.fn()
-    const data: Row[] = [{ name: "Alpha", type: "TypeA" }]
-    const { container } = renderWithI18n(
+  it("isRowSelectable: hides the row checkbox for non-selectable rows", () => {
+    const data: Row[] = [
+      { name: "Alpha", type: "TypeA" },
+      { name: "System", type: "TypeB" },
+    ]
+    renderWithI18n(
       <DataTable
         columns={columns}
         data={data}
         selectable
-        onBulkDelete={onBulkDelete}
+        isRowSelectable={(row) => row.name !== "System"}
         getRowId={(row) => row.name}
       />
     )
-    const checkboxes = screen.getAllByRole("checkbox")
-    fireEvent.click(checkboxes[0]!)
-    // Selection toolbar should appear — find the "Annuler" button inside it
-    const allAnnulerBtns = Array.from(
-      container.querySelectorAll("button")
-    ).filter((b) => b.textContent?.trim() === "Annuler")
-    if (allAnnulerBtns[0]) {
-      fireEvent.click(allAnnulerBtns[0])
-      // After cancelling, selection toolbar should be gone
-      const stillSelected = screen
-        .queryAllByText(/sélectionné/i)
-        .filter((el) => !el.closest("[role=dialog]"))
-      expect(stillSelected.length).toBe(0)
-    }
+    // Header select-all + one selectable row checkbox — the "System" row has none
+    expect(screen.getAllByRole("checkbox")).toHaveLength(2)
   })
 })

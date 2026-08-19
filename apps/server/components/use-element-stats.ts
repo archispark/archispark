@@ -2,20 +2,18 @@ import { useMemo } from "react"
 import { type ElementOut, type RelationshipOut } from "@/lib/api"
 import { isRelationshipAllowed } from "@/lib/archimate-rules"
 
-export type ElementStatusFilter = "all" | "ok" | "conflict" | "absent"
+export type ElementStatusFilter = "all" | "ok" | "conflict"
 
 /** Per-element relationship ok/conflict counts, filtering, and footer stats — split out of app/elements/page.tsx to stay under max-lines. */
 export function useElementStats({
   elements,
   allRelationships,
   byId,
-  inViewsSet,
   statusFilter,
 }: {
   elements: ElementOut[]
   allRelationships: RelationshipOut[]
   byId: Map<string, ElementOut>
-  inViewsSet: Set<string>
   statusFilter: ElementStatusFilter
 }) {
   const relStats = useMemo(() => {
@@ -39,28 +37,23 @@ export function useElementStats({
     if (statusFilter !== "all") {
       result = result.filter((el) => {
         const stats = relStats.get(el.identifier)
-        const inView = inViewsSet.has(el.identifier)
         if (statusFilter === "conflict") return (stats?.conflict ?? 0) > 0
-        if (statusFilter === "absent") return !inView
-        return (stats?.conflict ?? 0) === 0 && inView
+        return (stats?.conflict ?? 0) === 0
       })
     }
     return result
-  }, [elements, statusFilter, relStats, inViewsSet])
+  }, [elements, statusFilter, relStats])
 
   const elementStats = useMemo(() => {
     let ok = 0,
-      conflict = 0,
-      absent = 0
+      conflict = 0
     for (const el of filteredElements) {
       const stats = relStats.get(el.identifier)
-      const inView = inViewsSet.has(el.identifier)
       if ((stats?.conflict ?? 0) > 0) conflict++
-      else if (!inView) absent++
       else ok++
     }
-    return { ok, conflict, absent }
-  }, [filteredElements, relStats, inViewsSet])
+    return { ok, conflict }
+  }, [filteredElements, relStats])
 
   return { relStats, filteredElements, elementStats }
 }

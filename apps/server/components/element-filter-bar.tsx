@@ -12,7 +12,7 @@ import {
   SelectItem,
 } from "@workspace/ui/components/select"
 
-export type ElementStatusFilter = "all" | "ok" | "conflict" | "absent"
+export type ElementStatusFilter = "all" | "ok" | "conflict"
 
 export const ElementsFilterBar = forwardRef<
   HTMLInputElement,
@@ -48,7 +48,6 @@ export const ElementsFilterBar = forwardRef<
     { value: "all", label: t("elements.all_statuses") },
     { value: "ok", label: t("common.ok") },
     { value: "conflict", label: t("common.conflicts") },
-    { value: "absent", label: "Absents" },
   ]
   const statusLabel = statusOptions.find(
     (option) => option.value === statusFilter

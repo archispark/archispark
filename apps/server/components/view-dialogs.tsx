@@ -2,7 +2,6 @@
 
 import { Plus } from "lucide-react"
 import { useT } from "@/lib/i18n"
-import { type ViewOut } from "@/lib/api"
 import type { FormModalState } from "@/hooks/use-form-modal"
 import { Button } from "@workspace/ui/components/button"
 import { Input } from "@workspace/ui/components/input"
@@ -123,49 +122,6 @@ export function CreateViewDialog({
           </DialogClose>
           <Button onClick={onCreate} disabled={modal.isPending || !name.trim()}>
             {modal.isPending ? t("common.creating") : t("common.create")}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-export function DeleteViewDialog({
-  view,
-  onOpenChange,
-  error,
-  deleting,
-  onConfirm,
-}: {
-  view: ViewOut | null
-  onOpenChange: (o: boolean) => void
-  error: string | null
-  deleting: boolean
-  onConfirm: () => void
-}) {
-  const { t } = useT()
-  return (
-    <Dialog open={!!view} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-sm">
-        <DialogHeader>
-          <DialogTitle>
-            {t("common.delete")} « {view?.name || t("views.unnamed")} »
-          </DialogTitle>
-          <DialogDescription>{t("common.irreversible")}</DialogDescription>
-        </DialogHeader>
-        {error && (
-          <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-            {error}
-          </div>
-        )}
-        <DialogFooter>
-          <DialogClose
-            render={<Button variant="outline" disabled={deleting} />}
-          >
-            {t("common.cancel")}
-          </DialogClose>
-          <Button variant="destructive" onClick={onConfirm} disabled={deleting}>
-            {deleting ? t("common.deleting") : t("common.delete")}
           </Button>
         </DialogFooter>
       </DialogContent>

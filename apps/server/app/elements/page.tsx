@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useRef } from "react"
 import { useDebounce } from "use-debounce"
+import { Trash2 } from "lucide-react"
 import { type ElementOut } from "@/lib/api"
 import { getLayer } from "@/lib/archimate-helpers"
 import {
@@ -9,20 +10,16 @@ import {
   useElementTypes,
   useCreateElement,
   useDeleteElement,
-  useElementsInViews,
   useRelationships,
 } from "@/lib/queries"
-import { DataTable } from "@/components/data-table"
+import { DataTable, type DataTableHandle } from "@/components/data-table"
 import { useElementColumns, ElementSubRow } from "@/components/element-columns"
 import { CreateElementDialog } from "@/components/element-create-dialog"
-import {
-  DeleteElementDialog,
-  ElementStats,
-} from "@/components/element-delete-dialog"
+import { ElementStats } from "@/components/element-delete-dialog"
 import { ElementsFilterBar } from "@/components/element-filter-bar"
 import { useElementStats } from "@/components/use-element-stats"
 import type { Property } from "@/lib/api"
-import { useFormModal } from "@/hooks/use-form-modal"
+import { Button } from "@workspace/ui/components/button"
 import { useKeyboardShortcut } from "@/hooks/use-keyboard-shortcut"
 import { useT } from "@/lib/i18n"
 
@@ -35,9 +32,9 @@ export default function ElementsPage() {
   const [debouncedSearch] = useDebounce(search, 300)
   const [layerFilter, setLayerFilter] = useState<string | null>(null)
   const [typeFilter, setTypeFilter] = useState<string | null>(null)
-  const [statusFilter, setStatusFilter] = useState<
-    "all" | "ok" | "conflict" | "absent"
-  >("all")
+  const [statusFilter, setStatusFilter] = useState<"all" | "ok" | "conflict">(
+    "all"
+  )
 
   const { data: types = [] } = useElementTypes()
   const {
@@ -47,8 +44,6 @@ export default function ElementsPage() {
   } = useElements(typeFilter, debouncedSearch || null)
   const { data: allElements = [] } = useElements()
   const { data: allRelationships = [] } = useRelationships()
-  const { data: inViews = [] } = useElementsInViews()
-  const inViewsSet = useMemo(() => new Set(inViews), [inViews])
 
   const byId = useMemo(
     () => new Map(allElements.map((e) => [e.identifier, e])),
@@ -66,24 +61,17 @@ export default function ElementsPage() {
     elements: layerFilteredElements,
     allRelationships,
     byId,
-    inViewsSet,
     statusFilter,
   })
 
   const deleteMutation = useDeleteElement()
-  const [deleteModal, deleteActions] = useFormModal<ElementOut>()
+  const [selectedElements, setSelectedElements] = useState<ElementOut[]>([])
+  const tableRef = useRef<DataTableHandle>(null)
 
   async function handleBulkDelete(rows: ElementOut[]) {
     await Promise.all(
       rows.map((el) => deleteMutation.mutateAsync(el.identifier))
     )
-  }
-
-  async function handleDeleteSingle() {
-    if (!deleteModal.target) return
-    await deleteActions.run(async () => {
-      await deleteMutation.mutateAsync(deleteModal.target!.identifier)
-    })
   }
 
   // Create dialog
@@ -156,12 +144,7 @@ export default function ElementsPage() {
     )
   }
 
-  const columns = useElementColumns({
-    isAdmin,
-    inViewsSet,
-    relStats,
-    onDeleteClick: deleteActions.openWith,
-  })
+  const columns = useElementColumns({ relStats })
 
   if (error) {
     return (
@@ -183,26 +166,36 @@ export default function ElementsPage() {
           </p>
         </div>
         {isAdmin && (
-          <CreateElementDialog
-            open={createOpen}
-            onOpenChange={setCreateOpen}
-            name={newName}
-            onNameChange={setNewName}
-            type={newType}
-            onTypeChange={setNewType}
-            doc={newDoc}
-            onDocChange={setNewDoc}
-            props={newProps}
-            onPropsChange={setNewProps}
-            grouped={grouped}
-            error={
-              createMutation.error
-                ? (createMutation.error as Error).message
-                : null
-            }
-            creating={createMutation.isPending}
-            onCreate={handleCreate}
-          />
+          <div className="flex items-center gap-2">
+            <CreateElementDialog
+              open={createOpen}
+              onOpenChange={setCreateOpen}
+              name={newName}
+              onNameChange={setNewName}
+              type={newType}
+              onTypeChange={setNewType}
+              doc={newDoc}
+              onDocChange={setNewDoc}
+              props={newProps}
+              onPropsChange={setNewProps}
+              grouped={grouped}
+              error={
+                createMutation.error
+                  ? (createMutation.error as Error).message
+                  : null
+              }
+              creating={createMutation.isPending}
+              onCreate={handleCreate}
+            />
+            <Button
+              variant="destructive"
+              size="sm"
+              disabled={selectedElements.length === 0}
+              onClick={() => tableRef.current?.requestBulkDelete()}
+            >
+              <Trash2 className="size-4" /> {t("common.delete")}
+            </Button>
+          </div>
         )}
       </div>
 
@@ -221,35 +214,29 @@ export default function ElementsPage() {
       />
 
       <DataTable
+        ref={tableRef}
         columns={columns}
         data={filteredElements}
         loading={loading}
         initialSorting={[{ id: "status", desc: true }]}
         selectable={isAdmin}
         onBulkDelete={isAdmin ? handleBulkDelete : undefined}
+        onSelectionChange={setSelectedElements}
         getRowId={(row) => row.identifier}
         footerStats={
           <ElementStats
             ok={elementStats.ok}
             conflict={elementStats.conflict}
-            absent={elementStats.absent}
             t={t}
           />
         }
         renderSubRow={(row) => (
           <ElementSubRow
             element={row.original as ElementOut}
-            inViewsSet={inViewsSet}
             allRelationships={allRelationships}
             byId={byId}
           />
         )}
-      />
-
-      <DeleteElementDialog
-        modal={deleteModal}
-        actions={deleteActions}
-        onConfirm={handleDeleteSingle}
       />
     </div>
   )

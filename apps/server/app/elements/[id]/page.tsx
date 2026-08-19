@@ -6,10 +6,8 @@ import {
   useElement,
   useElementRelationships,
   useElements,
-  useElementTypes,
   useUpdateElement,
   useDeleteElement,
-  useElementsInViews,
   useElementViews,
   useRelationshipTypes,
   usePropertyDefinitions,
@@ -50,11 +48,8 @@ export default function ElementDetailPage() {
     useElementRelationships(id)
   const { data: allElements = [] } = useElements()
   const { data: allRelationships = [] } = useRelationships()
-  const { data: elementTypes = [] } = useElementTypes()
   const { data: relTypes = [] } = useRelationshipTypes()
   const { data: propDefs = [] } = usePropertyDefinitions()
-  const { data: inViews = [] } = useElementsInViews()
-  const isInViews = useMemo(() => inViews.includes(id), [inViews, id])
   const { data: elementViews = [] } = useElementViews(id)
 
   const updateMutation = useUpdateElement()
@@ -80,18 +75,6 @@ export default function ElementDetailPage() {
     },
     [id, updateMutation]
   )
-
-  // ── Type inline editing ───────────────────────────────────────────────────
-  const [editingType, setEditingType] = useState(false)
-
-  const groupedTypes = useMemo(() => {
-    const groups: Record<string, string[]> = {}
-    for (const typ of elementTypes) {
-      const layer = getLayer(typ)
-      ;(groups[layer] ??= []).push(typ)
-    }
-    return groups
-  }, [elementTypes])
 
   const properties: Property[] = element?.properties ?? []
   const propertiesForm = useElementProperties({ id, properties, propDefs })
@@ -144,13 +127,9 @@ export default function ElementDetailPage() {
       <ElementHeader
         element={element}
         isAdmin={isAdmin}
-        editingType={editingType}
-        setEditingType={setEditingType}
-        groupedTypes={groupedTypes}
         saveField={saveField}
         layer={layer}
         layerColor={layerColor}
-        isInViews={isInViews}
         onDelete={() => deleteActions.openWith(element)}
       />
 

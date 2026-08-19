@@ -60,12 +60,10 @@ export function DeleteElementDialog({
 export function ElementStats({
   ok,
   conflict,
-  absent,
   t,
 }: {
   ok: number
   conflict: number
-  absent: number
   t: ReturnType<typeof useT>["t"]
 }) {
   return (
@@ -79,15 +77,6 @@ export function ElementStats({
           ·{" "}
           <span className="text-destructive">
             {conflict} {t("common.conflicts").toLowerCase()}
-          </span>
-        </>
-      )}
-      {absent > 0 && (
-        <>
-          {" "}
-          ·{" "}
-          <span className="text-amber-600">
-            {absent} {t("common.absent")}
           </span>
         </>
       )}

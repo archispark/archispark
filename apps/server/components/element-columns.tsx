@@ -5,21 +5,15 @@ import { type ElementOut, type RelationshipOut } from "@/lib/api"
 import { getLayer, LAYER_BADGE_COLORS } from "@/lib/archimate-helpers"
 import { allowedRelationships } from "@/lib/archimate-rules"
 import { Badge } from "@workspace/ui/components/badge"
-import { ChevronDown, ChevronRight, Trash2 } from "lucide-react"
+import { ChevronDown, ChevronRight } from "lucide-react"
 import { useT } from "@/lib/i18n"
 
 const LAYER_COLORS = LAYER_BADGE_COLORS
 
 export function useElementColumns({
-  isAdmin,
-  inViewsSet,
   relStats,
-  onDeleteClick,
 }: {
-  isAdmin: boolean
-  inViewsSet: Set<string>
   relStats: Map<string, { ok: number; conflict: number }>
-  onDeleteClick: (el: ElementOut) => void
 }): DataTableColumnDef<ElementOut>[] {
   const { t } = useT()
 
@@ -50,15 +44,8 @@ export function useElementColumns({
         id: "status",
         header: "Statut",
         enableSorting: true,
-        accessorFn: (row) => {
-          const stats = relStats.get(row.identifier)
-          return (
-            (stats?.conflict ?? 0) * 1000 +
-            (inViewsSet.has(row.identifier) ? 0 : 100)
-          )
-        },
+        accessorFn: (row) => relStats.get(row.identifier)?.conflict ?? 0,
         cell: ({ row }) => {
-          const inView = inViewsSet.has(row.original.identifier)
           const stats = relStats.get(row.original.identifier) ?? {
             ok: 0,
             conflict: 0,
@@ -67,26 +54,16 @@ export function useElementColumns({
             return (
               <span
                 className="inline-flex size-5 items-center justify-center rounded-full bg-destructive/15 text-[11px] text-destructive"
-                title={t("elements.not_in_views")}
+                title={t("common.conflicts")}
               >
                 ✕
-              </span>
-            )
-          }
-          if (!inView) {
-            return (
-              <span
-                className="inline-flex size-5 items-center justify-center rounded-full bg-amber-500/15 text-[11px] text-amber-600"
-                title={t("elements.not_in_views")}
-              >
-                ⚠
               </span>
             )
           }
           return (
             <span
               className="inline-flex size-5 items-center justify-center rounded-full bg-emerald-500/15 text-[11px] text-emerald-700"
-              title={t("elements.in_views")}
+              title={t("common.ok")}
             >
               ✓
             </span>
@@ -129,46 +106,20 @@ export function useElementColumns({
           )
         },
       },
-      ...(isAdmin
-        ? [
-            {
-              id: "actions",
-              header: "",
-              enableSorting: false,
-              cell: ({ row }: { row: { original: ElementOut } }) => (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.preventDefault()
-                    e.stopPropagation()
-                    onDeleteClick(row.original)
-                  }}
-                  className="rounded bg-destructive p-1 text-white transition-colors hover:bg-destructive/90"
-                  aria-label={t("common.delete")}
-                >
-                  <Trash2 className="size-3.5" />
-                </button>
-              ),
-            } as DataTableColumnDef<ElementOut>,
-          ]
-        : []),
     ],
-    [inViewsSet, relStats, isAdmin, onDeleteClick, t]
+    [relStats, t]
   )
 }
 
 export function ElementSubRow({
   element,
-  inViewsSet,
   allRelationships,
   byId,
 }: {
   element: ElementOut
-  inViewsSet: Set<string>
   allRelationships: RelationshipOut[]
   byId: Map<string, ElementOut>
 }) {
-  const inView = inViewsSet.has(element.identifier)
   const rels = allRelationships.filter(
     (r) => r.source === element.identifier || r.target === element.identifier
   )
@@ -180,23 +131,6 @@ export function ElementSubRow({
   const okCount = rels.length - conflictCount
   return (
     <div className="flex items-center gap-3 py-0.5 text-[12px]">
-      <span className="font-medium text-muted-foreground">Vues :</span>
-      {inView ? (
-        <span className="flex items-center gap-1">
-          <span className="inline-flex size-4 items-center justify-center rounded-full bg-emerald-500/15 text-[10px] text-emerald-700">
-            ✓
-          </span>
-          <span className="font-medium text-emerald-700">présent</span>
-        </span>
-      ) : (
-        <span className="flex items-center gap-1">
-          <span className="inline-flex size-4 items-center justify-center rounded-full bg-amber-500/15 text-[10px] text-amber-600">
-            ⚠
-          </span>
-          <span className="font-medium text-amber-600">absent</span>
-        </span>
-      )}
-      <span className="text-muted-foreground">—</span>
       <span className="font-medium text-muted-foreground">Relations :</span>
       <span className="flex items-center gap-1">
         <span className="inline-flex size-4 items-center justify-center rounded-full bg-emerald-500/15 text-[10px] text-emerald-700">

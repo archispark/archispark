@@ -6,7 +6,6 @@ import {
   fetchElementTypes,
   fetchElementRelationships,
   fetchElementViews,
-  fetchElementsInViews,
   createElement,
   updateElement,
   deleteElement,
@@ -43,13 +42,6 @@ export function useElementViews(id: string) {
     queryKey: queryKeys.elementViews(id),
     queryFn: () => fetchElementViews(id),
     enabled: !!id,
-  })
-}
-
-export function useElementsInViews() {
-  return useQuery({
-    queryKey: queryKeys.elementsInViews(),
-    queryFn: fetchElementsInViews,
   })
 }
 

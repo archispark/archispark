@@ -23,7 +23,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
   DialogFooter,
   DialogClose,
 } from "@workspace/ui/components/dialog"
@@ -132,49 +131,6 @@ export function EditRelationshipDialog({
             disabled={modal.isPending || !type || !source || !target}
           >
             {modal.isPending ? t("common.saving") : t("common.save")}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-export function DeleteRelationshipDialog({
-  modal,
-  actions,
-  onConfirm,
-}: {
-  modal: FormModalState<RelationshipOut>
-  actions: { close: () => void }
-  onConfirm: () => void
-}) {
-  const { t } = useT()
-  return (
-    <Dialog open={modal.open} onOpenChange={(o) => !o && actions.close()}>
-      <DialogContent className="sm:max-w-sm">
-        <DialogHeader>
-          <DialogTitle>{t("relationships.delete_title")}</DialogTitle>
-          <DialogDescription>
-            {t("relationships.delete_desc", {
-              type: modal.target?.type ?? "",
-            })}
-          </DialogDescription>
-        </DialogHeader>
-        {modal.error && (
-          <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-            {modal.error}
-          </div>
-        )}
-        <DialogFooter>
-          <DialogClose render={<Button variant="outline" />}>
-            {t("common.cancel")}
-          </DialogClose>
-          <Button
-            variant="destructive"
-            onClick={onConfirm}
-            disabled={modal.isPending}
-          >
-            {modal.isPending ? t("common.deleting") : t("common.delete")}
           </Button>
         </DialogFooter>
       </DialogContent>

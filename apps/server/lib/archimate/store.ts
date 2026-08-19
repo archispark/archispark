@@ -405,17 +405,6 @@ export async function getElementRelationships(
   )
 }
 
-export async function listElementsInViews(wsId: number): Promise<string[]> {
-  const rows = await db
-    .select({ elementUuid: nodes.elementUuid })
-    .from(nodes)
-    .innerJoin(views, eq(nodes.viewId, views.id))
-    .where(eq(views.workspaceId, wsId))
-  return [
-    ...new Set(rows.map((r) => r.elementUuid).filter((u): u is string => !!u)),
-  ]
-}
-
 export async function createElement(
   wsId: number,
   input: ElementCreateIn
