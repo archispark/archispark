@@ -18,7 +18,7 @@
     "@workspace/image-library": "workspace:*",
     "@xyflow/react": "^12.11.0",
     "cnfast": "^0.1.0",
-    "fumadocs-core": "16.14.2",
+    "fumadocs-core": "16.15.0",
     "fumadocs-mdx": "15.2.2",
     "fumadocs-ui": "npm:@fumadocs/base-ui@16.14.2",
     "lucide-react": "^1.28.0",
