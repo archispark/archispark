@@ -36,7 +36,7 @@
     "@workspace/ui": "workspace:*",
     "@xyflow/react": "^12.11.3",
     "archiver": "^8.0.0",
-    "colord": "^2.9.3",
+    "colord": "^2.10.0",
     "drizzle-orm": "^0.45.2",
     "fast-xml-parser": "^5.10.1",
     "html-to-image": "^1.11.13",
